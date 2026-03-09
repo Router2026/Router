@@ -1,0 +1,377 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { base44 } from '../api';
+
+const REGIONS = [
+  { id: 'golan', name: 'גולן', icon: '⛰️' },
+  { id: 'galil_u', name: 'גליל עליון', icon: '⛰️' },
+  { id: 'galil_t', name: 'גליל תחתון', icon: '💧' },
+  { id: 'carmel', name: 'כרמל', icon: '🌲' },
+  { id: 'mercaz', name: 'מרכז', icon: '📍' },
+  { id: 'jeru', name: 'ירושלים', icon: '🕐' },
+  { id: 'darom', name: 'דרום', icon: '⛰️' },
+  { id: 'eilat', name: 'אילת', icon: '💧' },
+];
+
+const GROUP_TYPES = [
+  { id: 'solo', name: 'יחיד', emoji: '🚶' },
+  { id: 'couple', name: 'זוג', emoji: '👫' },
+  { id: 'family', name: 'משפחה', emoji: '👨‍👩‍👧‍👦' },
+  { id: 'friends', name: 'חברים', emoji: '👥' },
+];
+
+const STYLES = [
+  { id: 'history', name: 'היסטוריה ותרבות', icon: '🕐' },
+  { id: 'water', name: 'מים ומעיינות', icon: '💧' },
+  { id: 'photo', name: 'צילום', icon: '📷' },
+  { id: 'nature', name: 'נופים ומצפים', icon: '⛰️' },
+];
+
+const DURATIONS = ['2-3', '4-6', '7-8'];
+const STOP_COUNTS = ['3', '5', '7'];
+
+const STEPS = ['אזור', 'הרכב', 'סגנון', 'פרטים'];
+
+export default function TripPlanner() {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(0);
+  const [region, setRegion] = useState('');
+  const [groupType, setGroupType] = useState('');
+  const [styles, setStyles] = useState<string[]>([]);
+  const [duration, setDuration] = useState('4-6');
+  const [stops, setStops] = useState('5');
+  const [date, setDate] = useState('');
+  const [includeFood, setIncludeFood] = useState(false);
+  const [includeCoffee, setIncludeCoffee] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const toggleStyle = (id: string) => {
+    setStyles(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+  };
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const tripData = await base44.integrations.Core.InvokeLLM({
+        body: JSON.stringify({
+          region: REGIONS.find(r => r.id === region)?.name || region,
+          group_type: GROUP_TYPES.find(g => g.id === groupType)?.name || groupType,
+          style: styles.join(', '),
+          duration_hours: parseInt(duration.split('-')[1] || duration),
+          stops_count: parseInt(stops),
+          include_food: includeFood,
+          include_coffee: includeCoffee,
+          date,
+        })
+      });
+      const saved = await base44.entities.Trip.create(tripData);
+      navigate(`/TripDetail?id=${saved.id}`);
+    } catch (e) {
+      navigate('/TripDetail?id=t1');
+    }
+    setLoading(false);
+  };
+
+  const canNext = [
+    !!region,
+    !!groupType,
+    styles.length > 0,
+    true,
+  ][step];
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', width: '100%' }}>
+
+      {/* ── Header (Full Width) ── */}
+      <div style={{
+        background: 'linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)',
+        width: '100%',
+      }}>
+        {/* Header Content (Centered) */}
+        <div style={{
+          maxWidth: 600, margin: '0 auto', position: 'relative',
+          paddingTop: 48, paddingBottom: 64, paddingLeft: 20, paddingRight: 20, textAlign: 'center'
+        }}>
+          {/* Back button */}
+          <button onClick={() => navigate(-1)} style={{
+            position: 'absolute', top: 16, right: 16,
+            background: 'rgba(255,255,255,0.2)', border: 'none',
+            borderRadius: 12, padding: '8px 12px', cursor: 'pointer', color: '#fff',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'rgba(255,255,255,0.2)', borderRadius: 20,
+            padding: '5px 14px', marginBottom: 12, fontSize: 12, fontWeight: 600, color: '#fff',
+          }}>
+            ✨ מתכנן מסלול חכם
+          </div>
+          <h1 style={{ fontSize: 26, fontWeight: 900, color: '#fff', marginBottom: 6 }}>בוא ניצור לך מסלול</h1>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>
+            ענה על כמה שאלות ונבנה לך יום מושלם
+          </p>
+        </div>
+      </div>
+
+      {/* ── Main Content Container (Centered) ── */}
+      <div style={{ maxWidth: 600, margin: '0 auto', width: '100%', padding: '0 16px', position: 'relative', zIndex: 10, marginTop: -32, paddingBottom: 60 }}>
+
+        {/* Stepper */}
+        <div style={{
+          background: '#fff', borderRadius: 20,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.08)', padding: '20px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 24,
+        }}>
+          {STEPS.map((label, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <React.Fragment key={label}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: done ? '#0d9e6e' : active ? '#0d9e6e' : '#f1f5f9',
+                    color: done || active ? '#fff' : '#94a3b8',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 800, border: done ? '2px solid #0d9e6e' : active ? '2px solid #0d9e6e' : '2px solid #e2e8f0',
+                  }}>
+                    {done ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    ) : (i + 1)}
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: active ? '#0d9e6e' : '#94a3b8' }}>{label}</span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div style={{ flex: 1, height: 3, background: i < step ? '#0d9e6e' : '#e2e8f0', marginBottom: 16, borderRadius: 3, margin: '0 4px' }} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Step Content */}
+        <div style={{
+          background: '#fff', borderRadius: 24,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+          padding: '32px 20px',
+          marginBottom: 24,
+        }}>
+          {/* STEP 0: Region */}
+          {step === 0 && (
+            <>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', marginBottom: 4, textAlign: 'center' }}>לאן נוסעים?</h2>
+              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>בחר את האזור לטיול</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 16 }}>
+                {REGIONS.map(r => (
+                  <button key={r.id} onClick={() => setRegion(r.id)} style={{
+                    border: `2px solid ${region === r.id ? '#0d9e6e' : '#f1f5f9'}`,
+                    borderRadius: 16, padding: '20px 12px', background: region === r.id ? '#f0fdf8' : '#fff',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 12, transition: 'all 0.2s ease',
+                    boxShadow: region === r.id ? '0 4px 12px rgba(13, 158, 110, 0.15)' : 'none'
+                  }}>
+                    <span style={{ fontSize: 32 }}>{r.icon}</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: region === r.id ? '#0d9e6e' : '#334155' }}>{r.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* STEP 1: Group type */}
+          {step === 1 && (
+            <>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', marginBottom: 4, textAlign: 'center' }}>עם מי הטיול?</h2>
+              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>זה יעזור לנו להתאים את המסלול</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 16 }}>
+                {GROUP_TYPES.map(g => (
+                  <button key={g.id} onClick={() => setGroupType(g.id)} style={{
+                    border: `2px solid ${groupType === g.id ? '#0d9e6e' : '#f1f5f9'}`,
+                    borderRadius: 16, padding: '28px 12px', background: groupType === g.id ? '#f0fdf8' : '#fff',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 12, transition: 'all 0.2s ease',
+                    boxShadow: groupType === g.id ? '0 4px 12px rgba(13, 158, 110, 0.15)' : 'none'
+                  }}>
+                    <span style={{ fontSize: 40 }}>{g.emoji}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: groupType === g.id ? '#0d9e6e' : '#334155' }}>{g.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* STEP 2: Styles */}
+          {step === 2 && (
+            <>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', marginBottom: 4, textAlign: 'center' }}>מה מעניין אותך?</h2>
+              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>אפשר לבחור כמה אפשרויות</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 16 }}>
+                {STYLES.map(st => {
+                  const active = styles.includes(st.id);
+                  return (
+                    <button key={st.id} onClick={() => toggleStyle(st.id)} style={{
+                      border: `2px solid ${active ? '#0d9e6e' : '#f1f5f9'}`,
+                      borderRadius: 16, padding: '24px 12px', background: active ? '#f0fdf8' : '#fff',
+                      cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', gap: 12, transition: 'all 0.2s ease',
+                      boxShadow: active ? '0 4px 12px rgba(13, 158, 110, 0.15)' : 'none'
+                    }}>
+                      <span style={{ fontSize: 32 }}>{st.icon}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: active ? '#0d9e6e' : '#334155', textAlign: 'center' }}>{st.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* STEP 3: Details */}
+          {step === 3 && (
+            <div style={{ maxWidth: 400, margin: '0 auto' }}>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', marginBottom: 4, textAlign: 'center' }}>פרטים אחרונים</h2>
+              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>כמעט סיימנו!</p>
+
+              <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 8, textAlign: 'right' }}>
+                תאריך הטיול (אופציונלי)
+              </label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{
+                width: '100%', padding: '14px 16px', border: '2px solid #e2e8f0', boxSizing: 'border-box',
+                borderRadius: 14, fontSize: 15, marginBottom: 24, fontFamily: 'Heebo, sans-serif',
+                textAlign: 'right', outline: 'none', background: '#f8fafc', color: '#334155'
+              }} />
+
+              <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
+                משך הטיול
+              </label>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 24, justifyContent: 'flex-end', flexDirection: 'row-reverse' }}>
+                {DURATIONS.map(d => (
+                  <button key={d} onClick={() => setDuration(d)} style={{
+                    flex: 1, padding: '12px 8px',
+                    border: `2px solid ${duration === d ? '#0d9e6e' : '#e2e8f0'}`,
+                    borderRadius: 12, background: duration === d ? '#f0fdf8' : '#fff',
+                    color: duration === d ? '#0d9e6e' : '#64748b',
+                    fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    שעות {d}
+                  </button>
+                ))}
+              </div>
+
+              <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
+                מספר עצירות מקסימלי
+              </label>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 32, justifyContent: 'flex-end', flexDirection: 'row-reverse' }}>
+                {STOP_COUNTS.map(c => (
+                  <button key={c} onClick={() => setStops(c)} style={{
+                    flex: 1, padding: '12px 8px',
+                    border: `2px solid ${stops === c ? '#0d9e6e' : '#e2e8f0'}`,
+                    borderRadius: 12, background: stops === c ? '#f0fdf8' : '#fff',
+                    color: stops === c ? '#0d9e6e' : '#64748b',
+                    fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    עצירות {c}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {[
+                  { state: includeFood, setState: setIncludeFood, label: 'כלול מקומות אכילה בדרך' },
+                  { state: includeCoffee, setState: setIncludeCoffee, label: 'כלול עגלות קפה' },
+                ].map(item => (
+                  <label key={item.label} style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    cursor: 'pointer', justifyContent: 'flex-end',
+                  }}>
+                    <span style={{ fontSize: 15, color: '#334155', fontWeight: 700 }}>{item.label}</span>
+                    <div
+                      onClick={() => item.setState(!item.state)}
+                      style={{
+                        width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+                        border: `2px solid ${item.state ? '#0d9e6e' : '#cbd5e1'}`,
+                        background: item.state ? '#0d9e6e' : '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {item.state && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Buttons */}
+        <div style={{ display: 'flex', gap: 16 }}>
+          {step > 0 && (
+            <button onClick={() => setStep(s => s - 1)} style={{
+              flex: 1, padding: '18px', border: '2px solid #cbd5e1',
+              borderRadius: 16, background: '#fff', fontSize: 16, fontWeight: 800,
+              cursor: 'pointer', color: '#475569', fontFamily: 'Heebo, sans-serif',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'all 0.2s ease'
+            }}>
+              חזרה
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+
+          {step < 3 ? (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              disabled={!canNext}
+              style={{
+                flex: 2, padding: '18px', border: 'none',
+                borderRadius: 16,
+                background: canNext ? '#6ee7b7' : '#e2e8f0',
+                color: canNext ? '#064e3b' : '#94a3b8',
+                fontSize: 16, fontWeight: 800, cursor: canNext ? 'pointer' : 'not-allowed',
+                fontFamily: 'Heebo, sans-serif',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              המשך
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              style={{
+                flex: 2, padding: '18px', border: 'none',
+                borderRadius: 16,
+                background: '#6ee7b7',
+                color: '#064e3b', fontSize: 16, fontWeight: 800,
+                cursor: loading ? 'wait' : 'pointer',
+                fontFamily: 'Heebo, sans-serif',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {loading ? 'יוצר...' : '✨ צור מסלול'}
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
