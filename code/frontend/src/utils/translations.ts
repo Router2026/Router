@@ -1,0 +1,144 @@
+export const HEBREW = {
+    common: {
+        loading: "טוען...",
+        search: "חיפוש...",
+        back: "חזרה",
+        next: "המשך",
+        submit: "שליחה",
+        save: "שמירה",
+        add: "הוספה",
+        all: "הכל",
+        cancel: "ביטול",
+        publish: "פרסום",
+        details: "פרטים"
+    },
+    nav: {
+        home: "בית",
+        map: "מפה",
+        planner: "מסלול",
+        videos: "וידאו",
+        reports: "דיווחים",
+        profile: "פרופיל"
+    },
+    home: {
+        title: "Router",
+        subtitle: "גלה את ישראל בצורה חכמה יותר",
+        searchPlaceholder: "לאן רוצים לטייל?",
+        categories: {
+            springs: "מעיינות",
+            history: "היסטוריה",
+            family: "משפחות",
+            extreme: "אקסטרים"
+        },
+        actions: {
+            discover: "גילוי אתרים",
+            discoverSub: "חפש וגלה מקומות חדשים",
+            planner: "תכנון מסלול",
+            plannerSub: "AI יצור לך מסלול מושלם"
+        },
+        regionsTitle: "אזורים בארץ",
+        liveReports: "דיווחים בזמן אמת"
+    },
+    map: {
+        selectRegion: "בחר אזור לצפייה באתרים",
+        showPlaces: "הצג אתרים",
+        placesCount: "אתרים"
+    },
+    poi: {
+        description: "תיאור האתר",
+        features: {
+            water: "יש מים",
+            shade: "יש צל",
+            stroller: "נגיש לעגלות",
+            parking: "יש חניה",
+            fee: "דמי כניסה"
+        },
+        tabs: {
+            reports: "דיווחים",
+            reviews: "ביקורות"
+        },
+        actions: {
+            navigate: "נווט לשם",
+            share: "שיתוף"
+        }
+    },
+    planner: {
+        title: "מתכנן מסלול חכם",
+        subtitle: "בוא ניצור לך יום מושלם",
+        back: "אחור",
+        next: "הבא",
+        steps: {
+            region: "אזור",
+            composition: "הרכב",
+            style: "סגנון",
+            details: "פרטים"
+        },
+        questions: {
+            where: "לאן נוסעים?",
+            who: "עם מי הטיול?",
+            what: "מה מעניין אותך?",
+            final: "פרטים אחרונים"
+        },
+        groupTypes: {
+            solo: "יחיד",
+            couple: "זוג",
+            family: "משפחה",
+            friends: "חברים"
+        },
+        generate: "צור מסלול"
+    },
+    reports: {
+        title: "דיווחי קהילה",
+        subtitle: "עדכונים בזמן אמת מהשטח",
+        button: "דיווח חדש",
+        types: {
+            crowd: "צפיפות",
+            water: "מצב מים",
+            trail: "מצב שביל",
+            parking: "חניה",
+            weather: "מזג אוויר",
+            danger: "סכנה",
+            recommendation: "המלצה"
+        },
+        severity: {
+            low: "נמוכה",
+            medium: "בינונית",
+            high: "גבוהה"
+        },
+        form: {
+            location: "מיקום הדיווח",
+            type: "סוג הדיווח",
+            severity: "רמת חומרה",
+            content: "תיאור הדיווח",
+            photo: "הוסף תמונה"
+        }
+    },
+    profile: {
+        title: "פרופיל",
+        level: "דרגת מטייל",
+        xp: "נקודות XP",
+        stats: {
+            reports: "דיווחים",
+            reviews: "ביקורות",
+            trips: "מסלולים"
+        },
+        xpGain: {
+            video: "העלאת וידאו",
+            review: "כתיבת ביקורת",
+            trip: "מסלול שהושלם"
+        },
+        actions: {
+            planner: "מתכנן מסלול AI",
+            community: "פיתוח קהילה",
+            leaderboard: "טבלת מובילים"
+        }
+    },
+    community: {
+        videosTitle: "וידאו קהילתי",
+        upload: "העלאה",
+        views: "צפיות",
+        likes: "לייקים",
+        rank: "המיקום שלך",
+        participants: "משתתפים"
+    }
+};
