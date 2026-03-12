@@ -1,36 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import { api } from '../api';
 
-const REGIONS = [
-  { id: 'golan', name: 'גולן', icon: '⛰️' },
-  { id: 'galil_u', name: 'גליל עליון', icon: '⛰️' },
-  { id: 'galil_t', name: 'גליל תחתון', icon: '💧' },
-  { id: 'carmel', name: 'כרמל', icon: '🌲' },
-  { id: 'mercaz', name: 'מרכז', icon: '📍' },
-  { id: 'jeru', name: 'ירושלים', icon: '🕐' },
-  { id: 'darom', name: 'דרום', icon: '⛰️' },
-  { id: 'eilat', name: 'אילת', icon: '💧' },
-];
-
+// These stay local — UI-only choices not stored in backend
 const GROUP_TYPES = [
-  { id: 'solo', name: 'יחיד', emoji: '🚶' },
-  { id: 'couple', name: 'זוג', emoji: '👫' },
-  { id: 'family', name: 'משפחה', emoji: '👨‍👩‍👧‍👦' },
-  { id: 'friends', name: 'חברים', emoji: '👥' },
+  { id: 'solo',    name: 'יחיד',           emoji: '🚶' },
+  { id: 'couple',  name: 'זוג',             emoji: '👫' },
+  { id: 'family',  name: 'משפחה',           emoji: '👨‍👩‍👧‍👦' },
+  { id: 'friends', name: 'חברים',           emoji: '👥' },
 ];
 
 const STYLES = [
   { id: 'history', name: 'היסטוריה ותרבות', icon: '🕐' },
-  { id: 'water', name: 'מים ומעיינות', icon: '💧' },
-  { id: 'photo', name: 'צילום', icon: '📷' },
-  { id: 'nature', name: 'נופים ומצפים', icon: '⛰️' },
+  { id: 'water',   name: 'מים ומעיינות',    icon: '💧' },
+  { id: 'photo',   name: 'צילום',           icon: '📷' },
+  { id: 'nature',  name: 'נופים ומצפים',    icon: '⛰️' },
 ];
 
 const DURATIONS = ['2-3', '4-6', '7-8'];
 const STOP_COUNTS = ['3', '5', '7'];
-
 const STEPS = ['אזור', 'הרכב', 'סגנון', 'פרטים'];
+
+const REGION_ICONS: Record<string, string> = {
+  'גולן': '⛰️', 'גליל עליון': '⛰️', 'גליל תחתון': '💧', 'כרמל': '🌲',
+  'מרכז': '📍', 'ירושלים': '🕐', 'דרום': '⛰️', 'אילת': '💧',
+  'עמק יזרעאל': '🌾', 'שרון': '🌸', 'נגב': '🏜️', 'ערבה': '🌵',
+};
 
 export default function TripPlanner() {
   const navigate = useNavigate();
@@ -44,6 +39,23 @@ export default function TripPlanner() {
   const [includeFood, setIncludeFood] = useState(false);
   const [includeCoffee, setIncludeCoffee] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [apiRegions, setApiRegions] = useState<Array<{ id: string; name: string; icon: string }>>([]);
+
+  useEffect(() => {
+    api.regions.list().then(regions => {
+      setApiRegions(regions.map(r => ({ id: r.slug || String(r.id), name: r.name, icon: REGION_ICONS[r.name] || '📍' })));
+    }).catch(() => {
+      // Fallback if regions fail to load
+      setApiRegions([
+        { id: 'golan', name: 'גולן', icon: '⛰️' }, { id: 'galil_u', name: 'גליל עליון', icon: '⛰️' },
+        { id: 'galil_t', name: 'גליל תחתון', icon: '💧' }, { id: 'carmel', name: 'כרמל', icon: '🌲' },
+        { id: 'mercaz', name: 'מרכז', icon: '📍' }, { id: 'jeru', name: 'ירושלים', icon: '🕐' },
+        { id: 'darom', name: 'דרום', icon: '⛰️' }, { id: 'eilat', name: 'אילת', icon: '💧' },
+      ]);
+    });
+  }, []);
+
+  const REGIONS = apiRegions;
 
   const toggleStyle = (id: string) => {
     setStyles(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
@@ -52,11 +64,17 @@ export default function TripPlanner() {
   const handleGenerate = async () => {
     setLoading(true);
     try {
+      const selectedRegionName = REGIONS.find(r => r.id === region)?.name || region;
+      const selectedGroupType = GROUP_TYPES.find(g => g.id === groupType)?.name || groupType;
+      const selectedStyles = styles.map(s => STYLES.find(st => st.id === s)?.name || s).join(', ');
+
+      // Generate trip data (AI simulation via base44 shim)
+      const { base44 } = await import('../api');
       const tripData = await base44.integrations.Core.InvokeLLM({
         body: JSON.stringify({
-          region: REGIONS.find(r => r.id === region)?.name || region,
-          group_type: GROUP_TYPES.find(g => g.id === groupType)?.name || groupType,
-          style: styles.join(', '),
+          region: selectedRegionName,
+          group_type: selectedGroupType,
+          style: selectedStyles,
           duration_hours: parseInt(duration.split('-')[1] || duration),
           stops_count: parseInt(stops),
           include_food: includeFood,
@@ -64,10 +82,18 @@ export default function TripPlanner() {
           date,
         })
       });
-      const saved = await base44.entities.Trip.create(tripData);
+
+      // Save the generated trip to the backend
+      const saved = await api.trips.create({
+        ...tripData,
+        region: selectedRegionName,
+        group_type: selectedGroupType,
+        style: selectedStyles,
+      });
       navigate(`/TripDetail?id=${saved.id}`);
     } catch (e) {
-      navigate('/TripDetail?id=t1');
+      console.error('Trip generation failed:', e);
+      navigate('/MyTrips');
     }
     setLoading(false);
   };
