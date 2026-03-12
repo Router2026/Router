@@ -37,7 +37,7 @@ Ensure Node.js (version 18 or higher) is installed.
 
 ```bash
 # Navigate to the frontend directory
-cd code/frontend
+cd code/frontend 
 
 # Install dependencies
 npm install
@@ -47,8 +47,20 @@ npm run dev
 ```
 
 The application will run locally (usually at `http://localhost:5173`).
+### 2. Backend Setup
+Ensure Node.js (version 18 or higher) is installed.
 
-### 2. Database Setup (PostgreSQL)
+```bash
+# Navigate to the frontend directory
+cd code/backend 
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+```
+### 3. Database Setup (PostgreSQL)
 Ensure PostgreSQL is installed along with the PostGIS extension.
 Run the script file / import the backup into your database (see the section below regarding DB import/export).
 
