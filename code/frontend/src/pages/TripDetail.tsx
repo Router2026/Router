@@ -1,19 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { api } from '../api';
 
 export default function TripDetail() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tripId = searchParams.get('id') || '';
   const [trip, setTrip] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    base44.entities.Trip.filter().then(data => {
-      if (data.length > 0) setTrip(data[0]);
-    });
-  }, []);
+    if (!tripId) { setLoading(false); return; }
+    api.trips.get(tripId)
+      .then(data => { setTrip(data); setLoading(false); })
+      .catch(() => {
+        // Fallback: try listing trips and pick the first
+        api.trips.list().then(trips => {
+          if (trips.length > 0) setTrip(trips[0]);
+          setLoading(false);
+        }).catch(() => setLoading(false));
+      });
+  }, [tripId]);
+
+  if (loading) return (
+    <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען...</div>
+  );
 
   if (!trip) return (
-    <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען...</div>
+    <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>🗺️</div>
+      <div style={{ fontWeight: 700 }}>המסלול לא נמצא</div>
+      <button onClick={() => navigate('/MyTrips')} style={{ marginTop: 16, background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 24px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>חזרה למסלולים</button>
+    </div>
   );
 
   return (
