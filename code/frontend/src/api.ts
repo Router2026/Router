@@ -220,6 +220,17 @@ export const api = {
     leaderboard: async (): Promise<UserProfile[]> => (await apiFetch<{ data: any[] }>('/users/leaderboard')).data.map(mapUser),
     stats: async (): Promise<AppStats> => (await apiFetch<{ data: AppStats }>('/users/stats')).data,
   },
+  // ── Favorites ─────────────────────────────────────────────────
+  favorites: {
+    list: async (): Promise<number[]> =>
+      (await apiFetch<{ data: number[] }>('/favorites')).data,
+    add: async (locationId: number): Promise<void> => {
+      await apiFetch(`/favorites/${locationId}`, { method: 'POST' });
+    },
+    remove: async (locationId: number): Promise<void> => {
+      await apiFetch(`/favorites/${locationId}`, { method: 'DELETE' });
+    },
+  },
 };
 
 // ── Legacy shim for pages still using base44.entities.* patterns ──────────

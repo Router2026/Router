@@ -14,6 +14,7 @@ import videosRouter from './routes/videos';
 import tripsRouter from './routes/trips';
 import usersRouter from './routes/users';
 import authRouter from './routes/auth';
+import favoritesRouter from './routes/favorites';
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/reports', reportsRouter);
 app.use('/videos', videosRouter);
 app.use('/trips', tripsRouter);
 app.use('/users', usersRouter);
+app.use('/favorites', favoritesRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
