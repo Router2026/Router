@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
 
 function StrengthBar({ password }: { password: string }) {
   const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
@@ -21,12 +22,15 @@ function StrengthBar({ password }: { password: string }) {
   );
 }
 
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+
 export default function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
 
   const [fullName, setFullName] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -34,9 +38,27 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!username) { setUsernameStatus('idle'); return; }
+    if (!USERNAME_RE.test(username)) { setUsernameStatus('invalid'); return; }
+    setUsernameStatus('checking');
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const available = await api.auth.checkUsername(username);
+        setUsernameStatus(available ? 'available' : 'taken');
+      } catch { setUsernameStatus('idle'); }
+    }, 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [username]);
 
   const validate = () => {
     if (!fullName.trim()) return 'אנא הכנס שם מלא';
+    if (!username || !USERNAME_RE.test(username)) return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
+    if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
+    if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
     if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
     if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
     if (password !== confirm) return 'הסיסמאות אינן תואמות';
@@ -49,9 +71,8 @@ export default function Register() {
     setError(null);
     setLoading(true);
     try {
-      await register(email.trim(), password, fullName.trim());
+      await register(email.trim(), password, fullName.trim(), username.trim().toLowerCase());
       setSuccess(true);
-      setTimeout(() => navigate('/'), 1800);
     } catch (e: any) {
       setError(e.message);
       setLoading(false);
@@ -66,31 +87,36 @@ export default function Register() {
     transition: 'border-color 0.2s',
   };
 
+  const usernameColor = { idle: '#e2e8f0', checking: '#f59e0b', available: '#0d9e6e', taken: '#ef4444', invalid: '#ef4444' }[usernameStatus];
+  const usernameHint = { idle: '', checking: 'בודק זמינות...', available: '✓ שם משתמש פנוי', taken: '✗ שם משתמש תפוס', invalid: '✗ 3-20 תווים: אנגלית, מספרים, _ בלבד' }[usernameStatus];
+
   if (success) return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl' }}>
-      <div style={{ fontSize: 72, animation: 'bounce 0.6s ease' }}>🎉</div>
-      <div style={{ fontSize: 24, fontWeight: 900, color: '#0d9e6e' }}>ברוך הבא!</div>
-      <div style={{ fontSize: 15, color: '#64748b' }}>החשבון שלך נוצר בהצלחה</div>
-      <div style={{ fontSize: 13, color: '#94a3b8' }}>מעביר לדף הבית...</div>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl', padding: 24 }}>
+      <div style={{ fontSize: 72 }}>📧</div>
+      <div style={{ fontSize: 24, fontWeight: 900, color: '#0d9e6e' }}>בדוק את האימייל שלך!</div>
+      <div style={{ fontSize: 15, color: '#64748b', textAlign: 'center', maxWidth: 320 }}>
+        שלחנו קישור אימות לכתובת <strong>{email}</strong>.<br/>לחץ על הקישור כדי להפעיל את החשבון שלך.
+      </div>
+      <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>
+        לא קיבלת? בדוק תיקיית ספאם או{' '}
+        <button onClick={async () => {
+          try { await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); alert('נשלח שוב!'); } catch {}
+        }} style={{ background: 'none', border: 'none', color: '#0d9e6e', cursor: 'pointer', fontWeight: 700, fontSize: 13, padding: 0 }}>שלח שוב</button>
+      </div>
+      <button onClick={() => navigate('/Login')} style={{ marginTop: 8, padding: '12px 28px', background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+        כניסה לחשבון
+      </button>
     </div>
   );
 
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl' }}>
-
-      {/* Hero banner */}
       <div style={{ background: 'linear-gradient(135deg, #0d9e6e 0%, #059669 100%)', padding: '40px 24px 56px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        {/* Decorative circles */}
         <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
         <div style={{ position: 'absolute', bottom: -20, left: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-
         <div style={{ fontSize: 44, marginBottom: 8 }}>🧭</div>
         <div style={{ fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: -0.5 }}>הצטרף ל-Router</div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', marginTop: 6 }}>
-          גלה מסלולים, שתף חוויות וצור מסלולים חדשים
-        </div>
-
-        {/* Benefit badges */}
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', marginTop: 6 }}>גלה מסלולים, שתף חוויות וצור מסלולים חדשים</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18, flexWrap: 'wrap' }}>
           {['📍 דיווחים בזמן אמת', '🗺️ שמור מסלולים', '⭐ כתוב ביקורות'].map(b => (
             <span key={b} style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>{b}</span>
@@ -100,49 +126,49 @@ export default function Register() {
 
       <div style={{ maxWidth: 420, margin: '-28px auto 0', padding: '0 20px 100px', position: 'relative', zIndex: 10 }}>
         <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.1)', padding: '28px 24px 24px' }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', textAlign: 'right', marginBottom: 22 }}>יצירת חשבון חדש</div>
 
-          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', textAlign: 'right', marginBottom: 22 }}>
-            יצירת חשבון חדש
+          {/* Username */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>שם משתמש *</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                value={username}
+                onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                placeholder="israel_123"
+                style={{ ...inputBase, direction: 'ltr', textAlign: 'left', borderColor: usernameColor, paddingRight: 44 }}
+              />
+              {usernameStatus !== 'idle' && (
+                <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>
+                  {usernameStatus === 'checking' ? '⏳' : usernameStatus === 'available' ? '✅' : '❌'}
+                </div>
+              )}
+            </div>
+            {usernameHint && <div style={{ fontSize: 11, color: usernameColor, fontWeight: 700, textAlign: 'right', marginTop: 4 }}>{usernameHint}</div>}
           </div>
 
           {/* Full name */}
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>שם מלא *</label>
-            <input value={fullName} onChange={e => setFullName(e.target.value)}
-              placeholder="ישראל ישראלי" style={inputBase}
-              onFocus={e => (e.target.style.borderColor = '#0d9e6e')}
-              onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
-          </div>
-
-          {/* Display name */}
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>
-              שם תצוגה <span style={{ fontWeight: 400, color: '#94a3b8' }}>(אופציונלי)</span>
-            </label>
-            <input value={displayName} onChange={e => setDisplayName(e.target.value)}
-              placeholder="כינוי או שם קצר" style={inputBase}
-              onFocus={e => (e.target.style.borderColor = '#0d9e6e')}
-              onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
+            <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="ישראל ישראלי" style={inputBase}
+              onFocus={e => (e.target.style.borderColor = '#0d9e6e')} onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
           </div>
 
           {/* Email */}
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימייל *</label>
-            <input value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com" type="email" style={{ ...inputBase, direction: 'ltr', textAlign: 'left' }}
-              onFocus={e => (e.target.style.borderColor = '#0d9e6e')}
-              onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" type="email"
+              style={{ ...inputBase, direction: 'ltr', textAlign: 'left' }}
+              onFocus={e => (e.target.style.borderColor = '#0d9e6e')} onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
           </div>
 
-          {/* Password with show/hide */}
+          {/* Password */}
           <div style={{ marginBottom: 4 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>סיסמה *</label>
             <div style={{ position: 'relative' }}>
-              <input value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="לפחות 6 תווים" type={showPass ? 'text' : 'password'}
-                style={{ ...inputBase, paddingLeft: 44, direction: 'ltr', textAlign: 'left' }}
-                onFocus={e => (e.target.style.borderColor = '#0d9e6e')}
-                onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
+              <input value={password} onChange={e => setPassword(e.target.value)} placeholder="לפחות 6 תווים"
+                type={showPass ? 'text' : 'password'} style={{ ...inputBase, paddingLeft: 44, direction: 'ltr', textAlign: 'left' }}
+                onFocus={e => (e.target.style.borderColor = '#0d9e6e')} onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
               <button onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}>
                 {showPass
                   ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -154,52 +180,39 @@ export default function Register() {
 
           <StrengthBar password={password} />
 
-          {/* Confirm password */}
+          {/* Confirm */}
           <div style={{ marginBottom: 20 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימות סיסמה *</label>
             <div style={{ position: 'relative' }}>
-              <input value={confirm} onChange={e => setConfirm(e.target.value)}
-                placeholder="הכנס סיסמה שוב" type={showPass ? 'text' : 'password'}
+              <input value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
+                type={showPass ? 'text' : 'password'}
                 style={{ ...inputBase, paddingRight: 44, borderColor: confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0' }}
                 onFocus={e => { if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e'; }}
                 onBlur={e => { e.target.style.borderColor = confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0'; }} />
-              {confirm && (
-                <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>
-                  {confirm === password ? '✅' : '❌'}
-                </div>
-              )}
+              {confirm && <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>{confirm === password ? '✅' : '❌'}</div>}
             </div>
-            {confirm && confirm !== password && (
-              <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'right', marginTop: 4 }}>הסיסמאות אינן תואמות</div>
-            )}
+            {confirm && confirm !== password && <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'right', marginTop: 4 }}>הסיסמאות אינן תואמות</div>}
           </div>
 
-          {/* Error */}
           {error && (
             <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 16, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <span>⚠️</span> {error}
             </div>
           )}
 
-          {/* Submit */}
-          <button onClick={handleSubmit} disabled={loading}
-            style={{ width: '100%', padding: '16px', border: 'none', borderRadius: 16, background: loading ? '#e2e8f0' : 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: loading ? '#94a3b8' : '#fff', fontSize: 16, fontWeight: 900, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: loading ? 'none' : '0 8px 20px rgba(13,158,110,0.3)', transition: 'all 0.2s', letterSpacing: 0.3 }}>
-            {loading ? (
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                יוצר חשבון...
-              </span>
-            ) : '🚀 יצירת חשבון'}
+          <button onClick={handleSubmit} disabled={loading || usernameStatus === 'taken' || usernameStatus === 'checking'}
+            style={{ width: '100%', padding: '16px', border: 'none', borderRadius: 16, background: loading ? '#e2e8f0' : 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: loading ? '#94a3b8' : '#fff', fontSize: 16, fontWeight: 900, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: loading ? 'none' : '0 8px 20px rgba(13,158,110,0.3)', transition: 'all 0.2s' }}>
+            {loading
+              ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>יוצר חשבון...</span>
+              : '🚀 יצירת חשבון'}
           </button>
 
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0', direction: 'rtl' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
             <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
             <span style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>כבר יש לך חשבון?</span>
             <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
           </div>
 
-          {/* Login link */}
           <button onClick={() => navigate('/Login')}
             style={{ width: '100%', padding: '14px', border: '2px solid #0d9e6e', borderRadius: 16, background: '#fff', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}
             onMouseEnter={e => { (e.currentTarget.style.background = '#f0fdf8'); }}
@@ -207,22 +220,13 @@ export default function Register() {
             כניסה לחשבון קיים
           </button>
 
-          <button onClick={() => navigate(-1)}
-            style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: '#94a3b8', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginTop: 8 }}>
-            המשך ללא הרשמה
-          </button>
         </div>
-
-        {/* Privacy note */}
         <div style={{ textAlign: 'center', marginTop: 14, fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
           בהרשמה אתה מסכים לתנאי השימוש ומדיניות הפרטיות שלנו.
         </div>
       </div>
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes bounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

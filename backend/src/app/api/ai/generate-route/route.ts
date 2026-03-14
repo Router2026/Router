@@ -25,17 +25,16 @@ const REGION_MAP: Record<string, { area: string; subArea: string }> = {
 
 // Maps Router trip styles to POI categories
 const STYLE_TO_CATEGORIES: Record<string, string[]> = {
-  history: ["attraction"],
-  water:   ["hiking_trail"],
-  photo:   ["attraction"],
-  nature:  ["hiking_trail"],
-};
-
-// Maps duration string to start/end times
-const DURATION_TIMES: Record<string, { start: string; end: string }> = {
-  "2-3": { start: "09:00", end: "12:00" },
-  "4-6": { start: "09:00", end: "15:00" },
-  "7-8": { start: "08:00", end: "17:00" },
+  history:          ["attraction"],
+  water:            ["hiking_trail"],
+  photo:            ["attraction"],
+  nature:           ["hiking_trail"],
+  hiking:           ["hiking_trail"],
+  beach:            ["hiking_trail"],
+  geology:          ["hiking_trail"],
+  wine:             ["restaurant"],
+  village:          ["attraction"],
+  family_activities:["attraction"],
 };
 
 // Maps group type to traveler type + group size
@@ -49,7 +48,12 @@ const GROUP_MAP: Record<string, { travelerType: TripInput["travelerType"]; group
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { region, groupType, styles = [], duration = "4-6", includeFood = false, includeCoffee = false } = body;
+    const {
+      region, groupType, styles = [],
+      startTime = "09:00", endTime = "16:00",
+      includeFood = false, includeCoffee = false,
+      userLocation = null,
+    } = body;
 
     if (!region || !groupType) {
       return NextResponse.json(errorResponse("region and groupType are required", "VALIDATION_ERROR"), { status: 400 });
@@ -61,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     const groupMapping = GROUP_MAP[groupType] ?? GROUP_MAP["friends"];
-    const times = DURATION_TIMES[duration] ?? DURATION_TIMES["4-6"];
+    const times = { start: startTime, end: endTime };
 
     // Build POI categories from styles
     const categorySet = new Set<string>();
@@ -84,6 +88,7 @@ export async function POST(req: NextRequest) {
       dayStartTime: times.start,
       dayEndTime: times.end,
       difficulty: "moderate",
+      userLocation: userLocation ?? undefined,
     };
 
     // Fetch Hebrew-named locations from the Router's locations table
@@ -138,7 +143,11 @@ export async function POST(req: NextRequest) {
 
     const totalHours = stops.reduce((acc, s) => acc + s.duration_minutes, 0) / 60;
 
-    const STYLE_LABELS: Record<string, string> = { history: "היסטוריה", water: "מים", photo: "צילום", nature: "טבע" };
+    const STYLE_LABELS: Record<string, string> = {
+      history: "היסטוריה", water: "מים", photo: "צילום", nature: "טבע",
+      hiking: "טיולים", beach: "חוף", geology: "גיאולוגיה",
+      wine: "יין ואוכל", village: "כפרים", family_activities: "לילדים",
+    };
     const GROUP_LABELS: Record<string, string> = { solo: "יחיד", couple: "זוג", family: "משפחה", friends: "חברים" };
     const styleLabel = (styles as string[]).map(s => STYLE_LABELS[s] ?? s).join("/") || "טבע";
     const groupLabel = GROUP_LABELS[groupType] ?? groupType;

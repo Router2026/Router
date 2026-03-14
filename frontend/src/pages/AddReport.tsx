@@ -24,7 +24,7 @@ export default function AddReport() {
     report_type: '',
     severity: 'בינונית',
     content: '',
-    reporter_name: user?.display_name || 'אנונימי',
+    reporter_name: user?.username || 'אנונימי',
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -37,7 +37,7 @@ export default function AddReport() {
         ...formData,
         // Feature 5: Always include location_id when available
         location_id: locationId,
-        reporter_name: isLoggedIn ? (user?.display_name || formData.reporter_name) : 'אנונימי',
+        reporter_name: isLoggedIn ? (user?.username || formData.reporter_name) : 'אנונימי',
       });
       setSuccess(true);
       setTimeout(() => navigate(locationId ? `/POIDetail?id=${locationId}` : '/Reports'), 1200);

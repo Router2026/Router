@@ -101,13 +101,23 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Logout Button */}
-          <button onClick={handleLogout} style={{
-            background: '#fef2f2', border: 'none', borderRadius: 10, padding: '8px 12px',
-            color: '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif'
-          }}>
-            התנתק
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(user as any)?.is_admin && (
+              <button onClick={() => navigate('/Admin')} style={{
+                background: '#0f172a', border: 'none', borderRadius: 10, padding: '8px 12px',
+                color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif'
+              }}>
+                🛡 ניהול
+              </button>
+            )}
+            {/* Logout Button */}
+            <button onClick={handleLogout} style={{
+              background: '#fef2f2', border: 'none', borderRadius: 10, padding: '8px 12px',
+              color: '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif'
+            }}>
+              התנתק
+            </button>
+          </div>
         </div>
       </div>
 

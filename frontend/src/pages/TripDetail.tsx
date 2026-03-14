@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { api } from '../api';
+
+// Fix default Leaflet marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
 
 export default function TripDetail() {
   const navigate = useNavigate();
@@ -158,6 +169,45 @@ export default function TripDetail() {
             ))}
           </div>
         </div>
+
+        {/* Map View */}
+        {(() => {
+          const stopsWithCoords = (trip.stops || []).filter((s: any) => s.latitude && s.longitude);
+          if (stopsWithCoords.length < 1) return null;
+          const center: [number, number] = [stopsWithCoords[0].latitude, stopsWithCoords[0].longitude];
+          const polylinePoints: [number, number][] = stopsWithCoords.map((s: any) => [s.latitude, s.longitude]);
+          return (
+            <div style={{
+              background: '#fff', borderRadius: 20,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.08)', overflow: 'hidden', marginBottom: 16,
+            }}>
+              <div style={{ padding: '16px 20px 12px', textAlign: 'right' }}>
+                <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>מפת המסלול</h2>
+              </div>
+              <MapContainer
+                center={center}
+                zoom={12}
+                style={{ height: 280, width: '100%' }}
+                scrollWheelZoom={false}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="© OpenStreetMap"
+                />
+                <Polyline positions={polylinePoints} color="#0d9e6e" weight={3} dashArray="6 4" />
+                {stopsWithCoords.map((s: any, i: number) => (
+                  <Marker key={i} position={[s.latitude, s.longitude]}>
+                    <Popup>
+                      <div style={{ textAlign: 'right', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
+                        {i + 1}. {s.poi_name}
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+            </div>
+          );
+        })()}
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: 12 }}>

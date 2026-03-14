@@ -10,7 +10,8 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName: string) => Promise<void>;
+  register: (email: string, password: string, fullName: string, username: string) => Promise<{ requiresVerification: true }>;
+  loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -44,9 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user, token, isLoggedIn: true, isLoading: false });
   }, []);
 
-  const register = useCallback(async (email: string, password: string, fullName: string) => {
-    const { user, token } = await api.auth.register(email, password, fullName);
+  const register = useCallback(async (email: string, password: string, fullName: string, username: string) => {
+    return await api.auth.register(email, password, fullName, username);
+  }, []);
+
+  const loginWithToken = useCallback(async (token: string) => {
     localStorage.setItem(TOKEN_KEY, token);
+    const user = await api.auth.me(token);
     setState({ user, token, isLoggedIn: true, isLoading: false });
   }, []);
 
@@ -56,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider value={{ ...state, login, register, loginWithToken, logout }}>
       {children}
     </AuthContext.Provider>
   );

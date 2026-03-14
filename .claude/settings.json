@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"POST.*login\\\\|POST.*register\" /home/ori/Projects/Router/backend/src --include=*.ts)",
+      "Bash(ls /home/ori/Projects/Router/backend/src/app/api/routes/[id]/)"
+    ]
+  }
+}

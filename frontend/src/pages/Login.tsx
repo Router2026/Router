@@ -1,29 +1,53 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  const from = (location.state as any)?.from?.pathname || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resentVerification, setResentVerification] = useState(false);
+
+  const toHebrewError = (e: any): string => {
+    const code = e.code;
+    const msg = (e.message || '').toLowerCase();
+    if (code === 'AUTH_ERROR' || msg.includes('invalid email or password')) return 'האימייל או הסיסמה שגויים. נסה שוב.';
+    if (msg.includes('required')) return 'אנא מלא אימייל וסיסמה';
+    if (code === 'DB_ERROR' || msg.includes('failed')) return 'שגיאת שרת, נסה שוב עוד רגע';
+    if (msg.includes('network') || msg.includes('fetch')) return 'בעיית חיבור לאינטרנט, בדוק את הרשת שלך';
+    return e.message || 'שגיאה לא ידועה';
+  };
 
   const handleSubmit = async () => {
     setError(null);
+    setUnverifiedEmail(null);
     if (!email || !password) { setError('אנא מלא אימייל וסיסמה'); return; }
     setLoading(true);
     try {
       await login(email.trim(), password);
-      // Navigate to the home page instead of the previous history page
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (e: any) {
-      setError(e.message);
+      if (e.code === 'EMAIL_NOT_VERIFIED' || e.message?.includes('verify your email')) {
+        setUnverifiedEmail(email.trim().toLowerCase());
+      } else {
+        setError(toHebrewError(e));
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+    await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: unverifiedEmail }) });
+    setResentVerification(true);
   };
 
   const inputBase: React.CSSProperties = {
@@ -61,7 +85,7 @@ export default function Login() {
           </div>
 
           {/* Password */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 8 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>סיסמה</label>
             <div style={{ position: 'relative' }}>
               <input value={password} onChange={e => setPassword(e.target.value)}
@@ -80,6 +104,24 @@ export default function Login() {
               </button>
             </div>
           </div>
+
+          {/* Forgot password */}
+          <div style={{ textAlign: 'left', marginBottom: 16 }}>
+            <button type="button" onClick={() => navigate('/ForgotPassword')} style={{ background: 'none', border: 'none', color: '#0d9e6e', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'Heebo, sans-serif' }}>
+              שכחתי סיסמה
+            </button>
+          </div>
+
+          {/* Unverified email banner */}
+          {unverifiedEmail && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 16px', color: '#92400e', fontSize: 13, fontWeight: 600, marginBottom: 16, textAlign: 'center' }}>
+              <div>📧 האימייל שלך לא אומת עדיין.</div>
+              {resentVerification
+                ? <div style={{ marginTop: 6, color: '#0d9e6e' }}>✓ קישור אימות נשלח מחדש!</div>
+                : <button onClick={handleResendVerification} style={{ marginTop: 6, background: 'none', border: 'none', color: '#0d9e6e', cursor: 'pointer', fontWeight: 700, fontSize: 13, textDecoration: 'underline' }}>שלח שוב קישור אימות</button>
+              }
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -109,16 +151,8 @@ export default function Login() {
             🚀 הרשמה — זה בחינם!
           </button>
 
-          <button type="button" onClick={() => navigate(-1)}
-            style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: '#94a3b8', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginTop: 6 }}>
-            המשך ללא התחברות
-          </button>
         </div>
 
-        {/* Demo hint */}
-        <div style={{ textAlign: 'center', marginTop: 14, fontSize: 12, color: '#94a3b8', background: '#fff', borderRadius: 12, padding: '10px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-          🧪 <strong>דמו:</strong> demo@router.app / demo1234
-        </div>
       </div>
     </div>
   );

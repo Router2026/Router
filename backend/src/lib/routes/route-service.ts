@@ -9,6 +9,8 @@ export interface RouteStop {
   arrival_time: string;
   duration_minutes: number;
   smart_insight?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Route {
@@ -17,6 +19,7 @@ export interface Route {
   description?: string;
   region_id?: number;
   region?: string;
+  user_id?: number;
   total_distance_km?: number;
   total_duration_hours: number;
   difficulty?: string;
@@ -26,12 +29,20 @@ export interface Route {
   created_at: Date;
 }
 
-export async function getRoutes(): Promise<Route[]> {
-  const { rows: routeRows } = await rawDb.query(
-    `SELECT r.*, reg.name AS region FROM routes r
-     LEFT JOIN regions reg ON r.region_id = reg.id
-     ORDER BY r.created_at DESC`
-  );
+export async function getRoutes(userId?: number): Promise<Route[]> {
+  const { rows: routeRows } = userId
+    ? await rawDb.query(
+        `SELECT r.*, reg.name AS region FROM routes r
+         LEFT JOIN regions reg ON r.region_id = reg.id
+         WHERE r.user_id = $1
+         ORDER BY r.created_at DESC`,
+        [userId]
+      )
+    : await rawDb.query(
+        `SELECT r.*, reg.name AS region FROM routes r
+         LEFT JOIN regions reg ON r.region_id = reg.id
+         ORDER BY r.created_at DESC`
+      );
   if (!routeRows.length) return [];
 
   const routeIds = routeRows.map(r => r.id);
@@ -64,9 +75,13 @@ export async function getRouteById(id: number): Promise<Route | null> {
   const route = rows[0];
 
   const { rows: stopRows } = await rawDb.query(
-    `SELECT rs.*, l.name AS location_name
+    `SELECT rs.*,
+       COALESCE(l.name, rs.poi_name) AS location_name,
+       COALESCE(l.latitude, l2.latitude)::float AS latitude,
+       COALESCE(l.longitude, l2.longitude)::float AS longitude
      FROM route_stops rs
      LEFT JOIN locations l ON rs.location_id = l.id
+     LEFT JOIN locations l2 ON rs.location_id IS NULL AND l2.name = rs.poi_name
      WHERE rs.route_id = $1
      ORDER BY rs.order_index`,
     [id]
@@ -75,14 +90,23 @@ export async function getRouteById(id: number): Promise<Route | null> {
   return {
     ...route,
     total_duration_hours: parseFloat(route.total_duration_hours as string) || 0,
-    stops: stopRows.map(s => ({ ...s, poi_name: (s.poi_name || s.location_name || "") as string })),
+    stops: stopRows.map(s => ({
+      ...s,
+      poi_name: (s.poi_name || s.location_name || "") as string,
+      latitude: s.latitude ?? null,
+      longitude: s.longitude ?? null,
+    })),
   } as unknown as Route;
 }
 
-export async function createRoute(data: Partial<Route>): Promise<Route> {
+export async function deleteRoute(id: number): Promise<void> {
+  await rawDb.query("DELETE FROM routes WHERE id = $1", [id]);
+}
+
+export async function createRoute(data: Partial<Route> & { user_id?: number }): Promise<Route> {
   const { rows } = await rawDb.query(
-    `INSERT INTO routes (name, description, region_id, total_duration_hours, difficulty, group_type, style)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    `INSERT INTO routes (name, description, region_id, total_duration_hours, difficulty, group_type, style, user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
     [
       data.name || "מסלול חדש",
       data.description || null,
@@ -91,6 +115,7 @@ export async function createRoute(data: Partial<Route>): Promise<Route> {
       data.difficulty || "בינוני",
       data.group_type || "משפחה",
       data.style || "טבע",
+      data.user_id || null,
     ]
   );
   const route = rows[0];

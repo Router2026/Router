@@ -1,21 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import { api } from '../api';
 
 const GROUP_ICONS: Record<string, string> = {
-  'משפחה עם ילדים': '👨‍👩‍👧‍👦',
-  'חברים': '👥',
-  'יחיד': '🚶',
-  'זוג': '👫',
+  'משפחה עם ילדים': '👨‍👩‍👧‍👦', 'משפחה': '👨‍👩‍👧‍👦',
+  'חברים': '👥', 'יחיד': '🚶', 'זוג': '👫',
+  'solo': '🚶', 'couple': '👫', 'family': '👨‍👩‍👧‍👦', 'friends': '👥',
 };
 
 export default function MyTrips() {
   const navigate = useNavigate();
   const [trips, setTrips] = useState<any[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
-    base44.entities.Trip.filter().then(data => setTrips(data));
+    api.trips.list().then(data => setTrips(data));
   }, []);
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirmId !== id) {
+      setConfirmId(id);
+      return;
+    }
+    setDeletingId(id);
+    setConfirmId(null);
+    try {
+      await api.trips.delete(id);
+      setTrips(prev => prev.filter(t => String(t.id) !== id));
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+    setDeletingId(null);
+  };
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', width: '100%', direction: 'rtl' }}>
@@ -25,7 +43,6 @@ export default function MyTrips() {
         background: 'linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)',
         width: '100%'
       }}>
-        {/* Header Content (Centered) */}
         <div style={{
           maxWidth: 600, margin: '0 auto',
           padding: '48px 20px 40px',
@@ -59,66 +76,88 @@ export default function MyTrips() {
 
         {/* Trip Cards Grid */}
         <div style={{ padding: '20px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-          {trips.map(trip => (
-            <div
-              key={trip.id}
-              onClick={() => navigate(`/TripDetail?id=${trip.id}`)}
-              style={{
-                background: '#fff', borderRadius: 20, overflow: 'hidden',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.06)', cursor: 'pointer',
-                border: '1px solid #f0fdf8', transition: 'all 0.2s ease',
-              }}
-            >
-              {/* Card header - gradient */}
-              <div style={{
-                height: 100,
-                background: 'linear-gradient(160deg, #0d9e6e 0%, #34d399 100%)',
-                display: 'flex', alignItems: 'flex-end', padding: '16px',
-              }}>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.3 }}>{trip.name}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-                    </svg>
-                    {trip.region}
-                  </div>
-                </div>
-              </div>
-
-              {/* Card body */}
-              <div style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 12, fontWeight: 600 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    {trip.total_duration_hours} שעות
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 12, fontWeight: 600 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="5" cy="6" r="2" /><path d="M5 8v12" /><circle cx="19" cy="18" r="2" /><path d="M19 16V4" />
-                    </svg>
-                    {trip.stops?.length || 0} עצירות
-                  </div>
-                </div>
-                {trip.style && (
-                  <span style={{
-                    display: 'inline-block', background: '#f0fdf8',
-                    color: '#0d9e6e', borderRadius: 8, padding: '4px 12px',
-                    fontSize: 12, fontWeight: 700, marginBottom: 12,
-                  }}>{trip.style}</span>
-                )}
+          {trips.map(trip => {
+            const id = String(trip.id);
+            const isConfirming = confirmId === id;
+            const isDeleting = deletingId === id;
+            return (
+              <div
+                key={id}
+                onClick={() => navigate(`/TripDetail?id=${id}`)}
+                style={{
+                  background: '#fff', borderRadius: 20, overflow: 'hidden',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.06)', cursor: 'pointer',
+                  border: `1px solid ${isConfirming ? '#fecaca' : '#f0fdf8'}`,
+                  transition: 'all 0.2s ease', position: 'relative',
+                }}
+              >
+                {/* Card header */}
                 <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  borderTop: '1px solid #f0fdf8', paddingTop: 12,
+                  height: 100,
+                  background: isConfirming
+                    ? 'linear-gradient(160deg, #ef4444 0%, #f87171 100%)'
+                    : 'linear-gradient(160deg, #0d9e6e 0%, #34d399 100%)',
+                  display: 'flex', alignItems: 'flex-end', padding: '16px',
+                  transition: 'background 0.2s ease',
                 }}>
-                  <span style={{ fontSize: 12, color: '#0d9e6e', fontWeight: 800 }}>לפרטים {'<'}</span>
-                  <span style={{ fontSize: 16 }}>{GROUP_ICONS[trip.group_type] || '🚶'}</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.3 }}>{trip.name}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                      </svg>
+                      {trip.region}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card body */}
+                <div style={{ padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 12, fontWeight: 600 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      {trip.total_duration_hours} שעות
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 12, fontWeight: 600 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="5" cy="6" r="2" /><path d="M5 8v12" /><circle cx="19" cy="18" r="2" /><path d="M19 16V4" />
+                      </svg>
+                      {trip.stops?.length || 0} עצירות
+                    </div>
+                  </div>
+                  {trip.style && (
+                    <span style={{
+                      display: 'inline-block', background: '#f0fdf8',
+                      color: '#0d9e6e', borderRadius: 8, padding: '4px 12px',
+                      fontSize: 12, fontWeight: 700, marginBottom: 12,
+                    }}>{trip.style}</span>
+                  )}
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    borderTop: '1px solid #f0fdf8', paddingTop: 12,
+                  }}>
+                    <button
+                      onClick={(e) => handleDelete(id, e)}
+                      disabled={isDeleting}
+                      style={{
+                        background: isConfirming ? '#ef4444' : 'transparent',
+                        border: `1.5px solid ${isConfirming ? '#ef4444' : '#e2e8f0'}`,
+                        borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+                        color: isConfirming ? '#fff' : '#94a3b8',
+                        fontSize: 12, fontWeight: 700, fontFamily: 'Heebo, sans-serif',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      {isDeleting ? '...' : isConfirming ? 'מחיקה?' : '🗑'}
+                    </button>
+                    <span style={{ fontSize: 16 }}>{GROUP_ICONS[trip.group_type] || '🚶'}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Empty State */}

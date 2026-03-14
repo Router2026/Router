@@ -53,7 +53,7 @@ export default function Layout({ children, currentPageName }: { children: React.
           <div style={{ position: 'absolute', top: -44, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
             {isLoggedIn ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 20, padding: '6px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', pointerEvents: 'all' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a', fontFamily: 'Heebo, sans-serif' }}>{user?.display_name}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a', fontFamily: 'Heebo, sans-serif' }}>@{user?.username}</span>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0d9e6e' }} />
                 <button onClick={logout} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>יציאה</button>
               </div>

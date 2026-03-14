@@ -11,13 +11,18 @@ const GROUP_TYPES = [
 ];
 
 const STYLES = [
-  { id: 'history', name: 'היסטוריה ותרבות', icon: '🕐' },
+  { id: 'history', name: 'היסטוריה ותרבות', icon: '🕌' },
   { id: 'water',   name: 'מים ומעיינות',    icon: '💧' },
-  { id: 'photo',   name: 'צילום',           icon: '📷' },
+  { id: 'photo',   name: 'צילום ונוף',      icon: '📷' },
   { id: 'nature',  name: 'נופים ומצפים',    icon: '⛰️' },
+  { id: 'hiking',  name: 'טיולים ומסלולים', icon: '🥾' },
+  { id: 'beach',   name: 'חופים וים',       icon: '🏖️' },
+  { id: 'geology', name: 'גיאולוגיה',       icon: '🪨' },
+  { id: 'wine',    name: 'יין ואוכל',       icon: '🍷' },
+  { id: 'village', name: 'כפרים ומסורת',    icon: '🏡' },
+  { id: 'family',  name: 'פעילויות לילדים', icon: '🎠' },
 ];
 
-const DURATIONS = ['2-3', '4-6', '7-8'];
 const STOP_COUNTS = ['3', '5', '7'];
 const STEPS = ['אזור', 'הרכב', 'סגנון', 'פרטים'];
 
@@ -33,13 +38,30 @@ export default function TripPlanner() {
   const [region, setRegion] = useState('');
   const [groupType, setGroupType] = useState('');
   const [styles, setStyles] = useState<string[]>([]);
-  const [duration, setDuration] = useState('4-6');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('16:00');
   const [stops, setStops] = useState('5');
   const [date, setDate] = useState('');
   const [includeFood, setIncludeFood] = useState(false);
   const [includeCoffee, setIncludeCoffee] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [apiRegions, setApiRegions] = useState<Array<{ id: string; name: string; icon: string }>>([]);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      setLocationLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setLocationLoading(false);
+        },
+        () => setLocationLoading(false),
+        { timeout: 8000 }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     api.regions.list().then(regions => {
@@ -75,11 +97,13 @@ export default function TripPlanner() {
           region: selectedRegionName,
           group_type: selectedGroupType,
           style: selectedStyles,
-          duration_hours: parseInt(duration.split('-')[1] || duration),
+          start_time: startTime,
+          end_time: endTime,
           stops_count: parseInt(stops),
           include_food: includeFood,
           include_coffee: includeCoffee,
           date,
+          user_location: userLocation,
         })
       });
 
@@ -272,21 +296,41 @@ export default function TripPlanner() {
               }} />
 
               <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
-                משך הטיול
+                שעות הטיול
               </label>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 24, justifyContent: 'flex-end', flexDirection: 'row-reverse' }}>
-                {DURATIONS.map(d => (
-                  <button key={d} onClick={() => setDuration(d)} style={{
-                    flex: 1, padding: '12px 8px',
-                    border: `2px solid ${duration === d ? '#0d9e6e' : '#e2e8f0'}`,
-                    borderRadius: 12, background: duration === d ? '#f0fdf8' : '#fff',
-                    color: duration === d ? '#0d9e6e' : '#64748b',
-                    fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
-                    transition: 'all 0.2s ease'
-                  }}>
-                    שעות {d}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, textAlign: 'center', marginBottom: 4 }}>סיום</div>
+                  <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{
+                    width: '100%', padding: '12px', border: '2px solid #e2e8f0',
+                    borderRadius: 12, fontSize: 16, fontFamily: 'Heebo, sans-serif',
+                    textAlign: 'center', outline: 'none', background: '#f8fafc', color: '#334155',
+                    cursor: 'pointer',
+                  }} />
+                </div>
+                <div style={{ color: '#94a3b8', fontWeight: 800, paddingTop: 20 }}>—</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, textAlign: 'center', marginBottom: 4 }}>התחלה</div>
+                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{
+                    width: '100%', padding: '12px', border: '2px solid #e2e8f0',
+                    borderRadius: 12, fontSize: 16, fontFamily: 'Heebo, sans-serif',
+                    textAlign: 'center', outline: 'none', background: '#f8fafc', color: '#334155',
+                    cursor: 'pointer',
+                  }} />
+                </div>
+              </div>
+
+              {/* Location status */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end',
+                marginBottom: 24, padding: '10px 14px', borderRadius: 12,
+                background: userLocation ? '#f0fdf8' : '#f8fafc',
+                border: `1.5px solid ${userLocation ? '#6ee7b7' : '#e2e8f0'}`,
+              }}>
+                <span style={{ fontSize: 13, color: userLocation ? '#0d9e6e' : '#94a3b8', fontWeight: 700 }}>
+                  {locationLoading ? 'מאתר מיקום...' : userLocation ? 'מיקום זוהה — יחושב זמן נסיעה' : 'לא זוהה מיקום'}
+                </span>
+                <span style={{ fontSize: 18 }}>{userLocation ? '📍' : '🔍'}</span>
               </div>
 
               <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>

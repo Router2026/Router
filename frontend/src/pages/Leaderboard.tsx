@@ -45,7 +45,7 @@ export default function Leaderboard() {
             <div style={{ fontSize: 28, fontWeight: 800, color: '#d97706' }}>#{myRank}</div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>
-                {myUser?.display_name || 'עומרי חליפה'}
+                @{myUser?.username || 'אורח'}
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#0d9e6e' }}>
                 {myUser?.xp_points || 1250} XP
@@ -81,12 +81,12 @@ export default function Leaderboard() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 16, fontWeight: 800,
             }}>
-              {user.display_name?.charAt(0)}
+              {user.username?.charAt(0)?.toUpperCase()}
             </div>
 
             {/* Info */}
             <div style={{ flex: 1, textAlign: 'right' }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>{user.display_name}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>@{user.username}</div>
               <div style={{ fontSize: 12, color: '#94a3b8' }}>{user.level}</div>
             </div>
 

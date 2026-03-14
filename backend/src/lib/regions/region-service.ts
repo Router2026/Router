@@ -11,6 +11,8 @@ export interface Region {
   zoom: number;
   radius_meters: number;
   color: string;
+  // [lat, lng] pairs — Leaflet order, ready to use directly
+  polygon_coords: [number, number][] | null;
   created_at: Date;
 }
 
@@ -20,6 +22,7 @@ function rowToRegion(r: Record<string, unknown>): Region {
     center_lat: parseFloat(r.center_lat as string),
     center_lng: parseFloat(r.center_lng as string),
     radius_meters: parseInt(r.radius_meters as string),
+    polygon_coords: (r.polygon_coords as [number, number][] | null) ?? null,
   } as Region;
 }
 
@@ -29,7 +32,7 @@ export async function getAllRegions(): Promise<Region[]> {
   if (cached) return cached;
 
   const { rows } = await rawDb.query(
-    `SELECT id, name, name_en, slug, center_lat, center_lng, zoom, radius_meters, color, created_at
+    `SELECT id, name, name_en, slug, center_lat, center_lng, zoom, radius_meters, color, polygon_coords, created_at
      FROM regions ORDER BY name`
   );
 
@@ -40,7 +43,7 @@ export async function getAllRegions(): Promise<Region[]> {
 
 export async function getRegionBySlug(slug: string): Promise<Region | null> {
   const { rows } = await rawDb.query(
-    `SELECT id, name, name_en, slug, center_lat, center_lng, zoom, radius_meters, color, created_at
+    `SELECT id, name, name_en, slug, center_lat, center_lng, zoom, radius_meters, color, polygon_coords, created_at
      FROM regions WHERE slug = $1 OR name = $1`,
     [slug]
   );

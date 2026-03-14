@@ -7,14 +7,23 @@ let _token: string | null = null;
 export function setAuthToken(t: string | null) { _token = t; }
 export function getAuthToken() { return _token; }
 
+class ApiError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (_token) headers['Authorization'] = `Bearer ${_token}`;
   const res = await fetch(`${BASE_URL}${path}`, { headers, ...options });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
-    try { const j = await res.json(); message = j.error || message; } catch { }
-    throw new Error(message);
+    let code: string | undefined;
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
+    throw new ApiError(message, code);
   }
   return res.json();
 }
@@ -25,6 +34,8 @@ export interface Region {
   id: number; name: string; name_en: string; slug: string;
   center_lat: number; center_lng: number; zoom: number;
   radius_meters: number; color: string;
+  // [lat, lng] pairs — Leaflet order, ready to use directly
+  polygon_coords: [number, number][] | null;
 }
 
 export interface POI {
@@ -65,8 +76,8 @@ export interface VideoPost {
 }
 
 export interface UserProfile {
-  id: string; email?: string; full_name?: string; display_name: string;
-  xp_points: number; level: string;
+  id: string; email?: string; full_name?: string; username: string;
+  xp_points: number; level: string; is_admin?: boolean;
   reports_count?: number; reviews_count?: number; trips_count?: number;
 }
 
@@ -117,7 +128,7 @@ function mapVideo(r: any): VideoPost {
 }
 
 function mapUser(r: any): UserProfile {
-  return { id: String(r.id), email: r.email, full_name: r.full_name, display_name: r.display_name || r.full_name || 'משתמש', xp_points: r.xp_points || 0, level: r.level || 'מטייל מתחיל', reports_count: r.reports_count || 0, reviews_count: r.reviews_count || 0, trips_count: r.trips_count || 0 };
+  return { id: String(r.id), email: r.email, full_name: r.full_name, username: r.username || r.display_name || 'user', xp_points: r.xp_points || 0, level: r.level || 'מטייל מתחיל', is_admin: r.is_admin ?? false, reports_count: r.reports_count || 0, reviews_count: r.reviews_count || 0, trips_count: r.trips_count || 0 };
 }
 
 // ── Main API Object ────────────────────────────────────────────────────────
@@ -131,11 +142,31 @@ export const api = {
       });
       return { user: mapUser(res.data.user), token: res.data.token };
     },
-    register: async (email: string, password: string, full_name: string): Promise<{ user: UserProfile; token: string }> => {
-      const res = await apiFetch<{ data: { user: any; token: string } }>('/auth/register', {
-        method: 'POST', body: JSON.stringify({ email, password, full_name }),
+    register: async (email: string, password: string, full_name: string, username: string): Promise<{ requiresVerification: true }> => {
+      await apiFetch<{ data: any }>('/auth/register', {
+        method: 'POST', body: JSON.stringify({ email, password, full_name, username }),
       });
+      return { requiresVerification: true };
+    },
+    checkUsername: async (username: string): Promise<boolean> => {
+      const res = await apiFetch<{ data: { available: boolean } }>(`/auth/check-username?username=${encodeURIComponent(username)}`);
+      return res.data.available;
+    },
+    verifyEmail: async (token: string): Promise<{ user: UserProfile; token: string }> => {
+      const res = await apiFetch<{ data: { user: any; token: string } }>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
       return { user: mapUser(res.data.user), token: res.data.token };
+    },
+    resendVerification: async (email: string): Promise<void> => {
+      await apiFetch('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
+    },
+    forgotPassword: async (email: string): Promise<void> => {
+      await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+    },
+    resetPassword: async (token: string, password: string): Promise<{ token: string }> => {
+      const res = await apiFetch<{ data: { token: string } }>('/auth/reset-password', {
+        method: 'POST', body: JSON.stringify({ token, password }),
+      });
+      return { token: res.data.token };
     },
     me: async (token?: string): Promise<UserProfile> => {
       const savedToken = _token;
@@ -182,6 +213,7 @@ export const api = {
     list: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
     get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`)).data),
     create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
+    delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
   },
 
   // ── Reviews ──────────────────────────────────────────────────
@@ -221,12 +253,23 @@ export const api = {
     leaderboard: async (): Promise<UserProfile[]> => (await apiFetch<{ data: any[] }>('/users/leaderboard')).data.map(mapUser),
     stats: async (): Promise<AppStats> => (await apiFetch<{ data: AppStats }>('/users/stats')).data,
   },
+
+  // ── Admin ─────────────────────────────────────────────────────
+  admin: {
+    listUsers: async (): Promise<(UserProfile & { is_admin?: boolean; created_at?: string })[]> =>
+      (await apiFetch<{ data: any[] }>('/admin/users')).data.map(r => ({ ...mapUser(r), is_admin: r.is_admin, created_at: r.created_at })),
+    deleteUser: async (id: string): Promise<void> => { await apiFetch(`/admin/users/${id}`, { method: 'DELETE' }); },
+    toggleAdmin: async (id: string, is_admin: boolean): Promise<UserProfile> =>
+      mapUser((await apiFetch<{ data: any }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ is_admin }) })).data),
+    listRoutes: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
+    deleteRoute: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
+  },
 };
 
 // ── Legacy shim for pages still using base44.entities.* patterns ──────────
 export const base44 = {
   auth: {
-    me: () => api.users.me().then(u => ({ id: u.id, email: u.email || '', full_name: u.full_name || u.display_name })),
+    me: () => api.users.me().then(u => ({ id: u.id, email: u.email || '', full_name: u.full_name || u.username })),
   },
   entities: {
     POI: { list: () => api.locations.list(), filter: (p?: { region?: string }) => api.locations.list(p), get: (id: string) => api.locations.get(id) },
@@ -245,7 +288,12 @@ export const base44 = {
         const GROUP_TYPE_MAP: Record<string, string> = { 'יחיד': 'solo', 'זוג': 'couple', 'משפחה': 'family', 'חברים': 'friends' };
         const groupTypeId = GROUP_TYPE_MAP[req.group_type] ?? req.group_type;
         // Normalize styles: Hebrew display names → English IDs
-        const STYLE_MAP: Record<string, string> = { 'היסטוריה ותרבות': 'history', 'מים ומעיינות': 'water', 'צילום': 'photo', 'נופים ומצפים': 'nature' };
+        const STYLE_MAP: Record<string, string> = {
+          'היסטוריה ותרבות': 'history', 'מים ומעיינות': 'water', 'צילום ונוף': 'photo',
+          'צילום': 'photo', 'נופים ומצפים': 'nature', 'טיולים ומסלולים': 'hiking',
+          'חופים וים': 'beach', 'גיאולוגיה': 'geology', 'יין ואוכל': 'wine',
+          'כפרים ומסורת': 'village', 'פעילויות לילדים': 'family_activities',
+        };
         const styleIds = req.style
           ? req.style.split(', ').map((s: string) => STYLE_MAP[s.trim()] ?? s.trim())
           : [];
@@ -257,9 +305,11 @@ export const base44 = {
             region: req.region,
             groupType: groupTypeId,
             styles: styleIds,
-            duration: req.duration_hours <= 3 ? '2-3' : req.duration_hours <= 6 ? '4-6' : '7-8',
+            startTime: req.start_time || '09:00',
+            endTime: req.end_time || '16:00',
             includeFood: req.include_food || false,
             includeCoffee: req.include_coffee || false,
+            userLocation: req.user_location || null,
           }),
         });
         if (!res.ok) throw new Error(`AI generation failed: ${res.status}`);
