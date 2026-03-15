@@ -12,24 +12,6 @@ Router is an innovative "One-Stop-Shop" platform for the Israeli traveler, combi
 
 ## 🛠️ Technologies
 
-**Frontend:**
-* React + TypeScript + Vite
-* React Router DOM (Navigation)
-* Leaflet + React-Leaflet (Maps)
-* Material-UI (MUI) & Lucide React (Design & Icons)
-
-**Backend & AI:**
-* Node.js (Request and user management)
-* Python Microservice (LLM model communication and route processing)
-* Firebase Auth / Auth0 (User authentication)
-
-**Database:**
-* PostgreSQL + PostGIS (For smart spatial geographic queries)
-
----
-
-## 🚀 Installation Technologies and Setup
-
 **Backend (Next.js fullstack app in `backend/`):**
 
 - Next.js 16 + React 19 + TypeScript
@@ -48,8 +30,7 @@ Router is an innovative "One-Stop-Shop" platform for the Israeli traveler, combi
 
 ---
 
-## Setup
-
+## 🚀 Installation and Setup
 ### Prerequisites
 
 - Node.js 18+
@@ -116,7 +97,6 @@ Copy `backend/.env.example` to `backend/.env` and fill in the values:
 ---
 
 ## Database Commands
-
 ```bash
 npm run db:push          # Push schema changes to DB
 npm run db:migrate       # Run migrations
