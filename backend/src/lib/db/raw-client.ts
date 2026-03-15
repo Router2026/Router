@@ -5,6 +5,9 @@ if (!process.env.DATABASE_URL) {
 }
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+pool.on("connect", (client) => {
+  client.query("SET search_path TO router, public");
+});
 
 export const rawDb = {
   query: async (query: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }> => {

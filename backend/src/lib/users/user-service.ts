@@ -13,17 +13,9 @@ export interface RouterUser {
   created_at: Date;
 }
 
-export async function getCurrentUser(): Promise<RouterUser> {
+export async function getCurrentUser(): Promise<RouterUser | null> {
   const { rows } = await rawDb.query(`SELECT * FROM users WHERE id = 1 LIMIT 1`);
-  if (rows.length) return rows[0] as unknown as RouterUser;
-
-  const { rows: created } = await rawDb.query(
-    `INSERT INTO users (email, full_name, display_name, xp_points, level)
-     VALUES ('demo@router.app', 'עומרי חליפה', 'עומרי', 0, 'מטייל מתחיל')
-     ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-     RETURNING *`
-  );
-  return created[0] as unknown as RouterUser;
+  return rows.length ? rows[0] as unknown as RouterUser : null;
 }
 
 export async function getLeaderboard(): Promise<RouterUser[]> {

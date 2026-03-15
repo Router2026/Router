@@ -83,7 +83,17 @@ export async function getUserFromRequest(req: Request): Promise<{ id: number; em
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return null;
   try {
-    const payload = await verifyJWT(auth.slice(7));
+    const token = auth.slice(7);
+    // Try Supabase Auth first
+    const { supabase } = await import("@/lib/db/supabase");
+    const { rawDb } = await import("@/lib/db/raw-client");
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (!error && user?.email) {
+      const { rows } = await rawDb.query("SELECT id, is_admin FROM users WHERE email = $1", [user.email]);
+      if (rows[0]) return { id: rows[0].id as number, email: user.email, is_admin: (rows[0].is_admin as boolean) ?? false };
+    }
+    // Fallback to legacy custom JWT
+    const payload = await verifyJWT(token);
     return { id: payload.id as number, email: payload.email as string, is_admin: payload.is_admin as boolean };
   } catch {
     return null;
