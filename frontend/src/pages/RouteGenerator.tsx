@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -32,7 +32,7 @@ function RoutePolyline({ stops }: { stops: POI[] }) {
 
 function NumberedMarker({ poi, index }: { poi: POI; index: number }) {
   const icon = L.divIcon({
-    html: `<div style="width:32px;height:32px;border-radius:50%;background:#0d9e6e;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-family:Heebo,Arial">${index+1}</div>`,
+    html: `<div style="width:32px;height:32px;border-radius:50%;background:#0d9e6e;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-family:Heebo,Arial">${index + 1}</div>`,
     className: '', iconSize: [32, 32], iconAnchor: [16, 16],
   });
   return <Marker position={[poi.latitude, poi.longitude]} icon={icon} />;
@@ -43,13 +43,13 @@ function haversineKm(a: POI, b: POI): number {
   const R = 6371;
   const dLat = (b.latitude - a.latitude) * Math.PI / 180;
   const dLng = (b.longitude - a.longitude) * Math.PI / 180;
-  const x = Math.sin(dLat/2)**2 + Math.cos(a.latitude*Math.PI/180) * Math.cos(b.latitude*Math.PI/180) * Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * Math.PI / 180) * Math.cos(b.latitude * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
 function totalDistance(stops: POI[]): number {
   let d = 0;
-  for (let i = 0; i < stops.length - 1; i++) d += haversineKm(stops[i], stops[i+1]);
+  for (let i = 0; i < stops.length - 1; i++) d += haversineKm(stops[i], stops[i + 1]);
   return d;
 }
 
@@ -77,6 +77,8 @@ type Step = 'region' | 'pois' | 'route';
 
 export default function RouteGenerator() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [step, setStep] = useState<Step>('region');
   const [regions, setRegions] = useState<Region[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
@@ -88,7 +90,22 @@ export default function RouteGenerator() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
-  useEffect(() => { api.regions.list().then(setRegions).catch(() => {}); }, []);
+  useEffect(() => { api.regions.list().then(setRegions).catch(() => { }); }, []);
+
+  // ── Pre-load POIs arriving from the Trip Bucket ───────────────────────────
+  useEffect(() => {
+    const state = location.state as { bucketPois?: POI[] } | null;
+    if (state?.bucketPois && state.bucketPois.length >= 2) {
+      const incoming = state.bucketPois;
+      const opt = optimizeRoute([...incoming]);
+      setSelectedPois(incoming);
+      setOptimized(opt);
+      setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
+      setStep('route');
+      // Clear navigation state so a manual refresh doesn't re-inject the POIs
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   const selectRegion = async (region: Region) => {
     setSelectedRegion(region);
@@ -116,7 +133,7 @@ export default function RouteGenerator() {
     try {
       const stops = optimized.map((p, i) => ({
         poi_name: p.name, location_id: parseInt(p.id),
-        arrival_time: `${String(8 + i * 2).padStart(2,'0')}:00`,
+        arrival_time: `${String(8 + i * 2).padStart(2, '0')}:00`,
         duration_minutes: p.duration_minutes || 60,
         order_index: i,
       }));
@@ -141,7 +158,7 @@ export default function RouteGenerator() {
       {/* Header */}
       <div style={{ background: '#fff', padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: 12, direction: 'rtl' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
         </button>
         <div style={{ flex: 1, textAlign: 'right' }}>
           <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>🗺️ בנה מסלול עצמאי</div>
@@ -205,7 +222,7 @@ export default function RouteGenerator() {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   {selectedPois.map((p, i) => (
                     <span key={p.id} style={{ background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {i+1}. {p.name}
+                      {i + 1}. {p.name}
                       <button onClick={() => togglePOI(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#0d9e6e', fontSize: 12, lineHeight: 1 }}>×</button>
                     </span>
                   ))}
@@ -214,7 +231,7 @@ export default function RouteGenerator() {
             )}
 
             <div style={{ background: '#f8fafc', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '2px solid #e2e8f0', marginBottom: 12 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חפש אתר..." style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 14, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
             </div>
 
@@ -298,13 +315,13 @@ export default function RouteGenerator() {
             <div style={{ background: '#fff', borderRadius: 20, padding: '16px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', marginBottom: 12, textAlign: 'right' }}>סדר העצירות (מותאם אוטומטית)</div>
               {optimized.map((poi, i) => (
-                <div key={poi.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < optimized.length-1 ? '1px solid #f1f5f9' : 'none', direction: 'rtl' }}>
+                <div key={poi.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < optimized.length - 1 ? '1px solid #f1f5f9' : 'none', direction: 'rtl' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a' }}>{poi.name}</div>
                     <div style={{ fontSize: 11, color: '#94a3b8' }}>{poi.category}{poi.duration_minutes ? ` · ${poi.duration_minutes} דק'` : ''}</div>
                   </div>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0d9e6e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, flexShrink: 0 }}>{i+1}</div>
-                  {i < optimized.length-1 && (
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0d9e6e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, flexShrink: 0 }}>{i + 1}</div>
+                  {i < optimized.length - 1 && (
                     <div style={{ position: 'absolute', right: 30, fontSize: 10, color: '#94a3b8' }} />
                   )}
                 </div>

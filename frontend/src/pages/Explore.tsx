@@ -1,7 +1,13 @@
+/**
+ * Explore Page — with Trip Bucket integration
+ */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type POI } from '../api';
 import RouterLogo from '../assets/logo.jpeg';
+import { useTripBucket } from '../context/TripBucketContext';
+import TripBucketFab from '../components/TripBucketFab';
+import TripBucketSheet from '../components/TripBucketSheet';
 
 const DIFFICULTIES = ['קל - משפחות', 'בינוני', 'מאתגר', 'אקסטרים'];
 
@@ -14,12 +20,10 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
   'אקסטרים': { color: '#7c3aed', bg: '#faf5ff' },
 };
 
-// ── Filter Panel ──────────────────────────────────────────────────
 function FilterPanel({ open, onClose, selectedRegions, setSelectedRegions, selectedCategories, setSelectedCategories, selectedDifficulties, setSelectedDifficulties, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible, dynamicRegions, dynamicCategories }: any) {
   if (!open) return null;
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter((x: string) => x !== val) : [...arr, val]);
-
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'flex-start' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
@@ -64,20 +68,52 @@ function TagGrid({ items, selected, onToggle }: { items: string[]; selected: str
   );
 }
 
+/** POI Card — includes Quick Add to Trip Bucket button */
 function POICard({ poi, onFav, favs }: { poi: POI; onFav: (id: string) => void; favs: Set<string> }) {
   const navigate = useNavigate();
+  const { addPoi, removePoi, hasPoi } = useTripBucket();
   const diff = DIFF_COLORS[poi.difficulty] || DIFF_COLORS['קל'];
+  const inBucket = hasPoi(poi.id);
+
+  const handleBucketToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    inBucket ? removePoi(poi.id) : addPoi(poi);
+  };
+
   return (
     <div onClick={() => navigate(`/POIDetail?id=${poi.id}`)} style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease' }}>
       <div style={{ position: 'relative', height: 160 }}>
         <img src={poi.main_image || RouterLogo} alt={poi.name} loading="lazy"
           onError={e => { e.currentTarget.src = RouterLogo; e.currentTarget.onerror = null; }}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+
+        {/* Favourite button */}
         <button onClick={e => { e.stopPropagation(); onFav(poi.id); }} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill={favs.has(poi.id) ? '#ef4444' : 'none'} stroke={favs.has(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
         </button>
+
+        {/* Quick Add to Trip Bucket button (top-left) */}
+        <button
+          onClick={handleBucketToggle}
+          title={inBucket ? 'Remove from Trip Bucket' : 'Quick Add to Trip Bucket'}
+          style={{
+            position: 'absolute', top: 10, left: 10,
+            background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)',
+            border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.18s ease',
+            boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : 'none',
+          }}
+        >
+          {inBucket
+            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          }
+        </button>
+
         <span style={{ position: 'absolute', bottom: 10, left: 10, background: '#fff', color: diff.color, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>{poi.difficulty}</span>
       </div>
+
       <div style={{ padding: '14px 14px 16px', direction: 'rtl' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -96,17 +132,33 @@ function POICard({ poi, onFav, favs }: { poi: POI; onFav: (id: string) => void; 
           {poi.has_water && <div style={{ color: '#0284c7', fontSize: 11, fontWeight: 600 }}>💧 מים</div>}
           {poi.has_shade && <div style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>🌿 צל</div>}
         </div>
+
+        {/* Quick Add text button at bottom of card */}
+        <button
+          onClick={handleBucketToggle}
+          style={{
+            marginTop: 10, width: '100%', padding: '7px',
+            border: `1.5px solid ${inBucket ? '#0d9e6e' : '#e2e8f0'}`,
+            borderRadius: 10,
+            background: inBucket ? '#f0fdf8' : '#f8fafc',
+            color: inBucket ? '#0d9e6e' : '#64748b',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'Heebo, sans-serif',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            transition: 'all 0.15s',
+          }}
+        >
+          {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
+        </button>
       </div>
     </div>
   );
 }
 
-// ── Main Explore ─────────────────────────────────────────────────
 export default function Explore() {
   const [searchParams] = useSearchParams();
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
-
   const FETCH_LIMIT = 500;
 
   const [pois, setPois] = useState<POI[]>([]);
@@ -115,13 +167,10 @@ export default function Explore() {
   const [search, setSearch] = useState(urlQuery);
   const [filterOpen, setFilterOpen] = useState(false);
   const [favs, setFavs] = useState<Set<string>>(new Set());
-
-  // Loading states
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [selRegions, setSelRegions] = useState<string[]>([]);
   const [selCats, setSelCats] = useState<string[]>(urlCategory ? [urlCategory] : []);
   const [selDiffs, setSelDiffs] = useState<string[]>([]);
@@ -129,34 +178,25 @@ export default function Explore() {
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
 
-  // Initial Fetch
   useEffect(() => {
     Promise.all([api.locations.list({ limit: FETCH_LIMIT, offset: 0 }), api.regions.list()])
       .then(([poisData, regionsData]) => {
         setPois(poisData);
         setRegions(regionsData.map(r => r.name));
         setCategories([...new Set(poisData.map(p => p.category).filter(Boolean))].sort());
-
-        // If we got exactly the limit, there's probably more to fetch
         setHasMore(poisData.length === FETCH_LIMIT);
         setLoading(false);
       })
       .catch(err => { setError(err.message); setLoading(false); });
   }, []);
 
-  // Fetch More function
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
-
     try {
-      // Use offset based on how many POIs we currently hold
       const morePois = await api.locations.list({ limit: FETCH_LIMIT, offset: pois.length });
-
       setPois(prev => [...prev, ...morePois]);
       setCategories(prev => [...new Set([...prev, ...morePois.map(p => p.category).filter(Boolean)])].sort());
-
-      // Update hasMore status
       setHasMore(morePois.length === FETCH_LIMIT);
     } catch (err: any) {
       setError(err.message);
@@ -166,9 +206,7 @@ export default function Explore() {
   };
 
   useEffect(() => {
-    if (urlCategory && categories.includes(urlCategory)) {
-      setSelCats([urlCategory]);
-    }
+    if (urlCategory && categories.includes(urlCategory)) setSelCats([urlCategory]);
   }, [urlCategory, categories]);
 
   const activeFilterCount = selRegions.length + selCats.length + selDiffs.length + (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
@@ -186,7 +224,6 @@ export default function Explore() {
 
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40 }}>
-      {/* Active category banner */}
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
           <button onClick={() => { setSelCats([]); window.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
@@ -194,7 +231,6 @@ export default function Explore() {
         </div>
       )}
 
-      {/* Search + Filter bar */}
       <div style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', padding: '14px 16px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
@@ -230,7 +266,6 @@ export default function Explore() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: '0 16px 24px' }}>
         {filtered.map(poi => <POICard key={poi.id} poi={poi} favs={favs} onFav={id => setFavs(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })} />)}
-
         {!loading && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
@@ -239,29 +274,9 @@ export default function Explore() {
         )}
       </div>
 
-      {/* Load More Button */}
       {!loading && hasMore && (
         <div style={{ textAlign: 'center', padding: '10px 20px 30px' }}>
-          <button
-            onClick={loadMore}
-            disabled={loadingMore}
-            style={{
-              background: '#fff',
-              border: '2px solid #0d9e6e',
-              color: '#0d9e6e',
-              padding: '12px 28px',
-              borderRadius: 20,
-              fontSize: 15,
-              fontWeight: 800,
-              cursor: loadingMore ? 'not-allowed' : 'pointer',
-              fontFamily: 'Heebo, sans-serif',
-              boxShadow: '0 4px 12px rgba(13,158,110,0.15)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              transition: 'all 0.2s'
-            }}
-          >
+          <button onClick={loadMore} disabled={loadingMore} style={{ background: '#fff', border: '2px solid #0d9e6e', color: '#0d9e6e', padding: '12px 28px', borderRadius: 20, fontSize: 15, fontWeight: 800, cursor: loadingMore ? 'not-allowed' : 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 12px rgba(13,158,110,0.15)', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all 0.2s' }}>
             {loadingMore ? 'טוען עוד נתונים...' : '🔽 טען עוד אתרים'}
           </button>
         </div>
@@ -276,6 +291,10 @@ export default function Explore() {
         accessible={accessible} setAccessible={setAccessible}
         dynamicRegions={regions} dynamicCategories={categories}
       />
+
+      {/* Trip Bucket UI */}
+      <TripBucketFab />
+      <TripBucketSheet />
     </div>
   );
 }
