@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { base44 } from '../api';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -10,7 +9,6 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 export default function Leaderboard() {
-  const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => {
