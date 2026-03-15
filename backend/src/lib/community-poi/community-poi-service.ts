@@ -3,39 +3,8 @@
 
 import { rawDb } from "@/lib/db/raw-client";
 import { sendPushToUser } from "@/lib/notifications/push-service";
+import { CommunityPoiRow, CommunityPoiStatus, CreateCommunityPoiInput } from "./types";
 
-/** POI status values aligned with the DB enum */
-export type CommunityPoiStatus = "pending" | "approved" | "rejected";
-
-export interface CommunityPoiRow {
-  id: number;
-  user_id: number | null;
-  name: string;
-  category: string;
-  description: string | null;
-  latitude: string;
-  longitude: string;
-  photos: string[];
-  status: CommunityPoiStatus;
-  admin_note: string | null;
-  reviewed_by: number | null;
-  reviewed_at: Date | null;
-  created_at: Date;
-  updated_at: Date;
-  // Joined fields
-  submitter_username?: string;
-  submitter_email?: string;
-}
-
-export interface CreateCommunityPoiInput {
-  userId: number;
-  name: string;
-  category: string;
-  description?: string;
-  latitude: number;
-  longitude: number;
-  photos?: string[];
-}
 
 /** XP reward awarded when a community POI is approved */
 const APPROVAL_XP_REWARD = 50;
@@ -129,8 +98,8 @@ export async function approveCommunityPoi(
     [
       id,
       adminUserId,
-      edits?.name        ?? null,
-      edits?.category    ?? null,
+      edits?.name ?? null,
+      edits?.category ?? null,
       edits?.description ?? null,
     ]
   );
@@ -243,11 +212,11 @@ export async function editCommunityPoi(
      RETURNING *`,
     [
       id,
-      updates.name        ?? null,
-      updates.category    ?? null,
+      updates.name ?? null,
+      updates.category ?? null,
       updates.description ?? null,
-      updates.latitude    ?? null,
-      updates.longitude   ?? null,
+      updates.latitude ?? null,
+      updates.longitude ?? null,
       updates.photos ? JSON.stringify(updates.photos) : null,
     ]
   );

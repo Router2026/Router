@@ -4,24 +4,23 @@
 // and optionally attaches photo URLs.  Submits to POST /api/community-pois.
 
 import React, { useState, useCallback, useRef } from 'react';
-import { useNavigate }                           from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import L                                         from 'leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useAuth }                               from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon   from 'leaflet/dist/images/marker-icon.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import type { LatLng } from '../utils/types';
+import { CATEGORIES } from '../utils/constants';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow,
 });
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface LatLng { lat: number; lng: number }
 
 // ── Map click handler ─────────────────────────────────────────────────────────
 
@@ -49,7 +48,7 @@ function PickedMarker({ position }: { position: LatLng }) {
         <span style="transform:rotate(45deg)">📍</span>
       </div>`,
     className: '',
-    iconSize:   [40, 40],
+    iconSize: [40, 40],
     iconAnchor: [20, 40],
   });
   return <Marker position={[position.lat, position.lng]} icon={icon} />;
@@ -57,37 +56,26 @@ function PickedMarker({ position }: { position: LatLng }) {
 
 // ── Category config ───────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  { id: 'טבע',        icon: '🌿', label: 'טבע'            },
-  { id: 'מים',        icon: '💧', label: 'מים ומעיינות'    },
-  { id: 'היסטוריה',   icon: '🏛️', label: 'היסטוריה'        },
-  { id: 'נוף',        icon: '🏔️', label: 'נוף ומצפה'       },
-  { id: 'חוף',        icon: '🏖️', label: 'חוף וים'         },
-  { id: 'מחנאות',     icon: '⛺', label: 'מחנאות'          },
-  { id: 'אוכל',       icon: '🍽️', label: 'מסעדה / קפה'    },
-  { id: 'אחר',        icon: '📌', label: 'אחר'             },
-];
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ContributePOI() {
-  const navigate       = useNavigate();
+  const navigate = useNavigate();
   const { user, isLoggedIn } = useAuth();
 
   // Map state
   const [pickedPoint, setPickedPoint] = useState<LatLng | null>(null);
 
   // Form state
-  const [name,        setName]        = useState('');
-  const [category,    setCategory]    = useState('טבע');
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('טבע');
   const [description, setDescription] = useState('');
-  const [photoUrl,    setPhotoUrl]    = useState('');
-  const [photos,      setPhotos]      = useState<string[]>([]);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
 
   // UI state
-  const [submitting,  setSubmitting]  = useState(false);
-  const [submitted,   setSubmitted]   = useState(false);
-  const [error,       setError]       = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
   // Default center: Israel
   const defaultCenter: LatLng = { lat: 31.8, lng: 35.2 };
@@ -105,25 +93,25 @@ export default function ContributePOI() {
 
   const handleSubmit = async () => {
     if (!pickedPoint) { setError('נא לבחור נקודה על המפה'); return; }
-    if (!name.trim())  { setError('נא להזין שם למיקום');     return; }
+    if (!name.trim()) { setError('נא להזין שם למיקום'); return; }
 
     setError('');
     setSubmitting(true);
 
     try {
       const token = localStorage.getItem('router_auth_token');
-      const res   = await fetch('/api/community-pois', {
-        method:  'POST',
+      const res = await fetch('/api/community-pois', {
+        method: 'POST',
         headers: {
-          'Content-Type':  'application/json',
+          'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          name:        name.trim(),
+          name: name.trim(),
           category,
           description: description.trim() || undefined,
-          latitude:    pickedPoint.lat,
-          longitude:   pickedPoint.lng,
+          latitude: pickedPoint.lat,
+          longitude: pickedPoint.lng,
           photos,
         }),
       });
@@ -224,7 +212,7 @@ export default function ContributePOI() {
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6"/>
+            <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
         <div style={{ flex: 1, textAlign: 'right' }}>
@@ -244,8 +232,10 @@ export default function ContributePOI() {
           background: '#fff', borderRadius: 20, padding: '16px',
           marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            marginBottom: 10, textAlign: 'right' }}>
+          <div style={{
+            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
+            marginBottom: 10, textAlign: 'right'
+          }}>
             1. בחר נקודה על המפה
           </div>
 
@@ -299,8 +289,10 @@ export default function ContributePOI() {
           background: '#fff', borderRadius: 20, padding: '16px 18px',
           marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 10, textAlign: 'right' }}>
+          <label style={{
+            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
+            display: 'block', marginBottom: 10, textAlign: 'right'
+          }}>
             2. שם המיקום
           </label>
           <input
@@ -323,8 +315,10 @@ export default function ContributePOI() {
           background: '#fff', borderRadius: 20, padding: '16px 18px',
           marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 12, textAlign: 'right' }}>
+          <label style={{
+            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
+            display: 'block', marginBottom: 12, textAlign: 'right'
+          }}>
             3. קטגוריה
           </label>
           <div style={{
@@ -356,8 +350,10 @@ export default function ContributePOI() {
           background: '#fff', borderRadius: 20, padding: '16px 18px',
           marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 10, textAlign: 'right' }}>
+          <label style={{
+            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
+            display: 'block', marginBottom: 10, textAlign: 'right'
+          }}>
             4. תיאור (אופציונלי)
           </label>
           <textarea
@@ -379,8 +375,10 @@ export default function ContributePOI() {
           background: '#fff', borderRadius: 20, padding: '16px 18px',
           marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 10, textAlign: 'right' }}>
+          <label style={{
+            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
+            display: 'block', marginBottom: 10, textAlign: 'right'
+          }}>
             5. תמונות (URL, אופציונלי)
           </label>
 

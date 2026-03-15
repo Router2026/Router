@@ -7,14 +7,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type POI } from '../api';
 import { useAuth } from '../context/AuthContext';
+import type { LocationSelectorProps } from '../utils/types';
 
 // ── Location Selector ──────────────────────────────────────────────────────────
-
-interface LocationSelectorProps {
-  initialName?: string;
-  onSelect: (poi: POI | null) => void;
-}
-
 function LocationSelector({ initialName, onSelect }: LocationSelectorProps) {
   const [query, setQuery] = useState(initialName ?? '');
   const [results, setResults] = useState<POI[]>([]);

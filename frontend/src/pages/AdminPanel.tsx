@@ -6,40 +6,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
-
-type Tab = 'users' | 'routes' | 'community_pois';
-
-// ── Community POI types ───────────────────────────────────────────────────────
-
-type PoiStatus = 'pending' | 'approved' | 'rejected';
-
-interface CommunityPoiAdmin {
-  id: number;
-  user_id: number | null;
-  name: string;
-  category: string;
-  description: string | null;
-  latitude: string;
-  longitude: string;
-  photos: string[];
-  status: PoiStatus;
-  admin_note: string | null;
-  reviewed_by: number | null;
-  reviewed_at: string | null;
-  created_at: string;
-  submitter_username?: string;
-  submitter_email?: string;
-}
+import type { CommunityPoiAdmin, EditModalProps, PoiStatus, Tab } from '../utils/types';
 
 // ── API helpers (community POIs admin endpoints) ──────────────────────────────
 
 async function fetchAdminPois(status?: PoiStatus): Promise<CommunityPoiAdmin[]> {
   const token = localStorage.getItem('router_auth_token');
-  const qs    = status ? `?status=${status}` : '';
-  const res   = await fetch(`/api/admin/community-pois${qs}`, {
+  const qs = status ? `?status=${status}` : '';
+  const res = await fetch(`/api/admin/community-pois${qs}`, {
     headers: { Authorization: `Bearer ${token ?? ''}` },
   });
-  const json  = await res.json();
+  const json = await res.json();
   return json.data ?? [];
 }
 
@@ -48,31 +25,27 @@ async function patchAdminPoi(
   payload: Record<string, unknown>
 ): Promise<CommunityPoiAdmin> {
   const token = localStorage.getItem('router_auth_token');
-  const res   = await fetch(`/api/admin/community-pois/${id}`, {
-    method:  'PATCH',
+  const res = await fetch(`/api/admin/community-pois/${id}`, {
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      Authorization:  `Bearer ${token ?? ''}`,
+      Authorization: `Bearer ${token ?? ''}`,
     },
     body: JSON.stringify(payload),
   });
-  const json  = await res.json();
+  const json = await res.json();
   return json.data;
 }
 
 // ── Inline edit modal ─────────────────────────────────────────────────────────
 
-interface EditModalProps {
-  poi: CommunityPoiAdmin;
-  onClose:  () => void;
-  onSaved:  (updated: CommunityPoiAdmin) => void;
-}
+
 
 function EditModal({ poi, onClose, onSaved }: EditModalProps) {
-  const [name,        setName]        = useState(poi.name);
-  const [category,    setCategory]    = useState(poi.category);
+  const [name, setName] = useState(poi.name);
+  const [category, setCategory] = useState(poi.category);
   const [description, setDescription] = useState(poi.description ?? '');
-  const [busy,        setBusy]        = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const save = async () => {
     setBusy(true);
@@ -104,8 +77,10 @@ function EditModal({ poi, onClose, onSaved }: EditModalProps) {
           { label: 'קטגוריה', value: category, set: setCategory, multi: false },
         ].map(f => (
           <div key={f.label} style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b',
-              display: 'block', marginBottom: 4 }}>{f.label}</label>
+            <label style={{
+              fontSize: 12, fontWeight: 700, color: '#64748b',
+              display: 'block', marginBottom: 4
+            }}>{f.label}</label>
             <input value={f.value} onChange={e => f.set(e.target.value)}
               style={{
                 width: '100%', border: '2px solid #e2e8f0', borderRadius: 10,
@@ -116,8 +91,10 @@ function EditModal({ poi, onClose, onSaved }: EditModalProps) {
         ))}
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b',
-            display: 'block', marginBottom: 4 }}>תיאור</label>
+          <label style={{
+            fontSize: 12, fontWeight: 700, color: '#64748b',
+            display: 'block', marginBottom: 4
+          }}>תיאור</label>
           <textarea value={description} onChange={e => setDescription(e.target.value)}
             rows={3}
             style={{
@@ -149,11 +126,11 @@ function EditModal({ poi, onClose, onSaved }: EditModalProps) {
 // ── Community POIs tab ────────────────────────────────────────────────────────
 
 function CommunityPoisTab() {
-  const [filter, setFilter]       = useState<PoiStatus | 'all'>('pending');
-  const [pois,   setPois]         = useState<CommunityPoiAdmin[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [busy,   setBusy]         = useState<number | null>(null);
-  const [editing, setEditing]     = useState<CommunityPoiAdmin | null>(null);
+  const [filter, setFilter] = useState<PoiStatus | 'all'>('pending');
+  const [pois, setPois] = useState<CommunityPoiAdmin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [editing, setEditing] = useState<CommunityPoiAdmin | null>(null);
   const [rejectNote, setRejectNote] = useState<{ id: number; note: string } | null>(null);
 
   useEffect(() => {
@@ -184,18 +161,18 @@ function CommunityPoisTab() {
   };
 
   const statusColors: Record<PoiStatus, string> = {
-    pending:  '#f59e0b',
+    pending: '#f59e0b',
     approved: '#0d9e6e',
     rejected: '#ef4444',
   };
   const statusLabels: Record<PoiStatus, string> = {
-    pending:  'ממתין',
+    pending: 'ממתין',
     approved: 'אושר',
     rejected: 'נדחה',
   };
 
   const counts = {
-    pending:  pois.filter(p => p.status === 'pending').length,
+    pending: pois.filter(p => p.status === 'pending').length,
     approved: pois.filter(p => p.status === 'approved').length,
     rejected: pois.filter(p => p.status === 'rejected').length,
   };
@@ -218,9 +195,9 @@ function CommunityPoisTab() {
               fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
             }}>
             {f === 'all' ? `הכל` :
-             f === 'pending' ? `ממתין (${counts.pending})` :
-             f === 'approved' ? `אושר (${counts.approved})` :
-             `נדחה (${counts.rejected})`}
+              f === 'pending' ? `ממתין (${counts.pending})` :
+                f === 'approved' ? `אושר (${counts.approved})` :
+                  `נדחה (${counts.rejected})`}
           </button>
         ))}
       </div>
@@ -406,15 +383,15 @@ function CommunityPoisTab() {
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
 export default function AdminPanel() {
-  const navigate      = useNavigate();
+  const navigate = useNavigate();
   const { user, isLoading } = useAuth();
-  const [tab,         setTab]         = useState<Tab>('community_pois');
-  const [users,       setUsers]       = useState<any[]>([]);
-  const [routes,      setRoutes]      = useState<any[]>([]);
+  const [tab, setTab] = useState<Tab>('community_pois');
+  const [users, setUsers] = useState<any[]>([]);
+  const [routes, setRoutes] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [busy,        setBusy]        = useState<string | null>(null);
-  const [stats,       setStats]       = useState({ users: 0, routes: 0, pending_pois: 0 });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [stats, setStats] = useState({ users: 0, routes: 0, pending_pois: 0 });
 
   useEffect(() => {
     if (!isLoading && (!user || !(user as any).is_admin)) navigate('/');
@@ -516,8 +493,8 @@ export default function AdminPanel() {
           {/* Stats */}
           <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
             {[
-              { label: 'משתמשים',    value: stats.users,        icon: '👥' },
-              { label: 'מסלולים',    value: stats.routes,       icon: '🗺️' },
+              { label: 'משתמשים', value: stats.users, icon: '👥' },
+              { label: 'מסלולים', value: stats.routes, icon: '🗺️' },
               { label: 'ממתין אישור', value: stats.pending_pois, icon: '📍' },
             ].map(s => (
               <div key={s.label} style={{
@@ -552,7 +529,7 @@ export default function AdminPanel() {
           boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
         }}>
           {TAB_BTN('community_pois', '📍 מיקומי קהילה', true)}
-          {TAB_BTN('users',  `👥 משתמשים (${users.length})`)}
+          {TAB_BTN('users', `👥 משתמשים (${users.length})`)}
           {TAB_BTN('routes', `🗺️ מסלולים (${routes.length})`)}
         </div>
 
