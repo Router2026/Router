@@ -48,3 +48,12 @@ export async function makeAdminCookieHeader(secret: string): Promise<string> {
 export function clearAdminCookieHeader(): string {
   return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
 }
+
+// Wrapper function to enforce admin authentication based on the request.
+export async function requireAdmin(req: NextRequest): Promise<{ ok: boolean }> {
+  // Check if the request contains a valid admin cookie.
+  const isValid = await verifyAdminRequest(req);
+
+  // Return the result in the expected object format.
+  return { ok: isValid };
+}

@@ -26,6 +26,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { TripBucketProvider } from './context/TripBucketContext';
 import { setAuthToken } from './api';
 import './index.css';
+import ContributePOI from './pages/ContributePOI';
 
 // Sync auth token to api module whenever auth state changes
 function TokenSync() {
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/MyTrips" element={<RequireAuth><Wrap name="MyTrips"><MyTrips /></Wrap></RequireAuth>} />
           <Route path="/RouteGenerator" element={<RequireAuth><Wrap name="RouteGenerator"><RouteGenerator /></Wrap></RequireAuth>} />
           <Route path="/Admin" element={<RequireAuth><Wrap name="Admin"><AdminPanel /></Wrap></RequireAuth>} />
+          <Route path="/ContributePOI" element={<ContributePOI />} />
         </Routes>
       </Router>
       </TripBucketProvider>
