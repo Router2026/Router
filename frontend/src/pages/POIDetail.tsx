@@ -245,7 +245,7 @@ export default function POIDetail() {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12 }}>
       <div style={{ fontSize: 40 }}>😕</div>
       <div style={{ fontWeight: 700 }}>לא ניתן לטעון את המקום</div>
-      <button onClick={() => navigate(-1)} style={{ background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 24px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>חזרה</button>
+      <button onClick={() => navigate('/Explore')} style={{ background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 24px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>חזרה</button>
     </div>
   );
 
@@ -270,7 +270,7 @@ export default function POIDetail() {
               </button>
             </div>
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/Explore')}
               style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
