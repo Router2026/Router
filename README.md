@@ -1,87 +1,107 @@
-# 🧭 Router - Israel's Smart Travel Platform
+# Router - Israel's Smart Travel Platform
 
-Router is an innovative "One-Stop-Shop" platform for the Israeli traveler, combining advanced trip planning capabilities, field navigation, and a location-based social network. The application solves the problem of scattered information by making data on nature trails, attractions, culinary options, and logistics accessible in one place, using Artificial Intelligence (AI) to build personalized itineraries.
+Router is a "One-Stop-Shop" platform for the Israeli traveler, combining trip planning, field navigation, and a location-based social network. It uses AI to build personalized itineraries based on region, group composition, and travel style.
 
-## ✨ Key Features
+## Key Features
 
-* **🗺️ Smart Discovery Map:** An interactive map divided into regions, with information layers (springs, trails, culinary) and real-time insights on crowds and weather.
-* **🤖 AI-Powered Trip Planner:** Building a full, customized itinerary (by region, participant composition, and style) integrated with a smart algorithm that optimally arranges the stops.
-* **ℹ️ Comprehensive Site Information:** Detailed information cards including difficulty level, stroller accessibility, shade index, and dog-friendly status.
-* **🏆 Community & Gamification:** An incentive model encouraging users to report from the field, write reviews, and upload photos in exchange for points (XP) and leveling up.
-* **🎥 Content Creators Social Network:** Uploading video clips, sharing routes, and following other travelers.
+- **Smart Discovery Map:** Interactive map divided into regions with information layers (springs, trails, culinary) and real-time crowd/weather insights.
+- **AI-Powered Trip Planner:** Full customized itinerary generation integrated with an algorithm that optimally arranges stops.
+- **Comprehensive Site Information:** Detailed cards with difficulty level, stroller accessibility, shade index, and dog-friendly status.
+- **Community & Gamification:** Users earn XP by reporting from the field, writing reviews, and uploading photos.
+- **Content Creators Social Network:** Upload video clips, share routes, and follow other travelers.
 
-## 🛠️ Technologies
+## Technologies
 
-**Frontend:**
-* React + TypeScript + Vite
-* React Router DOM (Navigation)
-* Leaflet + React-Leaflet (Maps)
-* Material-UI (MUI) & Lucide React (Design & Icons)
+**Backend (Next.js fullstack app in `backend/`):**
 
-**Backend & AI:**
-* Node.js (Request and user management)
-* Python Microservice (LLM model communication and route processing)
-* Firebase Auth / Auth0 (User authentication)
+- Next.js 16 + React 19 + TypeScript
+- Drizzle ORM + PostgreSQL (Supabase)
+- Custom JWT authentication + Nodemailer
+- Multi-provider LLM support: Ollama, OpenAI, Anthropic
+- Leaflet / React-Leaflet (maps), MUI (UI components)
 
-**Database:**
-* PostgreSQL + PostGIS (For smart spatial geographic queries)
+**Frontend (standalone Vite app in `frontend/`):**
+
+- React + TypeScript + Vite
+- Leaflet + React-Leaflet
+- Material-UI (MUI) & Lucide React
+
+**Database:** Supabase (hosted PostgreSQL)
 
 ---
 
-## 🚀 Installation and Setup
+## Setup
 
-To run the project on your local machine, follow these steps:
+### Prerequisites
 
-### 1. Frontend Setup
-Ensure Node.js (version 18 or higher) is installed.
+- Node.js 18+
+- A [Supabase](https://supabase.com) project (free tier works)
+- For AI: Ollama running locally, or an OpenAI/Anthropic API key
+
+### 1. Backend Setup
 
 ```bash
-# Navigate to the frontend directory
-cd code/frontend 
-
-# Install dependencies
+cd backend
 npm install
-
-# Start the development server
+cp .env.example .env
+# Edit .env with your credentials (see Environment Variables below)
 npm run dev
 ```
 
-The application will run locally (usually at `http://localhost:5173`).
-### 2. Backend Setup
-Ensure Node.js (version 18 or higher) is installed.
+The backend runs at `http://localhost:3000`.
+
+### 2. Frontend Setup
 
 ```bash
-# Navigate to the frontend directory
-cd code/backend 
-
-# Install dependencies
+cd frontend
 npm install
-
-# Start the development server
 npm run dev
 ```
-### 3. Database Setup (PostgreSQL)
-Ensure PostgreSQL is installed along with the PostGIS extension.
-Run the script file / import the backup into your database (see the section below regarding DB import/export).
 
-## 💾 Database Extraction & Backup
-Since the project uses PostgreSQL (with PostGIS), the best and safest way to backup or extract all the data, tables, and structure of the database is by using the `pg_dump` utility.
+The frontend runs at `http://localhost:5173`.
 
-### Export Database (Backup)
-To export the database to a file (to transfer to a friend or upload to another server), open your Command Line (Terminal / PowerShell) and run:
+### 3. Database Setup
 
-```powershell
-# Navigate to your PostgreSQL bin installation folder (change '14' to your installed version if needed)
-cd "C:\Program Files\PostgreSQL\14\bin"
+The project uses [Drizzle ORM](https://orm.drizzle.team) against a Supabase PostgreSQL database.
 
-# Extract the DB to a custom format file (compressed and recommended)
-.\pg_dump -U postgres -h localhost -p 5432 -F c router_db > "C:\Users\halif\Desktop\router-db.dump"
+```bash
+cd backend
+
+# Push schema to your Supabase database
+npm run db:push
+
+# (Optional) Seed initial data
+npm run db:seed
 ```
-### Restore Database (Import)
-To restore the `.dump` file you created into a new, empty database, use `pg_restore`:
 
-```powershell
-# First, create an empty database in pgAdmin or via CLI
-# Then run the restore command:
-.\pg_restore -U postgres -h localhost -p 5432 -O -d router_db "C:\Path\To\router-db.dump"
+---
+
+## Environment Variables
+
+Copy `backend/.env.example` to `backend/.env` and fill in the values:
+
+| Variable | Description |
+| --- | --- |
+| `LLM_PROVIDER` | `ollama`, `openai`, or `anthropic` |
+| `OLLAMA_BASE_URL` | Ollama API base URL (default: `http://localhost:11434/v1`) |
+| `OLLAMA_MODEL` | Ollama model name (e.g. `llama3.1:8b`) |
+| `OPENAI_API_KEY` | Required if `LLM_PROVIDER=openai` |
+| `ANTHROPIC_API_KEY` | Required if `LLM_PROVIDER=anthropic` |
+| `SUPABASE_URL` | From Supabase → Project Settings → API |
+| `SUPABASE_KEY` | Supabase anon/public key |
+| `DATABASE_URL` | Supabase transaction pooler connection string |
+| `JWT_SECRET` | Secret for signing user auth tokens |
+| `SMTP_*` | SMTP credentials for sending email (optional — logs to console if unset) |
+| `APP_URL` | Frontend URL (used in email links) |
+| `OVERPASS_API_URL` | Overpass API endpoint for OSM data |
+
+---
+
+## Database Commands
+
+```bash
+npm run db:push          # Push schema changes to DB
+npm run db:migrate       # Run migrations
+npm run db:studio        # Open Drizzle Studio (visual DB browser)
+npm run db:seed          # Seed initial location data
 ```
