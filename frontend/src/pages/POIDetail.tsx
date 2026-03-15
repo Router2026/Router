@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -67,13 +67,75 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
   return null;
 }
 
-// ── Mini-Map Component (Feature 1) ───────────────────────────────
+// ── Hero Image component (Feature 2) ─────────────────────────────────────────
+function HeroImage({ poi }: { poi: POI }) {
+  const [imgIdx, setImgIdx] = useState(0);
+  const [imgError, setImgError] = useState(false);
+
+  // Deduplicated image list, main_image first
+  const images = useMemo(() => {
+    const all = poi.main_image
+      ? [poi.main_image, ...poi.images.filter(i => i !== poi.main_image)]
+      : [...poi.images];
+    return all.filter(Boolean);
+  }, [poi.main_image, poi.images]);
+
+  const currentImage = !imgError && images[imgIdx] ? images[imgIdx] : null;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0 }}>
+      {currentImage ? (
+        <img
+          key={currentImage}
+          src={currentImage}
+          alt={poi.name}
+          onError={() => setImgError(true)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: 72, opacity: 0.3 }}>🏞️</span>
+        </div>
+      )}
+
+      {/* Gradient scrim */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)' }} />
+
+      {/* Pagination dots */}
+      {images.length > 1 && !imgError && (
+        <div style={{
+          position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 6, zIndex: 12,
+        }}>
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setImgIdx(i)}
+              style={{
+                width: i === imgIdx ? 20 : 6, height: 6, borderRadius: 3,
+                background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.5)',
+                border: 'none', cursor: 'pointer', padding: 0,
+                transition: 'all 0.2s ease',
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Mini-Map ──────────────────────────────────────────────────────────────────
 function MiniMap({ poi }: { poi: POI }) {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMin: number } | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
-  const poiCoords: [number, number] = [poi.latitude, poi.longitude];
+  const poiCoords = useMemo<[number, number]>(() => [poi.latitude, poi.longitude], [poi.latitude, poi.longitude]);
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) { setGeoError('הדפדפן אינו תומך בגישה למיקום'); return; }
@@ -153,7 +215,6 @@ export default function POIDetail() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reports, setReports] = useState<CommunityReport[]>([]);
   const [tab, setTab] = useState<'reports' | 'reviews'>('reports');
-  const [isFav, setIsFav] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,11 +222,9 @@ export default function POIDetail() {
     if (!poiId) return;
     setLoading(true);
     setError(null);
-
     api.locations.get(poiId)
       .then(async poiData => {
         setPoi(poiData);
-        // Feature 5: Fetch reports and reviews filtered by location_id
         const [revs, reps] = await Promise.all([
           api.reviews.list(Number(poiId)),
           api.reports.list(Number(poiId)),
@@ -177,7 +236,11 @@ export default function POIDetail() {
       .catch(err => { setError(err.message); setLoading(false); });
   }, [poiId]);
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}><div>טוען...</div></div>;
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}>
+      <div>טוען...</div>
+    </div>
+  );
   if (error || !poi) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12 }}>
       <div style={{ fontSize: 40 }}>😕</div>
@@ -191,23 +254,30 @@ export default function POIDetail() {
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', width: '100%' }}>
 
-      {/* Hero */}
-      <div style={{ position: 'relative', height: 350, width: '100%', backgroundImage: poi.main_image ? `url(${poi.main_image})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center', background: poi.main_image ? undefined : 'linear-gradient(135deg, #0d9e6e, #34d399)' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.6) 100%)' }} />
+      {/* ── Feature 2: Hero Banner ── */}
+      <div style={{ position: 'relative', height: 350, width: '100%' }}>
+        <HeroImage poi={poi} />
+
         <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+          {/* Top bar: share + heart + back */}
+          <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button
+                onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
+                style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
               </button>
-              <button onClick={() => setIsFav(!isFav)} style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill={isFav ? '#ef4444' : 'none'} stroke={isFav ? '#ef4444' : '#1a2e2a'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
-              </button>
             </div>
-            <button onClick={() => navigate(-1)} style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button
+              onClick={() => navigate(-1)}
+              style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
           </div>
+
+          {/* POI title */}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px 20px 32px', direction: 'rtl', zIndex: 10 }}>
             <span style={{ display: 'inline-block', background: diffColor, color: '#fff', borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 800, marginBottom: 12 }}>{poi.difficulty}</span>
             <h1 style={{ fontSize: 32, fontWeight: 900, color: '#fff', marginBottom: 8, textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>{poi.name}</h1>
@@ -219,7 +289,7 @@ export default function POIDetail() {
         </div>
       </div>
 
-      {/* Main content */}
+      {/* ── Main content ── */}
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 16px', marginTop: -20, position: 'relative', zIndex: 20, paddingBottom: 100 }}>
 
         {/* Info card */}
@@ -233,24 +303,37 @@ export default function POIDetail() {
           </div>
           <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.8, textAlign: 'right', marginBottom: 24 }}>{poi.description}</p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', direction: 'rtl' }}>
-            {poi.duration_minutes && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#64748b' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>{poi.duration_minutes} דקות</span>}
+            {poi.duration_minutes && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#64748b' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                {poi.duration_minutes} דקות
+              </span>
+            )}
             {poi.has_water && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#0284c7' }}>💧 יש מים</span>}
             {poi.has_shade && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🌿 יש צל</span>}
             {poi.accessible && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf5ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>♿ נגיש</span>}
           </div>
         </div>
 
-        {/* Feature 1: Mini-Map */}
+        {/* Feature 1: Mini-Map (fixed flickering) */}
         <MiniMap poi={poi} />
 
         {/* Tabs */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)', marginBottom: 16, display: 'flex', direction: 'rtl' }}>
-          {[{ key: 'reports', label: `דיווחים (${reports.length})` }, { key: 'reviews', label: `ביקורות (${reviews.length})` }].map(t => (
-            <button key={t.key} onClick={() => setTab(t.key as any)} style={{ flex: 1, padding: '12px', borderRadius: 16, border: 'none', background: tab === t.key ? '#0d9e6e' : 'transparent', color: tab === t.key ? '#fff' : '#94a3b8', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>{t.label}</button>
+          {[
+            { key: 'reports', label: `דיווחים (${reports.length})` },
+            { key: 'reviews', label: `ביקורות (${reviews.length})` },
+          ].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key as any)}
+              style={{ flex: 1, padding: '12px', borderRadius: 16, border: 'none', background: tab === t.key ? '#0d9e6e' : 'transparent', color: tab === t.key ? '#fff' : '#94a3b8', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
 
-        {/* Feature 5: Reports tab — location-specific, with auth-gated "add" button */}
         {tab === 'reports' && (
           <div style={{ direction: 'rtl' }}>
             {reports.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין דיווחים עדיין לאתר זה</div>}
@@ -263,7 +346,6 @@ export default function POIDetail() {
                 <p style={{ fontSize: 14, color: '#475569', textAlign: 'right', margin: 0 }}>{r.content}</p>
               </div>
             ))}
-            {/* Feature 2: Only logged-in users see the add button */}
             {isLoggedIn ? (
               <button onClick={() => navigate(`/AddReport?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
                 style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
@@ -305,8 +387,10 @@ export default function POIDetail() {
           </div>
         )}
 
-        <button onClick={() => window.open(`https://waze.com/ul?q=${encodeURIComponent(poi.name)}`, '_blank')}
-          style={{ width: '100%', padding: '18px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 18, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 24px rgba(13, 158, 110, 0.25)', marginTop: 8 }}>
+        <button
+          onClick={() => window.open(`https://waze.com/ul?q=${encodeURIComponent(poi.name)}`, '_blank')}
+          style={{ width: '100%', padding: '18px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 18, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 24px rgba(13,158,110,0.25)', marginTop: 8 }}
+        >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
           נווט לשם
         </button>

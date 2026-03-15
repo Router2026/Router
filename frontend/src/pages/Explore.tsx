@@ -103,10 +103,11 @@ function POICard({ poi, onFav, favs }: { poi: POI; onFav: (id: string) => void; 
 
 // ── Main Explore ─────────────────────────────────────────────────
 export default function Explore() {
-  // Feature 3: Read pre-selected category/query from URL
   const [searchParams] = useSearchParams();
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
+
+  const FETCH_LIMIT = 500;
 
   const [pois, setPois] = useState<POI[]>([]);
   const [regions, setRegions] = useState<string[]>([]);
@@ -114,10 +115,13 @@ export default function Explore() {
   const [search, setSearch] = useState(urlQuery);
   const [filterOpen, setFilterOpen] = useState(false);
   const [favs, setFavs] = useState<Set<string>>(new Set());
+
+  // Loading states
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Init filter state with URL category if provided
   const [selRegions, setSelRegions] = useState<string[]>([]);
   const [selCats, setSelCats] = useState<string[]>(urlCategory ? [urlCategory] : []);
   const [selDiffs, setSelDiffs] = useState<string[]>([]);
@@ -125,18 +129,42 @@ export default function Explore() {
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
 
+  // Initial Fetch
   useEffect(() => {
-    Promise.all([api.locations.list({ limit: 500 }), api.regions.list()])
+    Promise.all([api.locations.list({ limit: FETCH_LIMIT, offset: 0 }), api.regions.list()])
       .then(([poisData, regionsData]) => {
         setPois(poisData);
         setRegions(regionsData.map(r => r.name));
         setCategories([...new Set(poisData.map(p => p.category).filter(Boolean))].sort());
+
+        // If we got exactly the limit, there's probably more to fetch
+        setHasMore(poisData.length === FETCH_LIMIT);
         setLoading(false);
       })
       .catch(err => { setError(err.message); setLoading(false); });
   }, []);
 
-  // Auto-open filter panel if a category was pre-selected via URL
+  // Fetch More function
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+
+    try {
+      // Use offset based on how many POIs we currently hold
+      const morePois = await api.locations.list({ limit: FETCH_LIMIT, offset: pois.length });
+
+      setPois(prev => [...prev, ...morePois]);
+      setCategories(prev => [...new Set([...prev, ...morePois.map(p => p.category).filter(Boolean)])].sort());
+
+      // Update hasMore status
+      setHasMore(morePois.length === FETCH_LIMIT);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     if (urlCategory && categories.includes(urlCategory)) {
       setSelCats([urlCategory]);
@@ -157,7 +185,7 @@ export default function Explore() {
   });
 
   return (
-    <div style={{ background: '#f0f4f3', minHeight: '100vh' }}>
+    <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40 }}>
       {/* Active category banner */}
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
@@ -197,18 +225,47 @@ export default function Explore() {
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
         {loading ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
           : error ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
-            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{filtered.length} אתרים נמצאו</span>}
+            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{filtered.length} אתרים הוצגו מתוך {pois.length}</span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: '0 16px 24px' }}>
         {filtered.map(poi => <POICard key={poi.id} poi={poi} favs={favs} onFav={id => setFavs(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })} />)}
+
         {!loading && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontWeight: 700 }}>לא נמצאו אתרים</div>
+            <div style={{ fontWeight: 700 }}>לא נמצאו אתרים תואמים לחיפוש שלך</div>
           </div>
         )}
       </div>
+
+      {/* Load More Button */}
+      {!loading && hasMore && (
+        <div style={{ textAlign: 'center', padding: '10px 20px 30px' }}>
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            style={{
+              background: '#fff',
+              border: '2px solid #0d9e6e',
+              color: '#0d9e6e',
+              padding: '12px 28px',
+              borderRadius: 20,
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: loadingMore ? 'not-allowed' : 'pointer',
+              fontFamily: 'Heebo, sans-serif',
+              boxShadow: '0 4px 12px rgba(13,158,110,0.15)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s'
+            }}
+          >
+            {loadingMore ? 'טוען עוד נתונים...' : '🔽 טען עוד אתרים'}
+          </button>
+        </div>
+      )}
 
       <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)}
         selectedRegions={selRegions} setSelectedRegions={setSelRegions}
