@@ -60,7 +60,7 @@ export default function TripDetail() {
           position: 'relative',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <button onClick={() => navigate(-1)} style={{
+            <button onClick={() => navigate('/MyTrips')} style={{
               background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
               padding: '8px 12px', cursor: 'pointer', color: '#fff',
               transition: 'background 0.2s ease'
