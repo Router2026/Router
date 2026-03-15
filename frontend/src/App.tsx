@@ -23,6 +23,7 @@ import ResetPassword from './pages/ResetPassword';
 import RouteGenerator from './pages/RouteGenerator';
 import AdminPanel from './pages/AdminPanel';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { TripBucketProvider } from './context/TripBucketContext';
 import { setAuthToken } from './api';
 import './index.css';
 import ContributePOI from './pages/ContributePOI';
@@ -50,7 +51,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
-      <TokenSync />
+      <TripBucketProvider>
+        <TokenSync />
       <Router>
         <Routes>
           {/* Public routes */}
@@ -81,6 +83,7 @@ export default function App() {
           <Route path="/ContributePOI" element={<ContributePOI />} />
         </Routes>
       </Router>
+      </TripBucketProvider>
     </AuthProvider>
   );
 }

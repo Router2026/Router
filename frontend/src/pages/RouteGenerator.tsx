@@ -21,7 +21,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-
 // ── Start-point marker (green "home" pin) ────────────────────────────────────
 
 function StartMarker({ position }: { position: LatLng }) {
