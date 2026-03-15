@@ -10,24 +10,7 @@
 
 import { rawDb } from '@/lib/db/raw-client';
 import type { TspNode } from './tsp-engine';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface BucketPoi {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  region: string;
-  latitude: number;
-  longitude: number;
-  duration_minutes: number;
-  difficulty: string;
-  has_water: boolean;
-  has_shade: boolean;
-  accessible: boolean;
-  average_rating: number;
-}
+import { BucketPoi } from './types';
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 
@@ -74,19 +57,19 @@ export async function fetchBucketPois(ids: string[]): Promise<BucketPoi[]> {
   );
 
   return rows.map(r => ({
-    id:               String(r.id),
-    name:             r.name as string,
-    description:      r.description as string,
-    category:         r.category as string,
-    region:           r.region as string,
-    latitude:         parseFloat(r.latitude as string),
-    longitude:        parseFloat(r.longitude as string),
+    id: String(r.id),
+    name: r.name as string,
+    description: r.description as string,
+    category: r.category as string,
+    region: r.region as string,
+    latitude: parseFloat(r.latitude as string),
+    longitude: parseFloat(r.longitude as string),
     duration_minutes: Number(r.duration_minutes),
-    difficulty:       r.difficulty as string,
-    has_water:        Boolean(r.has_water),
-    has_shade:        Boolean(r.has_shade),
-    accessible:       Boolean(r.accessible),
-    average_rating:   parseFloat(r.average_rating as string),
+    difficulty: r.difficulty as string,
+    has_water: Boolean(r.has_water),
+    has_shade: Boolean(r.has_shade),
+    accessible: Boolean(r.accessible),
+    average_rating: parseFloat(r.average_rating as string),
   }));
 }
 
@@ -95,10 +78,10 @@ export async function fetchBucketPois(ids: string[]): Promise<BucketPoi[]> {
  */
 export function toTspNodes(pois: BucketPoi[]): TspNode[] {
   return pois.map(p => ({
-    id:               p.id,
-    name:             p.name,
-    latitude:         p.latitude,
-    longitude:        p.longitude,
+    id: p.id,
+    name: p.name,
+    latitude: p.latitude,
+    longitude: p.longitude,
     duration_minutes: p.duration_minutes,
   }));
 }

@@ -14,24 +14,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { BucketPoi } from './bucket-db';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface SmartStop {
-  location_id: string;
-  poi_name: string;
-  arrival_time: string;       // "HH:MM" format
-  duration_minutes: number;
-  smart_insight: string;      // One-sentence rationale for this slot
-  visit_type: string;         // e.g. "morning hike", "afternoon coffee", "sunset viewpoint"
-}
-
-export interface SmartPlan {
-  route_title: string;
-  route_description: string;
-  stops: SmartStop[];
-}
+import type { BucketPoi, SmartStop, SmartPlan } from './types';
 
 // ── Prompt Builder ────────────────────────────────────────────────────────────
 
@@ -42,17 +25,17 @@ export interface SmartPlan {
  */
 function buildSmartBuildPrompt(pois: BucketPoi[]): string {
   const poiContext = pois.map(p => ({
-    id:               p.id,
-    name:             p.name,
-    category:         p.category,
-    region:           p.region,
-    description:      p.description.slice(0, 200), // truncate for token efficiency
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    region: p.region,
+    description: p.description.slice(0, 200), // truncate for token efficiency
     duration_minutes: p.duration_minutes,
-    difficulty:       p.difficulty,
-    has_water:        p.has_water,
-    has_shade:        p.has_shade,
-    latitude:         p.latitude,
-    longitude:        p.longitude,
+    difficulty: p.difficulty,
+    has_water: p.has_water,
+    has_shade: p.has_shade,
+    latitude: p.latitude,
+    longitude: p.longitude,
   }));
 
   return `You are an expert travel planner for Israel. You have been given a list of Points of Interest (POIs) that a user wants to visit in a single day.
@@ -144,12 +127,12 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
     if (typeof s.arrival_time !== 'string') throw new Error(`Stop ${idx}: missing arrival_time`);
     if (typeof s.duration_minutes !== 'number') throw new Error(`Stop ${idx}: missing duration_minutes`);
     return {
-      location_id:      s.location_id,
-      poi_name:         s.poi_name,
-      arrival_time:     s.arrival_time,
+      location_id: s.location_id,
+      poi_name: s.poi_name,
+      arrival_time: s.arrival_time,
       duration_minutes: s.duration_minutes,
-      smart_insight:    typeof s.smart_insight === 'string' ? s.smart_insight : '',
-      visit_type:       typeof s.visit_type === 'string' ? s.visit_type : '',
+      smart_insight: typeof s.smart_insight === 'string' ? s.smart_insight : '',
+      visit_type: typeof s.visit_type === 'string' ? s.visit_type : '',
     };
   });
 
@@ -161,7 +144,7 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
   }
 
   return {
-    route_title:       obj.route_title as string,
+    route_title: obj.route_title as string,
     route_description: obj.route_description as string,
     stops,
   };
@@ -188,9 +171,9 @@ export async function runSmartBuild(pois: BucketPoi[]): Promise<SmartPlan> {
   const expectedIds = new Set(pois.map(p => p.id));
 
   const message = await client.messages.create({
-    model:      process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
+    model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
     max_tokens: 2048,
-    messages:   [{ role: 'user', content: prompt }],
+    messages: [{ role: 'user', content: prompt }],
   });
 
   const block = message.content[0];

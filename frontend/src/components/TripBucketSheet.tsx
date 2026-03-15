@@ -11,10 +11,9 @@ import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useTripBucket,
-  type BuildMode,
-  type UserLocation,
 } from '../context/TripBucketContext';
 import RouterLogo from '../assets/logo.jpeg';
+import type { GeoState, UserLocation, BuildMode } from '../utils/types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -167,8 +166,6 @@ function BucketListItem({
 }
 
 // ── Location Detector ─────────────────────────────────────────────────────────
-
-type GeoState = 'idle' | 'loading' | 'success' | 'error';
 
 function LocationStartPoint({
   location,
