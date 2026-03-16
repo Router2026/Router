@@ -23,8 +23,10 @@ import ResetPassword from './pages/ResetPassword';
 import RouteGenerator from './pages/RouteGenerator';
 import AdminPanel from './pages/AdminPanel';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { TripBucketProvider } from './context/TripBucketContext';
 import { setAuthToken } from './api';
 import './index.css';
+import ContributePOI from './pages/ContributePOI';
 
 // Sync auth token to api module whenever auth state changes
 function TokenSync() {
@@ -49,7 +51,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
-      <TokenSync />
+      <TripBucketProvider>
+        <TokenSync />
       <Router>
         <Routes>
           {/* Public routes */}
@@ -77,8 +80,10 @@ export default function App() {
           <Route path="/MyTrips" element={<RequireAuth><Wrap name="MyTrips"><MyTrips /></Wrap></RequireAuth>} />
           <Route path="/RouteGenerator" element={<RequireAuth><Wrap name="RouteGenerator"><RouteGenerator /></Wrap></RequireAuth>} />
           <Route path="/Admin" element={<RequireAuth><Wrap name="Admin"><AdminPanel /></Wrap></RequireAuth>} />
+          <Route path="/ContributePOI" element={<ContributePOI />} />
         </Routes>
       </Router>
+      </TripBucketProvider>
     </AuthProvider>
   );
 }

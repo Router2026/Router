@@ -98,44 +98,18 @@ export default function TripDetail() {
         }}
       >
         {/* Header Content (Centered) */}
-        <div
-          style={{
-            maxWidth: 600,
-            margin: "0 auto",
-            padding: "16px 20px 48px",
-            position: "relative",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 20,
-            }}
-          >
-            <button
-              onClick={() => navigate(-1)}
-              style={{
-                background: "rgba(255,255,255,0.2)",
-                border: "none",
-                borderRadius: 12,
-                padding: "8px 12px",
-                cursor: "pointer",
-                color: "#fff",
-                transition: "background 0.2s ease",
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+        <div style={{
+          maxWidth: 600, margin: '0 auto',
+          padding: '16px 20px 48px',
+          position: 'relative',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <button onClick={() => navigate('/MyTrips')} style={{
+              background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
+              padding: '8px 12px', cursor: 'pointer', color: '#fff',
+              transition: 'background 0.2s ease'
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>
