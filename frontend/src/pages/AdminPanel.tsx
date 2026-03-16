@@ -2,7 +2,7 @@
 // Updated: adds a "Community POIs" tab for the admin to approve, edit, or reject
 // pending user-contributed locations.
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';

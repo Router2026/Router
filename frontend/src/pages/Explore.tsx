@@ -1,7 +1,7 @@
 /**
  * Explore Page — with Trip Bucket integration
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type POI } from '../api';
 import RouterLogo from '../assets/logo.jpeg';
@@ -160,18 +160,24 @@ export default function Explore() {
   const [searchParams] = useSearchParams();
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
-  const FETCH_LIMIT = 500;
 
-  const [pois, setPois] = useState<POI[]>([]);
+  // Fetch in chunks equal to the backend's max limit
+  const FETCH_CHUNK_SIZE = 500;
+  // How many items to render in the DOM each time we scroll to the bottom
+  const RENDER_CHUNK_SIZE = 20;
+
+  const [allPois, setAllPois] = useState<POI[]>([]);
   const [regions, setRegions] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState(urlQuery);
   const [filterOpen, setFilterOpen] = useState(false);
   const [favs, setFavs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // State for controlling how many items are currently rendered
+  const [visibleCount, setVisibleCount] = useState(RENDER_CHUNK_SIZE);
+
   const [selRegions, setSelRegions] = useState<string[]>([]);
   const [selCats, setSelCats] = useState<string[]>(urlCategory ? [urlCategory] : []);
   const [selDiffs, setSelDiffs] = useState<string[]>([]);
@@ -179,32 +185,40 @@ export default function Explore() {
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
 
+  // 1. Fetch all data using pagination loop on mount
   useEffect(() => {
-    Promise.all([api.locations.list({ limit: FETCH_LIMIT, offset: 0 }), api.regions.list()])
-      .then(([poisData, regionsData]) => {
-        setPois(poisData);
-        setRegions(regionsData.map(r => r.name));
-        setCategories([...new Set(poisData.map(p => p.category).filter(Boolean))].sort());
-        setHasMore(poisData.length === FETCH_LIMIT);
-        setLoading(false);
-      })
-      .catch(err => { setError(err.message); setLoading(false); });
-  }, []);
+    const fetchAllData = async () => {
+      try {
+        let allFetchedPois: POI[] = [];
+        let offset = 0;
+        let hasMore = true;
 
-  const loadMore = async () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    try {
-      const morePois = await api.locations.list({ limit: FETCH_LIMIT, offset: pois.length });
-      setPois(prev => [...prev, ...morePois]);
-      setCategories(prev => [...new Set([...prev, ...morePois.map(p => p.category).filter(Boolean)])].sort());
-      setHasMore(morePois.length === FETCH_LIMIT);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+        // Loop until the backend returns fewer items than the chunk size
+        while (hasMore) {
+          const chunk = await api.locations.list({ limit: FETCH_CHUNK_SIZE, offset });
+          allFetchedPois = [...allFetchedPois, ...chunk];
+
+          if (chunk.length < FETCH_CHUNK_SIZE) {
+            hasMore = false;
+          } else {
+            offset += FETCH_CHUNK_SIZE;
+          }
+        }
+
+        const regionsData = await api.regions.list();
+
+        setAllPois(allFetchedPois);
+        setRegions(regionsData.map(r => r.name));
+        setCategories([...new Set(allFetchedPois.map(p => p.category).filter(Boolean))].sort());
+        setLoading(false);
+      } catch (err: any) {
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, []);
 
   useEffect(() => {
     if (urlCategory && categories.includes(urlCategory)) setSelCats([urlCategory]);
@@ -212,16 +226,46 @@ export default function Explore() {
 
   const activeFilterCount = selRegions.length + selCats.length + selDiffs.length + (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
-  const filtered = pois.filter(p => {
-    if (search && !p.name.includes(search) && !p.region.includes(search) && !p.category.includes(search)) return false;
-    if (selRegions.length && !selRegions.includes(p.region)) return false;
-    if (selCats.length && !selCats.includes(p.category)) return false;
-    if (selDiffs.length && !selDiffs.includes(p.difficulty)) return false;
-    if (hasWater && !p.has_water) return false;
-    if (hasShade && !p.has_shade) return false;
-    if (accessible && !p.accessible) return false;
-    return true;
-  });
+  // 2. Apply filters and search to the ENTIRE list
+  const filteredPois = useMemo(() => {
+    return allPois.filter(p => {
+      if (search && !p.name.includes(search) && !p.region.includes(search) && !p.category.includes(search)) return false;
+      if (selRegions.length && !selRegions.includes(p.region)) return false;
+      if (selCats.length && !selCats.includes(p.category)) return false;
+      if (selDiffs.length && !selDiffs.includes(p.difficulty)) return false;
+      if (hasWater && !p.has_water) return false;
+      if (hasShade && !p.has_shade) return false;
+      if (accessible && !p.accessible) return false;
+      return true;
+    });
+  }, [allPois, search, selRegions, selCats, selDiffs, hasWater, hasShade, accessible]);
+
+  // 3. Reset the visible count whenever filters or search query change
+  useEffect(() => {
+    setVisibleCount(RENDER_CHUNK_SIZE);
+  }, [filteredPois]);
+
+  // 4. Set up the Intersection Observer for Infinite Scrolling
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastPoiElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (loading) return;
+
+    // Disconnect the previous observer if it exists
+    if (observer.current) observer.current.disconnect();
+
+    observer.current = new IntersectionObserver(entries => {
+      // If the last element is visible and we have more items to show
+      if (entries[0].isIntersecting && visibleCount < filteredPois.length) {
+        setVisibleCount(prev => prev + RENDER_CHUNK_SIZE);
+      }
+    });
+
+    // Observe the new last element
+    if (node) observer.current.observe(node);
+  }, [loading, visibleCount, filteredPois.length]);
+
+  // 5. Slice the array to get only the items we want to render in the DOM
+  const displayedPois = filteredPois.slice(0, visibleCount);
 
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
@@ -284,12 +328,26 @@ export default function Explore() {
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
         {loading ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
           : error ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
-            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{filtered.length} אתרים הוצגו מתוך {pois.length}</span>}
+            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{filteredPois.length} אתרים הוצגו מתוך {allPois.length}</span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: '0 16px 24px' }}>
-        {filtered.map(poi => <POICard key={poi.id} poi={poi} favs={favs} onFav={id => setFavs(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })} />)}
-        {!loading && filtered.length === 0 && (
+        {displayedPois.map((poi: POI, index: number) => {
+          // Check if this is the last rendered element
+          const isLast = index === displayedPois.length - 1;
+          return (
+            <div key={poi.id} ref={isLast ? lastPoiElementRef : null}>
+              <POICard
+                poi={poi}
+                favs={favs}
+                onFav={id => setFavs(prev => {
+                  const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+                })}
+              />
+            </div>
+          );
+        })}
+        {!loading && filteredPois.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
             <div style={{ fontWeight: 700 }}>לא נמצאו אתרים תואמים לחיפוש שלך</div>
@@ -297,11 +355,10 @@ export default function Explore() {
         )}
       </div>
 
-      {!loading && hasMore && (
-        <div style={{ textAlign: 'center', padding: '10px 20px 30px' }}>
-          <button onClick={loadMore} disabled={loadingMore} style={{ background: '#fff', border: '2px solid #0d9e6e', color: '#0d9e6e', padding: '12px 28px', borderRadius: 20, fontSize: 15, fontWeight: 800, cursor: loadingMore ? 'not-allowed' : 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 12px rgba(13,158,110,0.15)', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all 0.2s' }}>
-            {loadingMore ? 'טוען עוד נתונים...' : '🔽 טען עוד אתרים'}
-          </button>
+      {/* Loading indicator at the bottom when more items are being rendered */}
+      {!loading && visibleCount < filteredPois.length && (
+        <div style={{ textAlign: 'center', padding: '10px 20px 30px', color: '#0d9e6e', fontWeight: 600 }}>
+          טוען עוד אתרים...
         </div>
       )}
 

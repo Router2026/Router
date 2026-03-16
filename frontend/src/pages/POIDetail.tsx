@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -321,13 +321,9 @@ export default function POIDetail() {
             {/* ── Add to Trip Bucket button (prominent CTA) ── */}
             <button
               onClick={() => {
-                if (hasPoi(poi.id)) {
-                  removePoi(poi.id);
-                } else {
-                  addPoi(poi);
-                  openSheet();
-                }
-              }}
+                window.open(`https://www.google.com/maps/search/?api=1&query=${poi.name}`, '_blank', 'noopener,noreferrer')
+              }
+              }
               style={{
                 width: '100%',
                 marginTop: 20,
@@ -350,17 +346,21 @@ export default function POIDetail() {
                 transition: 'all 0.2s ease',
               }}
             >
-              {hasPoi(poi.id) ? (
-                <>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  נוסף לסל המסלול, צפה בסל
-                </>
-              ) : (
-                <>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10H4V10z" /><path d="M9 6V4a3 3 0 0 1 6 0v2" /><line x1="4" y1="15" x2="20" y2="15" /></svg>
-                  הוסף לסל המסלול
-                </>
-              )}
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {/* Map pin icon */}
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              פתח בגוגל מפות
             </button>
           </div>
 
@@ -444,7 +444,7 @@ export default function POIDetail() {
             נווט לשם
           </button>
         </div>
-      </div>
+      </div >
       <TripBucketSheet />
     </>
   );
