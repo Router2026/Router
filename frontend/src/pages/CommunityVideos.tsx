@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import { base44, type VideoPost } from '../api';
 
 const TAGS = ['הכל', 'טבע', 'מים', 'היסטוריה', 'נוף'];
 
 export default function CommunityVideos() {
   const navigate = useNavigate();
-  const [videos, setVideos] = useState<any[]>([]);
+  const [videos, setVideos] = useState<VideoPost[]>([]);
   const [selectedTag, setSelectedTag] = useState('הכל');
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 

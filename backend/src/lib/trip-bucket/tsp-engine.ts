@@ -202,7 +202,7 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
 
 // ── Greedy Nearest-Neighbor fallback ─────────────────────────────────────────
 
-function nearestNeighbor(matrix: DistanceMatrix, fixedStart: boolean): number[] {
+function nearestNeighbor(matrix: DistanceMatrix, _fixedStart: boolean): number[] {
   const n = matrix.length;
   const visited = new Array(n).fill(false);
   const path: number[] = [0];

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import { base44, type UserProfile, type Trip, type Review } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 export default function Profile() {
@@ -8,16 +8,17 @@ export default function Profile() {
   // Get user state and logout function from context
   const { user, logout } = useAuth();
 
-  const [profile, setProfile] = useState<any>(null);
-  const [trips, setTrips] = useState<any[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [trips, setTrips] = useState<Trip[]>([]);
   // Added setter for reviews
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
   // Fetch user-specific data only if the user is logged in
   useEffect(() => {
     if (!user) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingData(true);
     // Fetch profile, trips, and reviews concurrently
     Promise.all([
@@ -102,7 +103,7 @@ export default function Profile() {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            {(user as any)?.is_admin && (
+            {user?.is_admin && (
               <button onClick={() => navigate('/Admin')} style={{
                 background: '#0f172a', border: 'none', borderRadius: 10, padding: '8px 12px',
                 color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif'

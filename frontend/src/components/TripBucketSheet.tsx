@@ -97,7 +97,7 @@ function StepIndicator({ current }: { current: 1 | 2 }) {
 function BucketListItem({
   item, index, onRemove, dragHandlers,
 }: {
-  item: { poi: any; addedAt: number };
+  item: { poi: { id: string; name: string; region?: string; duration_minutes?: number; main_image?: string }; addedAt: number };
   index: number;
   onRemove: (id: string) => void;
   dragHandlers: ReturnType<typeof useDragReorder>;
@@ -458,8 +458,8 @@ export default function TripBucketSheet() {
           },
         },
       });
-    } catch (e: any) {
-      setGenerationError(e?.message || 'יצירת המסלול נכשלה. אנא נסה שוב.');
+    } catch (e: unknown) {
+      setGenerationError((e as { message?: string })?.message || 'יצירת המסלול נכשלה. אנא נסה שוב.');
     } finally {
       setIsGenerating(false);
     }

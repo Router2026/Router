@@ -4,9 +4,6 @@
 
 import { rawDb } from "@/lib/db/raw-client";
 
-/** FCM HTTP v1 send endpoint */
-const FCM_URL = "https://fcm.googleapis.com/v1/projects/{projectId}/messages:send";
-
 /** Retrieve all push tokens for a given user */
 export async function getPushTokensForUser(userId: number): Promise<string[]> {
   const { rows } = await rawDb.query(
@@ -91,7 +88,7 @@ export async function sendPushToUser(
           return;
         }
 
-        const json: any = await res.json();
+        const json = await res.json() as { results?: Array<{ error?: string }> };
         // Remove tokens that FCM reports as unregistered/invalid
         if (json?.results?.[0]?.error === "NotRegistered") {
           await removePushToken(userId, token);

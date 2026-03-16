@@ -31,7 +31,7 @@ async function resolveUserId(req: NextRequest): Promise<number | null> {
   return auth?.id ? (auth.id as number) : null;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     // Public endpoint returns only approved pois
     const pois = await listAllCommunityPois("approved");

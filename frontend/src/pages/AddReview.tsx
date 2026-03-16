@@ -160,8 +160,8 @@ export default function AddReview() {
         content,
       });
       navigate('/Explore');
-    } catch (err: any) {
-      setError(err.message ?? 'שגיאה בשמירת הביקורת');
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message ?? 'שגיאה בשמירת הביקורת');
       setLoading(false);
     }
   };

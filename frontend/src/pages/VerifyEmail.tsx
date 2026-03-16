@@ -15,6 +15,7 @@ export default function VerifyEmail() {
 
   useEffect(() => {
     const token = params.get('token');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!token) { setStatus('no_token'); return; }
 
     api.auth.verifyEmail(token)
@@ -22,8 +23,8 @@ export default function VerifyEmail() {
         await loginWithToken(jwt);
         navigate('/', { replace: true });
       })
-      .catch((err: any) => {
-        if (err.message?.includes('expired')) setStatus('expired');
+      .catch((err: unknown) => {
+        if ((err as Error).message?.includes('expired')) setStatus('expired');
         else setStatus('invalid');
       });
   }, []);

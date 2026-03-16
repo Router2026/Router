@@ -9,10 +9,13 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { api } from "../api";
+import { api, type Trip, type TripStop } from "../api";
+
+type StopWithCoords = TripStop & { latitude?: number; longitude?: number };
+type TripWithCoords = Omit<Trip, 'stops'> & { stops: StopWithCoords[] };
 
 // Fix default Leaflet marker icons
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -24,11 +27,12 @@ export default function TripDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tripId = searchParams.get("id") || "";
-  const [trip, setTrip] = useState<any>(null);
+  const [trip, setTrip] = useState<TripWithCoords | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!tripId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
@@ -262,7 +266,7 @@ export default function TripDetail() {
               }}
             />
 
-            {(trip.stops || []).map((stop: any, i: number) => (
+            {(trip.stops || []).map((stop: StopWithCoords, i: number) => (
               <div
                 key={i}
                 style={{
@@ -403,15 +407,15 @@ export default function TripDetail() {
         {/* Map View */}
         {(() => {
           const stopsWithCoords = (trip.stops || []).filter(
-            (s: any) => s.latitude && s.longitude,
+            (s: StopWithCoords) => s.latitude && s.longitude,
           );
           if (stopsWithCoords.length < 1) return null;
           const center: [number, number] = [
-            stopsWithCoords[0].latitude,
-            stopsWithCoords[0].longitude,
+            stopsWithCoords[0].latitude!,
+            stopsWithCoords[0].longitude!,
           ];
           const polylinePoints: [number, number][] = stopsWithCoords.map(
-            (s: any) => [s.latitude, s.longitude],
+            (s: StopWithCoords) => [s.latitude!, s.longitude!],
           );
           return (
             <div
@@ -444,8 +448,8 @@ export default function TripDetail() {
                   weight={3}
                   dashArray="6 4"
                 />
-                {stopsWithCoords.map((s: any, i: number) => (
-                  <Marker key={i} position={[s.latitude, s.longitude]}>
+                {stopsWithCoords.map((s: StopWithCoords, i: number) => (
+                  <Marker key={i} position={[s.latitude!, s.longitude!]}>
                     <Popup>
                       <div
                         style={{
@@ -499,7 +503,7 @@ export default function TripDetail() {
           <button
             onClick={() => {
               const addr = encodeURIComponent(
-                trip.stops?.[0]?.poi_name || trip.region,
+                trip.stops?.[0]?.poi_name || (trip.region ?? ''),
               );
               window.open(`https://waze.com/ul?q=${addr}`, "_blank");
             }}

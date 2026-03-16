@@ -88,7 +88,7 @@ export async function generateTrip(input: TripInput, poisOverride?: Poi[]): Prom
   }
 
   const llm = getLLMProvider();
-  let plan = sanitizePlan(await llm.generateTrip(input, pois));
+  const plan = sanitizePlan(await llm.generateTrip(input, pois));
 
   // Log if any requested category is absent — skip retry to avoid doubling latency
   const missing = missingCategories(plan, input.poiCategories);

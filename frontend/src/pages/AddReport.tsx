@@ -179,8 +179,8 @@ export default function AddReport() {
 
       setSuccess(true);
       setTimeout(() => navigate(finalLocationId ? `/POIDetail?id=${finalLocationId}` : '/Reports'), 1200);
-    } catch (err: any) {
-      setError(err.message ?? 'שגיאה בשליחת הדיווח');
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message ?? 'שגיאה בשליחת הדיווח');
       setLoading(false);
     }
   };

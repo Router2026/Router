@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '../api';
+import { base44, type UserProfile } from '../api';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const LEVEL_COLORS: Record<string, string> = {
@@ -9,7 +9,7 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 export default function Leaderboard() {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
 
   useEffect(() => {
     base44.entities.UserProfile.list().then(data =>

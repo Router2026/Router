@@ -16,7 +16,7 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import type { LatLng } from '../utils/types';
 import { CATEGORIES } from '../utils/constants';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow,
 });
@@ -122,8 +122,8 @@ export default function ContributePOI() {
       }
 
       setSubmitted(true);
-    } catch (err: any) {
-      setError(err.message ?? 'אירעה שגיאה בשמירה');
+    } catch (err) {
+      setError((err as Error).message ?? 'אירעה שגיאה בשמירה');
     } finally {
       setSubmitting(false);
     }

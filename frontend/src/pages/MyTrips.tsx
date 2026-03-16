@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, type Trip } from '../api';
 
 const GROUP_ICONS: Record<string, string> = {
   'משפחה עם ילדים': '👨‍👩‍👧‍👦', 'משפחה': '👨‍👩‍👧‍👦',
@@ -10,7 +10,7 @@ const GROUP_ICONS: Record<string, string> = {
 
 export default function MyTrips() {
   const navigate = useNavigate();
-  const [trips, setTrips] = useState<any[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   // Add loading state initialized to true
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);

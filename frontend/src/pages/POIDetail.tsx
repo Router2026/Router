@@ -11,7 +11,7 @@ import TripBucketSheet from '../components/TripBucketSheet';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 const DIFF_COLORS: Record<string, string> = {
@@ -212,7 +212,7 @@ export default function POIDetail() {
   const [searchParams] = useSearchParams();
   const poiId = searchParams.get('id') || '';
   const { isLoggedIn } = useAuth();
-  const { addPoi, removePoi, hasPoi, openSheet } = useTripBucket();
+  const { hasPoi } = useTripBucket();
 
   const [poi, setPoi] = useState<POI | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -223,6 +223,7 @@ export default function POIDetail() {
 
   useEffect(() => {
     if (!poiId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     api.locations.get(poiId)
@@ -375,7 +376,7 @@ export default function POIDetail() {
             ].map(t => (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key as any)}
+                onClick={() => setTab(t.key as 'reports' | 'reviews')}
                 style={{ flex: 1, padding: '12px', borderRadius: 16, border: 'none', background: tab === t.key ? '#0d9e6e' : 'transparent', color: tab === t.key ? '#fff' : '#94a3b8', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}
               >
                 {t.label}

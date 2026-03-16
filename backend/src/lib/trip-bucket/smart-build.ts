@@ -121,7 +121,7 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
     throw new Error('stops must be a non-empty array');
   }
 
-  const stops: SmartStop[] = obj.stops.map((s: any, idx: number) => {
+  const stops: SmartStop[] = obj.stops.map((s: Record<string, unknown>, idx: number) => {
     if (typeof s.location_id !== 'string') throw new Error(`Stop ${idx}: missing location_id`);
     if (typeof s.poi_name !== 'string') throw new Error(`Stop ${idx}: missing poi_name`);
     if (typeof s.arrival_time !== 'string') throw new Error(`Stop ${idx}: missing arrival_time`);

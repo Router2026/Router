@@ -30,8 +30,6 @@ describe('JWT', () => {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
     const body = Buffer.from(JSON.stringify({ id: 1, iat: 1000, exp: 1001 })).toString('base64url')
     // Sign it properly first to get a valid-format token, then replace body
-    const validToken = await signJWT({ id: 1 })
-    const [h, , s] = validToken.split('.')
     // Create expired token — won't have valid sig but exp check comes first? No, sig check first.
     // Instead, let's just build manually with known secret via the actual function
     // The simplest approach: sign then manipulate exp in body (which invalidates signature)

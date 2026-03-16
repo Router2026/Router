@@ -22,7 +22,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let code: string | undefined;
-    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* empty */ }
     throw new ApiError(message, code);
   }
   return res.json();
@@ -103,7 +103,7 @@ export interface CommunityPoiSubmission {
 
 // ── Mapper ─────────────────────────────────────────────────────────────────
 
-function mapCommunityPoi(r: any): CommunityPoiSubmission {
+function mapCommunityPoi(r: Record<string, unknown>): CommunityPoiSubmission {
   return {
     id: r.id,
     user_id: r.user_id ?? null,
@@ -186,7 +186,7 @@ export const pushTokensApi = {
 
 // ── Mappers ────────────────────────────────────────────────────────────────
 
-function mapLocation(r: any): POI {
+function mapLocation(r: Record<string, unknown>): POI {
   return {
     id: String(r.id), name: r.name, description: r.description || '',
     category: r.category || '', region: r.region_name || r.region || '',
@@ -199,14 +199,14 @@ function mapLocation(r: any): POI {
   };
 }
 
-function mapTrip(r: any): Trip {
+function mapTrip(r: Record<string, unknown>): Trip {
   return {
-    id: String(r.id), name: r.name, description: r.description,
-    region: r.region || r.region_name,
-    total_duration_hours: parseFloat(r.total_duration_hours) || 0,
-    total_distance_km: r.total_distance_km, difficulty: r.difficulty,
-    group_type: r.group_type, style: r.style,
-    stops: (r.stops || []).map((s: any) => ({
+    id: String(r.id), name: r.name as string, description: r.description as string | undefined,
+    region: (r.region || r.region_name) as string | undefined,
+    total_duration_hours: parseFloat(r.total_duration_hours as string) || 0,
+    total_distance_km: r.total_distance_km as number | undefined, difficulty: r.difficulty as string | undefined,
+    group_type: r.group_type as string | undefined, style: r.style as string | undefined,
+    stops: ((r.stops || []) as Record<string, unknown>[]).map((s) => ({
       poi_name: s.poi_name || s.location_name || '', arrival_time: s.arrival_time || '',
       duration_minutes: s.duration_minutes || 60, smart_insight: s.smart_insight,
       location_id: s.location_id, order_index: s.order_index,
@@ -214,19 +214,19 @@ function mapTrip(r: any): Trip {
   };
 }
 
-function mapReview(r: any): Review {
+function mapReview(r: Record<string, unknown>): Review {
   return { id: String(r.id), poi_name: r.poi_name, reviewer_name: r.reviewer_name, rating: r.rating, content: r.content, created_date: r.created_at };
 }
 
-function mapReport(r: any): CommunityReport {
+function mapReport(r: Record<string, unknown>): CommunityReport {
   return { id: String(r.id), poi_name: r.poi_name, location_id: r.location_id, report_type: r.report_type, severity: r.severity, content: r.content, reporter_name: r.reporter_name, upvotes: r.upvotes || 0, created_date: r.created_at };
 }
 
-function mapVideo(r: any): VideoPost {
+function mapVideo(r: Record<string, unknown>): VideoPost {
   return { id: String(r.id), title: r.title, description: r.description, region: r.region, uploader_name: r.uploader_name, video_url: r.video_url, thumbnail_url: r.thumbnail_url, likes_count: r.likes_count || 0, views_count: r.views_count || 0 };
 }
 
-function mapUser(r: any): UserProfile {
+function mapUser(r: Record<string, unknown>): UserProfile {
   return { id: String(r.id), email: r.email, full_name: r.full_name, username: r.username || r.display_name || 'user', xp_points: r.xp_points || 0, level: r.level || 'מטייל מתחיל', is_admin: r.is_admin ?? false, reports_count: r.reports_count || 0, reviews_count: r.reviews_count || 0, trips_count: r.trips_count || 0 };
 }
 
@@ -236,13 +236,13 @@ export const api = {
   // ── Auth ──────────────────────────────────────────────────────
   auth: {
     login: async (email: string, password: string): Promise<{ user: UserProfile; token: string }> => {
-      const res = await apiFetch<{ data: { user: any; token: string } }>('/auth/login', {
+      const res = await apiFetch<{ data: { user: Record<string, unknown>; token: string } }>('/auth/login', {
         method: 'POST', body: JSON.stringify({ email, password }),
       });
       return { user: mapUser(res.data.user), token: res.data.token };
     },
     register: async (email: string, password: string, full_name: string, username: string): Promise<{ requiresVerification: true }> => {
-      await apiFetch<{ data: any }>('/auth/register', {
+      await apiFetch<{ data: unknown }>('/auth/register', {
         method: 'POST', body: JSON.stringify({ email, password, full_name, username }),
       });
       return { requiresVerification: true };
@@ -252,7 +252,7 @@ export const api = {
       return res.data.available;
     },
     verifyEmail: async (token: string): Promise<{ user: UserProfile; token: string }> => {
-      const res = await apiFetch<{ data: { user: any; token: string } }>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
+      const res = await apiFetch<{ data: { user: Record<string, unknown>; token: string } }>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
       return { user: mapUser(res.data.user), token: res.data.token };
     },
     resendVerification: async (email: string): Promise<void> => {
@@ -271,7 +271,7 @@ export const api = {
       const savedToken = _token;
       if (token) _token = token;
       try {
-        const res = await apiFetch<{ data: any }>('/auth/me');
+        const res = await apiFetch<{ data: Record<string, unknown> }>('/auth/me');
         return mapUser(res.data);
       } finally {
         _token = savedToken;
@@ -281,7 +281,7 @@ export const api = {
 
   // ── Regions ──────────────────────────────────────────────────
   regions: {
-    list: async (): Promise<Region[]> => (await apiFetch<{ data: any[] }>('/regions')).data,
+    list: async (): Promise<Region[]> => (await apiFetch<{ data: Record<string, unknown>[] }>('/regions')).data as unknown as Region[],
   },
 
   // ── Locations ────────────────────────────────────────────────
@@ -297,21 +297,21 @@ export const api = {
       if (params?.accessible) qs.set('accessible', 'true');
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.offset) qs.set('offset', String(params.offset));
-      return (await apiFetch<{ data: any[] }>(`/locations?${qs}`)).data.map(mapLocation);
+      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/locations?${qs}`)).data.map(mapLocation);
     },
-    get: async (id: string): Promise<POI> => mapLocation((await apiFetch<{ data: any }>(`/locations/${id}`)).data),
+    get: async (id: string): Promise<POI> => mapLocation((await apiFetch<{ data: Record<string, unknown> }>(`/locations/${id}`)).data),
     inBounds: async (b: { north: number; south: number; east: number; west: number }): Promise<POI[]> => {
       const qs = new URLSearchParams({ north: String(b.north), south: String(b.south), east: String(b.east), west: String(b.west) });
-      return (await apiFetch<{ data: any[] }>(`/locations/map?${qs}`)).data.map(mapLocation);
+      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/locations/map?${qs}`)).data.map(mapLocation);
     },
   },
 
   // ── Trips ────────────────────────────────────────────────────
   trips: {
     // Router community routes live at /api/routes (/api/trips is the main app's AI generator)
-    list: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
-    get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`)).data),
-    create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
+    list: async (): Promise<Trip[]> => (await apiFetch<{ data: Record<string, unknown>[] }>('/routes')).data.map(mapTrip),
+    get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: Record<string, unknown> }>(`/routes/${id}`)).data),
+    create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: Record<string, unknown> }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
   },
 
@@ -319,48 +319,48 @@ export const api = {
   reviews: {
     list: async (locationId?: number): Promise<Review[]> => {
       const qs = locationId ? `?location_id=${locationId}` : '';
-      return (await apiFetch<{ data: any[] }>(`/reviews${qs}`)).data.map(mapReview);
+      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/reviews${qs}`)).data.map(mapReview);
     },
     create: async (data: Partial<Review> & { location_id?: number }): Promise<Review> =>
-      mapReview((await apiFetch<{ data: any }>('/reviews', { method: 'POST', body: JSON.stringify(data) })).data),
+      mapReview((await apiFetch<{ data: Record<string, unknown> }>('/reviews', { method: 'POST', body: JSON.stringify(data) })).data),
   },
 
   // ── Reports ──────────────────────────────────────────────────
   reports: {
     list: async (locationId?: number): Promise<CommunityReport[]> => {
       const qs = locationId ? `?location_id=${locationId}` : '';
-      return (await apiFetch<{ data: any[] }>(`/reports${qs}`)).data.map(mapReport);
+      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/reports${qs}`)).data.map(mapReport);
     },
     create: async (data: Partial<CommunityReport> & { location_id?: number }): Promise<CommunityReport> =>
-      mapReport((await apiFetch<{ data: any }>('/reports', { method: 'POST', body: JSON.stringify(data) })).data),
+      mapReport((await apiFetch<{ data: Record<string, unknown> }>('/reports', { method: 'POST', body: JSON.stringify(data) })).data),
     upvote: async (id: string): Promise<CommunityReport> =>
-      mapReport((await apiFetch<{ data: any }>(`/reports/${id}/upvote`, { method: 'PATCH' })).data),
+      mapReport((await apiFetch<{ data: Record<string, unknown> }>(`/reports/${id}/upvote`, { method: 'PATCH' })).data),
   },
 
   // ── Videos ───────────────────────────────────────────────────
   videos: {
-    list: async (): Promise<VideoPost[]> => (await apiFetch<{ data: any[] }>('/videos')).data.map(mapVideo),
+    list: async (): Promise<VideoPost[]> => (await apiFetch<{ data: Record<string, unknown>[] }>('/videos')).data.map(mapVideo),
     create: async (data: Partial<VideoPost>): Promise<VideoPost> =>
-      mapVideo((await apiFetch<{ data: any }>('/videos', { method: 'POST', body: JSON.stringify(data) })).data),
+      mapVideo((await apiFetch<{ data: Record<string, unknown> }>('/videos', { method: 'POST', body: JSON.stringify(data) })).data),
     like: async (id: string): Promise<VideoPost> =>
-      mapVideo((await apiFetch<{ data: any }>(`/videos/${id}/like`, { method: 'PATCH' })).data),
+      mapVideo((await apiFetch<{ data: Record<string, unknown> }>(`/videos/${id}/like`, { method: 'PATCH' })).data),
   },
 
   // ── Users ────────────────────────────────────────────────────
   users: {
-    me: async (): Promise<UserProfile> => mapUser((await apiFetch<{ data: any }>('/users/me')).data),
-    leaderboard: async (): Promise<UserProfile[]> => (await apiFetch<{ data: any[] }>('/users/leaderboard')).data.map(mapUser),
+    me: async (): Promise<UserProfile> => mapUser((await apiFetch<{ data: Record<string, unknown> }>('/users/me')).data),
+    leaderboard: async (): Promise<UserProfile[]> => (await apiFetch<{ data: Record<string, unknown>[] }>('/users/leaderboard')).data.map(mapUser),
     stats: async (): Promise<AppStats> => (await apiFetch<{ data: AppStats }>('/users/stats')).data,
   },
 
   // ── Admin ─────────────────────────────────────────────────────
   admin: {
     listUsers: async (): Promise<(UserProfile & { is_admin?: boolean; created_at?: string })[]> =>
-      (await apiFetch<{ data: any[] }>('/admin/users')).data.map(r => ({ ...mapUser(r), is_admin: r.is_admin, created_at: r.created_at })),
+      (await apiFetch<{ data: Record<string, unknown>[] }>('/admin/users')).data.map(r => ({ ...mapUser(r), is_admin: r.is_admin as boolean | undefined, created_at: r.created_at as string | undefined })),
     deleteUser: async (id: string): Promise<void> => { await apiFetch(`/admin/users/${id}`, { method: 'DELETE' }); },
     toggleAdmin: async (id: string, is_admin: boolean): Promise<UserProfile> =>
-      mapUser((await apiFetch<{ data: any }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ is_admin }) })).data),
-    listRoutes: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
+      mapUser((await apiFetch<{ data: Record<string, unknown> }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ is_admin }) })).data),
+    listRoutes: async (): Promise<Trip[]> => (await apiFetch<{ data: Record<string, unknown>[] }>('/routes')).data.map(mapTrip),
     deleteRoute: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
   },
 };
@@ -372,15 +372,15 @@ export const base44 = {
   },
   entities: {
     POI: { list: () => api.locations.list(), filter: (p?: { region?: string }) => api.locations.list(p), get: (id: string) => api.locations.get(id) },
-    Trip: { filter: () => api.trips.list(), create: (data: any) => api.trips.create(data) },
-    Review: { filter: () => api.reviews.list(), create: (data: any) => api.reviews.create(data) },
-    CommunityReport: { filter: () => api.reports.list(), create: (data: any) => api.reports.create(data), update: (id: string, _data: any) => api.reports.upvote(id) },
-    UserProfile: { filter: () => api.users.me().then(u => [u]), list: () => api.users.leaderboard(), create: (d: any) => Promise.resolve(d), update: (_id: string, d: any) => Promise.resolve(d) },
-    VideoPost: { list: () => api.videos.list(), filter: () => api.videos.list(), create: (data: any) => api.videos.create(data), update: (id: string, _data: any) => api.videos.like(id) },
+    Trip: { filter: () => api.trips.list(), create: (data: Partial<Trip>) => api.trips.create(data) },
+    Review: { filter: () => api.reviews.list(), create: (data: Partial<Review> & { location_id?: number }) => api.reviews.create(data) },
+    CommunityReport: { filter: () => api.reports.list(), create: (data: Partial<CommunityReport> & { location_id?: number }) => api.reports.create(data), update: (id: string) => api.reports.upvote(id) },
+    UserProfile: { filter: () => api.users.me().then(u => [u]), list: () => api.users.leaderboard(), create: (d: unknown) => Promise.resolve(d), update: (id: string, d: unknown) => Promise.resolve({ id, ...((d as object) ?? {}) }) },
+    VideoPost: { list: () => api.videos.list(), filter: () => api.videos.list(), create: (data: Partial<VideoPost>) => api.videos.create(data), update: (id: string) => api.videos.like(id) },
   },
   integrations: {
     Core: {
-      UploadFile: async (_a: { file: File }) => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
+      UploadFile: async () => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
       InvokeLLM: async ({ body }: { body: string }) => {
         const req = JSON.parse(body);
         // Normalize group type: Hebrew display names → English IDs

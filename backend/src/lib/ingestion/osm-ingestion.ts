@@ -1,7 +1,6 @@
 // OSM ingestion: fetches nature locations from Overpass API and upserts into `locations` table.
 import { rawDb } from "@/lib/db/raw-client";
 import { upsertLocation } from "@/lib/locations/location-service";
-import { getRegionIdByName } from "@/lib/regions/region-service";
 
 const OVERPASS_URL = process.env.OVERPASS_API_URL || "https://overpass-api.de/api/interpreter";
 const BBOX = "29,34,34,36"; // Israel bounding box: south,west,north,east

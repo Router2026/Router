@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     if (existing.length > 0)
       return NextResponse.json(errorResponse("Email or username already in use", "CONFLICT"), { status: 409 });
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {

@@ -20,7 +20,8 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
   'אקסטרים': { color: '#7c3aed', bg: '#faf5ff' },
 };
 
-function FilterPanel({ open, onClose, selectedRegions, setSelectedRegions, selectedCategories, setSelectedCategories, selectedDifficulties, setSelectedDifficulties, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible, dynamicRegions, dynamicCategories }: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function FilterPanel({ open, onClose, selectedRegions, setSelectedRegions, selectedCategories, setSelectedCategories, selectedDifficulties, setSelectedDifficulties, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible, dynamicRegions, dynamicCategories }: Record<string, any>) {
   if (!open) return null;
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter((x: string) => x !== val) : [...arr, val]);
@@ -77,7 +78,7 @@ function POICard({ poi, onFav, favs }: { poi: POI; onFav: (id: string) => void; 
 
   const handleBucketToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    inBucket ? removePoi(poi.id) : addPoi(poi);
+    if (inBucket) { removePoi(poi.id); } else { addPoi(poi); }
   };
 
   return (
@@ -211,8 +212,8 @@ export default function Explore() {
         setRegions(regionsData.map(r => r.name));
         setCategories([...new Set(allFetchedPois.map(p => p.category).filter(Boolean))].sort());
         setLoading(false);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        setError((err as Error).message);
         setLoading(false);
       }
     };
@@ -221,6 +222,7 @@ export default function Explore() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (urlCategory && categories.includes(urlCategory)) setSelCats([urlCategory]);
   }, [urlCategory, categories]);
 
@@ -242,6 +244,7 @@ export default function Explore() {
 
   // 3. Reset the visible count whenever filters or search query change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisibleCount(RENDER_CHUNK_SIZE);
   }, [filteredPois]);
 
@@ -341,7 +344,7 @@ export default function Explore() {
                 poi={poi}
                 favs={favs}
                 onFav={id => setFavs(prev => {
-                  const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+                  const n = new Set(prev); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n;
                 })}
               />
             </div>

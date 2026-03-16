@@ -62,8 +62,8 @@ export async function verifyJWT(
   const valid = await crypto.subtle.verify(
     "HMAC",
     key,
-    fromB64url(sig) as any,
-    new TextEncoder().encode(`${header}.${body}`) as any,
+    fromB64url(sig) as BufferSource,
+    new TextEncoder().encode(`${header}.${body}`) as BufferSource,
   );
   if (!valid) throw new Error("Invalid token signature");
   const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf-8"));

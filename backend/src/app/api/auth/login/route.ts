@@ -58,16 +58,16 @@ export async function POST(req: NextRequest) {
       options: { data: { full_name: user.full_name, username: user.username } },
     });
 
+    const safeUser = { id: user.id, email: user.email, full_name: user.full_name, username: user.username, is_admin: user.is_admin, xp_points: user.xp_points, level: user.level, reports_count: user.reports_count, reviews_count: user.reviews_count, trips_count: user.trips_count };
+
     // If signUp returns a session the email confirmation is not required (or already confirmed)
     if (signUpData?.session) {
-      const { password_hash: _, email_verified: __, ...safeUser } = user;
       return NextResponse.json(successResponse({ user: safeUser, token: signUpData.session.access_token }));
     }
 
     // signUp created the account but needs email confirmation — try signing in again
     const { data: retried } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
     if (retried?.session) {
-      const { password_hash: _, email_verified: __, ...safeUser } = user;
       return NextResponse.json(successResponse({ user: safeUser, token: retried.session.access_token }));
     }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import { base44, type CommunityReport } from '../api';
 
 const TYPES: Record<string, { label: string; color: string; bg: string }> = {
   צפיפות: { label: 'צפיפות', color: '#dc2626', bg: '#fef2f2' },
@@ -29,7 +29,7 @@ function timeAgo(dateStr: string) {
 
 export default function Reports() {
   const navigate = useNavigate();
-  const [reports, setReports] = useState<any[]>([]);
+  const [reports, setReports] = useState<CommunityReport[]>([]);
   const [selectedType, setSelectedType] = useState('הכל');
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
 

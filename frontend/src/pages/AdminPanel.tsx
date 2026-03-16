@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, type UserProfile, type Trip } from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { CommunityPoiAdmin, EditModalProps, PoiStatus, Tab } from '../utils/types';
 
@@ -134,6 +134,7 @@ function CommunityPoisTab() {
   const [rejectNote, setRejectNote] = useState<{ id: number; note: string } | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetchAdminPois(filter === 'all' ? undefined : filter)
       .then(setPois)
@@ -386,19 +387,20 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const [tab, setTab] = useState<Tab>('community_pois');
-  const [users, setUsers] = useState<any[]>([]);
-  const [routes, setRoutes] = useState<any[]>([]);
+  const [users, setUsers] = useState<(UserProfile & { created_at?: string })[]>([]);
+  const [routes, setRoutes] = useState<Trip[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [stats, setStats] = useState({ users: 0, routes: 0, pending_pois: 0 });
 
   useEffect(() => {
-    if (!isLoading && (!user || !(user as any).is_admin)) navigate('/');
+    if (!isLoading && (!user || !user?.is_admin)) navigate('/');
   }, [user, isLoading, navigate]);
 
   useEffect(() => {
-    if (!user || !(user as any).is_admin) return;
+    if (!user || !user?.is_admin) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingData(true);
     Promise.all([
       api.admin.listUsers(),
@@ -426,7 +428,7 @@ export default function AdminPanel() {
     setBusy(id);
     const updated = await api.admin.toggleAdmin(id, !current);
     setUsers(prev =>
-      prev.map(u => String(u.id) === id ? { ...u, ...(updated as any), is_admin: !current } : u)
+      prev.map(u => String(u.id) === id ? { ...u, ...updated, is_admin: !current } : u)
     );
     setBusy(null);
   };
@@ -570,7 +572,7 @@ export default function AdminPanel() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button disabled={busy === String(u.id)} onClick={() => handleToggleAdmin(String(u.id), u.is_admin)}
+                  <button disabled={busy === String(u.id)} onClick={() => handleToggleAdmin(String(u.id), u.is_admin ?? false)}
                     style={{
                       padding: '6px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8,
                       background: u.is_admin ? '#f1f5f9' : 'transparent',

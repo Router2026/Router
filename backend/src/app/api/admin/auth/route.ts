@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   );
 }
 
-export async function DELETE(_req: NextRequest) {
+export async function DELETE() {
   return NextResponse.json(
     { data: { ok: true }, error: null },
     { headers: { "Set-Cookie": clearAdminCookieHeader() } }

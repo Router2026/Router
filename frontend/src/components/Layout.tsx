@@ -10,12 +10,12 @@ const AlertIcon = ({ a }: { a: boolean }) => <svg width="22" height="22" viewBox
 const PersonIcon = ({ a }: { a: boolean }) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={a ? '#0d9e6e' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
 
 const NAV_ITEMS = [
-  { label: 'בית', value: 'Home', Icon: ({ active }: any) => <HomeIcon a={active} /> },
-  { label: 'מפה', value: 'MapView', Icon: ({ active }: any) => <MapIcon a={active} /> },
-  { label: 'מסלול', value: 'TripPlanner', Icon: ({ active }: any) => <RouteIcon a={active} /> },
-  { label: 'וידאו', value: 'CommunityVideos', Icon: ({ active }: any) => <VideoIcon a={active} /> },
-  { label: 'דיווחים', value: 'Reports', Icon: ({ active }: any) => <AlertIcon a={active} /> },
-  { label: 'פרופיל', value: 'Profile', Icon: ({ active }: any) => <PersonIcon a={active} /> },
+  { label: 'בית', value: 'Home', Icon: ({ active }: { active: boolean }) => <HomeIcon a={active} /> },
+  { label: 'מפה', value: 'MapView', Icon: ({ active }: { active: boolean }) => <MapIcon a={active} /> },
+  { label: 'מסלול', value: 'TripPlanner', Icon: ({ active }: { active: boolean }) => <RouteIcon a={active} /> },
+  { label: 'וידאו', value: 'CommunityVideos', Icon: ({ active }: { active: boolean }) => <VideoIcon a={active} /> },
+  { label: 'דיווחים', value: 'Reports', Icon: ({ active }: { active: boolean }) => <AlertIcon a={active} /> },
+  { label: 'פרופיל', value: 'Profile', Icon: ({ active }: { active: boolean }) => <PersonIcon a={active} /> },
 ];
 
 const HIDE_NAV = new Set(['TripDetail', 'POIDetail', 'AddReport', 'AddReview', 'UploadVideo', 'Login', 'Register']);

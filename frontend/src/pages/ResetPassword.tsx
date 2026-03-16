@@ -63,8 +63,8 @@ export default function ResetPassword() {
       await loginWithToken(jwt);
       setSuccess(true);
       setTimeout(() => navigate('/'), 2000);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError((e as Error).message);
       setLoading(false);
     }
   };

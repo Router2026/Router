@@ -1,4 +1,4 @@
-import type { TripInput, TripPlan, TripStop } from "@/types/llm";
+import type { TripInput, TripPlan } from "@/types/llm";
 import type { Poi } from "@/lib/db/schema";
 
 export function buildGenerateTripPrompt(input: TripInput, pois: Poi[]): string {

@@ -6,7 +6,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -15,7 +15,7 @@ export default function Login() {
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [resentVerification, setResentVerification] = useState(false);
 
-  const toHebrewError = (e: any): string => {
+  const toHebrewError = (e: { code?: string; message?: string }): string => {
     const code = e.code;
     const msg = (e.message || '').toLowerCase();
     if (code === 'AUTH_ERROR' || msg.includes('invalid email or password')) return 'האימייל או הסיסמה שגויים. נסה שוב.';
@@ -33,7 +33,7 @@ export default function Login() {
     try {
       await login(email.trim(), password);
       navigate(from, { replace: true });
-    } catch (e: any) {
+    } catch (e) {
       if (e.code === 'EMAIL_NOT_VERIFIED' || e.message?.includes('verify your email')) {
         setUnverifiedEmail(email.trim().toLowerCase());
       } else {

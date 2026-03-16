@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setState(s => ({ ...s, isLoading: false }));
         });
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState(s => ({ ...s, isLoading: false }));
     }
   }, []);
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
