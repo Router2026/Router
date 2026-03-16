@@ -6,7 +6,6 @@
  * Intended to be overlaid on the Explore page.
  */
 
-import React from 'react';
 import { useTripBucket } from '../context/TripBucketContext';
 
 export default function TripBucketFab() {

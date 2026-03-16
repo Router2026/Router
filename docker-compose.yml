@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/router2026/backend:v1
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -29,9 +27,7 @@ services:
       SUPABASE_DATABASE_URL: ${SUPABASE_DATABASE_URL:-}
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/router2026/frontend:v1
     restart: unless-stopped
     ports:
       - "80:80"

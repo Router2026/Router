@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type Region, type AppStats } from '../api';
+import { api, type Region } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 const CATEGORIES = [
@@ -24,11 +24,8 @@ export default function Home() {
   const { isLoggedIn } = useAuth();
   const [search, setSearch] = useState('');
   const [regions, setRegions] = useState<Region[]>([]);
-  const [stats, setStats] = useState<AppStats | null>(null);
-
   useEffect(() => {
     api.regions.list().then(setRegions).catch(() => { });
-    api.users.stats().then(setStats).catch(() => { });
   }, []);
 
   const displayRegions = regions.slice(0, 6);

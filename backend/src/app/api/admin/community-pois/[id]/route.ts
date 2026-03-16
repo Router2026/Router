@@ -73,8 +73,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         name: body.name,
         category: body.category,
         description: body.description,
-        latitude: body.latitude ? parseFloat(body.latitude) : undefined,
-        longitude: body.longitude ? parseFloat(body.longitude) : undefined,
+        latitude: body.latitude,
+        longitude: body.longitude,
         photos: body.photos,
       });
       return NextResponse.json(successResponse(poi));

@@ -3,7 +3,7 @@
 // The user taps the map to set a point, then fills out name/category/description
 // and optionally attaches photo URLs.  Submits to POST /api/community-pois.
 
-import React, { useState, useCallback, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -60,7 +60,7 @@ function PickedMarker({ position }: { position: LatLng }) {
 
 export default function ContributePOI() {
   const navigate = useNavigate();
-  const { user, isLoggedIn } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   // Map state
   const [pickedPoint, setPickedPoint] = useState<LatLng | null>(null);
