@@ -1,7 +1,7 @@
 // src/lib/reports/report-service.ts
 // Updated to include explicit user_id linkage (Feature 2).
 
-import { rawDb } from "@/lib/db/raw-client";
+import { rawDb } from '@/lib/db/raw-client';
 
 export interface CommunityReport {
   id: number;
@@ -46,13 +46,13 @@ export async function createReport(data: CreateReportInput): Promise<CommunityRe
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [
-      data.user_id      ?? null,
-      data.location_id  ?? null,
-      data.poi_name     ?? null,
+      data.user_id ?? null,
+      data.location_id ?? null,
+      data.poi_name ?? null,
       data.report_type,
-      data.severity     ?? "בינונית",
+      data.severity ?? 'בינונית',
       data.content,
-      data.reporter_name ?? "אנונימי",
+      data.reporter_name ?? 'אנונימי',
     ]
   );
 

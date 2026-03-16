@@ -1,2 +1,4 @@
 /* App-level resets */
-* { font-family: 'Heebo', sans-serif; }
+* {
+  font-family: 'Heebo', sans-serif;
+}

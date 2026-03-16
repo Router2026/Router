@@ -1,10 +1,9 @@
 // src/lib/community-poi/community-poi-service.ts
 // Business logic for user-contributed POIs (Community POI Feature).
 
-import { rawDb } from "@/lib/db/raw-client";
-import { sendPushToUser } from "@/lib/notifications/push-service";
-import { CommunityPoiRow, CommunityPoiStatus, CreateCommunityPoiInput } from "./types";
-
+import { rawDb } from '@/lib/db/raw-client';
+import { sendPushToUser } from '@/lib/notifications/push-service';
+import { CommunityPoiRow, CommunityPoiStatus, CreateCommunityPoiInput } from './types';
 
 /** XP reward awarded when a community POI is approved */
 const APPROVAL_XP_REWARD = 50;
@@ -15,7 +14,7 @@ const APPROVAL_XP_REWARD = 50;
 export async function listAllCommunityPois(
   status?: CommunityPoiStatus
 ): Promise<CommunityPoiRow[]> {
-  const statusClause = status ? `WHERE cp.status = $1` : "";
+  const statusClause = status ? `WHERE cp.status = $1` : '';
   const params = status ? [status] : [];
 
   const { rows } = await rawDb.query(
@@ -48,9 +47,7 @@ export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | nul
 // ── Create ─────────────────────────────────────────────────────────────────────
 
 /** User submits a new community POI (status = pending) */
-export async function createCommunityPoi(
-  input: CreateCommunityPoiInput
-): Promise<CommunityPoiRow> {
+export async function createCommunityPoi(input: CreateCommunityPoiInput): Promise<CommunityPoiRow> {
   const { rows } = await rawDb.query(
     `INSERT INTO community_pois
        (user_id, name, category, description, latitude, longitude, photos, status)
@@ -81,7 +78,7 @@ export async function createCommunityPoi(
 export async function approveCommunityPoi(
   id: number,
   adminUserId: number,
-  edits?: Partial<Pick<CommunityPoiRow, "name" | "category" | "description">>
+  edits?: Partial<Pick<CommunityPoiRow, 'name' | 'category' | 'description'>>
 ): Promise<CommunityPoiRow> {
   // 1. Update community_pois status to approved (apply optional admin edits)
   const { rows: updatedRows } = await rawDb.query(
@@ -95,13 +92,7 @@ export async function approveCommunityPoi(
          updated_at  = NOW()
      WHERE id = $1
      RETURNING *`,
-    [
-      id,
-      adminUserId,
-      edits?.name ?? null,
-      edits?.category ?? null,
-      edits?.description ?? null,
-    ]
+    [id, adminUserId, edits?.name ?? null, edits?.category ?? null, edits?.description ?? null]
   );
 
   const poi = updatedRows[0] as unknown as CommunityPoiRow;
@@ -119,7 +110,7 @@ export async function approveCommunityPoi(
     [
       poi.name,
       poi.category,
-      poi.description ?? "",
+      poi.description ?? '',
       poi.latitude,
       poi.longitude,
       JSON.stringify(poi.photos),
@@ -138,10 +129,10 @@ export async function approveCommunityPoi(
 
     // 4. Send push notification
     await sendPushToUser(poi.user_id, {
-      title: "📍 המיקום שלך אושר!",
+      title: '📍 המיקום שלך אושר!',
       body: `"${poi.name}" פורסם למפה הציבורית. קיבלת ${APPROVAL_XP_REWARD} XP!`,
       data: {
-        type: "community_poi_approved",
+        type: 'community_poi_approved',
         community_poi_id: String(poi.id),
         xp_awarded: String(APPROVAL_XP_REWARD),
       },
@@ -176,12 +167,12 @@ export async function rejectCommunityPoi(
   // Notify user of rejection
   if (poi.user_id) {
     await sendPushToUser(poi.user_id, {
-      title: "📍 עדכון על המיקום שהגשת",
+      title: '📍 עדכון על המיקום שהגשת',
       body: adminNote
         ? `"${poi.name}" לא אושר: ${adminNote}`
         : `"${poi.name}" לא אושר על ידי הצוות שלנו.`,
       data: {
-        type: "community_poi_rejected",
+        type: 'community_poi_rejected',
         community_poi_id: String(poi.id),
       },
     });
@@ -196,7 +187,7 @@ export async function rejectCommunityPoi(
 export async function editCommunityPoi(
   id: number,
   updates: Partial<
-    Pick<CommunityPoiRow, "name" | "category" | "description" | "latitude" | "longitude" | "photos">
+    Pick<CommunityPoiRow, 'name' | 'category' | 'description' | 'latitude' | 'longitude' | 'photos'>
   >
 ): Promise<CommunityPoiRow> {
   const { rows } = await rawDb.query(

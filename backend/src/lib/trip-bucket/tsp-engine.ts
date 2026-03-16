@@ -40,10 +40,7 @@ export interface TspResult {
 
 // ── Haversine distance ────────────────────────────────────────────────────────
 
-export function haversineKm(
-  lat1: number, lon1: number,
-  lat2: number, lon2: number,
-): number {
+export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
@@ -68,8 +65,10 @@ export function buildHaversineMatrix(nodes: TspNode[]): DistanceMatrix {
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const km = haversineKm(
-        nodes[i].latitude, nodes[i].longitude,
-        nodes[j].latitude, nodes[j].longitude,
+        nodes[i].latitude,
+        nodes[i].longitude,
+        nodes[j].latitude,
+        nodes[j].longitude
       );
       const minutes = km; // 60 km/h → 1 km ≈ 1 min
       matrix[i][j] = minutes;
@@ -142,7 +141,10 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
     let lastNode = 1;
     let minCost = INF;
     for (let u = 1; u < n; u++) {
-      if (dp[FULL][u] < minCost) { minCost = dp[FULL][u]; lastNode = u; }
+      if (dp[FULL][u] < minCost) {
+        minCost = dp[FULL][u];
+        lastNode = u;
+      }
     }
 
     // Reconstruct path through POI nodes
@@ -185,7 +187,10 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
   let lastNode = 0;
   let minCost = INF;
   for (let u = 0; u < n; u++) {
-    if (dp[FULL_MASK][u] < minCost) { minCost = dp[FULL_MASK][u]; lastNode = u; }
+    if (dp[FULL_MASK][u] < minCost) {
+      minCost = dp[FULL_MASK][u];
+      lastNode = u;
+    }
   }
 
   const path: number[] = [];
@@ -236,20 +241,14 @@ function nearestNeighbor(matrix: DistanceMatrix, _fixedStart: boolean): number[]
  * @param fixedStart Pin node 0 as the route origin (user's live location).
  *                   The returned `orderedNodes` will start with that node.
  */
-export function solveTsp(
-  nodes: TspNode[],
-  matrix: DistanceMatrix,
-  fixedStart = false,
-): TspResult {
+export function solveTsp(nodes: TspNode[], matrix: DistanceMatrix, fixedStart = false): TspResult {
   const n = nodes.length;
   if (n === 0) return { orderedNodes: [], totalTravelMinutes: 0, totalDistanceKm: 0 };
   if (n === 1) return { orderedNodes: nodes, totalTravelMinutes: 0, totalDistanceKm: 0 };
 
-  const ordering = n <= 20
-    ? heldKarp(matrix, fixedStart)
-    : nearestNeighbor(matrix, fixedStart);
+  const ordering = n <= 20 ? heldKarp(matrix, fixedStart) : nearestNeighbor(matrix, fixedStart);
 
-  const orderedNodes = ordering.map(i => nodes[i]);
+  const orderedNodes = ordering.map((i) => nodes[i]);
 
   let totalTravelMinutes = 0;
   let totalDistanceKm = 0;
@@ -258,8 +257,10 @@ export function solveTsp(
     const to = ordering[k + 1];
     totalTravelMinutes += matrix[from][to];
     totalDistanceKm += haversineKm(
-      nodes[from].latitude, nodes[from].longitude,
-      nodes[to].latitude, nodes[to].longitude,
+      nodes[from].latitude,
+      nodes[from].longitude,
+      nodes[to].latitude,
+      nodes[to].longitude
     );
   }
 

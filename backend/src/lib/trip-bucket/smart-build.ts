@@ -24,7 +24,7 @@ import type { BucketPoi, SmartStop, SmartPlan } from './types';
  * so the LLM can make informed scheduling decisions.
  */
 function buildSmartBuildPrompt(pois: BucketPoi[]): string {
-  const poiContext = pois.map(p => ({
+  const poiContext = pois.map((p) => ({
     id: p.id,
     name: p.name,
     category: p.category,
@@ -125,7 +125,8 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
     if (typeof s.location_id !== 'string') throw new Error(`Stop ${idx}: missing location_id`);
     if (typeof s.poi_name !== 'string') throw new Error(`Stop ${idx}: missing poi_name`);
     if (typeof s.arrival_time !== 'string') throw new Error(`Stop ${idx}: missing arrival_time`);
-    if (typeof s.duration_minutes !== 'number') throw new Error(`Stop ${idx}: missing duration_minutes`);
+    if (typeof s.duration_minutes !== 'number')
+      throw new Error(`Stop ${idx}: missing duration_minutes`);
     return {
       location_id: s.location_id,
       poi_name: s.poi_name,
@@ -139,7 +140,9 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
   // Verify all returned stop IDs were in the original request
   for (const stop of stops) {
     if (!expectedIds.has(stop.location_id)) {
-      console.warn(`[SmartBuild] LLM returned unexpected location_id: ${stop.location_id} — keeping anyway`);
+      console.warn(
+        `[SmartBuild] LLM returned unexpected location_id: ${stop.location_id} — keeping anyway`
+      );
     }
   }
 
@@ -168,7 +171,7 @@ export async function runSmartBuild(pois: BucketPoi[]): Promise<SmartPlan> {
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const prompt = buildSmartBuildPrompt(pois);
-  const expectedIds = new Set(pois.map(p => p.id));
+  const expectedIds = new Set(pois.map((p) => p.id));
 
   const message = await client.messages.create({
     model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api, type UserProfile } from "../api";
+import { api, type UserProfile } from '../api';
 
 interface AuthState {
   user: UserProfile | null;
@@ -10,7 +10,12 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName: string, username: string) => Promise<{ requiresVerification: true }>;
+  register: (
+    email: string,
+    password: string,
+    fullName: string,
+    username: string
+  ) => Promise<{ requiresVerification: true }>;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
 }
@@ -21,22 +26,26 @@ const TOKEN_KEY = 'router_auth_token';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
-    user: null, token: null, isLoggedIn: false, isLoading: true,
+    user: null,
+    token: null,
+    isLoggedIn: false,
+    isLoading: true,
   });
 
   // Restore session from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
     if (stored) {
-      api.auth.me(stored)
-        .then(user => setState({ user, token: stored, isLoggedIn: true, isLoading: false }))
+      api.auth
+        .me(stored)
+        .then((user) => setState({ user, token: stored, isLoggedIn: true, isLoading: false }))
         .catch(() => {
           localStorage.removeItem(TOKEN_KEY);
-          setState(s => ({ ...s, isLoading: false }));
+          setState((s) => ({ ...s, isLoading: false }));
         });
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setState(s => ({ ...s, isLoading: false }));
+      setState((s) => ({ ...s, isLoading: false }));
     }
   }, []);
 
@@ -46,9 +55,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user, token, isLoggedIn: true, isLoading: false });
   }, []);
 
-  const register = useCallback(async (email: string, password: string, fullName: string, username: string) => {
-    return await api.auth.register(email, password, fullName, username);
-  }, []);
+  const register = useCallback(
+    async (email: string, password: string, fullName: string, username: string) => {
+      return await api.auth.register(email, password, fullName, username);
+    },
+    []
+  );
 
   const loginWithToken = useCallback(async (token: string) => {
     localStorage.setItem(TOKEN_KEY, token);

@@ -1,15 +1,9 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Polyline,
-  Popup,
-} from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import { api, type Trip, type TripStop } from "../api";
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { api, type Trip, type TripStop } from '../api';
 
 type StopWithCoords = TripStop & { latitude?: number; longitude?: number };
 type TripWithCoords = Omit<Trip, 'stops'> & { stops: StopWithCoords[] };
@@ -17,16 +11,15 @@ type TripWithCoords = Omit<Trip, 'stops'> & { stops: StopWithCoords[] };
 // Fix default Leaflet marker icons
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
 export default function TripDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const tripId = searchParams.get("id") || "";
+  const tripId = searchParams.get('id') || '';
   const [trip, setTrip] = useState<TripWithCoords | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -55,28 +48,24 @@ export default function TripDetail() {
   }, [tripId]);
 
   if (loading)
-    return (
-      <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>
-        טוען...
-      </div>
-    );
+    return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען...</div>;
 
   if (!trip)
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>
+      <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🗺️</div>
         <div style={{ fontWeight: 700 }}>המסלול לא נמצא</div>
         <button
-          onClick={() => navigate("/MyTrips")}
+          onClick={() => navigate('/MyTrips')}
           style={{
             marginTop: 16,
-            background: "#0d9e6e",
-            color: "#fff",
-            border: "none",
+            background: '#0d9e6e',
+            color: '#fff',
+            border: 'none',
             borderRadius: 12,
-            padding: "10px 24px",
-            cursor: "pointer",
-            fontFamily: "Heebo, sans-serif",
+            padding: '10px 24px',
+            cursor: 'pointer',
+            fontFamily: 'Heebo, sans-serif',
             fontWeight: 700,
           }}
         >
@@ -88,44 +77,70 @@ export default function TripDetail() {
   return (
     <div
       style={{
-        background: "#f8fafc",
-        minHeight: "100vh",
-        width: "100%",
-        direction: "rtl",
+        background: '#f8fafc',
+        minHeight: '100vh',
+        width: '100%',
+        direction: 'rtl',
       }}
     >
       {/* ── Header (Full Width) ── */}
       <div
         style={{
-          background: "linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)",
-          width: "100%",
+          background: 'linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)',
+          width: '100%',
         }}
       >
         {/* Header Content (Centered) */}
-        <div style={{
-          maxWidth: 600, margin: '0 auto',
-          padding: '16px 20px 48px',
-          position: 'relative',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <button onClick={() => navigate('/MyTrips')} style={{
-              background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
-              padding: '8px 12px', cursor: 'pointer', color: '#fff',
-              transition: 'background 0.2s ease'
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <div
+          style={{
+            maxWidth: 600,
+            margin: '0 auto',
+            padding: '16px 20px 48px',
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 20,
+            }}
+          >
+            <button
+              onClick={() => navigate('/MyTrips')}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                borderRadius: 12,
+                padding: '8px 12px',
+                cursor: 'pointer',
+                color: '#fff',
+                transition: 'background 0.2s ease',
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>
             <button
               style={{
-                background: "rgba(255,255,255,0.2)",
-                border: "none",
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
                 borderRadius: 12,
-                padding: "8px 12px",
-                cursor: "pointer",
-                color: "#fff",
-                transition: "background 0.2s ease",
+                padding: '8px 12px',
+                cursor: 'pointer',
+                color: '#fff',
+                transition: 'background 0.2s ease',
               }}
             >
               <svg
@@ -148,29 +163,27 @@ export default function TripDetail() {
           </div>
           <h1
             style={{
-              color: "#fff",
+              color: '#fff',
               fontSize: 22,
               fontWeight: 900,
               marginBottom: 6,
-              textAlign: "right",
+              textAlign: 'right',
             }}
           >
             {trip.name}
           </h1>
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
+              display: 'flex',
+              alignItems: 'center',
               gap: 6,
-              color: "rgba(255,255,255,0.9)",
+              color: 'rgba(255,255,255,0.9)',
               fontSize: 13,
               marginBottom: 12,
-              justifyContent: "flex-end",
+              justifyContent: 'flex-end',
             }}
           >
-            <span style={{ textShadow: "0 1px 2px rgba(0,0,0,0.2)" }}>
-              {trip.region}
-            </span>
+            <span style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>{trip.region}</span>
             <svg
               width="14"
               height="14"
@@ -187,10 +200,10 @@ export default function TripDetail() {
           </div>
           <div
             style={{
-              display: "flex",
+              display: 'flex',
               gap: 8,
-              justifyContent: "flex-end",
-              flexWrap: "wrap",
+              justifyContent: 'flex-end',
+              flexWrap: 'wrap',
             }}
           >
             {[
@@ -203,13 +216,13 @@ export default function TripDetail() {
                 <span
                   key={tag}
                   style={{
-                    background: "rgba(255,255,255,0.25)",
-                    color: "#fff",
+                    background: 'rgba(255,255,255,0.25)',
+                    color: '#fff',
                     borderRadius: 20,
-                    padding: "4px 14px",
+                    padding: '4px 14px',
                     fontSize: 12,
                     fontWeight: 700,
-                    backdropFilter: "blur(4px)",
+                    backdropFilter: 'blur(4px)',
                   }}
                 >
                   {tag}
@@ -223,10 +236,10 @@ export default function TripDetail() {
       <div
         style={{
           maxWidth: 600,
-          margin: "0 auto",
-          padding: "0 16px",
+          margin: '0 auto',
+          padding: '0 16px',
           marginTop: -20,
-          position: "relative",
+          position: 'relative',
           zIndex: 10,
           paddingBottom: 100,
         }}
@@ -234,10 +247,10 @@ export default function TripDetail() {
         {/* Itinerary */}
         <div
           style={{
-            background: "#fff",
+            background: '#fff',
             borderRadius: 20,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-            padding: "24px 20px",
+            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            padding: '24px 20px',
             marginBottom: 16,
           }}
         >
@@ -245,24 +258,24 @@ export default function TripDetail() {
             style={{
               fontSize: 18,
               fontWeight: 900,
-              color: "#1a2e2a",
+              color: '#1a2e2a',
               marginBottom: 20,
-              textAlign: "right",
+              textAlign: 'right',
             }}
           >
             מסלול הטיול
           </h2>
 
           {/* Timeline */}
-          <div style={{ position: "relative" }}>
+          <div style={{ position: 'relative' }}>
             <div
               style={{
-                position: "absolute",
+                position: 'absolute',
                 right: 16,
                 top: 0,
                 bottom: 0,
                 width: 2,
-                background: "#e8f5f1",
+                background: '#e8f5f1',
               }}
             />
 
@@ -270,33 +283,33 @@ export default function TripDetail() {
               <div
                 key={i}
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
+                  display: 'flex',
+                  alignItems: 'flex-start',
                   gap: 16,
                   marginBottom: 16,
                   paddingRight: 40,
-                  position: "relative",
+                  position: 'relative',
                 }}
               >
                 {/* Timeline dot */}
                 <div
                   style={{
-                    position: "absolute",
+                    position: 'absolute',
                     right: 4,
                     top: 4,
                     width: 24,
                     height: 24,
-                    borderRadius: "50%",
-                    background: "#0d9e6e",
-                    color: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    borderRadius: '50%',
+                    background: '#0d9e6e',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     fontSize: 11,
                     fontWeight: 800,
                     flexShrink: 0,
                     zIndex: 2,
-                    boxShadow: "0 2px 8px rgba(13, 158, 110, 0.3)",
+                    boxShadow: '0 2px 8px rgba(13, 158, 110, 0.3)',
                   }}
                 >
                   {i + 1}
@@ -305,26 +318,26 @@ export default function TripDetail() {
                 <div
                   style={{
                     flex: 1,
-                    background: "#f8fafc",
+                    background: '#f8fafc',
                     borderRadius: 16,
-                    padding: "14px 16px",
-                    border: "1px solid #f1f5f9",
+                    padding: '14px 16px',
+                    border: '1px solid #f1f5f9',
                   }}
                 >
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
                       marginBottom: 6,
                     }}
                   >
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: 4,
-                        color: "#94a3b8",
+                        color: '#94a3b8',
                       }}
                     >
                       <span style={{ fontSize: 11, fontWeight: 600 }}>
@@ -349,10 +362,10 @@ export default function TripDetail() {
                         style={{
                           fontSize: 11,
                           fontWeight: 800,
-                          color: "#64748b",
-                          display: "block",
-                          background: "#e2e8f0",
-                          padding: "2px 6px",
+                          color: '#64748b',
+                          display: 'block',
+                          background: '#e2e8f0',
+                          padding: '2px 6px',
                           borderRadius: 6,
                         }}
                       >
@@ -364,8 +377,8 @@ export default function TripDetail() {
                     style={{
                       fontWeight: 800,
                       fontSize: 15,
-                      color: "#1a2e2a",
-                      textAlign: "right",
+                      color: '#1a2e2a',
+                      textAlign: 'right',
                       marginBottom: stop.smart_insight ? 8 : 0,
                     }}
                   >
@@ -374,11 +387,11 @@ export default function TripDetail() {
                   {stop.smart_insight && (
                     <div
                       style={{
-                        background: "#fffbeb",
+                        background: '#fffbeb',
                         borderRadius: 10,
-                        padding: "8px 12px",
-                        display: "flex",
-                        alignItems: "flex-start",
+                        padding: '8px 12px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
                         gap: 6,
                         marginTop: 2,
                       }}
@@ -386,10 +399,10 @@ export default function TripDetail() {
                       <span
                         style={{
                           fontSize: 12,
-                          color: "#d97706",
+                          color: '#d97706',
                           fontWeight: 600,
                           flex: 1,
-                          textAlign: "right",
+                          textAlign: 'right',
                           lineHeight: 1.4,
                         }}
                       >
@@ -407,54 +420,48 @@ export default function TripDetail() {
         {/* Map View */}
         {(() => {
           const stopsWithCoords = (trip.stops || []).filter(
-            (s: StopWithCoords) => s.latitude && s.longitude,
+            (s: StopWithCoords) => s.latitude && s.longitude
           );
           if (stopsWithCoords.length < 1) return null;
           const center: [number, number] = [
             stopsWithCoords[0].latitude!,
             stopsWithCoords[0].longitude!,
           ];
-          const polylinePoints: [number, number][] = stopsWithCoords.map(
-            (s: StopWithCoords) => [s.latitude!, s.longitude!],
-          );
+          const polylinePoints: [number, number][] = stopsWithCoords.map((s: StopWithCoords) => [
+            s.latitude!,
+            s.longitude!,
+          ]);
           return (
             <div
               style={{
-                background: "#fff",
+                background: '#fff',
                 borderRadius: 20,
-                boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-                overflow: "hidden",
+                boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                overflow: 'hidden',
                 marginBottom: 16,
               }}
             >
-              <div style={{ padding: "16px 20px 12px", textAlign: "right" }}>
-                <h2 style={{ fontSize: 18, fontWeight: 900, color: "#1a2e2a" }}>
-                  מפת המסלול
-                </h2>
+              <div style={{ padding: '16px 20px 12px', textAlign: 'right' }}>
+                <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>מפת המסלול</h2>
               </div>
               <MapContainer
                 center={center}
                 zoom={12}
-                style={{ height: 280, width: "100%" }}
+                style={{ height: 280, width: '100%' }}
                 scrollWheelZoom={false}
               >
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution="© OpenStreetMap"
                 />
-                <Polyline
-                  positions={polylinePoints}
-                  color="#0d9e6e"
-                  weight={3}
-                  dashArray="6 4"
-                />
+                <Polyline positions={polylinePoints} color="#0d9e6e" weight={3} dashArray="6 4" />
                 {stopsWithCoords.map((s: StopWithCoords, i: number) => (
                   <Marker key={i} position={[s.latitude!, s.longitude!]}>
                     <Popup>
                       <div
                         style={{
-                          textAlign: "right",
-                          fontFamily: "Heebo, sans-serif",
+                          textAlign: 'right',
+                          fontFamily: 'Heebo, sans-serif',
                           fontWeight: 700,
                         }}
                       >
@@ -469,20 +476,20 @@ export default function TripDetail() {
         })()}
 
         {/* Action Buttons */}
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
           <button
             style={{
               width: 56,
               height: 56,
-              border: "2px solid #e2e8f0",
+              border: '2px solid #e2e8f0',
               borderRadius: 16,
-              background: "#fff",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              background: '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               flexShrink: 0,
-              transition: "all 0.2s ease",
+              transition: 'all 0.2s ease',
             }}
           >
             <svg
@@ -502,28 +509,26 @@ export default function TripDetail() {
           </button>
           <button
             onClick={() => {
-              const addr = encodeURIComponent(
-                trip.stops?.[0]?.poi_name || (trip.region ?? ''),
-              );
-              window.open(`https://waze.com/ul?q=${addr}`, "_blank");
+              const addr = encodeURIComponent(trip.stops?.[0]?.poi_name || (trip.region ?? ''));
+              window.open(`https://waze.com/ul?q=${addr}`, '_blank');
             }}
             style={{
               flex: 1,
-              padding: "16px",
-              border: "none",
+              padding: '16px',
+              border: 'none',
               borderRadius: 16,
-              background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
-              color: "#fff",
+              background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
+              color: '#fff',
               fontSize: 16,
               fontWeight: 800,
-              cursor: "pointer",
-              fontFamily: "Heebo, sans-serif",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              cursor: 'pointer',
+              fontFamily: 'Heebo, sans-serif',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               gap: 8,
-              boxShadow: "0 4px 12px rgba(13, 158, 110, 0.2)",
-              transition: "all 0.2s ease",
+              boxShadow: '0 4px 12px rgba(13, 158, 110, 0.2)',
+              transition: 'all 0.2s ease',
             }}
           >
             התחל ניווט

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { rawDb } from "@/lib/db/raw-client";
-import { supabase } from "@/lib/db/supabase";
-import { successResponse, errorResponse } from "@/lib/api/response";
+import { NextRequest, NextResponse } from 'next/server';
+import { rawDb } from '@/lib/db/raw-client';
+import { supabase } from '@/lib/db/supabase';
+import { successResponse, errorResponse } from '@/lib/api/response';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -9,21 +9,35 @@ export async function POST(req: NextRequest) {
   try {
     const { email, password, full_name, username } = await req.json();
     if (!email || !password || !full_name || !username)
-      return NextResponse.json(errorResponse("Email, password, full name, and username are required", "VALIDATION_ERROR"), { status: 400 });
+      return NextResponse.json(
+        errorResponse('Email, password, full name, and username are required', 'VALIDATION_ERROR'),
+        { status: 400 }
+      );
     if (password.length < 6)
-      return NextResponse.json(errorResponse("Password must be at least 6 characters", "VALIDATION_ERROR"), { status: 400 });
+      return NextResponse.json(
+        errorResponse('Password must be at least 6 characters', 'VALIDATION_ERROR'),
+        { status: 400 }
+      );
     if (!USERNAME_RE.test(username))
-      return NextResponse.json(errorResponse("Username must be 3-20 characters: letters, numbers, underscores only", "VALIDATION_ERROR"), { status: 400 });
+      return NextResponse.json(
+        errorResponse(
+          'Username must be 3-20 characters: letters, numbers, underscores only',
+          'VALIDATION_ERROR'
+        ),
+        { status: 400 }
+      );
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedUsername = username.trim().toLowerCase();
 
     const { rows: existing } = await rawDb.query(
-      "SELECT id FROM users WHERE email = $1 OR username = $2",
+      'SELECT id FROM users WHERE email = $1 OR username = $2',
       [normalizedEmail, normalizedUsername]
     );
     if (existing.length > 0)
-      return NextResponse.json(errorResponse("Email or username already in use", "CONFLICT"), { status: 409 });
+      return NextResponse.json(errorResponse('Email or username already in use', 'CONFLICT'), {
+        status: 409,
+      });
 
     const { error } = await supabase.auth.signUp({
       email: normalizedEmail,
@@ -35,9 +49,11 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      if (error.message.toLowerCase().includes("already registered"))
-        return NextResponse.json(errorResponse("Email or username already in use", "CONFLICT"), { status: 409 });
-      return NextResponse.json(errorResponse(error.message, "AUTH_ERROR"), { status: 400 });
+      if (error.message.toLowerCase().includes('already registered'))
+        return NextResponse.json(errorResponse('Email or username already in use', 'CONFLICT'), {
+          status: 409,
+        });
+      return NextResponse.json(errorResponse(error.message, 'AUTH_ERROR'), { status: 400 });
     }
 
     const { rows } = await rawDb.query(
@@ -47,9 +63,11 @@ export async function POST(req: NextRequest) {
       [normalizedEmail, full_name.trim(), normalizedUsername]
     );
 
-    return NextResponse.json(successResponse({ user: rows[0], requiresVerification: true }), { status: 201 });
+    return NextResponse.json(successResponse({ user: rows[0], requiresVerification: true }), {
+      status: 201,
+    });
   } catch (err) {
-    console.error("[POST /api/auth/register]", err);
-    return NextResponse.json(errorResponse("Registration failed", "DB_ERROR"), { status: 500 });
+    console.error('[POST /api/auth/register]', err);
+    return NextResponse.json(errorResponse('Registration failed', 'DB_ERROR'), { status: 500 });
   }
 }

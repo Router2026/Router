@@ -1,9 +1,9 @@
 // OSM ingestion: fetches nature locations from Overpass API and upserts into `locations` table.
-import { rawDb } from "@/lib/db/raw-client";
-import { upsertLocation } from "@/lib/locations/location-service";
+import { rawDb } from '@/lib/db/raw-client';
+import { upsertLocation } from '@/lib/locations/location-service';
 
-const OVERPASS_URL = process.env.OVERPASS_API_URL || "https://overpass-api.de/api/interpreter";
-const BBOX = "29,34,34,36"; // Israel bounding box: south,west,north,east
+const OVERPASS_URL = process.env.OVERPASS_API_URL || 'https://overpass-api.de/api/interpreter';
+const BBOX = '29,34,34,36'; // Israel bounding box: south,west,north,east
 
 const OVERPASS_QUERY = `
 [out:json][timeout:120];
@@ -45,53 +45,51 @@ function osmElementToRaw(element: OsmElement) {
   const lon = element.lon ?? element.center?.lon;
   if (!lat || !lon) return null;
 
-  const name =
-    tags["name:he"] || tags["name"] || tags["name:en"] || tags["official_name"] || null;
+  const name = tags['name:he'] || tags['name'] || tags['name:en'] || tags['official_name'] || null;
   if (!name) return null;
 
   const category =
-    tags.natural || tags.tourism || tags.leisure || tags.historic || tags.boundary || "טבע";
+    tags.natural || tags.tourism || tags.leisure || tags.historic || tags.boundary || 'טבע';
 
   return {
     id: String(element.id),
     name,
-    description: tags.description || tags["description:he"] || null,
+    description: tags.description || tags['description:he'] || null,
     category,
     latitude: lat,
     longitude: lon,
     has_water:
-      tags.drinking_water === "yes" || tags.natural === "spring" || tags.amenity === "drinking_water",
-    accessible: tags.wheelchair === "yes" ? true : tags.wheelchair === "no" ? false : false,
+      tags.drinking_water === 'yes' ||
+      tags.natural === 'spring' ||
+      tags.amenity === 'drinking_water',
+    accessible: tags.wheelchair === 'yes' ? true : tags.wheelchair === 'no' ? false : false,
     has_shade: false,
     images: tags.image ? [tags.image] : [],
     main_image: tags.image || null,
-    difficulty: tags["hiking:difficulty"] || "בינוני",
+    difficulty: tags['hiking:difficulty'] || 'בינוני',
   };
 }
 
 export async function runOsmIngestion(jobId: string): Promise<{ processed: number }> {
-  await rawDb.query(
-    `UPDATE sync_jobs SET status='running', started_at=NOW() WHERE id=$1`,
-    [jobId]
-  );
+  await rawDb.query(`UPDATE sync_jobs SET status='running', started_at=NOW() WHERE id=$1`, [jobId]);
 
   try {
     const res = await fetch(OVERPASS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `data=${encodeURIComponent(OVERPASS_QUERY)}`,
       signal: AbortSignal.timeout(150_000),
     });
 
     if (!res.ok) throw new Error(`Overpass returned ${res.status}`);
 
-    const json = await res.json() as { elements: OsmElement[] };
+    const json = (await res.json()) as { elements: OsmElement[] };
     const elements = json.elements ?? [];
 
-    await rawDb.query(
-      `UPDATE sync_jobs SET total_locations=$1 WHERE id=$2`,
-      [elements.length, jobId]
-    );
+    await rawDb.query(`UPDATE sync_jobs SET total_locations=$1 WHERE id=$2`, [
+      elements.length,
+      jobId,
+    ]);
 
     let processed = 0;
     for (const element of elements) {
@@ -100,13 +98,13 @@ export async function runOsmIngestion(jobId: string): Promise<{ processed: numbe
       try {
         await upsertLocation({
           name: raw.name,
-          description: raw.description || "",
+          description: raw.description || '',
           category: raw.category,
           latitude: raw.latitude,
           longitude: raw.longitude,
           images: raw.images,
           main_image: raw.main_image || undefined,
-          source: "osm",
+          source: 'osm',
           source_id: raw.id,
           difficulty: raw.difficulty,
           has_water: raw.has_water,
@@ -118,10 +116,10 @@ export async function runOsmIngestion(jobId: string): Promise<{ processed: numbe
         // skip individual record errors
       }
       if (processed % 50 === 0) {
-        await rawDb.query(
-          `UPDATE sync_jobs SET processed_locations=$1 WHERE id=$2`,
-          [processed, jobId]
-        );
+        await rawDb.query(`UPDATE sync_jobs SET processed_locations=$1 WHERE id=$2`, [
+          processed,
+          jobId,
+        ]);
       }
     }
 
@@ -132,7 +130,7 @@ export async function runOsmIngestion(jobId: string): Promise<{ processed: numbe
 
     return { processed };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    const msg = err instanceof Error ? err.message : 'Unknown error';
     await rawDb.query(
       `UPDATE sync_jobs SET status='failed', error_message=$1, completed_at=NOW() WHERE id=$2`,
       [msg, jobId]

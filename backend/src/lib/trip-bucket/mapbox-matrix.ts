@@ -30,18 +30,14 @@ interface MapboxMatrixResponse {
  * Build a travel-time matrix (minutes) using the Mapbox Directions Matrix API.
  * Returns null when Mapbox is unavailable — callers should fall back to Haversine.
  */
-export async function fetchMapboxMatrix(
-  nodes: TspNode[],
-): Promise<DistanceMatrix | null> {
+export async function fetchMapboxMatrix(nodes: TspNode[]): Promise<DistanceMatrix | null> {
   const token = process.env.MAPBOX_TOKEN;
   if (!token || nodes.length > MAPBOX_MAX_NODES) {
     return null;
   }
 
   // Build the coordinate string: "lng,lat;lng,lat;..."
-  const coords = nodes
-    .map(n => `${n.longitude},${n.latitude}`)
-    .join(';');
+  const coords = nodes.map((n) => `${n.longitude},${n.latitude}`).join(';');
 
   const url = `${MAPBOX_BASE}/${coords}?annotations=duration,distance&access_token=${token}`;
 
@@ -70,8 +66,10 @@ export async function fetchMapboxMatrix(
         } else if (i !== j) {
           // Fallback: Haversine → minutes at average speed
           const km = haversineKm(
-            nodes[i].latitude, nodes[i].longitude,
-            nodes[j].latitude, nodes[j].longitude,
+            nodes[i].latitude,
+            nodes[i].longitude,
+            nodes[j].latitude,
+            nodes[j].longitude
           );
           matrix[i][j] = (km / AVG_SPEED_KMH) * 60;
         }

@@ -9,9 +9,7 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  useTripBucket,
-} from '../context/TripBucketContext';
+import { useTripBucket } from '../context/TripBucketContext';
 import RouterLogo from '../assets/logo.jpeg';
 import type { GeoState, UserLocation, BuildMode } from '../utils/types';
 
@@ -54,36 +52,61 @@ function useDragReorder(onReorder: (from: number, to: number) => void) {
 function StepIndicator({ current }: { current: 1 | 2 }) {
   const steps = ['המיקומים שלך', 'בניית מסלול'];
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 0, padding: '10px 20px 0', direction: 'rtl' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0,
+        padding: '10px 20px 0',
+        direction: 'rtl',
+      }}
+    >
       {steps.map((label, i) => {
         const idx = i + 1;
         const done = idx < current;
         const active = idx === current;
         return (
           <React.Fragment key={label}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-              <div style={{
-                width: 26, height: 26, borderRadius: '50%',
-                background: done || active ? '#0d9e6e' : '#e2e8f0',
-                color: done || active ? '#fff' : '#94a3b8',
-                fontSize: 12, fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
+            <div
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: done || active ? '#0d9e6e' : '#e2e8f0',
+                  color: done || active ? '#fff' : '#94a3b8',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 {done ? '✓' : idx}
               </div>
-              <div style={{
-                fontSize: 10, fontWeight: 700, marginTop: 4,
-                color: active ? '#0d9e6e' : done ? '#0d9e6e' : '#94a3b8',
-                textAlign: 'center',
-              }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  marginTop: 4,
+                  color: active ? '#0d9e6e' : done ? '#0d9e6e' : '#94a3b8',
+                  textAlign: 'center',
+                }}
+              >
                 {label}
               </div>
             </div>
             {i < steps.length - 1 && (
-              <div style={{
-                flex: 1, height: 2, marginBottom: 14,
-                background: done ? '#0d9e6e' : '#e2e8f0',
-              }} />
+              <div
+                style={{
+                  flex: 1,
+                  height: 2,
+                  marginBottom: 14,
+                  background: done ? '#0d9e6e' : '#e2e8f0',
+                }}
+              />
             )}
           </React.Fragment>
         );
@@ -95,9 +118,21 @@ function StepIndicator({ current }: { current: 1 | 2 }) {
 // ── BucketListItem ────────────────────────────────────────────────────────────
 
 function BucketListItem({
-  item, index, onRemove, dragHandlers,
+  item,
+  index,
+  onRemove,
+  dragHandlers,
 }: {
-  item: { poi: { id: string; name: string; region?: string; duration_minutes?: number; main_image?: string }; addedAt: number };
+  item: {
+    poi: {
+      id: string;
+      name: string;
+      region?: string;
+      duration_minutes?: number;
+      main_image?: string;
+    };
+    addedAt: number;
+  };
   index: number;
   onRemove: (id: string) => void;
   dragHandlers: ReturnType<typeof useDragReorder>;
@@ -110,19 +145,35 @@ function BucketListItem({
       onDrop={dragHandlers.handleDrop(index)}
       onDragOver={dragHandlers.handleDragOver}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 14px', background: '#fff', borderRadius: 16,
-        marginBottom: 8, boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
-        cursor: 'grab', userSelect: 'none', direction: 'rtl'
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '10px 14px',
+        background: '#fff',
+        borderRadius: 16,
+        marginBottom: 8,
+        boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+        cursor: 'grab',
+        userSelect: 'none',
+        direction: 'rtl',
       }}
     >
       {/* Order badge */}
-      <div style={{
-        width: 26, height: 26, borderRadius: '50%',
-        background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-        color: '#fff', fontSize: 12, fontWeight: 800,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      }}>
+      <div
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
+          color: '#fff',
+          fontSize: 12,
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
         {index + 1}
       </div>
 
@@ -130,20 +181,30 @@ function BucketListItem({
       <img
         src={poi.main_image || RouterLogo}
         alt={poi.name}
-        onError={e => { e.currentTarget.src = RouterLogo; e.currentTarget.onerror = null; }}
+        onError={(e) => {
+          e.currentTarget.src = RouterLogo;
+          e.currentTarget.onerror = null;
+        }}
         style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
       />
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontWeight: 800, fontSize: 14, color: '#1a2e2a',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: 14,
+            color: '#1a2e2a',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {poi.name}
         </div>
         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-          {poi.region}{poi.duration_minutes ? ` · ${formatDuration(poi.duration_minutes)}` : ''}
+          {poi.region}
+          {poi.duration_minutes ? ` · ${formatDuration(poi.duration_minutes)}` : ''}
         </div>
       </div>
 
@@ -151,14 +212,43 @@ function BucketListItem({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <button
           onClick={() => onRemove(poi.id)}
-          style={{ background: '#fef2f2', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{
+            background: '#fef2f2',
+            border: 'none',
+            borderRadius: 8,
+            width: 30,
+            height: 30,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#ef4444"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#cbd5e1"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        >
+          <line x1="4" y1="8" x2="20" y2="8" />
+          <line x1="4" y1="16" x2="20" y2="16" />
         </svg>
       </div>
     </div>
@@ -185,55 +275,79 @@ function LocationStartPoint({
     }
     setGeoState('loading');
     navigator.geolocation.getCurrentPosition(
-      pos => {
+      (pos) => {
         onDetected({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setGeoState('success');
       },
-      err => {
+      (err) => {
         setGeoState('error');
         setErrorMsg(
           err.code === 1
             ? 'הגישה למיקום נדחתה. אנא אפשר גישה בהגדרות הדפדפן.'
-            : 'לא ניתן לזהות מיקום. אנא נסה שוב.',
+            : 'לא ניתן לזהות מיקום. אנא נסה שוב.'
         );
       },
-      { timeout: 10000, enableHighAccuracy: false },
+      { timeout: 10000, enableHighAccuracy: false }
     );
   };
 
   return (
-    <div style={{
-      background: '#fff', borderRadius: 16, padding: '14px 16px',
-      marginBottom: 14, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', direction: 'rtl'
-    }}>
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        padding: '14px 16px',
+        marginBottom: 14,
+        boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+        direction: 'rtl',
+      }}
+    >
       {/* Row: icon + label + status/button */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* Pin icon circle */}
-        <div style={{
-          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-          background: geoState === 'success' ? '#f0fdf8' : '#f8fafc',
-          border: `2px solid ${geoState === 'success' ? '#0d9e6e' : '#e2e8f0'}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            flexShrink: 0,
+            background: geoState === 'success' ? '#f0fdf8' : '#f8fafc',
+            border: `2px solid ${geoState === 'success' ? '#0d9e6e' : '#e2e8f0'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {geoState === 'loading' ? (
             <span style={{ fontSize: 18, animation: 'spin 1s linear infinite' }}>⏳</span>
           ) : geoState === 'success' ? (
             <span style={{ fontSize: 18 }}>📍</span>
           ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
             </svg>
           )}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, color: '#1a2e2a' }}>
-            נקודת התחלה
-          </div>
-          <div style={{
-            fontSize: 11, color: geoState === 'success' ? '#0d9e6e' : '#94a3b8',
-            marginTop: 2,
-          }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: '#1a2e2a' }}>נקודת התחלה</div>
+          <div
+            style={{
+              fontSize: 11,
+              color: geoState === 'success' ? '#0d9e6e' : '#94a3b8',
+              marginTop: 2,
+            }}
+          >
             {geoState === 'success' && location
               ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
               : geoState === 'loading'
@@ -248,11 +362,16 @@ function LocationStartPoint({
             onClick={handleDetect}
             disabled={geoState === 'loading'}
             style={{
-              padding: '7px 14px', border: 'none', borderRadius: 10,
+              padding: '7px 14px',
+              border: 'none',
+              borderRadius: 10,
               background: geoState === 'loading' ? '#e2e8f0' : '#0d9e6e',
               color: geoState === 'loading' ? '#94a3b8' : '#fff',
-              fontSize: 12, fontWeight: 700, cursor: geoState === 'loading' ? 'not-allowed' : 'pointer',
-              flexShrink: 0, fontFamily: 'Heebo, sans-serif',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: geoState === 'loading' ? 'not-allowed' : 'pointer',
+              flexShrink: 0,
+              fontFamily: 'Heebo, sans-serif',
             }}
           >
             {geoState === 'loading' ? 'מזהה...' : 'זהה מיקום'}
@@ -264,9 +383,14 @@ function LocationStartPoint({
           <button
             onClick={handleDetect}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 11, color: '#94a3b8', fontFamily: 'Heebo, sans-serif',
-              flexShrink: 0, textDecoration: 'underline',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 11,
+              color: '#94a3b8',
+              fontFamily: 'Heebo, sans-serif',
+              flexShrink: 0,
+              textDecoration: 'underline',
             }}
           >
             זהה מחדש
@@ -276,10 +400,16 @@ function LocationStartPoint({
 
       {/* Error */}
       {geoState === 'error' && (
-        <div style={{
-          marginTop: 10, padding: '8px 12px', borderRadius: 10,
-          background: '#fef2f2', fontSize: 12, color: '#dc2626',
-        }}>
+        <div
+          style={{
+            marginTop: 10,
+            padding: '8px 12px',
+            borderRadius: 10,
+            background: '#fef2f2',
+            fontSize: 12,
+            color: '#dc2626',
+          }}
+        >
           ⚠️ {errorMsg}
         </div>
       )}
@@ -303,58 +433,91 @@ function StrategyCards({
     description: string;
     detail: string;
   }> = [
-      {
-        id: 'smart',
-        icon: '🤖',
-        label: 'בנייה חכמה',
-        description: 'סידור זמנים חכם מבוסס AI',
-        detail: 'מערכת ה-AI מנתחת את אופי המקום ומסדרת הגיונית - הליכות בבוקר, בתי קפה בצהריים ותצפיות בשקיעה.',
-      },
-      {
-        id: 'proximity',
-        icon: '📍',
-        label: 'לפי מרחק',
-        description: 'המסלול הקצר ביותר',
-        detail: 'שימוש באלגוריתם למציאת המסלול המיטבי המזער את מרחק הנסיעה הכולל בין כל העצירות.',
-      },
-    ];
+    {
+      id: 'smart',
+      icon: '🤖',
+      label: 'בנייה חכמה',
+      description: 'סידור זמנים חכם מבוסס AI',
+      detail:
+        'מערכת ה-AI מנתחת את אופי המקום ומסדרת הגיונית - הליכות בבוקר, בתי קפה בצהריים ותצפיות בשקיעה.',
+    },
+    {
+      id: 'proximity',
+      icon: '📍',
+      label: 'לפי מרחק',
+      description: 'המסלול הקצר ביותר',
+      detail: 'שימוש באלגוריתם למציאת המסלול המיטבי המזער את מרחק הנסיעה הכולל בין כל העצירות.',
+    },
+  ];
 
   return (
     <div style={{ marginBottom: 16, direction: 'rtl' }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#64748b',
+          marginBottom: 10,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}
+      >
         בחר אסטרטגיית בניית מסלול
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
-        {strategies.map(s => {
+        {strategies.map((s) => {
           const active = selected === s.id;
           return (
             <button
               key={s.id}
               onClick={() => onSelect(s.id)}
               style={{
-                flex: 1, padding: '14px 12px', borderRadius: 18, cursor: 'pointer',
+                flex: 1,
+                padding: '14px 12px',
+                borderRadius: 18,
+                cursor: 'pointer',
                 border: `2px solid ${active ? '#0d9e6e' : '#e2e8f0'}`,
                 background: active ? '#f0fdf8' : '#fff',
-                textAlign: 'right', transition: 'all 0.18s',
+                textAlign: 'right',
+                transition: 'all 0.18s',
                 boxShadow: active ? '0 4px 16px rgba(13,158,110,0.15)' : 'none',
               }}
             >
               <div style={{ fontSize: 26, marginBottom: 6 }}>{s.icon}</div>
-              <div style={{ fontSize: 13, fontWeight: 900, color: active ? '#0d9e6e' : '#1a2e2a', marginBottom: 3 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 900,
+                  color: active ? '#0d9e6e' : '#1a2e2a',
+                  marginBottom: 3,
+                }}
+              >
                 {s.label}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: active ? '#0d9e6e' : '#64748b', marginBottom: 6 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: active ? '#0d9e6e' : '#64748b',
+                  marginBottom: 6,
+                }}
+              >
                 {s.description}
               </div>
-              <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.5 }}>
-                {s.detail}
-              </div>
+              <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.5 }}>{s.detail}</div>
               {active && (
-                <div style={{
-                  marginTop: 8, padding: '3px 10px', borderRadius: 20,
-                  background: '#0d9e6e', color: '#fff',
-                  fontSize: 10, fontWeight: 800, display: 'inline-block',
-                }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: '3px 10px',
+                    borderRadius: 20,
+                    background: '#0d9e6e',
+                    color: '#fff',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    display: 'inline-block',
+                  }}
+                >
                   ✓ נבחר
                 </div>
               )}
@@ -372,11 +535,19 @@ type SheetStep = 1 | 2;
 
 export default function TripBucketSheet() {
   const {
-    items, count, removePoi, reorderItems, clearBucket,
-    isSheetOpen, closeSheet,
-    isGenerating, setIsGenerating,
-    generationError, setGenerationError,
-    userLocation, setUserLocation,
+    items,
+    count,
+    removePoi,
+    reorderItems,
+    clearBucket,
+    isSheetOpen,
+    closeSheet,
+    isGenerating,
+    setIsGenerating,
+    generationError,
+    setGenerationError,
+    userLocation,
+    setUserLocation,
   } = useTripBucket();
 
   const navigate = useNavigate();
@@ -411,11 +582,9 @@ export default function TripBucketSheet() {
     setGenerationError(null);
 
     try {
-      const poiIds = items.map(i => i.poi.id);
+      const poiIds = items.map((i) => i.poi.id);
       const endpoint =
-        buildMode === 'smart'
-          ? '/api/trip-bucket/smart-build'
-          : '/api/trip-bucket/proximity';
+        buildMode === 'smart' ? '/api/trip-bucket/smart-build' : '/api/trip-bucket/proximity';
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -435,9 +604,9 @@ export default function TripBucketSheet() {
       const data = json.data;
 
       // Map returned stops back to POI objects (preserving full metadata)
-      const poiMap = new Map(items.map(i => [i.poi.id, i.poi]));
+      const poiMap = new Map(items.map((i) => [i.poi.id, i.poi]));
       const orderedPois = (data.stops as Array<{ poi_id: string }>)
-        .map(s => poiMap.get(s.poi_id))
+        .map((s) => poiMap.get(s.poi_id))
         .filter(Boolean);
 
       // Clear bucket and navigate — RouteGenerator will skip its own optimizer
@@ -459,14 +628,21 @@ export default function TripBucketSheet() {
         },
       });
     } catch (e: unknown) {
-      setGenerationError((e as { message?: string })?.message || 'יצירת המסלול נכשלה. אנא נסה שוב.');
+      setGenerationError(
+        (e as { message?: string })?.message || 'יצירת המסלול נכשלה. אנא נסה שוב.'
+      );
     } finally {
       setIsGenerating(false);
     }
   }, [
-    userLocation, buildMode, items,
-    setIsGenerating, setGenerationError,
-    clearBucket, closeSheet, navigate,
+    userLocation,
+    buildMode,
+    items,
+    setIsGenerating,
+    setGenerationError,
+    clearBucket,
+    closeSheet,
+    navigate,
   ]);
 
   if (!isSheetOpen) return null;
@@ -480,31 +656,48 @@ export default function TripBucketSheet() {
       <div
         onClick={handleClose}
         style={{
-          position: 'fixed', inset: 0, zIndex: 4000,
-          background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 4000,
+          background: 'rgba(0,0,0,0.45)',
+          backdropFilter: 'blur(2px)',
         }}
       />
 
       {/* Sheet */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 4001,
-        background: '#f8fafc', borderRadius: '24px 24px 0 0',
-        boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
-        maxHeight: '92vh', display: 'flex', flexDirection: 'column',
-        overflowY: 'hidden', direction: 'rtl'
-      }}>
-
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 4001,
+          background: '#f8fafc',
+          borderRadius: '24px 24px 0 0',
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'hidden',
+          direction: 'rtl',
+        }}
+      >
         {/* Drag handle */}
         <div style={{ padding: '12px 0 0', display: 'flex', justifyContent: 'center' }}>
           <div style={{ width: 40, height: 4, borderRadius: 2, background: '#cbd5e1' }} />
         </div>
 
         {/* Header */}
-        <div style={{
-          padding: '10px 20px 12px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          borderBottom: '1px solid #e8f0ed', flexShrink: 0,
-        }}>
+        <div
+          style={{
+            padding: '10px 20px 12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid #e8f0ed',
+            flexShrink: 0,
+          }}
+        >
           {/* Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>🎒</span>
@@ -521,7 +714,14 @@ export default function TripBucketSheet() {
             {step === 1 && count > 0 && (
               <button
                 onClick={clearBucket}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  color: '#94a3b8',
+                  fontFamily: 'Heebo, sans-serif',
+                }}
               >
                 נקה הכל
               </button>
@@ -530,12 +730,45 @@ export default function TripBucketSheet() {
             {/* Back button (step 2) or Close (step 1) */}
             <button
               onClick={step === 2 ? () => setStep(1) : handleClose}
-              style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{
+                background: '#f1f5f9',
+                border: 'none',
+                borderRadius: 10,
+                width: 34,
+                height: 34,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
               {step === 2 ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#64748b"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
               ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#64748b"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               )}
             </button>
           </div>
@@ -549,14 +782,15 @@ export default function TripBucketSheet() {
 
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 0' }}>
-
           {/* ── STEP 1: Your Locations ── */}
           {step === 1 && (
             <>
               {count === 0 ? (
                 <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
                   <div style={{ fontSize: 50, marginBottom: 12 }}>🎒</div>
-                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>סל הטיול שלך ריק</div>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+                    סל הטיול שלך ריק
+                  </div>
                   <div style={{ fontSize: 13 }}>
                     לחץ על <strong>+</strong> בכל כרטיס מיקום כדי להוסיף אותו לכאן.
                   </div>
@@ -575,7 +809,14 @@ export default function TripBucketSheet() {
                     ))}
                   </div>
 
-                  <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginBottom: 14 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#94a3b8',
+                      textAlign: 'center',
+                      marginBottom: 14,
+                    }}
+                  >
                     גרור כדי לשנות סדר · לחץ על × כדי להסיר
                   </div>
 
@@ -584,23 +825,33 @@ export default function TripBucketSheet() {
                     onClick={() => setStep(2)}
                     disabled={!canProceedToStep2}
                     style={{
-                      width: '100%', padding: '15px', border: 'none', borderRadius: 18,
+                      width: '100%',
+                      padding: '15px',
+                      border: 'none',
+                      borderRadius: 18,
                       background: canProceedToStep2
                         ? 'linear-gradient(135deg, #0d9e6e, #0bba7e)'
                         : '#e2e8f0',
                       color: canProceedToStep2 ? '#fff' : '#94a3b8',
-                      fontSize: 15, fontWeight: 900,
+                      fontSize: 15,
+                      fontWeight: 900,
                       cursor: canProceedToStep2 ? 'pointer' : 'not-allowed',
                       fontFamily: 'Heebo, sans-serif',
                       boxShadow: canProceedToStep2 ? '0 6px 20px rgba(13,158,110,0.22)' : 'none',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
                       marginBottom: 24,
                     }}
                   >
-                    {canProceedToStep2
-                      ? <>בחר אסטרטגיית בנייה <span style={{ marginRight: 8 }}>←</span></>
-                      : 'הוסף לפחות 2 מיקומים כדי להמשיך'
-                    }
+                    {canProceedToStep2 ? (
+                      <>
+                        בחר אסטרטגיית בנייה <span style={{ marginRight: 8 }}>←</span>
+                      </>
+                    ) : (
+                      'הוסף לפחות 2 מיקומים כדי להמשיך'
+                    )}
                   </button>
                 </>
               )}
@@ -613,7 +864,7 @@ export default function TripBucketSheet() {
               {/* Location detector */}
               <LocationStartPoint
                 location={userLocation}
-                onDetected={loc => setUserLocation(loc)}
+                onDetected={(loc) => setUserLocation(loc)}
               />
 
               {/* Strategy selector */}
@@ -621,11 +872,17 @@ export default function TripBucketSheet() {
 
               {/* Error */}
               {generationError && (
-                <div style={{
-                  background: '#fef2f2', border: '1px solid #fecaca',
-                  borderRadius: 12, padding: '10px 14px', marginBottom: 12,
-                  fontSize: 13, color: '#dc2626',
-                }}>
+                <div
+                  style={{
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: 12,
+                    padding: '10px 14px',
+                    marginBottom: 12,
+                    fontSize: 13,
+                    color: '#dc2626',
+                  }}
+                >
                   ⚠️ {generationError}
                 </div>
               )}
@@ -635,23 +892,31 @@ export default function TripBucketSheet() {
                 onClick={handleBuildRoute}
                 disabled={!canBuild}
                 style={{
-                  width: '100%', padding: '16px', border: 'none', borderRadius: 18,
-                  background: canBuild
-                    ? 'linear-gradient(135deg, #0d9e6e, #0bba7e)'
-                    : '#e2e8f0',
+                  width: '100%',
+                  padding: '16px',
+                  border: 'none',
+                  borderRadius: 18,
+                  background: canBuild ? 'linear-gradient(135deg, #0d9e6e, #0bba7e)' : '#e2e8f0',
                   color: canBuild ? '#fff' : '#94a3b8',
-                  fontSize: 16, fontWeight: 900,
+                  fontSize: 16,
+                  fontWeight: 900,
                   cursor: canBuild ? 'pointer' : 'not-allowed',
                   fontFamily: 'Heebo, sans-serif',
                   boxShadow: canBuild ? '0 6px 24px rgba(13,158,110,0.25)' : 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  transition: 'all 0.2s', marginBottom: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s',
+                  marginBottom: 24,
                 }}
               >
                 {isGenerating ? (
                   <>
                     <span style={{ fontSize: 18 }}>⏳</span>
-                    {buildMode === 'smart' ? 'מערכת ה-AI מתכננת את המסלול שלך...' : 'מייעל מסלול...'}
+                    {buildMode === 'smart'
+                      ? 'מערכת ה-AI מתכננת את המסלול שלך...'
+                      : 'מייעל מסלול...'}
                   </>
                 ) : !userLocation ? (
                   <>📍 זהה מיקום כדי להמשיך</>
@@ -666,7 +931,6 @@ export default function TripBucketSheet() {
               </button>
             </>
           )}
-
         </div>
       </div>
     </>

@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer from 'nodemailer';
 
 function getTransporter() {
   const host = process.env.SMTP_HOST;
@@ -6,8 +6,8 @@ function getTransporter() {
 
   return nodemailer.createTransport({
     host,
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: process.env.SMTP_SECURE === "true",
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -15,8 +15,8 @@ function getTransporter() {
   });
 }
 
-const FROM = process.env.SMTP_FROM || "Router <noreply@router.app>";
-const APP_URL = process.env.APP_URL || "http://localhost:5173";
+const FROM = process.env.SMTP_FROM || 'Router <noreply@router.app>';
+const APP_URL = process.env.APP_URL || 'http://localhost:5173';
 
 export async function sendVerificationEmail(email: string, token: string) {
   const link = `${APP_URL}/VerifyEmail?token=${token}`;
@@ -30,7 +30,7 @@ export async function sendVerificationEmail(email: string, token: string) {
   await transporter.sendMail({
     from: FROM,
     to: email,
-    subject: "אמת את כתובת האימייל שלך – Router",
+    subject: 'אמת את כתובת האימייל שלך – Router',
     html: `
       <div dir="rtl" style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:12px">
         <h2 style="color:#0d9e6e">ברוך הבא ל-Router 🧭</h2>
@@ -58,7 +58,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   await transporter.sendMail({
     from: FROM,
     to: email,
-    subject: "איפוס סיסמה – Router",
+    subject: 'איפוס סיסמה – Router',
     html: `
       <div dir="rtl" style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:12px">
         <h2 style="color:#0f172a">איפוס סיסמה 🔐</h2>

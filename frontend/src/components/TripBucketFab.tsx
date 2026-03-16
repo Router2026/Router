@@ -32,15 +32,24 @@ export default function TripBucketFab() {
         justifyContent: 'center',
         transition: 'transform 0.15s ease, box-shadow 0.15s ease',
       }}
-      onMouseEnter={e => {
+      onMouseEnter={(e) => {
         (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)';
       }}
-      onMouseLeave={e => {
+      onMouseLeave={(e) => {
         (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
       }}
     >
       {/* Backpack icon */}
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        width="26"
+        height="26"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10H4V10z" />
         <path d="M9 6V4a3 3 0 0 1 6 0v2" />
         <line x1="4" y1="15" x2="20" y2="15" />

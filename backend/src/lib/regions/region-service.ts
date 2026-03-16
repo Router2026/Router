@@ -1,5 +1,5 @@
-import { rawDb } from "@/lib/db/raw-client";
-import { cacheGet, cacheSet } from "@/lib/cache/mem-cache";
+import { rawDb } from '@/lib/db/raw-client';
+import { cacheGet, cacheSet } from '@/lib/cache/mem-cache';
 
 export interface Region {
   id: number;
@@ -27,7 +27,7 @@ function rowToRegion(r: Record<string, unknown>): Region {
 }
 
 export async function getAllRegions(): Promise<Region[]> {
-  const cacheKey = "regions:all";
+  const cacheKey = 'regions:all';
   const cached = cacheGet<Region[]>(cacheKey);
   if (cached) return cached;
 

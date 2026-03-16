@@ -1,10 +1,10 @@
-import OpenAI from "openai";
-import type { LLMProvider, TripInput, TripPlan, TripStop } from "@/types/llm";
-import { LLMOutputError } from "@/types/llm";
-import { buildGenerateTripPrompt, buildRegenerateStopPrompt } from "./prompts";
-import { TripStopSchema, TripPlanSchema } from "./schemas";
-import { extractJson } from "./extract-json";
-import type { Poi } from "@/lib/db/schema";
+import OpenAI from 'openai';
+import type { LLMProvider, TripInput, TripPlan, TripStop } from '@/types/llm';
+import { LLMOutputError } from '@/types/llm';
+import { buildGenerateTripPrompt, buildRegenerateStopPrompt } from './prompts';
+import { TripStopSchema, TripPlanSchema } from './schemas';
+import { extractJson } from './extract-json';
+import type { Poi } from '@/lib/db/schema';
 
 export class OllamaProvider implements LLMProvider {
   private client: OpenAI;
@@ -12,10 +12,10 @@ export class OllamaProvider implements LLMProvider {
 
   constructor() {
     this.client = new OpenAI({
-      baseURL: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1",
-      apiKey: "ollama",
+      baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
+      apiKey: 'ollama',
     });
-    this.model = process.env.OLLAMA_MODEL ?? "llama3.1:8b";
+    this.model = process.env.OLLAMA_MODEL ?? 'llama3.1:8b';
   }
 
   async generateTrip(input: TripInput, pois: Poi[]): Promise<TripPlan> {
@@ -27,7 +27,12 @@ export class OllamaProvider implements LLMProvider {
     );
   }
 
-  async regenerateStop(plan: TripPlan, dayIndex: number, stopIndex: number, pois: Poi[]): Promise<TripStop> {
+  async regenerateStop(
+    plan: TripPlan,
+    dayIndex: number,
+    stopIndex: number,
+    pois: Poi[]
+  ): Promise<TripStop> {
     const prompt = buildRegenerateStopPrompt(plan, dayIndex, stopIndex, pois);
     return this.retryParse(
       () => this.callLLM(prompt),
@@ -39,13 +44,13 @@ export class OllamaProvider implements LLMProvider {
   private async callLLM(prompt: string): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: this.model,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      response_format: { type: "json_object" } as any,
+      response_format: { type: 'json_object' } as any,
     });
     const content = response.choices[0]?.message?.content;
-    if (!content) throw new LLMOutputError("Empty response from Ollama");
+    if (!content) throw new LLMOutputError('Empty response from Ollama');
     return content;
   }
 
@@ -62,7 +67,10 @@ export class OllamaProvider implements LLMProvider {
       } catch (err) {
         lastError = err;
         if (attempt < maxAttempts) {
-          console.warn(`[OllamaProvider] attempt ${attempt} failed, retrying...`, err instanceof Error ? err.message : err);
+          console.warn(
+            `[OllamaProvider] attempt ${attempt} failed, retrying...`,
+            err instanceof Error ? err.message : err
+          );
         }
       }
     }

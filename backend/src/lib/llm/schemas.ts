@@ -1,11 +1,11 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const TripStopSchema = z.object({
   name: z.string().min(1),
-  category: z.string().default("attraction"),
-  address: z.string().default(""),
-  openingHours: z.string().default(""),
-  reasoning: z.string().default(""),
+  category: z.string().default('attraction'),
+  address: z.string().default(''),
+  openingHours: z.string().default(''),
+  reasoning: z.string().default(''),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   visitDurationMinutes: z
@@ -19,7 +19,7 @@ export const AccommodationSchema = z.object({
   type: z.string().min(1),
   address: z.string().min(1),
   estimatedCostPerNight: z.number().min(0).max(100_000),
-  notes: z.string().default(""),
+  notes: z.string().default(''),
 });
 
 export const TripPlanSchema = z.object({

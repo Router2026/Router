@@ -8,16 +8,14 @@
  * Route generation is the only operation that hits the backend.
  */
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { POI } from '../api';
-import type { BucketItem, GeneratedRoute, TripBucketContextValue, UserLocation } from '../utils/types';
-
+import type {
+  BucketItem,
+  GeneratedRoute,
+  TripBucketContextValue,
+  UserLocation,
+} from '../utils/types';
 
 // ── Context ───────────────────────────────────────────────────────────────────
 
@@ -32,21 +30,21 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
 
   // Derive a quick-lookup Set for O(1) membership tests
-  const poiIdSet = useMemo(() => new Set(items.map(i => i.poi.id)), [items]);
+  const poiIdSet = useMemo(() => new Set(items.map((i) => i.poi.id)), [items]);
 
   const addPoi = useCallback((poi: POI) => {
-    setItems(prev => {
-      if (prev.some(i => i.poi.id === poi.id)) return prev;
+    setItems((prev) => {
+      if (prev.some((i) => i.poi.id === poi.id)) return prev;
       return [...prev, { poi, addedAt: Date.now() }];
     });
   }, []);
 
   const removePoi = useCallback((poiId: string) => {
-    setItems(prev => prev.filter(i => i.poi.id !== poiId));
+    setItems((prev) => prev.filter((i) => i.poi.id !== poiId));
   }, []);
 
   const reorderItems = useCallback((fromIndex: number, toIndex: number) => {
-    setItems(prev => {
+    setItems((prev) => {
       const next = [...prev];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
@@ -88,11 +86,7 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
     setUserLocation,
   };
 
-  return (
-    <TripBucketContext.Provider value={value}>
-      {children}
-    </TripBucketContext.Provider>
-  );
+  return <TripBucketContext.Provider value={value}>{children}</TripBucketContext.Provider>;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────

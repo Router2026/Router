@@ -44,13 +44,13 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(poi_ids) || poi_ids.length < 2) {
       return NextResponse.json(
         errorResponse('poi_ids must be an array of at least 2 IDs', 'VALIDATION_ERROR'),
-        { status: 400 },
+        { status: 400 }
       );
     }
     if (poi_ids.length > 15) {
       return NextResponse.json(
         errorResponse('Maximum 15 POIs supported for Smart Build', 'VALIDATION_ERROR'),
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (pois.length < 2) {
       return NextResponse.json(
         errorResponse('Could not find enough valid POIs for the provided IDs', 'NOT_FOUND'),
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -73,36 +73,36 @@ export async function POST(req: NextRequest) {
     // Calculate total duration including visits
     const totalDurationMinutes = smartPlan.stops.reduce(
       (acc, stop) => acc + stop.duration_minutes,
-      0,
+      0
     );
 
     const stops = smartPlan.stops.map((stop, i) => ({
-      poi_id:           stop.location_id,
-      poi_name:         stop.poi_name,
-      arrival_time:     stop.arrival_time,
+      poi_id: stop.location_id,
+      poi_name: stop.poi_name,
+      arrival_time: stop.arrival_time,
       duration_minutes: stop.duration_minutes,
-      smart_insight:    stop.smart_insight,
-      order_index:      i,
+      smart_insight: stop.smart_insight,
+      order_index: i,
     }));
 
     // ── Response ──────────────────────────────────────────────────────────────
     return NextResponse.json(
       successResponse({
-        mode:                   'smart',
+        mode: 'smart',
         stops,
-        smart_plan:             smartPlan,  // full plan for rich UI rendering
+        smart_plan: smartPlan, // full plan for rich UI rendering
         total_duration_minutes: totalDurationMinutes,
       }),
-      { status: 200 },
+      { status: 200 }
     );
   } catch (err) {
     console.error('[POST /api/trip-bucket/smart-build]', err);
     return NextResponse.json(
       errorResponse(
         err instanceof Error ? err.message : 'Smart Build generation failed',
-        'GENERATION_ERROR',
+        'GENERATION_ERROR'
       ),
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

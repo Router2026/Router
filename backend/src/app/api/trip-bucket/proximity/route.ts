@@ -29,8 +29,8 @@ import { buildHaversineMatrix, solveTsp } from '@/lib/trip-bucket/tsp-engine';
 import { fetchMapboxMatrix } from '@/lib/trip-bucket/mapbox-matrix';
 
 // Arrival time scheduling constants
-const DAY_START_HOUR  = 8;   // 08:00
-const DAY_START_MIN   = 0;
+const DAY_START_HOUR = 8; // 08:00
+const DAY_START_MIN = 0;
 const TRANSITION_BUFFER_MIN = 10; // buffer between stops
 
 export const maxDuration = 30; // seconds — route computation can take a few seconds
@@ -44,13 +44,13 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(poi_ids) || poi_ids.length < 2) {
       return NextResponse.json(
         errorResponse('poi_ids must be an array of at least 2 IDs', 'VALIDATION_ERROR'),
-        { status: 400 },
+        { status: 400 }
       );
     }
     if (poi_ids.length > 20) {
       return NextResponse.json(
         errorResponse('Maximum 20 POIs supported for proximity optimization', 'VALIDATION_ERROR'),
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (pois.length < 2) {
       return NextResponse.json(
         errorResponse('Could not find enough valid POIs for the provided IDs', 'NOT_FOUND'),
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(
-      `[Proximity] ${nodes.length} nodes, matrix source: ${usedMapbox ? 'Mapbox' : 'Haversine'}`,
+      `[Proximity] ${nodes.length} nodes, matrix source: ${usedMapbox ? 'Mapbox' : 'Haversine'}`
     );
 
     // ── Step 3: Run DP-TSP solver ─────────────────────────────────────────────
@@ -85,50 +85,50 @@ export async function POST(req: NextRequest) {
     let cursor = DAY_START_HOUR * 60 + DAY_START_MIN; // minutes from midnight
 
     const stops = orderedNodes.map((node, i) => {
-      const hh = Math.floor(cursor / 60).toString().padStart(2, '0');
+      const hh = Math.floor(cursor / 60)
+        .toString()
+        .padStart(2, '0');
       const mm = (cursor % 60).toString().padStart(2, '0');
       const arrival_time = `${hh}:${mm}`;
 
       // Advance cursor: visit duration + travel to next stop + buffer
       const travelToNext =
         i < orderedNodes.length - 1
-          ? matrix![
-              nodes.findIndex(n => n.id === node.id)
-            ][
-              nodes.findIndex(n => n.id === orderedNodes[i + 1].id)
+          ? matrix![nodes.findIndex((n) => n.id === node.id)][
+              nodes.findIndex((n) => n.id === orderedNodes[i + 1].id)
             ]
           : 0;
 
       cursor += node.duration_minutes + Math.round(travelToNext) + TRANSITION_BUFFER_MIN;
 
       return {
-        poi_id:           node.id,
-        poi_name:         node.name,
+        poi_id: node.id,
+        poi_name: node.name,
         arrival_time,
         duration_minutes: node.duration_minutes,
-        order_index:      i,
+        order_index: i,
       };
     });
 
     // ── Response ──────────────────────────────────────────────────────────────
     return NextResponse.json(
       successResponse({
-        mode:                   'proximity',
+        mode: 'proximity',
         stops,
-        total_distance_km:      Math.round(totalDistanceKm * 10) / 10,
+        total_distance_km: Math.round(totalDistanceKm * 10) / 10,
         total_duration_minutes: Math.round(totalTravelMinutes),
-        matrix_source:          usedMapbox ? 'mapbox' : 'haversine',
+        matrix_source: usedMapbox ? 'mapbox' : 'haversine',
       }),
-      { status: 200 },
+      { status: 200 }
     );
   } catch (err) {
     console.error('[POST /api/trip-bucket/proximity]', err);
     return NextResponse.json(
       errorResponse(
         err instanceof Error ? err.message : 'Proximity route generation failed',
-        'GENERATION_ERROR',
+        'GENERATION_ERROR'
       ),
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

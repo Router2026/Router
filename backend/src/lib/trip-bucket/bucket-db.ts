@@ -53,10 +53,10 @@ export async function fetchBucketPois(ids: string[]): Promise<BucketPoi[]> {
      LEFT JOIN regions r ON r.id = l.region_id
      WHERE  l.id = ANY($1::int[])
      ORDER  BY array_position($1::int[], l.id)`,
-    [ids],
+    [ids]
   );
 
-  return rows.map(r => ({
+  return rows.map((r) => ({
     id: String(r.id),
     name: r.name as string,
     description: r.description as string,
@@ -77,7 +77,7 @@ export async function fetchBucketPois(ids: string[]): Promise<BucketPoi[]> {
  * Convert BucketPoi records to the TspNode shape required by the solver.
  */
 export function toTspNodes(pois: BucketPoi[]): TspNode[] {
-  return pois.map(p => ({
+  return pois.map((p) => ({
     id: p.id,
     name: p.name,
     latitude: p.latitude,

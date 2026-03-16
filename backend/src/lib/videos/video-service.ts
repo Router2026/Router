@@ -1,4 +1,4 @@
-import { rawDb } from "@/lib/db/raw-client";
+import { rawDb } from '@/lib/db/raw-client';
 
 export interface VideoPost {
   id: number;
@@ -26,7 +26,7 @@ export async function createVideo(data: Partial<VideoPost>): Promise<VideoPost> 
       data.title,
       data.description || null,
       data.region || null,
-      data.uploader_name || "אנונימי",
+      data.uploader_name || 'אנונימי',
       data.video_url || null,
       data.thumbnail_url || null,
     ]

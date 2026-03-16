@@ -1,6 +1,12 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-const POI_CATEGORIES = ["restaurant", "coffee_trail", "hiking_trail", "attraction", "campsite"] as const;
+const POI_CATEGORIES = [
+  'restaurant',
+  'coffee_trail',
+  'hiking_trail',
+  'attraction',
+  'campsite',
+] as const;
 
 export const PoiRecordSchema = z.object({
   name: z.string().min(1),
