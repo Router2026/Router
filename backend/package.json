@@ -13,7 +13,9 @@
     "db:seed": "npx tsx src/lib/db/seed.ts",
     "db:seed:v2": "npx tsx src/lib/db/seed-v2.ts",
     "db:migrate:subregions": "npx tsx src/lib/db/migrate-subregions.ts",
-    "db:seed:v3": "npx tsx src/lib/db/seed-v3.ts"
+    "db:seed:v3": "npx tsx src/lib/db/seed-v3.ts",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -48,12 +50,14 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-leaflet": "^2.8.3",
+    "@vitest/coverage-v8": "^4.1.0",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.9",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
