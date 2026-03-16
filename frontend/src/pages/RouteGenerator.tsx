@@ -2,7 +2,7 @@
 // Feature 1: Injects user location (or selected location) as the starting point
 // into routeGenerate, and displays a visual start-point marker on the map.
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
