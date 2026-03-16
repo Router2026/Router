@@ -1,32 +1,38 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import Layout from './components/Layout';
-import Home from './pages/Home';
-import Explore from './pages/Explore';
-import MapView from './pages/MapView';
-import TripPlanner from './pages/TripPlanner';
-import POIDetail from './pages/POIDetail';
-import TripDetail from './pages/TripDetail';
-import Profile from './pages/Profile';
-import Reports from './pages/Reports';
-import CommunityVideos from './pages/CommunityVideos';
-import Leaderboard from './pages/Leaderboard';
-import AddReport from './pages/AddReport';
-import AddReview from './pages/AddReview';
-import UploadVideo from './pages/UploadVideo';
-import MyTrips from './pages/MyTrips';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import RouteGenerator from './pages/RouteGenerator';
-import AdminPanel from './pages/AdminPanel';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { TripBucketProvider } from './context/TripBucketContext';
-import { setAuthToken } from './api';
-import './index.css';
-import ContributePOI from './pages/ContributePOI';
+import React, { useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
+import Layout from "./components/Layout";
+import Home from "./pages/Home";
+import Explore from "./pages/Explore";
+import MapView from "./pages/MapView";
+import TripPlanner from "./pages/TripPlanner";
+import POIDetail from "./pages/POIDetail";
+import TripDetail from "./pages/TripDetail";
+import Profile from "./pages/Profile";
+import Reports from "./pages/Reports";
+import CommunityVideos from "./pages/CommunityVideos";
+import Leaderboard from "./pages/Leaderboard";
+import AddReport from "./pages/AddReport";
+import AddReview from "./pages/AddReview";
+import UploadVideo from "./pages/UploadVideo";
+import MyTrips from "./pages/MyTrips";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import RouteGenerator from "./pages/RouteGenerator";
+import AdminPanel from "./pages/AdminPanel";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { TripBucketProvider } from "./context/TripBucketContext";
+import { setAuthToken } from "./api";
+import "./index.css";
+import ContributePOI from "./pages/ContributePOI";
 
 // Sync auth token to api module whenever auth state changes
 function TokenSync() {
@@ -37,16 +43,24 @@ function TokenSync() {
   return null;
 }
 
-const Wrap = ({ name, children }: { name: string; children: React.ReactNode }) => (
-  <Layout currentPageName={name}>{children}</Layout>
-);
+const Wrap = ({
+  name,
+  children,
+}: {
+  name: string;
+  children: React.ReactNode;
+}) => <Layout currentPageName={name}>{children}</Layout>;
 
 // Guard: redirect unauthenticated users to /Login
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
   if (isLoading)
-    return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען...</div>;
+    return (
+      <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>
+        טוען...
+      </div>
+    );
   if (!user) return <Navigate to="/Login" state={{ from: location }} replace />;
   return <>{children}</>;
 }

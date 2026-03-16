@@ -6,7 +6,7 @@ export interface BucketItem {
   addedAt: number;
 }
 
-export type BuildMode = 'proximity' | 'smart';
+export type BuildMode = "proximity" | "smart";
 
 /** User's live geolocation — the fixed starting point of every generated route */
 export interface UserLocation {
@@ -80,23 +80,23 @@ export interface TripBucketContextValue {
   setUserLocation: (loc: UserLocation | null) => void;
 }
 
-export type GeoState = 'idle' | 'loading' | 'success' | 'error';
+export type GeoState = "idle" | "loading" | "success" | "error";
 export interface LatLng {
   lat: number;
   lng: number;
 }
-import type { POI } from '../api';
+import type { POI } from "../api";
 
 export interface LocationSelectorProps {
   initialName?: string;
   onSelect: (poi: POI | null) => void;
 }
 
-export type Tab = 'users' | 'routes' | 'community_pois';
+export type Tab = "users" | "routes" | "community_pois";
 
 // ── Community POI types ───────────────────────────────────────────────────────
 
-export type PoiStatus = 'pending' | 'approved' | 'rejected';
+export type PoiStatus = "pending" | "approved" | "rejected";
 
 export interface CommunityPoiAdmin {
   id: number;

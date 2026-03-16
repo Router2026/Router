@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { base44, type UserProfile, type Trip, type Review } from '../api';
-import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { base44, type UserProfile, type Trip, type Review } from "../api";
+import { useAuth } from "../context/AuthContext";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -32,7 +32,7 @@ export default function Profile() {
         setReviews(reviewsData); // Set fetched reviews
       })
       .catch((err) => {
-        console.error('Error fetching profile data:', err);
+        console.error("Error fetching profile data:", err);
       })
       .finally(() => {
         setLoadingData(false);
@@ -43,9 +43,9 @@ export default function Profile() {
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/Login');
+      navigate("/Login");
     } catch (e) {
-      console.error('Logout failed', e);
+      console.error("Logout failed", e);
     }
   };
 
@@ -54,25 +54,32 @@ export default function Profile() {
     return (
       <div
         style={{
-          background: '#f8fafc',
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          direction: 'rtl',
+          background: "#f8fafc",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          direction: "rtl",
           padding: 20,
         }}
       >
         <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: '#1a2e2a', marginBottom: 8 }}>
+        <div
+          style={{
+            fontSize: 22,
+            fontWeight: 900,
+            color: "#1a2e2a",
+            marginBottom: 8,
+          }}
+        >
           אינך מחובר
         </div>
         <div
           style={{
             fontSize: 14,
-            color: '#94a3b8',
-            textAlign: 'center',
+            color: "#94a3b8",
+            textAlign: "center",
             marginBottom: 24,
             maxWidth: 280,
           }}
@@ -80,18 +87,18 @@ export default function Profile() {
           כדי לראות את הפרופיל, המסלולים וההתקדמות שלך, אנא התחבר לחשבון.
         </div>
         <button
-          onClick={() => navigate('/Login')}
+          onClick={() => navigate("/Login")}
           style={{
-            padding: '12px 32px',
-            border: 'none',
+            padding: "12px 32px",
+            border: "none",
             borderRadius: 16,
-            background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-            color: '#fff',
+            background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+            color: "#fff",
             fontSize: 16,
             fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'Heebo, sans-serif',
-            boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
+            cursor: "pointer",
+            fontFamily: "Heebo, sans-serif",
+            boxShadow: "0 4px 14px rgba(13,158,110,0.3)",
           }}
         >
           התחבר עכשיו
@@ -104,49 +111,62 @@ export default function Profile() {
   const xp = profile?.xp_points ?? 0;
   const nextLevelXP = 100;
   const progress = Math.min((xp / nextLevelXP) * 100, 100);
-  const level = profile?.level || 'מטייל מתחיל';
+  const level = profile?.level || "מטייל מתחיל";
 
   return (
-    <div style={{ background: '#f8fafc', minHeight: '100vh', width: '100%', direction: 'rtl' }}>
+    <div
+      style={{
+        background: "#f8fafc",
+        minHeight: "100vh",
+        width: "100%",
+        direction: "rtl",
+      }}
+    >
       {/* ── Top header (Full Width) ─────────────────────────────────────── */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', width: '100%' }}>
+      <div
+        style={{
+          background: "#fff",
+          borderBottom: "1px solid #f0f0f0",
+          width: "100%",
+        }}
+      >
         <div
           style={{
             maxWidth: 600,
-            margin: '0 auto',
-            padding: '24px 20px 20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            margin: "0 auto",
+            padding: "24px 20px 20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div
               style={{
                 width: 52,
                 height: 52,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #0d9e6e, #34d399)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #0d9e6e, #34d399)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 fontSize: 22,
-                color: '#fff',
+                color: "#fff",
                 fontWeight: 800,
               }}
             >
-              {user.full_name?.charAt(0) || user.email?.charAt(0) || 'ע'}
+              {user.full_name?.charAt(0) || user.email?.charAt(0) || "ע"}
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>
-                {user.full_name || 'משתמש'}
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#1a2e2a" }}>
+                {user.full_name || "משתמש"}
               </div>
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
+                  display: "flex",
+                  alignItems: "center",
                   gap: 8,
-                  color: '#94a3b8',
+                  color: "#94a3b8",
                   fontSize: 13,
                   marginTop: 3,
                 }}
@@ -154,10 +174,10 @@ export default function Profile() {
                 <span>· {level}</span>
                 <span
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
+                    display: "flex",
+                    alignItems: "center",
                     gap: 3,
-                    color: '#0d9e6e',
+                    color: "#0d9e6e",
                     fontWeight: 700,
                   }}
                 >
@@ -167,20 +187,20 @@ export default function Profile() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {user?.is_admin && (
               <button
-                onClick={() => navigate('/Admin')}
+                onClick={() => navigate("/Admin")}
                 style={{
-                  background: '#0f172a',
-                  border: 'none',
+                  background: "#0f172a",
+                  border: "none",
                   borderRadius: 10,
-                  padding: '8px 12px',
-                  color: '#fff',
+                  padding: "8px 12px",
+                  color: "#fff",
                   fontSize: 13,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
+                  cursor: "pointer",
+                  fontFamily: "Heebo, sans-serif",
                 }}
               >
                 🛡 ניהול
@@ -190,15 +210,15 @@ export default function Profile() {
             <button
               onClick={handleLogout}
               style={{
-                background: '#fef2f2',
-                border: 'none',
+                background: "#fef2f2",
+                border: "none",
                 borderRadius: 10,
-                padding: '8px 12px',
-                color: '#dc2626',
+                padding: "8px 12px",
+                color: "#dc2626",
                 fontSize: 13,
                 fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'Heebo, sans-serif',
+                cursor: "pointer",
+                fontFamily: "Heebo, sans-serif",
               }}
             >
               התנתק
@@ -208,50 +228,71 @@ export default function Profile() {
       </div>
 
       {/* ── Main Content Container (Centered) ─────────────────────────── */}
-      <div style={{ maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+      <div style={{ maxWidth: 600, margin: "0 auto", paddingBottom: 100 }}>
         {loadingData ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען נתונים...</div>
+          <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>
+            טוען נתונים...
+          </div>
         ) : (
           <>
             {/* ── Stats row ─────────────────────────────────────── */}
-            <div style={{ padding: '16px 16px 0' }}>
+            <div style={{ padding: "16px 16px 0" }}>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
                   gap: 10,
-                  background: '#fff',
+                  background: "#fff",
                   borderRadius: 20,
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-                  padding: '16px',
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+                  padding: "16px",
                 }}
               >
                 {[
                   {
-                    label: 'מסלולים',
+                    label: "מסלולים",
                     value: profile?.trips_count ?? trips.length,
-                    icon: '↔️',
-                    color: '#0d9e6e',
+                    icon: "↔️",
+                    color: "#0d9e6e",
                   },
                   {
-                    label: 'ביקורות',
+                    label: "ביקורות",
                     value: profile?.reviews_count ?? reviews.length,
-                    icon: '💬',
-                    color: '#0891b2',
+                    icon: "💬",
+                    color: "#0891b2",
                   },
                   {
-                    label: 'דיווחים',
+                    label: "דיווחים",
                     value: profile?.reports_count ?? 0,
-                    icon: '⚠️',
-                    color: '#f59e0b',
+                    icon: "⚠️",
+                    color: "#f59e0b",
                   },
                 ].map((stat) => (
-                  <div key={stat.label} style={{ textAlign: 'center', padding: '8px 0' }}>
-                    <div style={{ fontSize: 22, marginBottom: 6 }}>{stat.icon}</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: '#1a2e2a', lineHeight: 1 }}>
+                  <div
+                    key={stat.label}
+                    style={{ textAlign: "center", padding: "8px 0" }}
+                  >
+                    <div style={{ fontSize: 22, marginBottom: 6 }}>
+                      {stat.icon}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: 900,
+                        color: "#1a2e2a",
+                        lineHeight: 1,
+                      }}
+                    >
                       {stat.value}
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, fontWeight: 600 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#94a3b8",
+                        marginTop: 4,
+                        fontWeight: 600,
+                      }}
+                    >
                       {stat.label}
                     </div>
                   </div>
@@ -262,30 +303,30 @@ export default function Profile() {
             {/* ── My Trips + My Reviews ──────────────────────────── */}
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
                 gap: 12,
-                padding: '12px 16px 0',
+                padding: "12px 16px 0",
               }}
             >
               {/* My Trips */}
               <div
                 style={{
-                  background: '#fff',
+                  background: "#fff",
                   borderRadius: 20,
-                  padding: '16px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+                  padding: "16px",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
                 }}
               >
                 <div
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                     marginBottom: 14,
                   }}
                 >
-                  <span style={{ color: '#94a3b8' }}>
+                  <span style={{ color: "#94a3b8" }}>
                     <svg
                       width="16"
                       height="16"
@@ -302,7 +343,9 @@ export default function Profile() {
                       <path d="M19 16V4" />
                     </svg>
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>
+                  <span
+                    style={{ fontSize: 15, fontWeight: 800, color: "#1a2e2a" }}
+                  >
                     המסלולים שלי
                   </span>
                 </div>
@@ -311,9 +354,9 @@ export default function Profile() {
                     <div
                       style={{
                         fontSize: 13,
-                        color: '#94a3b8',
-                        textAlign: 'center',
-                        padding: '20px 0',
+                        color: "#94a3b8",
+                        textAlign: "center",
+                        padding: "20px 0",
                       }}
                     >
                       אין מסלולים עדיין
@@ -324,12 +367,12 @@ export default function Profile() {
                         key={t.id}
                         onClick={() => navigate(`/TripDetail?id=${t.id}`)}
                         style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '8px 0',
-                          borderBottom: '1px solid #f8fafc',
-                          cursor: 'pointer',
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "8px 0",
+                          borderBottom: "1px solid #f8fafc",
+                          cursor: "pointer",
                         }}
                       >
                         <div
@@ -337,10 +380,10 @@ export default function Profile() {
                             width: 32,
                             height: 32,
                             borderRadius: 10,
-                            background: '#f0fdf8',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            background: "#f0fdf8",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                             flexShrink: 0,
                           }}
                         >
@@ -358,18 +401,26 @@ export default function Profile() {
                             <circle cx="12" cy="10" r="3" />
                           </svg>
                         </div>
-                        <div style={{ textAlign: 'right', flex: 1, paddingRight: 8 }}>
+                        <div
+                          style={{
+                            textAlign: "right",
+                            flex: 1,
+                            paddingRight: 8,
+                          }}
+                        >
                           <div
                             style={{
                               fontSize: 12,
                               fontWeight: 700,
-                              color: '#1a2e2a',
+                              color: "#1a2e2a",
                               lineHeight: 1.3,
                             }}
                           >
                             {t.name}
                           </div>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{t.region}</div>
+                          <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                            {t.region}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -380,21 +431,21 @@ export default function Profile() {
               {/* My Reviews */}
               <div
                 style={{
-                  background: '#fff',
+                  background: "#fff",
                   borderRadius: 20,
-                  padding: '16px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+                  padding: "16px",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
                 }}
               >
                 <div
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                     marginBottom: 14,
                   }}
                 >
-                  <span style={{ color: '#94a3b8' }}>
+                  <span style={{ color: "#94a3b8" }}>
                     <svg
                       width="16"
                       height="16"
@@ -408,7 +459,9 @@ export default function Profile() {
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                     </svg>
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>
+                  <span
+                    style={{ fontSize: 15, fontWeight: 800, color: "#1a2e2a" }}
+                  >
                     הביקורות שלי
                   </span>
                 </div>
@@ -416,12 +469,12 @@ export default function Profile() {
                   {reviews.length === 0 ? (
                     <div
                       style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
                         height: 140,
-                        color: '#94a3b8',
+                        color: "#94a3b8",
                       }}
                     >
                       <svg
@@ -437,41 +490,52 @@ export default function Profile() {
                       >
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                       </svg>
-                      <span style={{ fontSize: 13, opacity: 0.6 }}>אין ביקורות</span>
+                      <span style={{ fontSize: 13, opacity: 0.6 }}>
+                        אין ביקורות
+                      </span>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                      }}
+                    >
                       {reviews.slice(0, 3).map((r, index) => {
                         const rating = r.rating || 5;
                         const emptyStars = 5 - rating;
                         return (
                           <div
                             key={r.id || index}
-                            style={{ paddingBottom: 8, borderBottom: '1px solid #f8fafc' }}
+                            style={{
+                              paddingBottom: 8,
+                              borderBottom: "1px solid #f8fafc",
+                            }}
                           >
                             <div
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
+                                display: "flex",
+                                alignItems: "center",
                                 gap: 4,
                                 marginBottom: 4,
-                                color: '#f59e0b',
+                                color: "#f59e0b",
                                 fontSize: 10,
                               }}
                             >
-                              {'★'.repeat(rating)}
-                              {'☆'.repeat(emptyStars)}
+                              {"★".repeat(rating)}
+                              {"☆".repeat(emptyStars)}
                             </div>
                             <div
                               style={{
                                 fontSize: 12,
-                                color: '#1a2e2a',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
+                                color: "#1a2e2a",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
                               }}
                             >
-                              {r.content || r.text || 'ביקורת ללא טקסט'}
+                              {r.content || r.text || "ביקורת ללא טקסט"}
                             </div>
                           </div>
                         );
@@ -483,20 +547,20 @@ export default function Profile() {
             </div>
 
             {/* ── Progress / Gamification ───────────────────────── */}
-            <div style={{ padding: '12px 16px 0' }}>
+            <div style={{ padding: "12px 16px 0" }}>
               <div
                 style={{
-                  background: '#fff',
+                  background: "#fff",
                   borderRadius: 20,
-                  padding: '20px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+                  padding: "20px",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
                 }}
               >
                 <div
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                     marginBottom: 16,
                   }}
                 >
@@ -516,27 +580,45 @@ export default function Profile() {
                     <line x1="10" y1="1" x2="10" y2="4" />
                     <line x1="14" y1="1" x2="14" y2="4" />
                   </svg>
-                  <span style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a' }}>התקדמות</span>
+                  <span
+                    style={{ fontSize: 16, fontWeight: 900, color: "#1a2e2a" }}
+                  >
+                    התקדמות
+                  </span>
                 </div>
 
                 {/* Level + avatar */}
                 <div
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                     marginBottom: 10,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ fontSize: 14, color: '#94a3b8' }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <div style={{ fontSize: 14, color: "#94a3b8" }}>
                       {nextLevelXP} XP לדרגה הבאה
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a' }}>{level}</div>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>XP {xp}</div>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <div style={{ textAlign: "right" }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: "#1a2e2a",
+                        }}
+                      >
+                        {level}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                        XP {xp}
+                      </div>
                     </div>
                     <div style={{ fontSize: 28 }}>🦊</div>
                   </div>
@@ -546,43 +628,72 @@ export default function Profile() {
                 <div
                   style={{
                     height: 8,
-                    background: '#f0f4f3',
+                    background: "#f0f4f3",
                     borderRadius: 4,
-                    overflow: 'hidden',
+                    overflow: "hidden",
                     marginBottom: 20,
                   }}
                 >
                   <div
                     style={{
-                      height: '100%',
+                      height: "100%",
                       width: `${progress}%`,
-                      background: 'linear-gradient(90deg, #0d9e6e, #34d399)',
+                      background: "linear-gradient(90deg, #0d9e6e, #34d399)",
                       borderRadius: 4,
-                      transition: 'width 0.6s ease',
+                      transition: "width 0.6s ease",
                     }}
                   />
                 </div>
 
                 {/* XP methods */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 8,
+                  }}
+                >
                   {[
-                    { label: 'מסלול שהושלם', xp: 'XP 20+', color: '#0d9e6e', bg: '#f0fdf8' },
-                    { label: 'כתיבת ביקורת', xp: 'XP 15+', color: '#0284c7', bg: '#eff6ff' },
-                    { label: 'העלאת וידאו', xp: 'XP 10+', color: '#d97706', bg: '#fffbeb' },
+                    {
+                      label: "מסלול שהושלם",
+                      xp: "XP 20+",
+                      color: "#0d9e6e",
+                      bg: "#f0fdf8",
+                    },
+                    {
+                      label: "כתיבת ביקורת",
+                      xp: "XP 15+",
+                      color: "#0284c7",
+                      bg: "#eff6ff",
+                    },
+                    {
+                      label: "העלאת וידאו",
+                      xp: "XP 10+",
+                      color: "#d97706",
+                      bg: "#fffbeb",
+                    },
                   ].map((item) => (
                     <div
                       key={item.label}
                       style={{
                         background: item.bg,
                         borderRadius: 12,
-                        padding: '10px 8px',
-                        textAlign: 'center',
+                        padding: "10px 8px",
+                        textAlign: "center",
                       }}
                     >
-                      <div style={{ fontSize: 13, fontWeight: 800, color: item.color }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          color: item.color,
+                        }}
+                      >
                         {item.xp}
                       </div>
-                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+                      <div
+                        style={{ fontSize: 10, color: "#94a3b8", marginTop: 3 }}
+                      >
                         {item.label}
                       </div>
                     </div>
@@ -594,23 +705,30 @@ export default function Profile() {
         )}
 
         {/* ── Action buttons ────────────────────────────────── */}
-        <div style={{ padding: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div
+          style={{
+            padding: "12px 16px 0",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
           {/* AI planner */}
           <button
-            onClick={() => navigate('/TripPlanner')}
+            onClick={() => navigate("/TripPlanner")}
             style={{
-              background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-              border: 'none',
+              background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+              border: "none",
               borderRadius: 18,
-              padding: '0 20px',
-              cursor: 'pointer',
-              fontFamily: 'Heebo, sans-serif',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              padding: "0 20px",
+              cursor: "pointer",
+              fontFamily: "Heebo, sans-serif",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               height: 72,
-              overflow: 'hidden',
-              position: 'relative',
+              overflow: "hidden",
+              position: "relative",
             }}
           >
             <svg
@@ -625,9 +743,11 @@ export default function Profile() {
             >
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>שילוב AI למסלולים</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>
+                שילוב AI למסלולים
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
                 צור מסלול מותאם אישית עם AI
               </div>
             </div>
@@ -636,10 +756,10 @@ export default function Profile() {
                 width: 44,
                 height: 44,
                 borderRadius: 14,
-                background: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                background: "rgba(255,255,255,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
               <span style={{ fontSize: 22 }}>✨</span>
@@ -648,17 +768,17 @@ export default function Profile() {
 
           {/* Community */}
           <button
-            onClick={() => navigate('/CommunityVideos')}
+            onClick={() => navigate("/CommunityVideos")}
             style={{
-              background: 'linear-gradient(135deg, #7c3aed, #9333ea)',
-              border: 'none',
+              background: "linear-gradient(135deg, #7c3aed, #9333ea)",
+              border: "none",
               borderRadius: 18,
-              padding: '0 20px',
-              cursor: 'pointer',
-              fontFamily: 'Heebo, sans-serif',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              padding: "0 20px",
+              cursor: "pointer",
+              fontFamily: "Heebo, sans-serif",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               height: 72,
             }}
           >
@@ -674,9 +794,11 @@ export default function Profile() {
             >
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>פיתוח קהילה</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>
+                פיתוח קהילה
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
                 שתף וידאו, דווח ותרום לקהילה
               </div>
             </div>
@@ -685,10 +807,10 @@ export default function Profile() {
                 width: 44,
                 height: 44,
                 borderRadius: 14,
-                background: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                background: "rgba(255,255,255,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
               <svg

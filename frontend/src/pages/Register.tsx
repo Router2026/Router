@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { api, type AppStats, type Region } from '../api';
-import { roundToThousands } from '../utils/helper';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { api, type AppStats, type Region } from "../api";
+import { roundToThousands } from "../utils/helper";
 
 function StrengthBar({ password }: { password: string }) {
-  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) => r.test(password)).length;
-  const labels = ['', 'חלשה', 'בינונית', 'חזקה', 'מצוינת'];
-  const colors = ['#e2e8f0', '#ef4444', '#f59e0b', '#0d9e6e', '#059669'];
+  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) =>
+    r.test(password),
+  ).length;
+  const labels = ["", "חלשה", "בינונית", "חזקה", "מצוינת"];
+  const colors = ["#e2e8f0", "#ef4444", "#f59e0b", "#0d9e6e", "#059669"];
   if (!password) return null;
   return (
-    <div style={{ marginBottom: 16, direction: 'rtl' }}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+    <div style={{ marginBottom: 16, direction: "rtl" }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
@@ -19,13 +21,20 @@ function StrengthBar({ password }: { password: string }) {
               flex: 1,
               height: 4,
               borderRadius: 4,
-              background: i <= score ? colors[score] : '#e2e8f0',
-              transition: 'background 0.3s',
+              background: i <= score ? colors[score] : "#e2e8f0",
+              transition: "background 0.3s",
             }}
           />
         ))}
       </div>
-      <div style={{ fontSize: 11, color: colors[score], fontWeight: 700, textAlign: 'right' }}>
+      <div
+        style={{
+          fontSize: 11,
+          color: colors[score],
+          fontWeight: 700,
+          textAlign: "right",
+        }}
+      >
         {score > 0 && `חוזק סיסמה: ${labels[score]}`}
       </div>
     </div>
@@ -38,14 +47,14 @@ export default function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
 
-  const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [usernameStatus, setUsernameStatus] = useState<
-    'idle' | 'checking' | 'available' | 'taken' | 'invalid'
-  >('idle');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+    "idle" | "checking" | "available" | "taken" | "invalid"
+  >("idle");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,23 +79,23 @@ export default function Register() {
   const avgRating = stats?.average_rating ?? 4.8;
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!username) {
-      setUsernameStatus('idle');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUsernameStatus("idle");
       return;
     }
     if (!USERNAME_RE.test(username)) {
-      setUsernameStatus('invalid');
+      setUsernameStatus("invalid");
       return;
     }
-    setUsernameStatus('checking');
+    setUsernameStatus("checking");
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
         const available = await api.auth.checkUsername(username);
-        setUsernameStatus(available ? 'available' : 'taken');
+        setUsernameStatus(available ? "available" : "taken");
       } catch {
-        setUsernameStatus('idle');
+        setUsernameStatus("idle");
       }
     }, 500);
     return () => {
@@ -95,14 +104,15 @@ export default function Register() {
   }, [username]);
 
   const validate = () => {
-    if (!fullName.trim()) return 'אנא הכנס שם מלא';
+    if (!fullName.trim()) return "אנא הכנס שם מלא";
     if (!username || !USERNAME_RE.test(username))
-      return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
-    if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
-    if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
-    if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
-    if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
-    if (password !== confirm) return 'הסיסמאות אינן תואמות';
+      return "שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)";
+    if (usernameStatus === "taken") return "שם המשתמש תפוס";
+    if (usernameStatus === "checking") return "ממתין לבדיקת שם משתמש...";
+    if (!email.trim() || !email.includes("@"))
+      return "אנא הכנס כתובת אימייל תקינה";
+    if (password.length < 6) return "הסיסמה חייבת להכיל לפחות 6 תווים";
+    if (password !== confirm) return "הסיסמאות אינן תואמות";
     return null;
   };
 
@@ -115,7 +125,12 @@ export default function Register() {
     setError(null);
     setLoading(true);
     try {
-      await register(email.trim(), password, fullName.trim(), username.trim().toLowerCase());
+      await register(
+        email.trim(),
+        password,
+        fullName.trim(),
+        username.trim().toLowerCase(),
+      );
       setSuccess(true);
     } catch (e) {
       setError((e as Error).message);
@@ -124,77 +139,86 @@ export default function Register() {
   };
 
   const inputBase: React.CSSProperties = {
-    width: '100%',
-    padding: '14px 16px',
-    border: '2px solid #e2e8f0',
+    width: "100%",
+    padding: "14px 16px",
+    border: "2px solid #e2e8f0",
     borderRadius: 14,
     fontSize: 15,
-    fontFamily: 'Heebo, sans-serif',
-    textAlign: 'right',
-    outline: 'none',
-    background: '#f8fafc',
-    color: '#1a2e2a',
-    boxSizing: 'border-box',
-    direction: 'rtl',
-    transition: 'border-color 0.2s',
+    fontFamily: "Heebo, sans-serif",
+    textAlign: "right",
+    outline: "none",
+    background: "#f8fafc",
+    color: "#1a2e2a",
+    boxSizing: "border-box",
+    direction: "rtl",
+    transition: "border-color 0.2s",
   };
 
   const usernameColor = {
-    idle: '#e2e8f0',
-    checking: '#f59e0b',
-    available: '#0d9e6e',
-    taken: '#ef4444',
-    invalid: '#ef4444',
+    idle: "#e2e8f0",
+    checking: "#f59e0b",
+    available: "#0d9e6e",
+    taken: "#ef4444",
+    invalid: "#ef4444",
   }[usernameStatus];
   const usernameHint = {
-    idle: '',
-    checking: 'בודק זמינות...',
-    available: '✓ שם משתמש פנוי',
-    taken: '✗ שם משתמש תפוס',
-    invalid: '✗ 3-20 תווים: אנגלית, מספרים, _ בלבד',
+    idle: "",
+    checking: "בודק זמינות...",
+    available: "✓ שם משתמש פנוי",
+    taken: "✗ שם משתמש תפוס",
+    invalid: "✗ 3-20 תווים: אנגלית, מספרים, _ בלבד",
   }[usernameStatus];
 
   if (success)
     return (
       <div
         style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#f0f4f3',
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f0f4f3",
           gap: 16,
-          direction: 'rtl',
+          direction: "rtl",
           padding: 24,
         }}
       >
         <div style={{ fontSize: 72 }}>📧</div>
-        <div style={{ fontSize: 24, fontWeight: 900, color: '#0d9e6e' }}>בדוק את האימייל שלך!</div>
-        <div style={{ fontSize: 15, color: '#64748b', textAlign: 'center', maxWidth: 320 }}>
+        <div style={{ fontSize: 24, fontWeight: 900, color: "#0d9e6e" }}>
+          בדוק את האימייל שלך!
+        </div>
+        <div
+          style={{
+            fontSize: 15,
+            color: "#64748b",
+            textAlign: "center",
+            maxWidth: 320,
+          }}
+        >
           שלחנו קישור אימות לכתובת <strong>{email}</strong>.<br />
           לחץ על הקישור כדי להפעיל את החשבון שלך.
         </div>
-        <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>
-          לא קיבלת? בדוק תיקיית ספאם או{' '}
+        <div style={{ fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
+          לא קיבלת? בדוק תיקיית ספאם או{" "}
           <button
             onClick={async () => {
               try {
-                await fetch('/api/auth/resend-verification', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                await fetch("/api/auth/resend-verification", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ email }),
                 });
-                alert('נשלח שוב!');
+                alert("נשלח שוב!");
               } catch {
                 /* empty */
               }
             }}
             style={{
-              background: 'none',
-              border: 'none',
-              color: '#0d9e6e',
-              cursor: 'pointer',
+              background: "none",
+              border: "none",
+              color: "#0d9e6e",
+              cursor: "pointer",
               fontWeight: 700,
               fontSize: 13,
               padding: 0,
@@ -204,18 +228,18 @@ export default function Register() {
           </button>
         </div>
         <button
-          onClick={() => navigate('/Login')}
+          onClick={() => navigate("/Login")}
           style={{
             marginTop: 8,
-            padding: '12px 28px',
-            background: '#0d9e6e',
-            color: '#fff',
-            border: 'none',
+            padding: "12px 28px",
+            background: "#0d9e6e",
+            color: "#fff",
+            border: "none",
             borderRadius: 12,
             fontWeight: 800,
             fontSize: 15,
-            cursor: 'pointer',
-            fontFamily: 'Heebo, sans-serif',
+            cursor: "pointer",
+            fontFamily: "Heebo, sans-serif",
           }}
         >
           כניסה לחשבון
@@ -224,105 +248,139 @@ export default function Register() {
     );
 
   return (
-    <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl' }}>
+    <div
+      style={{ background: "#f0f4f3", minHeight: "100vh", direction: "rtl" }}
+    >
       <div
         style={{
-          background: 'linear-gradient(135deg, #0d9e6e 0%, #059669 100%)',
-          padding: '40px 24px 76px',
-          textAlign: 'center',
-          position: 'relative',
-          overflow: 'hidden',
+          background: "linear-gradient(135deg, #0d9e6e 0%, #059669 100%)",
+          padding: "40px 24px 76px",
+          textAlign: "center",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: -30,
             right: -30,
             width: 120,
             height: 120,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.08)',
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.08)",
           }}
         />
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             bottom: -20,
             left: -20,
             width: 80,
             height: 80,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.06)',
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.06)",
           }}
         />
         <div style={{ fontSize: 44, marginBottom: 8 }}>🧭</div>
-        <div style={{ fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: -0.5 }}>
+        <div
+          style={{
+            fontSize: 26,
+            fontWeight: 900,
+            color: "#fff",
+            letterSpacing: -0.5,
+          }}
+        >
           הצטרף ל-Router
         </div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', marginTop: 6 }}>
+        <div
+          style={{
+            fontSize: 14,
+            color: "rgba(255,255,255,0.82)",
+            marginTop: 6,
+          }}
+        >
           גלה מסלולים, שתף חוויות וצור מסלולים חדשים
         </div>
         <div
           style={{
-            display: 'flex',
+            display: "flex",
             gap: 8,
-            justifyContent: 'center',
+            justifyContent: "center",
             marginTop: 18,
-            flexWrap: 'wrap',
+            flexWrap: "wrap",
           }}
         >
-          {['📍 דיווחים בזמן אמת', '🗺️ שמור מסלולים', '⭐ כתוב ביקורות'].map((b) => (
-            <span
-              key={b}
-              style={{
-                background: 'rgba(255,255,255,0.18)',
-                color: '#fff',
-                borderRadius: 20,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              {b}
-            </span>
-          ))}
+          {["📍 דיווחים בזמן אמת", "🗺️ שמור מסלולים", "⭐ כתוב ביקורות"].map(
+            (b) => (
+              <span
+                key={b}
+                style={{
+                  background: "rgba(255,255,255,0.18)",
+                  color: "#fff",
+                  borderRadius: 20,
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {b}
+              </span>
+            ),
+          )}
         </div>
       </div>
 
       <div
-        style={{ maxWidth: 420, margin: '0 auto', padding: '0 20px 100px', position: 'relative' }}
+        style={{
+          maxWidth: 420,
+          margin: "0 auto",
+          padding: "0 20px 100px",
+          position: "relative",
+        }}
       >
         {/* ── Quick Stats ── */}
         <div style={{ marginTop: -40, marginBottom: 24, zIndex: 10 }}>
           <div
             style={{
-              background: '#fff',
+              background: "#fff",
               borderRadius: 20,
-              padding: '18px 20px',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              textAlign: 'center',
+              padding: "18px 20px",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              textAlign: "center",
             }}
           >
             {[
               {
-                value: totalLocations > 0 ? `${totalLocations}+` : '...',
-                label: 'מסלולים',
-                icon: '🗺️',
+                value: totalLocations > 0 ? `${totalLocations}+` : "...",
+                label: "מסלולים",
+                icon: "🗺️",
               },
               {
-                value: totalRegions > 0 ? String(totalRegions) : '...',
-                label: 'אזורים',
-                icon: '📍',
+                value: totalRegions > 0 ? String(totalRegions) : "...",
+                label: "אזורים",
+                icon: "📍",
               },
-              { value: avgRating > 0 ? `${avgRating}★` : '...', label: 'דירוג ממוצע', icon: '⭐' },
+              {
+                value: avgRating > 0 ? `${avgRating}★` : "...",
+                label: "דירוג ממוצע",
+                icon: "⭐",
+              },
             ].map((s) => (
               <div key={s.label}>
                 <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{s.label}</div>
+                <div
+                  style={{ fontSize: 20, fontWeight: 900, color: "#0d9e6e" }}
+                >
+                  {s.value}
+                </div>
+                <div
+                  style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}
+                >
+                  {s.label}
+                </div>
               </div>
             ))}
           </div>
@@ -330,11 +388,11 @@ export default function Register() {
 
         <div
           style={{
-            background: '#fff',
+            background: "#fff",
             borderRadius: 24,
-            boxShadow: '0 8px 40px rgba(0,0,0,0.06)',
-            padding: '28px 24px 24px',
-            position: 'relative',
+            boxShadow: "0 8px 40px rgba(0,0,0,0.06)",
+            padding: "28px 24px 24px",
+            position: "relative",
             zIndex: 10,
           }}
         >
@@ -342,8 +400,8 @@ export default function Register() {
             style={{
               fontSize: 18,
               fontWeight: 900,
-              color: '#1a2e2a',
-              textAlign: 'right',
+              color: "#1a2e2a",
+              textAlign: "right",
               marginBottom: 22,
             }}
           >
@@ -354,46 +412,48 @@ export default function Register() {
           <div style={{ marginBottom: 12 }}>
             <label
               style={{
-                display: 'block',
+                display: "block",
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#64748b',
-                textAlign: 'right',
+                color: "#64748b",
+                textAlign: "right",
                 marginBottom: 6,
               }}
             >
               שם משתמש *
             </label>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: "relative" }}>
               <input
                 value={username}
                 onChange={(e) =>
-                  setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
+                  setUsername(
+                    e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                  )
                 }
                 placeholder="israel_123"
                 style={{
                   ...inputBase,
-                  direction: 'ltr',
-                  textAlign: 'left',
+                  direction: "ltr",
+                  textAlign: "left",
                   borderColor: usernameColor,
                   paddingRight: 44,
                 }}
               />
-              {usernameStatus !== 'idle' && (
+              {usernameStatus !== "idle" && (
                 <div
                   style={{
-                    position: 'absolute',
+                    position: "absolute",
                     right: 14,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
+                    top: "50%",
+                    transform: "translateY(-50%)",
                     fontSize: 16,
                   }}
                 >
-                  {usernameStatus === 'checking'
-                    ? '⏳'
-                    : usernameStatus === 'available'
-                      ? '✅'
-                      : '❌'}
+                  {usernameStatus === "checking"
+                    ? "⏳"
+                    : usernameStatus === "available"
+                      ? "✅"
+                      : "❌"}
                 </div>
               )}
             </div>
@@ -403,7 +463,7 @@ export default function Register() {
                   fontSize: 11,
                   color: usernameColor,
                   fontWeight: 700,
-                  textAlign: 'right',
+                  textAlign: "right",
                   marginTop: 4,
                 }}
               >
@@ -416,11 +476,11 @@ export default function Register() {
           <div style={{ marginBottom: 12 }}>
             <label
               style={{
-                display: 'block',
+                display: "block",
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#64748b',
-                textAlign: 'right',
+                color: "#64748b",
+                textAlign: "right",
                 marginBottom: 6,
               }}
             >
@@ -431,8 +491,8 @@ export default function Register() {
               onChange={(e) => setFullName(e.target.value)}
               placeholder="ישראל ישראלי"
               style={inputBase}
-              onFocus={(e) => (e.target.style.borderColor = '#0d9e6e')}
-              onBlur={(e) => (e.target.style.borderColor = '#e2e8f0')}
+              onFocus={(e) => (e.target.style.borderColor = "#0d9e6e")}
+              onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
             />
           </div>
 
@@ -440,11 +500,11 @@ export default function Register() {
           <div style={{ marginBottom: 12 }}>
             <label
               style={{
-                display: 'block',
+                display: "block",
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#64748b',
-                textAlign: 'right',
+                color: "#64748b",
+                textAlign: "right",
                 marginBottom: 6,
               }}
             >
@@ -455,9 +515,9 @@ export default function Register() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               type="email"
-              style={{ ...inputBase, direction: 'ltr', textAlign: 'left' }}
-              onFocus={(e) => (e.target.style.borderColor = '#0d9e6e')}
-              onBlur={(e) => (e.target.style.borderColor = '#e2e8f0')}
+              style={{ ...inputBase, direction: "ltr", textAlign: "left" }}
+              onFocus={(e) => (e.target.style.borderColor = "#0d9e6e")}
+              onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
             />
           </div>
 
@@ -465,37 +525,42 @@ export default function Register() {
           <div style={{ marginBottom: 4 }}>
             <label
               style={{
-                display: 'block',
+                display: "block",
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#64748b',
-                textAlign: 'right',
+                color: "#64748b",
+                textAlign: "right",
                 marginBottom: 6,
               }}
             >
               סיסמה *
             </label>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: "relative" }}>
               <input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="לפחות 6 תווים"
-                type={showPass ? 'text' : 'password'}
-                style={{ ...inputBase, paddingLeft: 44, direction: 'ltr', textAlign: 'left' }}
-                onFocus={(e) => (e.target.style.borderColor = '#0d9e6e')}
-                onBlur={(e) => (e.target.style.borderColor = '#e2e8f0')}
+                type={showPass ? "text" : "password"}
+                style={{
+                  ...inputBase,
+                  paddingLeft: 44,
+                  direction: "ltr",
+                  textAlign: "left",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#0d9e6e")}
+                onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
               />
               <button
                 onClick={() => setShowPass(!showPass)}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   left: 12,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#94a3b8',
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#94a3b8",
                   padding: 4,
                 }}
               >
@@ -539,60 +604,68 @@ export default function Register() {
           <div style={{ marginBottom: 20 }}>
             <label
               style={{
-                display: 'block',
+                display: "block",
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#64748b',
-                textAlign: 'right',
+                color: "#64748b",
+                textAlign: "right",
                 marginBottom: 6,
               }}
             >
               אימות סיסמה *
             </label>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: "relative" }}>
               <input
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="הכנס סיסמה שוב"
-                type={showPass ? 'text' : 'password'}
+                type={showPass ? "text" : "password"}
                 style={{
                   ...inputBase,
                   paddingRight: 44,
                   borderColor:
                     confirm && confirm !== password
-                      ? '#ef4444'
+                      ? "#ef4444"
                       : confirm && confirm === password
-                        ? '#0d9e6e'
-                        : '#e2e8f0',
+                        ? "#0d9e6e"
+                        : "#e2e8f0",
                 }}
                 onFocus={(e) => {
-                  if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e';
+                  if (!confirm || confirm === password)
+                    e.target.style.borderColor = "#0d9e6e";
                 }}
                 onBlur={(e) => {
                   e.target.style.borderColor =
                     confirm && confirm !== password
-                      ? '#ef4444'
+                      ? "#ef4444"
                       : confirm && confirm === password
-                        ? '#0d9e6e'
-                        : '#e2e8f0';
+                        ? "#0d9e6e"
+                        : "#e2e8f0";
                 }}
               />
               {confirm && (
                 <div
                   style={{
-                    position: 'absolute',
+                    position: "absolute",
                     right: 14,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
+                    top: "50%",
+                    transform: "translateY(-50%)",
                     fontSize: 16,
                   }}
                 >
-                  {confirm === password ? '✅' : '❌'}
+                  {confirm === password ? "✅" : "❌"}
                 </div>
               )}
             </div>
             {confirm && confirm !== password && (
-              <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'right', marginTop: 4 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#ef4444",
+                  textAlign: "right",
+                  marginTop: 4,
+                }}
+              >
                 הסיסמאות אינן תואמות
               </div>
             )}
@@ -601,18 +674,18 @@ export default function Register() {
           {error && (
             <div
               style={{
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
                 borderRadius: 12,
-                padding: '12px 16px',
-                color: '#dc2626',
+                padding: "12px 16px",
+                color: "#dc2626",
                 fontSize: 13,
                 fontWeight: 600,
                 marginBottom: 16,
-                textAlign: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                textAlign: "center",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
               }}
             >
@@ -622,25 +695,36 @@ export default function Register() {
 
           <button
             onClick={handleSubmit}
-            disabled={loading || usernameStatus === 'taken' || usernameStatus === 'checking'}
+            disabled={
+              loading ||
+              usernameStatus === "taken" ||
+              usernameStatus === "checking"
+            }
             style={{
-              width: '100%',
-              padding: '16px',
-              border: 'none',
+              width: "100%",
+              padding: "16px",
+              border: "none",
               borderRadius: 16,
-              background: loading ? '#e2e8f0' : 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-              color: loading ? '#94a3b8' : '#fff',
+              background: loading
+                ? "#e2e8f0"
+                : "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+              color: loading ? "#94a3b8" : "#fff",
               fontSize: 16,
               fontWeight: 900,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'Heebo, sans-serif',
-              boxShadow: loading ? 'none' : '0 8px 20px rgba(13,158,110,0.3)',
-              transition: 'all 0.2s',
+              cursor: loading ? "not-allowed" : "pointer",
+              fontFamily: "Heebo, sans-serif",
+              boxShadow: loading ? "none" : "0 8px 20px rgba(13,158,110,0.3)",
+              transition: "all 0.2s",
             }}
           >
             {loading ? (
               <span
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
               >
                 <svg
                   width="18"
@@ -651,45 +735,54 @@ export default function Register() {
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  style={{ animation: 'spin 1s linear infinite' }}
+                  style={{ animation: "spin 1s linear infinite" }}
                 >
                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
                 יוצר חשבון...
               </span>
             ) : (
-              '🚀 יצירת חשבון'
+              "🚀 יצירת חשבון"
             )}
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
-            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
-            <span style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              margin: "18px 0",
+            }}
+          >
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+            <span
+              style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}
+            >
               כבר יש לך חשבון?
             </span>
-            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+            <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
           </div>
 
           <button
-            onClick={() => navigate('/Login')}
+            onClick={() => navigate("/Login")}
             style={{
-              width: '100%',
-              padding: '14px',
-              border: '2px solid #0d9e6e',
+              width: "100%",
+              padding: "14px",
+              border: "2px solid #0d9e6e",
               borderRadius: 16,
-              background: '#fff',
-              color: '#0d9e6e',
+              background: "#fff",
+              color: "#0d9e6e",
               fontSize: 15,
               fontWeight: 800,
-              cursor: 'pointer',
-              fontFamily: 'Heebo, sans-serif',
-              transition: 'all 0.15s',
+              cursor: "pointer",
+              fontFamily: "Heebo, sans-serif",
+              transition: "all 0.15s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#f0fdf8';
+              e.currentTarget.style.background = "#f0fdf8";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#fff';
+              e.currentTarget.style.background = "#fff";
             }}
           >
             כניסה לחשבון קיים
@@ -697,10 +790,10 @@ export default function Register() {
         </div>
         <div
           style={{
-            textAlign: 'center',
+            textAlign: "center",
             marginTop: 14,
             fontSize: 11,
-            color: '#94a3b8',
+            color: "#94a3b8",
             lineHeight: 1.6,
           }}
         >

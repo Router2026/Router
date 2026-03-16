@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap");
 
 :root {
   --primary: #0d9e6e;
@@ -26,14 +26,14 @@
 
 html {
   direction: rtl;
-  font-family: 'Heebo', sans-serif;
+  font-family: "Heebo", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Heebo', sans-serif;
+  font-family: "Heebo", sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -57,7 +57,7 @@ body {
   padding: 0 !important;
   overflow: hidden;
   direction: rtl;
-  font-family: 'Heebo', sans-serif !important;
+  font-family: "Heebo", sans-serif !important;
 }
 .leaflet-popup-content {
   margin: 0 !important;
@@ -79,7 +79,7 @@ body {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  font-family: 'Heebo', sans-serif !important;
+  font-family: "Heebo", sans-serif !important;
   font-size: 13px !important;
   font-weight: 800 !important;
   color: #1a2e2a !important;

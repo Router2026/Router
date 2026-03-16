@@ -8,23 +8,35 @@
  * Route generation is the only operation that hits the backend.
  */
 
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import type { POI } from '../api';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
+import type { POI } from "../api";
 import type {
   BucketItem,
   GeneratedRoute,
   TripBucketContextValue,
   UserLocation,
-} from '../utils/types';
+} from "../utils/types";
 
 // ── Context ───────────────────────────────────────────────────────────────────
 
 const TripBucketContext = createContext<TripBucketContextValue | null>(null);
 
-export function TripBucketProvider({ children }: { children: React.ReactNode }) {
+export function TripBucketProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [items, setItems] = useState<BucketItem[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [generatedRoute, setGeneratedRoute] = useState<GeneratedRoute | null>(null);
+  const [generatedRoute, setGeneratedRoute] = useState<GeneratedRoute | null>(
+    null,
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -52,7 +64,10 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
     });
   }, []);
 
-  const hasPoi = useCallback((poiId: string) => poiIdSet.has(poiId), [poiIdSet]);
+  const hasPoi = useCallback(
+    (poiId: string) => poiIdSet.has(poiId),
+    [poiIdSet],
+  );
 
   const clearBucket = useCallback(() => {
     setItems([]);
@@ -86,7 +101,11 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
     setUserLocation,
   };
 
-  return <TripBucketContext.Provider value={value}>{children}</TripBucketContext.Provider>;
+  return (
+    <TripBucketContext.Provider value={value}>
+      {children}
+    </TripBucketContext.Provider>
+  );
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -95,7 +114,7 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
 export function useTripBucket(): TripBucketContextValue {
   const ctx = useContext(TripBucketContext);
   if (!ctx) {
-    throw new Error('useTripBucket must be used inside <TripBucketProvider>');
+    throw new Error("useTripBucket must be used inside <TripBucketProvider>");
   }
   return ctx;
 }

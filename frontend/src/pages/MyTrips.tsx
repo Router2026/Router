@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api, type Trip } from '../api';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { api, type Trip } from "../api";
 
 const GROUP_ICONS: Record<string, string> = {
-  'משפחה עם ילדים': '👨‍👩‍👧‍👦',
-  משפחה: '👨‍👩‍👧‍👦',
-  חברים: '👥',
-  יחיד: '🚶',
-  זוג: '👫',
-  solo: '🚶',
-  couple: '👫',
-  family: '👨‍👩‍👧‍👦',
-  friends: '👥',
+  "משפחה עם ילדים": "👨‍👩‍👧‍👦",
+  משפחה: "👨‍👩‍👧‍👦",
+  חברים: "👥",
+  יחיד: "🚶",
+  זוג: "👫",
+  solo: "🚶",
+  couple: "👫",
+  family: "👨‍👩‍👧‍👦",
+  friends: "👥",
 };
 
 export default function MyTrips() {
@@ -27,7 +27,7 @@ export default function MyTrips() {
     api.trips
       .list()
       .then((data) => setTrips(data))
-      .catch((err) => console.error('Failed to fetch trips:', err))
+      .catch((err) => console.error("Failed to fetch trips:", err))
       .finally(() => setIsLoading(false)); // Always turn off loading when done
   }, []);
 
@@ -43,46 +43,53 @@ export default function MyTrips() {
       await api.trips.delete(id);
       setTrips((prev) => prev.filter((t) => String(t.id) !== id));
     } catch (err) {
-      console.error('Delete failed:', err);
+      console.error("Delete failed:", err);
     }
     setDeletingId(null);
   };
 
   return (
-    <div style={{ background: '#f8fafc', minHeight: '100vh', width: '100%', direction: 'rtl' }}>
+    <div
+      style={{
+        background: "#f8fafc",
+        minHeight: "100vh",
+        width: "100%",
+        direction: "rtl",
+      }}
+    >
       {/* ── Header (Full Width) ── */}
       <div
         style={{
-          background: 'linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)',
-          width: '100%',
+          background: "linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)",
+          width: "100%",
         }}
       >
         <div
           style={{
             maxWidth: 600,
-            margin: '0 auto',
-            padding: '48px 20px 40px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
+            margin: "0 auto",
+            padding: "48px 20px 40px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
           }}
         >
           <button
-            onClick={() => navigate('/TripPlanner')}
+            onClick={() => navigate("/TripPlanner")}
             style={{
-              background: '#fff',
-              border: 'none',
+              background: "#fff",
+              border: "none",
               borderRadius: 12,
-              padding: '8px 16px',
-              cursor: 'pointer',
-              color: '#0d9e6e',
+              padding: "8px 16px",
+              cursor: "pointer",
+              color: "#0d9e6e",
               fontSize: 13,
               fontWeight: 800,
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               gap: 6,
-              fontFamily: 'Heebo, sans-serif',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              fontFamily: "Heebo, sans-serif",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             }}
           >
             <svg
@@ -100,11 +107,18 @@ export default function MyTrips() {
             </svg>
             חדש
           </button>
-          <div style={{ textAlign: 'right' }}>
-            <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 900, marginBottom: 4 }}>
+          <div style={{ textAlign: "right" }}>
+            <h1
+              style={{
+                color: "#fff",
+                fontSize: 24,
+                fontWeight: 900,
+                marginBottom: 4,
+              }}
+            >
               המסלולים שלי
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
+            <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 13 }}>
               כל המסלולים שיצרת במקום אחד
             </p>
           </div>
@@ -112,16 +126,16 @@ export default function MyTrips() {
       </div>
 
       {/* ── Main Content Container (Centered) ── */}
-      <div style={{ maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+      <div style={{ maxWidth: 600, margin: "0 auto", paddingBottom: 100 }}>
         {/* Loading State */}
         {isLoading && (
           <div
             style={{
-              padding: '80px 20px',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
+              padding: "80px 20px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
             }}
           >
             <svg
@@ -133,11 +147,18 @@ export default function MyTrips() {
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ animation: 'spin 1s linear infinite' }}
+              style={{ animation: "spin 1s linear infinite" }}
             >
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#64748b', marginTop: 16 }}>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#64748b",
+                marginTop: 16,
+              }}
+            >
               טוען מסלולים...
             </div>
           </div>
@@ -147,9 +168,9 @@ export default function MyTrips() {
         {!isLoading && trips.length > 0 && (
           <div
             style={{
-              padding: '20px 16px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              padding: "20px 16px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
               gap: 16,
             }}
           >
@@ -162,14 +183,14 @@ export default function MyTrips() {
                   key={id}
                   onClick={() => navigate(`/TripDetail?id=${id}`)}
                   style={{
-                    background: '#fff',
+                    background: "#fff",
                     borderRadius: 20,
-                    overflow: 'hidden',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                    cursor: 'pointer',
-                    border: `1px solid ${isConfirming ? '#fecaca' : '#f0fdf8'}`,
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
+                    overflow: "hidden",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+                    cursor: "pointer",
+                    border: `1px solid ${isConfirming ? "#fecaca" : "#f0fdf8"}`,
+                    transition: "all 0.2s ease",
+                    position: "relative",
                   }}
                 >
                   {/* Card header */}
@@ -177,26 +198,31 @@ export default function MyTrips() {
                     style={{
                       height: 100,
                       background: isConfirming
-                        ? 'linear-gradient(160deg, #ef4444 0%, #f87171 100%)'
-                        : 'linear-gradient(160deg, #0d9e6e 0%, #34d399 100%)',
-                      display: 'flex',
-                      alignItems: 'flex-end',
-                      padding: '16px',
-                      transition: 'background 0.2s ease',
+                        ? "linear-gradient(160deg, #ef4444 0%, #f87171 100%)"
+                        : "linear-gradient(160deg, #0d9e6e 0%, #34d399 100%)",
+                      display: "flex",
+                      alignItems: "flex-end",
+                      padding: "16px",
+                      transition: "background 0.2s ease",
                     }}
                   >
                     <div>
                       <div
-                        style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.3 }}
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 800,
+                          color: "#fff",
+                          lineHeight: 1.3,
+                        }}
                       >
                         {trip.name}
                       </div>
                       <div
                         style={{
                           fontSize: 12,
-                          color: 'rgba(255,255,255,0.9)',
-                          display: 'flex',
-                          alignItems: 'center',
+                          color: "rgba(255,255,255,0.9)",
+                          display: "flex",
+                          alignItems: "center",
                           gap: 4,
                           marginTop: 6,
                         }}
@@ -220,16 +246,20 @@ export default function MyTrips() {
                   </div>
 
                   {/* Card body */}
-                  <div style={{ padding: '16px' }}>
+                  <div style={{ padding: "16px" }}>
                     <div
-                      style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: 12,
+                      }}
                     >
                       <div
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
+                          display: "flex",
+                          alignItems: "center",
                           gap: 6,
-                          color: '#64748b',
+                          color: "#64748b",
                           fontSize: 12,
                           fontWeight: 600,
                         }}
@@ -251,10 +281,10 @@ export default function MyTrips() {
                       </div>
                       <div
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
+                          display: "flex",
+                          alignItems: "center",
                           gap: 6,
-                          color: '#64748b',
+                          color: "#64748b",
                           fontSize: 12,
                           fontWeight: 600,
                         }}
@@ -280,11 +310,11 @@ export default function MyTrips() {
                     {trip.style && (
                       <span
                         style={{
-                          display: 'inline-block',
-                          background: '#f0fdf8',
-                          color: '#0d9e6e',
+                          display: "inline-block",
+                          background: "#f0fdf8",
+                          color: "#0d9e6e",
                           borderRadius: 8,
-                          padding: '4px 12px',
+                          padding: "4px 12px",
                           fontSize: 12,
                           fontWeight: 700,
                           marginBottom: 12,
@@ -295,10 +325,10 @@ export default function MyTrips() {
                     )}
                     <div
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        borderTop: '1px solid #f0fdf8',
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        borderTop: "1px solid #f0fdf8",
                         paddingTop: 12,
                       }}
                     >
@@ -306,21 +336,23 @@ export default function MyTrips() {
                         onClick={(e) => handleDelete(id, e)}
                         disabled={isDeleting}
                         style={{
-                          background: isConfirming ? '#ef4444' : 'transparent',
-                          border: `1.5px solid ${isConfirming ? '#ef4444' : '#e2e8f0'}`,
+                          background: isConfirming ? "#ef4444" : "transparent",
+                          border: `1.5px solid ${isConfirming ? "#ef4444" : "#e2e8f0"}`,
                           borderRadius: 8,
-                          padding: '4px 10px',
-                          cursor: 'pointer',
-                          color: isConfirming ? '#fff' : '#94a3b8',
+                          padding: "4px 10px",
+                          cursor: "pointer",
+                          color: isConfirming ? "#fff" : "#94a3b8",
                           fontSize: 12,
                           fontWeight: 700,
-                          fontFamily: 'Heebo, sans-serif',
-                          transition: 'all 0.2s ease',
+                          fontFamily: "Heebo, sans-serif",
+                          transition: "all 0.2s ease",
                         }}
                       >
-                        {isDeleting ? '...' : isConfirming ? 'מחיקה?' : '🗑'}
+                        {isDeleting ? "..." : isConfirming ? "מחיקה?" : "🗑"}
                       </button>
-                      <span style={{ fontSize: 16 }}>{GROUP_ICONS[trip.group_type] || '🚶'}</span>
+                      <span style={{ fontSize: 16 }}>
+                        {GROUP_ICONS[trip.group_type] || "🚶"}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -331,27 +363,34 @@ export default function MyTrips() {
 
         {/* Empty State */}
         {!isLoading && trips.length === 0 && (
-          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+          <div style={{ padding: "60px 20px", textAlign: "center" }}>
             <div style={{ fontSize: 56, marginBottom: 20 }}>🗺️</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a', marginBottom: 8 }}>
+            <div
+              style={{
+                fontSize: 20,
+                fontWeight: 900,
+                color: "#1a2e2a",
+                marginBottom: 8,
+              }}
+            >
               אין מסלולים עדיין
             </div>
-            <div style={{ fontSize: 15, color: '#64748b', marginBottom: 24 }}>
+            <div style={{ fontSize: 15, color: "#64748b", marginBottom: 24 }}>
               צור את המסלול הראשון שלך ותתחיל לטייל!
             </div>
             <button
-              onClick={() => navigate('/TripPlanner')}
+              onClick={() => navigate("/TripPlanner")}
               style={{
-                background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                color: '#fff',
-                border: 'none',
+                background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+                color: "#fff",
+                border: "none",
                 borderRadius: 16,
-                padding: '16px 40px',
+                padding: "16px 40px",
                 fontSize: 16,
                 fontWeight: 800,
-                cursor: 'pointer',
-                fontFamily: 'Heebo, sans-serif',
-                boxShadow: '0 8px 20px rgba(13, 158, 110, 0.2)',
+                cursor: "pointer",
+                fontFamily: "Heebo, sans-serif",
+                boxShadow: "0 8px 20px rgba(13, 158, 110, 0.2)",
               }}
             >
               צור מסלול חדש

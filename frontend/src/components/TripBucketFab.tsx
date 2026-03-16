@@ -6,7 +6,7 @@
  * Intended to be overlaid on the Explore page.
  */
 
-import { useTripBucket } from '../context/TripBucketContext';
+import { useTripBucket } from "../context/TripBucketContext";
 
 export default function TripBucketFab() {
   const { count, openSheet } = useTripBucket();
@@ -14,29 +14,29 @@ export default function TripBucketFab() {
   return (
     <button
       onClick={openSheet}
-      aria-label={`Trip Bucket — ${count} item${count !== 1 ? 's' : ''}`}
+      aria-label={`Trip Bucket — ${count} item${count !== 1 ? "s" : ""}`}
       style={{
-        position: 'fixed',
+        position: "fixed",
         bottom: 88, // above the bottom nav bar (~72px) + 16px gap
         right: 18,
         zIndex: 1500,
         width: 56,
         height: 56,
-        borderRadius: '50%',
-        border: 'none',
-        background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-        boxShadow: '0 6px 24px rgba(13,158,110,0.35)',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        borderRadius: "50%",
+        border: "none",
+        background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+        boxShadow: "0 6px 24px rgba(13,158,110,0.35)",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        transition: "transform 0.15s ease, box-shadow 0.15s ease",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)';
+        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
       }}
     >
       {/* Backpack icon */}
@@ -59,25 +59,25 @@ export default function TripBucketFab() {
       {count > 0 && (
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: -4,
             right: -4,
             minWidth: 20,
             height: 20,
             borderRadius: 10,
-            background: '#ef4444',
-            border: '2px solid #fff',
-            color: '#fff',
+            background: "#ef4444",
+            border: "2px solid #fff",
+            color: "#fff",
             fontSize: 11,
             fontWeight: 800,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 4px',
-            fontFamily: 'Heebo, sans-serif',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 4px",
+            fontFamily: "Heebo, sans-serif",
           }}
         >
-          {count > 99 ? '99+' : count}
+          {count > 99 ? "99+" : count}
         </div>
       )}
     </button>

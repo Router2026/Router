@@ -2,19 +2,20 @@
 // Feature 1: Injects user location (or selected location) as the starting point
 // into routeGenerate, and displays a visual start-point marker on the map.
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { api, type POI, type Region } from '../api';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { api, type POI, type Region } from "../api";
 
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import type { LatLng } from '../utils/types';
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import type { LatLng } from "../utils/types";
 
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)
+  ._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: markerIcon,
   iconRetinaUrl: markerIcon2x,
@@ -37,7 +38,7 @@ function StartMarker({ position }: { position: LatLng }) {
       ">
         <span style="transform:rotate(45deg)">📍</span>
       </div>`,
-    className: '',
+    className: "",
     iconSize: [36, 36],
     iconAnchor: [18, 36],
   });
@@ -56,7 +57,7 @@ function NumberedMarker({ poi, index }: { poi: POI; index: number }) {
       box-shadow:0 2px 8px rgba(0,0,0,0.3);
       font-family:Heebo,Arial
     ">${index + 1}</div>`,
-    className: '',
+    className: "",
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   });
@@ -65,7 +66,13 @@ function NumberedMarker({ poi, index }: { poi: POI; index: number }) {
 
 // ── Route polyline ────────────────────────────────────────────────────────────
 
-function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng | null }) {
+function RoutePolyline({
+  stops,
+  startPoint,
+}: {
+  stops: POI[];
+  startPoint: LatLng | null;
+}) {
   const map = useMap();
   const lineRef = useRef<L.Polyline | null>(null);
 
@@ -75,17 +82,19 @@ function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng
 
     // Build coordinate array: optionally prepend the start point
     const coords: [number, number][] = [
-      ...(startPoint ? [[startPoint.lat, startPoint.lng] as [number, number]] : []),
+      ...(startPoint
+        ? [[startPoint.lat, startPoint.lng] as [number, number]]
+        : []),
       ...stops.map((s) => [s.latitude, s.longitude] as [number, number]),
     ];
 
     if (coords.length < 2) return;
 
     lineRef.current = L.polyline(coords, {
-      color: '#0d9e6e',
+      color: "#0d9e6e",
       weight: 3,
       opacity: 0.8,
-      dashArray: '8,6',
+      dashArray: "8,6",
     }).addTo(map);
 
     map.fitBounds(L.latLngBounds(coords).pad(0.15));
@@ -101,7 +110,7 @@ function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng
 
 function haversineKm(
   a: { latitude: number; longitude: number },
-  b: { latitude: number; longitude: number }
+  b: { latitude: number; longitude: number },
 ): number {
   const R = 6371;
   const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
@@ -116,7 +125,8 @@ function haversineKm(
 
 function totalDistance(stops: POI[]): number {
   let d = 0;
-  for (let i = 0; i < stops.length - 1; i++) d += haversineKm(stops[i], stops[i + 1]);
+  for (let i = 0; i < stops.length - 1; i++)
+    d += haversineKm(stops[i], stops[i + 1]);
   return d;
 }
 
@@ -135,7 +145,10 @@ function optimizeRoute(pois: POI[], startPoint?: LatLng | null): POI[] {
     // Pick the POI closest to the start point as the first stop
     let minDist = Infinity;
     remaining.forEach((p, i) => {
-      const d = haversineKm({ latitude: startPoint.lat, longitude: startPoint.lng }, p);
+      const d = haversineKm(
+        { latitude: startPoint.lat, longitude: startPoint.lng },
+        p,
+      );
       if (d < minDist) {
         minDist = d;
         firstIdx = i;
@@ -165,21 +178,21 @@ function optimizeRoute(pois: POI[], startPoint?: LatLng | null): POI[] {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const REGION_ICONS: Record<string, string> = {
-  גולן: '🏔️',
-  'גליל עליון': '🌲',
-  'גליל תחתון': '💧',
-  כרמל: '🌿',
-  מרכז: '🏙️',
-  ירושלים: '🕌',
-  דרום: '🏜️',
-  נגב: '🏜️',
-  ערבה: '🌵',
-  אילת: '🏖️',
-  'עמק יזרעאל': '🌾',
-  שרון: '🌸',
+  גולן: "🏔️",
+  "גליל עליון": "🌲",
+  "גליל תחתון": "💧",
+  כרמל: "🌿",
+  מרכז: "🏙️",
+  ירושלים: "🕌",
+  דרום: "🏜️",
+  נגב: "🏜️",
+  ערבה: "🌵",
+  אילת: "🏖️",
+  "עמק יזרעאל": "🌾",
+  שרון: "🌸",
 };
 
-type Step = 'region' | 'pois' | 'route';
+type Step = "region" | "pois" | "route";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -187,21 +200,21 @@ export default function RouteGenerator() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
 
-  const [step, setStep] = useState<Step>('region');
+  const [step, setStep] = useState<Step>("region");
   const [regions, setRegions] = useState<Region[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [pois, setPois] = useState<POI[]>([]);
   const [selectedPois, setSelectedPois] = useState<POI[]>([]);
   const [optimized, setOptimized] = useState<POI[]>([]);
-  const [routeName, setRouteName] = useState('');
+  const [routeName, setRouteName] = useState("");
   const [loadingPois, setLoadingPois] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   // ── Start point state ──────────────────────────────────────────────────────
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
-  const [geoError, setGeoError] = useState('');
+  const [geoError, setGeoError] = useState("");
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
 
   // ── Load regions ───────────────────────────────────────────────────────────
@@ -220,9 +233,9 @@ export default function RouteGenerator() {
       const opt = optimizeRoute([...incoming], startPoint);
       setSelectedPois(incoming);
       setOptimized(opt);
-      setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
-      setStep('route');
-      window.history.replaceState({}, '');
+      setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString("he-IL")}`);
+      setStep("route");
+      window.history.replaceState({}, "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routerLocation.state]);
@@ -230,11 +243,11 @@ export default function RouteGenerator() {
   // ── Get current geolocation ────────────────────────────────────────────────
   const requestGeolocation = useCallback(() => {
     if (!navigator.geolocation) {
-      setGeoError('הדפדפן שלך אינו תומך באיתור מיקום');
+      setGeoError("הדפדפן שלך אינו תומך באיתור מיקום");
       return;
     }
     setGeoLoading(true);
-    setGeoError('');
+    setGeoError("");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const latlng: LatLng = {
@@ -246,32 +259,36 @@ export default function RouteGenerator() {
         setGeoLoading(false);
       },
       () => {
-        setGeoError('לא ניתן לקבל מיקום — אנא בדוק הרשאות');
+        setGeoError("לא ניתן לקבל מיקום — אנא בדוק הרשאות");
         setGeoLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 8000 },
     );
   }, []);
 
   const clearStartPoint = () => {
     setStartPoint(null);
     setUseCurrentLocation(false);
-    setGeoError('');
+    setGeoError("");
   };
 
   // ── Region selection ───────────────────────────────────────────────────────
   const selectRegion = async (region: Region) => {
     setSelectedRegion(region);
     setLoadingPois(true);
-    const data = await api.locations.list({ region: region.name, limit: 100 }).catch(() => []);
+    const data = await api.locations
+      .list({ region: region.name, limit: 100 })
+      .catch(() => []);
     setPois(data);
     setLoadingPois(false);
-    setStep('pois');
+    setStep("pois");
   };
 
   const togglePOI = (poi: POI) => {
     setSelectedPois((prev) =>
-      prev.find((p) => p.id === poi.id) ? prev.filter((p) => p.id !== poi.id) : [...prev, poi]
+      prev.find((p) => p.id === poi.id)
+        ? prev.filter((p) => p.id !== poi.id)
+        : [...prev, poi],
     );
   };
 
@@ -279,9 +296,9 @@ export default function RouteGenerator() {
     const opt = optimizeRoute([...selectedPois], startPoint);
     setOptimized(opt);
     setRouteName(
-      `מסלול ב${selectedRegion?.name || ''} — ${new Date().toLocaleDateString('he-IL')}`
+      `מסלול ב${selectedRegion?.name || ""} — ${new Date().toLocaleDateString("he-IL")}`,
     );
-    setStep('route');
+    setStep("route");
   };
 
   const handleSave = async () => {
@@ -291,7 +308,7 @@ export default function RouteGenerator() {
       const stops = optimized.map((p, i) => ({
         poi_name: p.name,
         location_id: parseInt(p.id),
-        arrival_time: `${String(8 + i * 2).padStart(2, '0')}:00`,
+        arrival_time: `${String(8 + i * 2).padStart(2, "0")}:00`,
         duration_minutes: p.duration_minutes || 60,
         order_index: i,
       }));
@@ -300,7 +317,7 @@ export default function RouteGenerator() {
         name: routeName || `מסלול ב${selectedRegion?.name}`,
         region: selectedRegion?.name,
         total_duration_hours: parseFloat(
-          (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
+          (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1),
         ),
         total_distance_km: parseFloat(dist.toFixed(1)),
         stops,
@@ -312,29 +329,39 @@ export default function RouteGenerator() {
   };
 
   const dist = totalDistance(optimized);
-  const totalMin = optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0);
+  const totalMin = optimized.reduce(
+    (s, p) => s + (p.duration_minutes || 60),
+    0,
+  );
   const filteredPois = pois.filter(
-    (p) => !search || p.name.includes(search) || p.category.includes(search)
+    (p) => !search || p.name.includes(search) || p.category.includes(search),
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl' }}>
+    <div
+      style={{ background: "#f0f4f3", minHeight: "100vh", direction: "rtl" }}
+    >
       {/* Header */}
       <div
         style={{
-          background: '#fff',
-          padding: '16px 20px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-          display: 'flex',
-          alignItems: 'center',
+          background: "#fff",
+          padding: "16px 20px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          display: "flex",
+          alignItems: "center",
           gap: 12,
-          direction: 'rtl',
+          direction: "rtl",
         }}
       >
         <button
           onClick={() => navigate(-1)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 4,
+          }}
         >
           <svg
             width="20"
@@ -349,53 +376,65 @@ export default function RouteGenerator() {
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
-        <div style={{ flex: 1, textAlign: 'right' }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>🗺️ בנה מסלול עצמאי</div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>בחר אתרים וצור מסלול מותאם אישית</div>
+        <div style={{ flex: 1, textAlign: "right" }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "#1a2e2a" }}>
+            🗺️ בנה מסלול עצמאי
+          </div>
+          <div style={{ fontSize: 12, color: "#94a3b8" }}>
+            בחר אתרים וצור מסלול מותאם אישית
+          </div>
         </div>
       </div>
 
       {/* Step indicator */}
       <div
         style={{
-          background: '#fff',
-          padding: '12px 20px',
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
+          background: "#fff",
+          padding: "12px 20px",
+          borderBottom: "1px solid #e2e8f0",
+          display: "flex",
           gap: 0,
-          direction: 'rtl',
+          direction: "rtl",
         }}
       >
-        {(['region', 'pois', 'route'] as Step[]).map((s, i) => {
-          const labels = ['אזור', 'אתרים', 'מסלול'];
-          const done = (step === 'pois' && i === 0) || step === 'route';
+        {(["region", "pois", "route"] as Step[]).map((s, i) => {
+          const labels = ["אזור", "אתרים", "מסלול"];
+          const done = (step === "pois" && i === 0) || step === "route";
           const active = step === s;
           return (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+            <div
+              key={s}
+              style={{ display: "flex", alignItems: "center", flex: 1 }}
+            >
               <div
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  flex: 1,
+                }}
               >
                 <div
                   style={{
                     width: 28,
                     height: 28,
-                    borderRadius: '50%',
-                    background: done || active ? '#0d9e6e' : '#e2e8f0',
-                    color: done || active ? '#fff' : '#94a3b8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    borderRadius: "50%",
+                    background: done || active ? "#0d9e6e" : "#e2e8f0",
+                    color: done || active ? "#fff" : "#94a3b8",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     fontSize: 12,
                     fontWeight: 800,
                   }}
                 >
-                  {done ? '✓' : i + 1}
+                  {done ? "✓" : i + 1}
                 </div>
                 <div
                   style={{
                     fontSize: 10,
                     fontWeight: 600,
-                    color: active ? '#0d9e6e' : '#94a3b8',
+                    color: active ? "#0d9e6e" : "#94a3b8",
                     marginTop: 3,
                   }}
                 >
@@ -407,8 +446,8 @@ export default function RouteGenerator() {
                   style={{
                     flex: 1,
                     height: 2,
-                    background: done ? '#0d9e6e' : '#e2e8f0',
-                    margin: '0 4px 14px',
+                    background: done ? "#0d9e6e" : "#e2e8f0",
+                    margin: "0 4px 14px",
                   }}
                 />
               )}
@@ -417,27 +456,34 @@ export default function RouteGenerator() {
         })}
       </div>
 
-      <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 16px', paddingBottom: 100 }}>
+      <div
+        style={{
+          maxWidth: 600,
+          margin: "0 auto",
+          padding: "20px 16px",
+          paddingBottom: 100,
+        }}
+      >
         {/* ── Step 1: Region ─────────────────────────────────────────────────── */}
-        {step === 'region' && (
+        {step === "region" && (
           <>
             {/* Start-point selector */}
             <div
               style={{
-                background: '#fff',
+                background: "#fff",
                 borderRadius: 20,
-                padding: '16px 18px',
+                padding: "16px 18px",
                 marginBottom: 16,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
               }}
             >
               <div
                 style={{
                   fontSize: 14,
                   fontWeight: 800,
-                  color: '#1a2e2a',
+                  color: "#1a2e2a",
                   marginBottom: 12,
-                  textAlign: 'right',
+                  textAlign: "right",
                 }}
               >
                 📍 נקודת התחלה (אופציונלי)
@@ -446,21 +492,21 @@ export default function RouteGenerator() {
               {startPoint ? (
                 <div
                   style={{
-                    background: '#f0fdf8',
+                    background: "#f0fdf8",
                     borderRadius: 12,
-                    padding: '10px 14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
+                    padding: "10px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
                 >
                   <button
                     onClick={clearStartPoint}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#94a3b8',
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#94a3b8",
                       fontSize: 18,
                       lineHeight: 1,
                       padding: 0,
@@ -468,34 +514,42 @@ export default function RouteGenerator() {
                   >
                     ×
                   </button>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0d9e6e' }}>
-                      {useCurrentLocation ? '📡 המיקום הנוכחי שלך' : '📍 מיקום נבחר'}
+                  <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "#0d9e6e",
+                      }}
+                    >
+                      {useCurrentLocation
+                        ? "📡 המיקום הנוכחי שלך"
+                        : "📍 מיקום נבחר"}
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 11, color: "#94a3b8" }}>
                       {startPoint.lat.toFixed(5)}, {startPoint.lng.toFixed(5)}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ display: "flex", gap: 10 }}>
                   <button
                     onClick={requestGeolocation}
                     disabled={geoLoading}
                     style={{
                       flex: 1,
-                      padding: '10px 14px',
-                      border: '2px solid #0d9e6e',
+                      padding: "10px 14px",
+                      border: "2px solid #0d9e6e",
                       borderRadius: 12,
-                      background: '#f0fdf8',
-                      color: '#0d9e6e',
+                      background: "#f0fdf8",
+                      color: "#0d9e6e",
                       fontSize: 13,
                       fontWeight: 700,
-                      cursor: 'pointer',
-                      fontFamily: 'Heebo, sans-serif',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      cursor: "pointer",
+                      fontFamily: "Heebo, sans-serif",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       gap: 6,
                       opacity: geoLoading ? 0.7 : 1,
                     }}
@@ -505,17 +559,17 @@ export default function RouteGenerator() {
                         style={{
                           width: 14,
                           height: 14,
-                          border: '2px solid #e2e8f0',
-                          borderTopColor: '#0d9e6e',
-                          borderRadius: '50%',
-                          display: 'inline-block',
-                          animation: 'spin 0.7s linear infinite',
+                          border: "2px solid #e2e8f0",
+                          borderTopColor: "#0d9e6e",
+                          borderRadius: "50%",
+                          display: "inline-block",
+                          animation: "spin 0.7s linear infinite",
                         }}
                       />
                     ) : (
-                      '📡'
+                      "📡"
                     )}
-                    {geoLoading ? 'מאתר...' : 'מיקום נוכחי'}
+                    {geoLoading ? "מאתר..." : "מיקום נוכחי"}
                   </button>
                 </div>
               )}
@@ -525,8 +579,8 @@ export default function RouteGenerator() {
                   style={{
                     marginTop: 8,
                     fontSize: 11,
-                    color: '#ef4444',
-                    textAlign: 'right',
+                    color: "#ef4444",
+                    textAlign: "right",
                   }}
                 >
                   {geoError}
@@ -538,47 +592,65 @@ export default function RouteGenerator() {
               style={{
                 fontSize: 16,
                 fontWeight: 800,
-                color: '#1a2e2a',
+                color: "#1a2e2a",
                 marginBottom: 16,
-                textAlign: 'right',
+                textAlign: "right",
               }}
             >
               באיזה אזור תרצה לטייל?
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: 12,
+              }}
+            >
               {regions.map((r) => (
                 <button
                   key={r.id}
                   onClick={() => selectRegion(r)}
                   style={{
-                    background: '#fff',
-                    border: 'none',
+                    background: "#fff",
+                    border: "none",
                     borderRadius: 18,
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
                     padding: 0,
-                    textAlign: 'right',
-                    fontFamily: 'Heebo, sans-serif',
-                    transition: 'transform 0.15s',
+                    textAlign: "right",
+                    fontFamily: "Heebo, sans-serif",
+                    transition: "transform 0.15s",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.transform = "scale(1.02)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.transform = "scale(1)")
+                  }
                 >
                   <div
                     style={{
                       height: 70,
                       background: `linear-gradient(135deg, ${r.color}cc, ${r.color}77)`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       fontSize: 36,
                     }}
                   >
-                    {REGION_ICONS[r.name] || '📍'}
+                    {REGION_ICONS[r.name] || "📍"}
                   </div>
-                  <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#1a2e2a' }}>{r.name}</div>
+                  <div style={{ padding: "10px 12px" }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: "#1a2e2a",
+                      }}
+                    >
+                      {r.name}
+                    </div>
                   </div>
                 </button>
               ))}
@@ -587,31 +659,31 @@ export default function RouteGenerator() {
         )}
 
         {/* ── Step 2: Select POIs ─────────────────────────────────────────────── */}
-        {step === 'pois' && (
+        {step === "pois" && (
           <>
             <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
                 marginBottom: 16,
               }}
             >
               <button
-                onClick={() => setStep('region')}
+                onClick={() => setStep("region")}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#0d9e6e',
+                  background: "none",
+                  border: "none",
+                  color: "#0d9e6e",
                   fontSize: 13,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
+                  cursor: "pointer",
+                  fontFamily: "Heebo, sans-serif",
                 }}
               >
                 ← שנה אזור
               </button>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1a2e2a" }}>
                 בחר אתרים — {selectedRegion?.name}
               </div>
             </div>
@@ -620,17 +692,19 @@ export default function RouteGenerator() {
             {startPoint && (
               <div
                 style={{
-                  background: '#eff6ff',
+                  background: "#eff6ff",
                   borderRadius: 14,
-                  padding: '10px 14px',
+                  padding: "10px 14px",
                   marginBottom: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
                   gap: 8,
                 }}
               >
-                <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 700 }}>
+                <span
+                  style={{ fontSize: 12, color: "#2563eb", fontWeight: 700 }}
+                >
                   המסלול יתחיל ממיקומך ויותאם לנקודת הפתיחה
                 </span>
                 <span>📡</span>
@@ -640,39 +714,44 @@ export default function RouteGenerator() {
             {selectedPois.length > 0 && (
               <div
                 style={{
-                  background: '#fff',
+                  background: "#fff",
                   borderRadius: 16,
-                  padding: '12px 16px',
+                  padding: "12px 16px",
                   marginBottom: 12,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                 }}
               >
                 <div
                   style={{
                     fontSize: 13,
                     fontWeight: 700,
-                    color: '#0d9e6e',
+                    color: "#0d9e6e",
                     marginBottom: 8,
-                    textAlign: 'right',
+                    textAlign: "right",
                   }}
                 >
                   {selectedPois.length} אתרים נבחרו
                 </div>
                 <div
-                  style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    justifyContent: "flex-end",
+                  }}
                 >
                   {selectedPois.map((p, i) => (
                     <span
                       key={p.id}
                       style={{
-                        background: '#f0fdf8',
-                        color: '#0d9e6e',
+                        background: "#f0fdf8",
+                        color: "#0d9e6e",
                         borderRadius: 20,
-                        padding: '4px 10px',
+                        padding: "4px 10px",
                         fontSize: 11,
                         fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
+                        display: "flex",
+                        alignItems: "center",
                         gap: 4,
                       }}
                     >
@@ -680,11 +759,11 @@ export default function RouteGenerator() {
                       <button
                         onClick={() => togglePOI(p)}
                         style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
                           padding: 0,
-                          color: '#0d9e6e',
+                          color: "#0d9e6e",
                           fontSize: 12,
                           lineHeight: 1,
                         }}
@@ -699,13 +778,13 @@ export default function RouteGenerator() {
 
             <div
               style={{
-                background: '#f8fafc',
+                background: "#f8fafc",
                 borderRadius: 14,
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
+                padding: "10px 14px",
+                display: "flex",
+                alignItems: "center",
                 gap: 8,
-                border: '2px solid #e2e8f0',
+                border: "2px solid #e2e8f0",
                 marginBottom: 12,
               }}
             >
@@ -728,23 +807,29 @@ export default function RouteGenerator() {
                 placeholder="חפש אתר..."
                 style={{
                   flex: 1,
-                  border: 'none',
-                  background: 'transparent',
-                  outline: 'none',
+                  border: "none",
+                  background: "transparent",
+                  outline: "none",
                   fontSize: 14,
-                  fontFamily: 'Heebo, sans-serif',
-                  textAlign: 'right',
-                  color: '#1a2e2a',
+                  fontFamily: "Heebo, sans-serif",
+                  textAlign: "right",
+                  color: "#1a2e2a",
                 }}
               />
             </div>
 
             {loadingPois ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "40px 0",
+                  color: "#94a3b8",
+                }}
+              >
                 טוען אתרים...
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {filteredPois.map((poi) => {
                   const sel = !!selectedPois.find((p) => p.id === poi.id);
                   return (
@@ -752,43 +837,57 @@ export default function RouteGenerator() {
                       key={poi.id}
                       onClick={() => togglePOI(poi)}
                       style={{
-                        background: sel ? '#f0fdf8' : '#fff',
-                        border: `2px solid ${sel ? '#0d9e6e' : '#e2e8f0'}`,
+                        background: sel ? "#f0fdf8" : "#fff",
+                        border: `2px solid ${sel ? "#0d9e6e" : "#e2e8f0"}`,
                         borderRadius: 16,
-                        padding: '12px 14px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontFamily: 'Heebo, sans-serif',
-                        transition: 'all 0.15s',
+                        padding: "12px 14px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        fontFamily: "Heebo, sans-serif",
+                        transition: "all 0.15s",
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <div
                           style={{
                             width: 28,
                             height: 28,
-                            borderRadius: '50%',
-                            background: sel ? '#0d9e6e' : '#f1f5f9',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: sel ? '#fff' : '#94a3b8',
+                            borderRadius: "50%",
+                            background: sel ? "#0d9e6e" : "#f1f5f9",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: sel ? "#fff" : "#94a3b8",
                             fontSize: 12,
                             fontWeight: 800,
                           }}
                         >
-                          {sel ? '✓' : '+'}
+                          {sel ? "✓" : "+"}
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>
-                            {poi.category} ·{' '}
-                            {poi.duration_minutes ? `${poi.duration_minutes} דק'` : ''}
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                            {poi.category} ·{" "}
+                            {poi.duration_minutes
+                              ? `${poi.duration_minutes} דק'`
+                              : ""}
                           </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1a2e2a' }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "#1a2e2a",
+                        }}
+                      >
                         {poi.name}
                       </div>
                     </button>
@@ -800,32 +899,32 @@ export default function RouteGenerator() {
             {selectedPois.length >= 2 && (
               <div
                 style={{
-                  position: 'fixed',
+                  position: "fixed",
                   bottom: 80,
                   left: 16,
                   right: 16,
                   zIndex: 100,
                   maxWidth: 568,
-                  margin: '0 auto',
+                  margin: "0 auto",
                 }}
               >
                 <button
                   onClick={handleOptimize}
                   style={{
-                    width: '100%',
-                    padding: '16px',
-                    border: 'none',
+                    width: "100%",
+                    padding: "16px",
+                    border: "none",
                     borderRadius: 18,
-                    background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                    color: '#fff',
+                    background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+                    color: "#fff",
                     fontSize: 16,
                     fontWeight: 800,
-                    cursor: 'pointer',
-                    fontFamily: 'Heebo, sans-serif',
-                    boxShadow: '0 8px 24px rgba(13,158,110,0.3)',
+                    cursor: "pointer",
+                    fontFamily: "Heebo, sans-serif",
+                    boxShadow: "0 8px 24px rgba(13,158,110,0.3)",
                   }}
                 >
-                  {startPoint ? '🗺️ בנה מסלול ממיקומי' : 'בנה מסלול אופטימלי →'}
+                  {startPoint ? "🗺️ בנה מסלול ממיקומי" : "בנה מסלול אופטימלי →"}
                 </button>
               </div>
             )}
@@ -833,64 +932,72 @@ export default function RouteGenerator() {
         )}
 
         {/* ── Step 3: Route preview ───────────────────────────────────────────── */}
-        {step === 'route' && (
+        {step === "route" && (
           <>
             <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
                 marginBottom: 16,
               }}
             >
               <button
-                onClick={() => setStep('pois')}
+                onClick={() => setStep("pois")}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#0d9e6e',
+                  background: "none",
+                  border: "none",
+                  color: "#0d9e6e",
                   fontSize: 13,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
+                  cursor: "pointer",
+                  fontFamily: "Heebo, sans-serif",
                 }}
               >
                 ← ערוך
               </button>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>המסלול שלך</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1a2e2a" }}>
+                המסלול שלך
+              </div>
             </div>
 
             {/* Stats */}
             <div
               style={{
-                background: '#fff',
+                background: "#fff",
                 borderRadius: 20,
-                padding: '16px 20px',
+                padding: "16px 20px",
                 marginBottom: 16,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                textAlign: 'center',
-                direction: 'rtl',
+                boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                textAlign: "center",
+                direction: "rtl",
               }}
             >
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>
+                <div
+                  style={{ fontSize: 20, fontWeight: 900, color: "#0d9e6e" }}
+                >
                   {optimized.length}
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>עצירות</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>עצירות</div>
               </div>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>
+                <div
+                  style={{ fontSize: 20, fontWeight: 900, color: "#0d9e6e" }}
+                >
                   {dist.toFixed(1)} ק"מ
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>מרחק</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>מרחק</div>
               </div>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>
+                <div
+                  style={{ fontSize: 20, fontWeight: 900, color: "#0d9e6e" }}
+                >
                   {(totalMin / 60).toFixed(1)} ש'
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>זמן</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>זמן</div>
               </div>
             </div>
 
@@ -898,19 +1005,21 @@ export default function RouteGenerator() {
             {startPoint && (
               <div
                 style={{
-                  background: '#eff6ff',
+                  background: "#eff6ff",
                   borderRadius: 14,
-                  padding: '10px 14px',
+                  padding: "10px 14px",
                   marginBottom: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
               >
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>
                   {startPoint.lat.toFixed(4)}, {startPoint.lng.toFixed(4)}
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
+                <span
+                  style={{ fontSize: 13, fontWeight: 700, color: "#2563eb" }}
+                >
                   📡 מתחיל ממיקומך
                 </span>
               </div>
@@ -920,10 +1029,10 @@ export default function RouteGenerator() {
             <div
               style={{
                 borderRadius: 20,
-                overflow: 'hidden',
+                overflow: "hidden",
                 marginBottom: 16,
                 height: 260,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
               }}
             >
               {optimized.length > 0 && (
@@ -934,7 +1043,7 @@ export default function RouteGenerator() {
                       : [optimized[0].latitude, optimized[0].longitude]
                   }
                   zoom={11}
-                  style={{ height: '100%', width: '100%' }}
+                  style={{ height: "100%", width: "100%" }}
                   zoomControl={false}
                   scrollWheelZoom={false}
                 >
@@ -957,11 +1066,11 @@ export default function RouteGenerator() {
             {/* Route name */}
             <div
               style={{
-                background: '#fff',
+                background: "#fff",
                 borderRadius: 16,
-                padding: '14px 16px',
+                padding: "14px 16px",
                 marginBottom: 14,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
               }}
             >
               <input
@@ -969,16 +1078,16 @@ export default function RouteGenerator() {
                 onChange={(e) => setRouteName(e.target.value)}
                 placeholder="שם המסלול..."
                 style={{
-                  width: '100%',
-                  border: 'none',
-                  outline: 'none',
+                  width: "100%",
+                  border: "none",
+                  outline: "none",
                   fontSize: 15,
                   fontWeight: 700,
-                  color: '#1a2e2a',
-                  textAlign: 'right',
-                  fontFamily: 'Heebo, sans-serif',
-                  background: 'transparent',
-                  boxSizing: 'border-box',
+                  color: "#1a2e2a",
+                  textAlign: "right",
+                  fontFamily: "Heebo, sans-serif",
+                  background: "transparent",
+                  boxSizing: "border-box",
                 }}
               />
             </div>
@@ -986,39 +1095,46 @@ export default function RouteGenerator() {
             {/* Ordered stop list */}
             <div
               style={{
-                background: '#fff',
+                background: "#fff",
                 borderRadius: 20,
-                padding: '16px',
+                padding: "16px",
                 marginBottom: 16,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
               }}
             >
               <div
                 style={{
                   fontSize: 14,
                   fontWeight: 800,
-                  color: '#1a2e2a',
+                  color: "#1a2e2a",
                   marginBottom: 12,
-                  textAlign: 'right',
+                  textAlign: "right",
                 }}
               >
-                סדר העצירות {startPoint ? '(מסודר ממיקומך)' : '(מותאם אוטומטית)'}
+                סדר העצירות{" "}
+                {startPoint ? "(מסודר ממיקומך)" : "(מותאם אוטומטית)"}
               </div>
 
               {/* Start point row */}
               {startPoint && (
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
+                    display: "flex",
+                    alignItems: "center",
                     gap: 12,
-                    padding: '10px 0',
-                    borderBottom: '1px solid #f1f5f9',
-                    direction: 'rtl',
+                    padding: "10px 0",
+                    borderBottom: "1px solid #f1f5f9",
+                    direction: "rtl",
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "#2563eb",
+                      }}
+                    >
                       📡 נקודת התחלה — מיקומך
                     </div>
                   </div>
@@ -1026,12 +1142,12 @@ export default function RouteGenerator() {
                     style={{
                       width: 28,
                       height: 28,
-                      borderRadius: '50%',
-                      background: '#2563eb',
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      borderRadius: "50%",
+                      background: "#2563eb",
+                      color: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       fontSize: 12,
                       fontWeight: 900,
                       flexShrink: 0,
@@ -1046,33 +1162,42 @@ export default function RouteGenerator() {
                 <div
                   key={poi.id}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
+                    display: "flex",
+                    alignItems: "center",
                     gap: 12,
-                    padding: '10px 0',
-                    borderBottom: i < optimized.length - 1 ? '1px solid #f1f5f9' : 'none',
-                    direction: 'rtl',
+                    padding: "10px 0",
+                    borderBottom:
+                      i < optimized.length - 1 ? "1px solid #f1f5f9" : "none",
+                    direction: "rtl",
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a' }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "#1a2e2a",
+                      }}
+                    >
                       {poi.name}
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 11, color: "#94a3b8" }}>
                       {poi.category}
-                      {poi.duration_minutes ? ` · ${poi.duration_minutes} דק'` : ''}
+                      {poi.duration_minutes
+                        ? ` · ${poi.duration_minutes} דק'`
+                        : ""}
                     </div>
                   </div>
                   <div
                     style={{
                       width: 28,
                       height: 28,
-                      borderRadius: '50%',
-                      background: '#0d9e6e',
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      borderRadius: "50%",
+                      background: "#0d9e6e",
+                      color: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       fontSize: 12,
                       fontWeight: 900,
                       flexShrink: 0,
@@ -1085,26 +1210,26 @@ export default function RouteGenerator() {
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
                 onClick={handleSave}
                 disabled={saving}
                 style={{
-                  width: '100%',
-                  padding: '16px',
-                  border: 'none',
+                  width: "100%",
+                  padding: "16px",
+                  border: "none",
                   borderRadius: 18,
-                  background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                  color: '#fff',
+                  background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+                  color: "#fff",
                   fontSize: 16,
                   fontWeight: 800,
-                  cursor: saving ? 'default' : 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
+                  cursor: saving ? "default" : "pointer",
+                  fontFamily: "Heebo, sans-serif",
                   opacity: saving ? 0.7 : 1,
-                  boxShadow: '0 8px 24px rgba(13,158,110,0.25)',
+                  boxShadow: "0 8px 24px rgba(13,158,110,0.25)",
                 }}
               >
-                {saving ? 'שומר...' : '💾 שמור מסלול'}
+                {saving ? "שומר..." : "💾 שמור מסלול"}
               </button>
               <button
                 onClick={() => {
@@ -1112,19 +1237,22 @@ export default function RouteGenerator() {
                     lat: optimized[0].latitude,
                     lng: optimized[0].longitude,
                   };
-                  window.open(`https://waze.com/ul?q=${target.lat},${target.lng}`, '_blank');
+                  window.open(
+                    `https://waze.com/ul?q=${target.lat},${target.lng}`,
+                    "_blank",
+                  );
                 }}
                 style={{
-                  width: '100%',
-                  padding: '14px',
-                  border: '2px solid #0d9e6e',
+                  width: "100%",
+                  padding: "14px",
+                  border: "2px solid #0d9e6e",
                   borderRadius: 18,
-                  background: '#fff',
-                  color: '#0d9e6e',
+                  background: "#fff",
+                  color: "#0d9e6e",
                   fontSize: 15,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
+                  cursor: "pointer",
+                  fontFamily: "Heebo, sans-serif",
                 }}
               >
                 🚗 נווט לנקודת ההתחלה

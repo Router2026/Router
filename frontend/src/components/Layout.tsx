@@ -1,14 +1,14 @@
-import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const HomeIcon = ({ a }: { a: boolean }) => (
   <svg
     width="22"
     height="22"
     viewBox="0 0 24 24"
-    fill={a ? '#0d9e6e' : 'none'}
-    stroke={a ? '#0d9e6e' : '#94a3b8'}
+    fill={a ? "#0d9e6e" : "none"}
+    stroke={a ? "#0d9e6e" : "#94a3b8"}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -23,7 +23,7 @@ const MapIcon = ({ a }: { a: boolean }) => (
     height="22"
     viewBox="0 0 24 24"
     fill="none"
-    stroke={a ? '#0d9e6e' : '#94a3b8'}
+    stroke={a ? "#0d9e6e" : "#94a3b8"}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -39,7 +39,7 @@ const RouteIcon = ({ a }: { a: boolean }) => (
     height="22"
     viewBox="0 0 24 24"
     fill="none"
-    stroke={a ? '#0d9e6e' : '#94a3b8'}
+    stroke={a ? "#0d9e6e" : "#94a3b8"}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -58,7 +58,7 @@ const VideoIcon = ({ a }: { a: boolean }) => (
     height="22"
     viewBox="0 0 24 24"
     fill="none"
-    stroke={a ? '#0d9e6e' : '#94a3b8'}
+    stroke={a ? "#0d9e6e" : "#94a3b8"}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -73,7 +73,7 @@ const AlertIcon = ({ a }: { a: boolean }) => (
     height="22"
     viewBox="0 0 24 24"
     fill="none"
-    stroke={a ? '#0d9e6e' : '#94a3b8'}
+    stroke={a ? "#0d9e6e" : "#94a3b8"}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -88,7 +88,7 @@ const PersonIcon = ({ a }: { a: boolean }) => (
     height="22"
     viewBox="0 0 24 24"
     fill="none"
-    stroke={a ? '#0d9e6e' : '#94a3b8'}
+    stroke={a ? "#0d9e6e" : "#94a3b8"}
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -100,45 +100,45 @@ const PersonIcon = ({ a }: { a: boolean }) => (
 
 const NAV_ITEMS = [
   {
-    label: 'בית',
-    value: 'Home',
+    label: "בית",
+    value: "Home",
     Icon: ({ active }: { active: boolean }) => <HomeIcon a={active} />,
   },
   {
-    label: 'מפה',
-    value: 'MapView',
+    label: "מפה",
+    value: "MapView",
     Icon: ({ active }: { active: boolean }) => <MapIcon a={active} />,
   },
   {
-    label: 'מסלול',
-    value: 'TripPlanner',
+    label: "מסלול",
+    value: "TripPlanner",
     Icon: ({ active }: { active: boolean }) => <RouteIcon a={active} />,
   },
   {
-    label: 'וידאו',
-    value: 'CommunityVideos',
+    label: "וידאו",
+    value: "CommunityVideos",
     Icon: ({ active }: { active: boolean }) => <VideoIcon a={active} />,
   },
   {
-    label: 'דיווחים',
-    value: 'Reports',
+    label: "דיווחים",
+    value: "Reports",
     Icon: ({ active }: { active: boolean }) => <AlertIcon a={active} />,
   },
   {
-    label: 'פרופיל',
-    value: 'Profile',
+    label: "פרופיל",
+    value: "Profile",
     Icon: ({ active }: { active: boolean }) => <PersonIcon a={active} />,
   },
 ];
 
 const HIDE_NAV = new Set([
-  'TripDetail',
-  'POIDetail',
-  'AddReport',
-  'AddReview',
-  'UploadVideo',
-  'Login',
-  'Register',
+  "TripDetail",
+  "POIDetail",
+  "AddReport",
+  "AddReview",
+  "UploadVideo",
+  "Login",
+  "Register",
 ]);
 
 export default function Layout({
@@ -152,12 +152,24 @@ export default function Layout({
   const location = useLocation();
   const { isLoggedIn, user, logout } = useAuth();
   const showNav = !HIDE_NAV.has(currentPageName);
-  const currentPath = location.pathname.substring(1) || 'Home';
+  const currentPath = location.pathname.substring(1) || "Home";
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        width: "100%",
+      }}
+    >
       <main
-        style={{ flex: 1, paddingBottom: showNav ? 72 : 0, width: '100%', overflowX: 'hidden' }}
+        style={{
+          flex: 1,
+          paddingBottom: showNav ? 72 : 0,
+          width: "100%",
+          overflowX: "hidden",
+        }}
       >
         {children}
       </main>
@@ -165,42 +177,44 @@ export default function Layout({
       {showNav && (
         <nav
           style={{
-            position: 'fixed',
+            position: "fixed",
             bottom: 0,
             left: 0,
             right: 0,
             zIndex: 2000,
-            background: '#fff',
-            borderTop: '1px solid #e8f5f1',
-            boxShadow: '0 -4px 20px rgba(13,158,110,0.08)',
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            background: "#fff",
+            borderTop: "1px solid #e8f5f1",
+            boxShadow: "0 -4px 20px rgba(13,158,110,0.08)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
           }}
         >
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'space-around',
-              alignItems: 'center',
+              display: "flex",
+              justifyContent: "space-around",
+              alignItems: "center",
               maxWidth: 640,
-              margin: '0 auto',
-              padding: '6px 0 4px',
+              margin: "0 auto",
+              padding: "6px 0 4px",
             }}
           >
             {NAV_ITEMS.map(({ label, value, Icon }) => {
-              const active = currentPath === value || (currentPath === '' && value === 'Home');
+              const active =
+                currentPath === value ||
+                (currentPath === "" && value === "Home");
               return (
                 <button
                   key={value}
                   onClick={() => navigate(`/${value}`)}
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
                     gap: 2,
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '5px 10px',
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "5px 10px",
                     borderRadius: 12,
                     minWidth: 44,
                   }}
@@ -209,12 +223,12 @@ export default function Layout({
                     style={{
                       width: 38,
                       height: 32,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       borderRadius: 10,
-                      background: active ? '#e8f9f3' : 'transparent',
-                      transition: 'all 0.2s',
+                      background: active ? "#e8f9f3" : "transparent",
+                      transition: "all 0.2s",
                     }}
                   >
                     <Icon active={active} />
@@ -223,8 +237,8 @@ export default function Layout({
                     style={{
                       fontSize: 10,
                       fontWeight: active ? 700 : 500,
-                      color: active ? '#0d9e6e' : '#94a3b8',
-                      fontFamily: 'Heebo, sans-serif',
+                      color: active ? "#0d9e6e" : "#94a3b8",
+                      fontFamily: "Heebo, sans-serif",
                     }}
                   >
                     {label}
@@ -237,46 +251,53 @@ export default function Layout({
           {/* Auth pill — shown above nav */}
           <div
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: -44,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              pointerEvents: 'none',
+              left: "50%",
+              transform: "translateX(-50%)",
+              pointerEvents: "none",
             }}
           >
             {isLoggedIn ? (
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
+                  display: "flex",
+                  alignItems: "center",
                   gap: 10,
-                  background: '#fff',
+                  background: "#fff",
                   borderRadius: 20,
-                  padding: '6px 14px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
-                  pointerEvents: 'all',
+                  padding: "6px 14px",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
+                  pointerEvents: "all",
                 }}
               >
                 <span
                   style={{
                     fontSize: 13,
                     fontWeight: 700,
-                    color: '#1a2e2a',
-                    fontFamily: 'Heebo, sans-serif',
+                    color: "#1a2e2a",
+                    fontFamily: "Heebo, sans-serif",
                   }}
                 >
                   @{user?.username}
                 </span>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0d9e6e' }} />
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: "#0d9e6e",
+                  }}
+                />
                 <button
                   onClick={logout}
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
                     fontSize: 12,
-                    color: '#94a3b8',
-                    fontFamily: 'Heebo, sans-serif',
+                    color: "#94a3b8",
+                    fontFamily: "Heebo, sans-serif",
                   }}
                 >
                   יציאה
@@ -284,19 +305,19 @@ export default function Layout({
               </div>
             ) : (
               <button
-                onClick={() => navigate('/Register')}
+                onClick={() => navigate("/Register")}
                 style={{
-                  background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                  border: 'none',
+                  background: "linear-gradient(135deg, #0d9e6e, #0bba7e)",
+                  border: "none",
                   borderRadius: 20,
-                  padding: '7px 18px',
-                  color: '#fff',
+                  padding: "7px 18px",
+                  color: "#fff",
                   fontSize: 13,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
-                  boxShadow: '0 2px 12px rgba(13,158,110,0.25)',
-                  pointerEvents: 'all',
+                  cursor: "pointer",
+                  fontFamily: "Heebo, sans-serif",
+                  boxShadow: "0 2px 12px rgba(13,158,110,0.25)",
+                  pointerEvents: "all",
                 }}
               >
                 🚀 הרשמה / כניסה

@@ -1,6 +1,6 @@
 // ── Real API client — connects to backend via Vite proxy (/api → localhost:3001)
 
-const BASE_URL = '/api';
+const BASE_URL = "/api";
 
 // Token getter — set by AuthContext after login
 let _token: string | null = null;
@@ -20,8 +20,10 @@ class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (_token) headers['Authorization'] = `Bearer ${_token}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (_token) headers["Authorization"] = `Bearer ${_token}`;
   const res = await fetch(`${BASE_URL}${path}`, { headers, ...options });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
@@ -156,7 +158,7 @@ export interface CommunityPoiSubmission {
   latitude: number;
   longitude: number;
   photos: string[];
-  status: 'pending' | 'approved' | 'rejected';
+  status: "pending" | "approved" | "rejected";
   admin_note: string | null;
   reviewed_at: string | null;
   created_at: string;
@@ -188,16 +190,18 @@ function mapCommunityPoi(r: Record<string, unknown>): CommunityPoiSubmission {
 export const communityPoisApi = {
   /** Public: list approved community POIs */
   list: async (): Promise<CommunityPoiSubmission[]> => {
-    const BASE_URL = '/api';
+    const BASE_URL = "/api";
     let _token: string | null = null;
     try {
-      _token = localStorage.getItem('router_auth_token');
+      _token = localStorage.getItem("router_auth_token");
     } catch {
       /* noop */
     }
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_token) headers['Authorization'] = `Bearer ${_token}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (_token) headers["Authorization"] = `Bearer ${_token}`;
 
     const res = await fetch(`${BASE_URL}/community-pois`, { headers });
     const json = await res.json();
@@ -213,19 +217,21 @@ export const communityPoisApi = {
     longitude: number;
     photos?: string[];
   }): Promise<CommunityPoiSubmission> => {
-    const BASE_URL = '/api';
+    const BASE_URL = "/api";
     let _token: string | null = null;
     try {
-      _token = localStorage.getItem('router_auth_token');
+      _token = localStorage.getItem("router_auth_token");
     } catch {
       /* noop */
     }
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_token) headers['Authorization'] = `Bearer ${_token}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (_token) headers["Authorization"] = `Bearer ${_token}`;
 
     const res = await fetch(`${BASE_URL}/community-pois`, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: JSON.stringify(data),
     });
@@ -242,20 +248,25 @@ export const communityPoisApi = {
 
 export const pushTokensApi = {
   /** Register a device push token for the current user */
-  register: async (token: string, platform: 'fcm' | 'apns' = 'fcm'): Promise<void> => {
-    const BASE_URL = '/api';
+  register: async (
+    token: string,
+    platform: "fcm" | "apns" = "fcm",
+  ): Promise<void> => {
+    const BASE_URL = "/api";
     let _authToken: string | null = null;
     try {
-      _authToken = localStorage.getItem('router_auth_token');
+      _authToken = localStorage.getItem("router_auth_token");
     } catch {
       /* noop */
     }
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_authToken) headers['Authorization'] = `Bearer ${_authToken}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (_authToken) headers["Authorization"] = `Bearer ${_authToken}`;
 
     await fetch(`${BASE_URL}/push-tokens`, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: JSON.stringify({ token, platform }),
     });
@@ -268,15 +279,16 @@ function mapLocation(r: Record<string, unknown>): POI {
   return {
     id: String(r.id),
     name: r.name,
-    description: r.description || '',
-    category: r.category || '',
-    region: r.region_name || r.region || '',
+    description: r.description || "",
+    category: r.category || "",
+    region: r.region_name || r.region || "",
     region_id: r.region_id,
     latitude: parseFloat(r.latitude),
     longitude: parseFloat(r.longitude),
     images: Array.isArray(r.images) ? r.images : [],
-    main_image: r.main_image || (Array.isArray(r.images) ? r.images[0] : '') || '',
-    difficulty: r.difficulty || 'בינוני',
+    main_image:
+      r.main_image || (Array.isArray(r.images) ? r.images[0] : "") || "",
+    difficulty: r.difficulty || "בינוני",
     duration_minutes: r.duration_minutes,
     has_water: r.has_water,
     has_shade: r.has_shade,
@@ -297,8 +309,8 @@ function mapTrip(r: Record<string, unknown>): Trip {
     group_type: r.group_type as string | undefined,
     style: r.style as string | undefined,
     stops: ((r.stops || []) as Record<string, unknown>[]).map((s) => ({
-      poi_name: s.poi_name || s.location_name || '',
-      arrival_time: s.arrival_time || '',
+      poi_name: s.poi_name || s.location_name || "",
+      arrival_time: s.arrival_time || "",
       duration_minutes: s.duration_minutes || 60,
       smart_insight: s.smart_insight,
       location_id: s.location_id,
@@ -351,9 +363,9 @@ function mapUser(r: Record<string, unknown>): UserProfile {
     id: String(r.id),
     email: r.email,
     full_name: r.full_name,
-    username: r.username || r.display_name || 'user',
+    username: r.username || r.display_name || "user",
     xp_points: r.xp_points || 0,
-    level: r.level || 'מטייל מתחיל',
+    level: r.level || "מטייל מתחיל",
     is_admin: r.is_admin ?? false,
     reports_count: r.reports_count || 0,
     reviews_count: r.reviews_count || 0,
@@ -368,62 +380,74 @@ export const api = {
   auth: {
     login: async (
       email: string,
-      password: string
+      password: string,
     ): Promise<{ user: UserProfile; token: string }> => {
-      const res = await apiFetch<{ data: { user: Record<string, unknown>; token: string } }>(
-        '/auth/login',
-        {
-          method: 'POST',
-          body: JSON.stringify({ email, password }),
-        }
-      );
+      const res = await apiFetch<{
+        data: { user: Record<string, unknown>; token: string };
+      }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
       return { user: mapUser(res.data.user), token: res.data.token };
     },
     register: async (
       email: string,
       password: string,
       full_name: string,
-      username: string
+      username: string,
     ): Promise<{ requiresVerification: true }> => {
-      await apiFetch<{ data: unknown }>('/auth/register', {
-        method: 'POST',
+      await apiFetch<{ data: unknown }>("/auth/register", {
+        method: "POST",
         body: JSON.stringify({ email, password, full_name, username }),
       });
       return { requiresVerification: true };
     },
     checkUsername: async (username: string): Promise<boolean> => {
       const res = await apiFetch<{ data: { available: boolean } }>(
-        `/auth/check-username?username=${encodeURIComponent(username)}`
+        `/auth/check-username?username=${encodeURIComponent(username)}`,
       );
       return res.data.available;
     },
-    verifyEmail: async (token: string): Promise<{ user: UserProfile; token: string }> => {
-      const res = await apiFetch<{ data: { user: Record<string, unknown>; token: string } }>(
-        `/auth/verify-email?token=${encodeURIComponent(token)}`
-      );
+    verifyEmail: async (
+      token: string,
+    ): Promise<{ user: UserProfile; token: string }> => {
+      const res = await apiFetch<{
+        data: { user: Record<string, unknown>; token: string };
+      }>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
       return { user: mapUser(res.data.user), token: res.data.token };
     },
     resendVerification: async (email: string): Promise<void> => {
-      await apiFetch('/auth/resend-verification', {
-        method: 'POST',
+      await apiFetch("/auth/resend-verification", {
+        method: "POST",
         body: JSON.stringify({ email }),
       });
     },
     forgotPassword: async (email: string): Promise<void> => {
-      await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
-    },
-    resetPassword: async (token: string, password: string): Promise<{ token: string }> => {
-      const res = await apiFetch<{ data: { token: string } }>('/auth/reset-password', {
-        method: 'POST',
-        body: JSON.stringify({ token, password }),
+      await apiFetch("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
       });
+    },
+    resetPassword: async (
+      token: string,
+      password: string,
+    ): Promise<{ token: string }> => {
+      const res = await apiFetch<{ data: { token: string } }>(
+        "/auth/reset-password",
+        {
+          method: "POST",
+          body: JSON.stringify({ token, password }),
+        },
+      );
       return { token: res.data.token };
     },
     me: async (token?: string): Promise<UserProfile> => {
       const savedToken = _token;
       if (token) _token = token;
       try {
-        const res = await apiFetch<{ data: Record<string, unknown> }>('/auth/me');
+        const res = await apiFetch<{ data: Record<string, unknown> }>(
+          "/auth/me",
+        );
         return mapUser(res.data);
       } finally {
         _token = savedToken;
@@ -434,7 +458,8 @@ export const api = {
   // ── Regions ──────────────────────────────────────────────────
   regions: {
     list: async (): Promise<Region[]> =>
-      (await apiFetch<{ data: Record<string, unknown>[] }>('/regions')).data as unknown as Region[],
+      (await apiFetch<{ data: Record<string, unknown>[] }>("/regions"))
+        .data as unknown as Region[],
   },
 
   // ── Locations ────────────────────────────────────────────────
@@ -451,21 +476,24 @@ export const api = {
       offset?: number;
     }): Promise<POI[]> => {
       const qs = new URLSearchParams();
-      if (params?.region) qs.set('region', params.region);
-      if (params?.category) qs.set('category', params.category);
-      if (params?.difficulty) qs.set('difficulty', params.difficulty);
-      if (params?.search) qs.set('search', params.search);
-      if (params?.has_water) qs.set('has_water', 'true');
-      if (params?.has_shade) qs.set('has_shade', 'true');
-      if (params?.accessible) qs.set('accessible', 'true');
-      if (params?.limit) qs.set('limit', String(params.limit));
-      if (params?.offset) qs.set('offset', String(params.offset));
-      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/locations?${qs}`)).data.map(
-        mapLocation
-      );
+      if (params?.region) qs.set("region", params.region);
+      if (params?.category) qs.set("category", params.category);
+      if (params?.difficulty) qs.set("difficulty", params.difficulty);
+      if (params?.search) qs.set("search", params.search);
+      if (params?.has_water) qs.set("has_water", "true");
+      if (params?.has_shade) qs.set("has_shade", "true");
+      if (params?.accessible) qs.set("accessible", "true");
+      if (params?.limit) qs.set("limit", String(params.limit));
+      if (params?.offset) qs.set("offset", String(params.offset));
+      return (
+        await apiFetch<{ data: Record<string, unknown>[] }>(`/locations?${qs}`)
+      ).data.map(mapLocation);
     },
     get: async (id: string): Promise<POI> =>
-      mapLocation((await apiFetch<{ data: Record<string, unknown> }>(`/locations/${id}`)).data),
+      mapLocation(
+        (await apiFetch<{ data: Record<string, unknown> }>(`/locations/${id}`))
+          .data,
+      ),
     inBounds: async (b: {
       north: number;
       south: number;
@@ -478,9 +506,11 @@ export const api = {
         east: String(b.east),
         west: String(b.west),
       });
-      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/locations/map?${qs}`)).data.map(
-        mapLocation
-      );
+      return (
+        await apiFetch<{ data: Record<string, unknown>[] }>(
+          `/locations/map?${qs}`,
+        )
+      ).data.map(mapLocation);
     },
   },
 
@@ -488,127 +518,158 @@ export const api = {
   trips: {
     // Router community routes live at /api/routes (/api/trips is the main app's AI generator)
     list: async (): Promise<Trip[]> =>
-      (await apiFetch<{ data: Record<string, unknown>[] }>('/routes')).data.map(mapTrip),
+      (await apiFetch<{ data: Record<string, unknown>[] }>("/routes")).data.map(
+        mapTrip,
+      ),
     get: async (id: string): Promise<Trip> =>
-      mapTrip((await apiFetch<{ data: Record<string, unknown> }>(`/routes/${id}`)).data),
+      mapTrip(
+        (await apiFetch<{ data: Record<string, unknown> }>(`/routes/${id}`))
+          .data,
+      ),
     create: async (data: Partial<Trip>): Promise<Trip> =>
       mapTrip(
         (
-          await apiFetch<{ data: Record<string, unknown> }>('/routes', {
-            method: 'POST',
+          await apiFetch<{ data: Record<string, unknown> }>("/routes", {
+            method: "POST",
             body: JSON.stringify(data),
           })
-        ).data
+        ).data,
       ),
     delete: async (id: string): Promise<void> => {
-      await apiFetch(`/routes/${id}`, { method: 'DELETE' });
+      await apiFetch(`/routes/${id}`, { method: "DELETE" });
     },
   },
 
   // ── Reviews ──────────────────────────────────────────────────
   reviews: {
     list: async (locationId?: number): Promise<Review[]> => {
-      const qs = locationId ? `?location_id=${locationId}` : '';
-      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/reviews${qs}`)).data.map(
-        mapReview
-      );
+      const qs = locationId ? `?location_id=${locationId}` : "";
+      return (
+        await apiFetch<{ data: Record<string, unknown>[] }>(`/reviews${qs}`)
+      ).data.map(mapReview);
     },
-    create: async (data: Partial<Review> & { location_id?: number }): Promise<Review> =>
+    create: async (
+      data: Partial<Review> & { location_id?: number },
+    ): Promise<Review> =>
       mapReview(
         (
-          await apiFetch<{ data: Record<string, unknown> }>('/reviews', {
-            method: 'POST',
+          await apiFetch<{ data: Record<string, unknown> }>("/reviews", {
+            method: "POST",
             body: JSON.stringify(data),
           })
-        ).data
+        ).data,
       ),
   },
 
   // ── Reports ──────────────────────────────────────────────────
   reports: {
     list: async (locationId?: number): Promise<CommunityReport[]> => {
-      const qs = locationId ? `?location_id=${locationId}` : '';
-      return (await apiFetch<{ data: Record<string, unknown>[] }>(`/reports${qs}`)).data.map(
-        mapReport
-      );
+      const qs = locationId ? `?location_id=${locationId}` : "";
+      return (
+        await apiFetch<{ data: Record<string, unknown>[] }>(`/reports${qs}`)
+      ).data.map(mapReport);
     },
     create: async (
-      data: Partial<CommunityReport> & { location_id?: number }
+      data: Partial<CommunityReport> & { location_id?: number },
     ): Promise<CommunityReport> =>
       mapReport(
         (
-          await apiFetch<{ data: Record<string, unknown> }>('/reports', {
-            method: 'POST',
+          await apiFetch<{ data: Record<string, unknown> }>("/reports", {
+            method: "POST",
             body: JSON.stringify(data),
           })
-        ).data
+        ).data,
       ),
     upvote: async (id: string): Promise<CommunityReport> =>
       mapReport(
         (
-          await apiFetch<{ data: Record<string, unknown> }>(`/reports/${id}/upvote`, {
-            method: 'PATCH',
-          })
-        ).data
+          await apiFetch<{ data: Record<string, unknown> }>(
+            `/reports/${id}/upvote`,
+            {
+              method: "PATCH",
+            },
+          )
+        ).data,
       ),
   },
 
   // ── Videos ───────────────────────────────────────────────────
   videos: {
     list: async (): Promise<VideoPost[]> =>
-      (await apiFetch<{ data: Record<string, unknown>[] }>('/videos')).data.map(mapVideo),
+      (await apiFetch<{ data: Record<string, unknown>[] }>("/videos")).data.map(
+        mapVideo,
+      ),
     create: async (data: Partial<VideoPost>): Promise<VideoPost> =>
       mapVideo(
         (
-          await apiFetch<{ data: Record<string, unknown> }>('/videos', {
-            method: 'POST',
+          await apiFetch<{ data: Record<string, unknown> }>("/videos", {
+            method: "POST",
             body: JSON.stringify(data),
           })
-        ).data
+        ).data,
       ),
     like: async (id: string): Promise<VideoPost> =>
       mapVideo(
         (
-          await apiFetch<{ data: Record<string, unknown> }>(`/videos/${id}/like`, {
-            method: 'PATCH',
-          })
-        ).data
+          await apiFetch<{ data: Record<string, unknown> }>(
+            `/videos/${id}/like`,
+            {
+              method: "PATCH",
+            },
+          )
+        ).data,
       ),
   },
 
   // ── Users ────────────────────────────────────────────────────
   users: {
     me: async (): Promise<UserProfile> =>
-      mapUser((await apiFetch<{ data: Record<string, unknown> }>('/users/me')).data),
+      mapUser(
+        (await apiFetch<{ data: Record<string, unknown> }>("/users/me")).data,
+      ),
     leaderboard: async (): Promise<UserProfile[]> =>
-      (await apiFetch<{ data: Record<string, unknown>[] }>('/users/leaderboard')).data.map(mapUser),
-    stats: async (): Promise<AppStats> => (await apiFetch<{ data: AppStats }>('/users/stats')).data,
+      (
+        await apiFetch<{ data: Record<string, unknown>[] }>(
+          "/users/leaderboard",
+        )
+      ).data.map(mapUser),
+    stats: async (): Promise<AppStats> =>
+      (await apiFetch<{ data: AppStats }>("/users/stats")).data,
   },
 
   // ── Admin ─────────────────────────────────────────────────────
   admin: {
-    listUsers: async (): Promise<(UserProfile & { is_admin?: boolean; created_at?: string })[]> =>
-      (await apiFetch<{ data: Record<string, unknown>[] }>('/admin/users')).data.map((r) => ({
+    listUsers: async (): Promise<
+      (UserProfile & { is_admin?: boolean; created_at?: string })[]
+    > =>
+      (
+        await apiFetch<{ data: Record<string, unknown>[] }>("/admin/users")
+      ).data.map((r) => ({
         ...mapUser(r),
         is_admin: r.is_admin as boolean | undefined,
         created_at: r.created_at as string | undefined,
       })),
     deleteUser: async (id: string): Promise<void> => {
-      await apiFetch(`/admin/users/${id}`, { method: 'DELETE' });
+      await apiFetch(`/admin/users/${id}`, { method: "DELETE" });
     },
     toggleAdmin: async (id: string, is_admin: boolean): Promise<UserProfile> =>
       mapUser(
         (
-          await apiFetch<{ data: Record<string, unknown> }>(`/admin/users/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ is_admin }),
-          })
-        ).data
+          await apiFetch<{ data: Record<string, unknown> }>(
+            `/admin/users/${id}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ is_admin }),
+            },
+          )
+        ).data,
       ),
     listRoutes: async (): Promise<Trip[]> =>
-      (await apiFetch<{ data: Record<string, unknown>[] }>('/routes')).data.map(mapTrip),
+      (await apiFetch<{ data: Record<string, unknown>[] }>("/routes")).data.map(
+        mapTrip,
+      ),
     deleteRoute: async (id: string): Promise<void> => {
-      await apiFetch(`/routes/${id}`, { method: 'DELETE' });
+      await apiFetch(`/routes/${id}`, { method: "DELETE" });
     },
   },
 };
@@ -617,9 +678,11 @@ export const api = {
 export const base44 = {
   auth: {
     me: () =>
-      api.users
-        .me()
-        .then((u) => ({ id: u.id, email: u.email || '', full_name: u.full_name || u.username })),
+      api.users.me().then((u) => ({
+        id: u.id,
+        email: u.email || "",
+        full_name: u.full_name || u.username,
+      })),
   },
   entities: {
     POI: {
@@ -633,7 +696,8 @@ export const base44 = {
     },
     Review: {
       filter: () => api.reviews.list(),
-      create: (data: Partial<Review> & { location_id?: number }) => api.reviews.create(data),
+      create: (data: Partial<Review> & { location_id?: number }) =>
+        api.reviews.create(data),
     },
     CommunityReport: {
       filter: () => api.reports.list(),
@@ -645,7 +709,8 @@ export const base44 = {
       filter: () => api.users.me().then((u) => [u]),
       list: () => api.users.leaderboard(),
       create: (d: unknown) => Promise.resolve(d),
-      update: (id: string, d: unknown) => Promise.resolve({ id, ...((d as object) ?? {}) }),
+      update: (id: string, d: unknown) =>
+        Promise.resolve({ id, ...((d as object) ?? {}) }),
     },
     VideoPost: {
       list: () => api.videos.list(),
@@ -657,45 +722,48 @@ export const base44 = {
   integrations: {
     Core: {
       UploadFile: async () => ({
-        file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800',
+        file_url:
+          "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800",
       }),
       InvokeLLM: async ({ body }: { body: string }) => {
         const req = JSON.parse(body);
         // Normalize group type: Hebrew display names → English IDs
         const GROUP_TYPE_MAP: Record<string, string> = {
-          יחיד: 'solo',
-          זוג: 'couple',
-          משפחה: 'family',
-          חברים: 'friends',
+          יחיד: "solo",
+          זוג: "couple",
+          משפחה: "family",
+          חברים: "friends",
         };
         const groupTypeId = GROUP_TYPE_MAP[req.group_type] ?? req.group_type;
         // Normalize styles: Hebrew display names → English IDs
         const STYLE_MAP: Record<string, string> = {
-          'היסטוריה ותרבות': 'history',
-          'מים ומעיינות': 'water',
-          'צילום ונוף': 'photo',
-          צילום: 'photo',
-          'נופים ומצפים': 'nature',
-          'טיולים ומסלולים': 'hiking',
-          'חופים וים': 'beach',
-          גיאולוגיה: 'geology',
-          'יין ואוכל': 'wine',
-          'כפרים ומסורת': 'village',
-          'פעילויות לילדים': 'family_activities',
+          "היסטוריה ותרבות": "history",
+          "מים ומעיינות": "water",
+          "צילום ונוף": "photo",
+          צילום: "photo",
+          "נופים ומצפים": "nature",
+          "טיולים ומסלולים": "hiking",
+          "חופים וים": "beach",
+          גיאולוגיה: "geology",
+          "יין ואוכל": "wine",
+          "כפרים ומסורת": "village",
+          "פעילויות לילדים": "family_activities",
         };
         const styleIds = req.style
-          ? req.style.split(', ').map((s: string) => STYLE_MAP[s.trim()] ?? s.trim())
+          ? req.style
+              .split(", ")
+              .map((s: string) => STYLE_MAP[s.trim()] ?? s.trim())
           : [];
         // Call the real AI endpoint on the Next.js backend
-        const res = await fetch('/api/ai/generate-route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/ai/generate-route", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             region: req.region,
             groupType: groupTypeId,
             styles: styleIds,
-            startTime: req.start_time || '09:00',
-            endTime: req.end_time || '16:00',
+            startTime: req.start_time || "09:00",
+            endTime: req.end_time || "16:00",
             includeFood: req.include_food || false,
             includeCoffee: req.include_coffee || false,
             userLocation: req.user_location || null,

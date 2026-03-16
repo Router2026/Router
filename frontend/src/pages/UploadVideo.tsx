@@ -1,12 +1,25 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { base44 } from "../api";
 
-const REGIONS = ['גולן', 'גליל עליון', 'גליל תחתון', 'כרמל', 'מרכז', 'ירושלים', 'דרום', 'אילת'];
+const REGIONS = [
+  "גולן",
+  "גליל עליון",
+  "גליל תחתון",
+  "כרמל",
+  "מרכז",
+  "ירושלים",
+  "דרום",
+  "אילת",
+];
 
 export default function UploadVideo() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ title: '', region: '', description: '' });
+  const [formData, setFormData] = useState({
+    title: "",
+    region: "",
+    description: "",
+  });
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -15,7 +28,7 @@ export default function UploadVideo() {
     const f = e.target.files?.[0];
     if (f) {
       setFile(f);
-      if (f.type.startsWith('video/')) {
+      if (f.type.startsWith("video/")) {
         setPreview(URL.createObjectURL(f));
       }
     }
@@ -24,36 +37,43 @@ export default function UploadVideo() {
   const handleSubmit = async () => {
     if (!formData.title || !formData.region) return;
     setLoading(true);
-    const fileUrl = file ? (await base44.integrations.Core.UploadFile({ file })).file_url : '';
+    const fileUrl = file
+      ? (await base44.integrations.Core.UploadFile({ file })).file_url
+      : "";
     await base44.entities.VideoPost.create({ ...formData, video_url: fileUrl });
-    navigate('/CommunityVideos');
+    navigate("/CommunityVideos");
   };
 
   return (
-    <div style={{ background: '#f8fafc', minHeight: '100vh', width: '100%' }}>
+    <div style={{ background: "#f8fafc", minHeight: "100vh", width: "100%" }}>
       {/* Header (Full Width) */}
       <div
         style={{
-          background: '#fff',
-          borderBottom: '1px solid #f0f0f0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-          width: '100%',
+          background: "#fff",
+          borderBottom: "1px solid #f0f0f0",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+          width: "100%",
         }}
       >
         {/* Header Content (Centered) */}
         <div
           style={{
             maxWidth: 600,
-            margin: '0 auto',
-            padding: '16px 20px',
-            display: 'flex',
-            alignItems: 'center',
+            margin: "0 auto",
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
             gap: 12,
           }}
         >
           <button
             onClick={() => navigate(-1)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: 4,
+            }}
           >
             <svg
               width="20"
@@ -72,9 +92,9 @@ export default function UploadVideo() {
             style={{
               fontSize: 18,
               fontWeight: 900,
-              color: '#1a2e2a',
+              color: "#1a2e2a",
               flex: 1,
-              textAlign: 'right',
+              textAlign: "right",
               margin: 0,
             }}
           >
@@ -84,37 +104,55 @@ export default function UploadVideo() {
       </div>
 
       {/* Main Content (Centered & Constrained) */}
-      <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 16px', paddingBottom: 100 }}>
+      <div
+        style={{
+          maxWidth: 600,
+          margin: "0 auto",
+          padding: "20px 16px",
+          paddingBottom: 100,
+        }}
+      >
         {/* Upload Area */}
-        <label style={{ cursor: 'pointer', display: 'block', marginBottom: 16 }}>
+        <label
+          style={{ cursor: "pointer", display: "block", marginBottom: 16 }}
+        >
           <input
             type="file"
             accept="video/*,image/*"
             onChange={handleFileChange}
-            style={{ display: 'none' }}
+            style={{ display: "none" }}
           />
           <div
             style={{
-              border: '2px dashed #0d9e6e',
+              border: "2px dashed #0d9e6e",
               borderRadius: 20,
-              background: file ? '#f0fdf8' : '#fff',
-              padding: '40px 20px',
-              textAlign: 'center',
+              background: file ? "#f0fdf8" : "#fff",
+              padding: "40px 20px",
+              textAlign: "center",
             }}
           >
             {preview ? (
               <video
                 src={preview}
                 controls
-                style={{ maxHeight: 200, width: '100%', borderRadius: 12 }}
+                style={{ maxHeight: 200, width: "100%", borderRadius: 12 }}
               />
             ) : (
               <>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>🎥</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#0d9e6e', marginBottom: 6 }}>
-                  {file ? file.name : 'לחץ להעלאת וידאו'}
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: "#0d9e6e",
+                    marginBottom: 6,
+                  }}
+                >
+                  {file ? file.name : "לחץ להעלאת וידאו"}
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>MP4, MOV, AVI עד 100MB</div>
+                <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                  MP4, MOV, AVI עד 100MB
+                </div>
               </>
             )}
           </div>
@@ -123,21 +161,21 @@ export default function UploadVideo() {
         {/* Form Fields */}
         <div
           style={{
-            background: '#fff',
+            background: "#fff",
             borderRadius: 20,
-            padding: '20px',
+            padding: "20px",
             marginBottom: 16,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
           }}
         >
           <h3
             style={{
               fontSize: 15,
               fontWeight: 800,
-              color: '#1a2e2a',
+              color: "#1a2e2a",
               marginBottom: 16,
-              textAlign: 'right',
-              margin: '0 0 16px 0',
+              textAlign: "right",
+              margin: "0 0 16px 0",
             }}
           >
             פרטי הסרטון
@@ -147,29 +185,31 @@ export default function UploadVideo() {
             style={{
               fontSize: 13,
               fontWeight: 700,
-              color: '#64748b',
-              display: 'block',
+              color: "#64748b",
+              display: "block",
               marginBottom: 6,
-              textAlign: 'right',
+              textAlign: "right",
             }}
           >
             כותרת
           </label>
           <input
             value={formData.title}
-            onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, title: e.target.value }))
+            }
             placeholder="כותרת הסרטון..."
             style={{
-              width: '100%',
-              padding: '12px 14px',
-              border: '2px solid #e2e8f0',
+              width: "100%",
+              padding: "12px 14px",
+              border: "2px solid #e2e8f0",
               borderRadius: 12,
               fontSize: 15,
               marginBottom: 16,
-              boxSizing: 'border-box',
-              fontFamily: 'Heebo, sans-serif',
-              textAlign: 'right',
-              outline: 'none',
+              boxSizing: "border-box",
+              fontFamily: "Heebo, sans-serif",
+              textAlign: "right",
+              outline: "none",
             }}
           />
 
@@ -177,21 +217,21 @@ export default function UploadVideo() {
             style={{
               fontSize: 13,
               fontWeight: 700,
-              color: '#64748b',
-              display: 'block',
+              color: "#64748b",
+              display: "block",
               marginBottom: 10,
-              textAlign: 'right',
+              textAlign: "right",
             }}
           >
             אזור
           </label>
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
               gap: 8,
               marginBottom: 16,
-              direction: 'rtl',
+              direction: "rtl",
             }}
           >
             {REGIONS.map((r) => (
@@ -199,15 +239,15 @@ export default function UploadVideo() {
                 key={r}
                 onClick={() => setFormData((p) => ({ ...p, region: r }))}
                 style={{
-                  padding: '8px 4px',
-                  border: `2px solid ${formData.region === r ? '#0d9e6e' : '#e2e8f0'}`,
+                  padding: "8px 4px",
+                  border: `2px solid ${formData.region === r ? "#0d9e6e" : "#e2e8f0"}`,
                   borderRadius: 10,
-                  background: formData.region === r ? '#f0fdf8' : '#fff',
-                  color: formData.region === r ? '#0d9e6e' : '#64748b',
+                  background: formData.region === r ? "#f0fdf8" : "#fff",
+                  color: formData.region === r ? "#0d9e6e" : "#64748b",
                   fontSize: 11,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
+                  cursor: "pointer",
+                  fontFamily: "Heebo, sans-serif",
                 }}
               >
                 {r}
@@ -219,30 +259,32 @@ export default function UploadVideo() {
             style={{
               fontSize: 13,
               fontWeight: 700,
-              color: '#64748b',
-              display: 'block',
+              color: "#64748b",
+              display: "block",
               marginBottom: 6,
-              textAlign: 'right',
+              textAlign: "right",
             }}
           >
             תיאור
           </label>
           <textarea
             value={formData.description}
-            onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, description: e.target.value }))
+            }
             placeholder="תאר את הסרטון..."
             rows={3}
             style={{
-              width: '100%',
-              padding: '12px',
-              border: '2px solid #e2e8f0',
-              boxSizing: 'border-box',
+              width: "100%",
+              padding: "12px",
+              border: "2px solid #e2e8f0",
+              boxSizing: "border-box",
               borderRadius: 12,
               fontSize: 14,
-              fontFamily: 'Heebo, sans-serif',
-              textAlign: 'right',
-              resize: 'none',
-              outline: 'none',
+              fontFamily: "Heebo, sans-serif",
+              textAlign: "right",
+              resize: "none",
+              outline: "none",
             }}
           />
         </div>
@@ -251,22 +293,23 @@ export default function UploadVideo() {
           onClick={handleSubmit}
           disabled={loading || !formData.title || !formData.region}
           style={{
-            width: '100%',
-            padding: '16px',
-            border: 'none',
+            width: "100%",
+            padding: "16px",
+            border: "none",
             borderRadius: 16,
             background:
               formData.title && formData.region
-                ? 'linear-gradient(135deg, #7c3aed, #9333ea)'
-                : '#e2e8f0',
-            color: formData.title && formData.region ? '#fff' : '#94a3b8',
+                ? "linear-gradient(135deg, #7c3aed, #9333ea)"
+                : "#e2e8f0",
+            color: formData.title && formData.region ? "#fff" : "#94a3b8",
             fontSize: 16,
             fontWeight: 800,
-            cursor: formData.title && formData.region ? 'pointer' : 'not-allowed',
-            fontFamily: 'Heebo, sans-serif',
+            cursor:
+              formData.title && formData.region ? "pointer" : "not-allowed",
+            fontFamily: "Heebo, sans-serif",
           }}
         >
-          {loading ? 'מעלה...' : '🎬 פרסם סרטון (+30 XP)'}
+          {loading ? "מעלה..." : "🎬 פרסם סרטון (+30 XP)"}
         </button>
       </div>
     </div>

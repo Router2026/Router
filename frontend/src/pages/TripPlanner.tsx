@@ -1,75 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api";
 
 // These stay local — UI-only choices not stored in backend
 const GROUP_TYPES = [
-  { id: 'solo', name: 'יחיד', emoji: '🚶' },
-  { id: 'couple', name: 'זוג', emoji: '👫' },
-  { id: 'family', name: 'משפחה', emoji: '👨‍👩‍👧‍👦' },
-  { id: 'friends', name: 'חברים', emoji: '👥' },
+  { id: "solo", name: "יחיד", emoji: "🚶" },
+  { id: "couple", name: "זוג", emoji: "👫" },
+  { id: "family", name: "משפחה", emoji: "👨‍👩‍👧‍👦" },
+  { id: "friends", name: "חברים", emoji: "👥" },
 ];
 
 const STYLES = [
-  { id: 'history', name: 'היסטוריה ותרבות', icon: '🕌' },
-  { id: 'water', name: 'מים ומעיינות', icon: '💧' },
-  { id: 'photo', name: 'צילום ונוף', icon: '📷' },
-  { id: 'nature', name: 'נופים ומצפים', icon: '⛰️' },
-  { id: 'hiking', name: 'טיולים ומסלולים', icon: '🥾' },
-  { id: 'beach', name: 'חופים וים', icon: '🏖️' },
-  { id: 'geology', name: 'גיאולוגיה', icon: '🪨' },
-  { id: 'wine', name: 'יין ואוכל', icon: '🍷' },
-  { id: 'village', name: 'כפרים ומסורת', icon: '🏡' },
-  { id: 'family', name: 'פעילויות לילדים', icon: '🎠' },
+  { id: "history", name: "היסטוריה ותרבות", icon: "🕌" },
+  { id: "water", name: "מים ומעיינות", icon: "💧" },
+  { id: "photo", name: "צילום ונוף", icon: "📷" },
+  { id: "nature", name: "נופים ומצפים", icon: "⛰️" },
+  { id: "hiking", name: "טיולים ומסלולים", icon: "🥾" },
+  { id: "beach", name: "חופים וים", icon: "🏖️" },
+  { id: "geology", name: "גיאולוגיה", icon: "🪨" },
+  { id: "wine", name: "יין ואוכל", icon: "🍷" },
+  { id: "village", name: "כפרים ומסורת", icon: "🏡" },
+  { id: "family", name: "פעילויות לילדים", icon: "🎠" },
 ];
 
-const STOP_COUNTS = ['3', '5', '7'];
-const STEPS = ['אזור', 'הרכב', 'סגנון', 'פרטים'];
+const STOP_COUNTS = ["3", "5", "7"];
+const STEPS = ["אזור", "הרכב", "סגנון", "פרטים"];
 
 const REGION_ICONS: Record<string, string> = {
-  גולן: '⛰️',
-  'גליל עליון': '⛰️',
-  'גליל תחתון': '💧',
-  כרמל: '🌲',
-  מרכז: '📍',
-  ירושלים: '🕐',
-  דרום: '⛰️',
-  אילת: '💧',
-  'עמק יזרעאל': '🌾',
-  שרון: '🌸',
-  נגב: '🏜️',
-  ערבה: '🌵',
+  גולן: "⛰️",
+  "גליל עליון": "⛰️",
+  "גליל תחתון": "💧",
+  כרמל: "🌲",
+  מרכז: "📍",
+  ירושלים: "🕐",
+  דרום: "⛰️",
+  אילת: "💧",
+  "עמק יזרעאל": "🌾",
+  שרון: "🌸",
+  נגב: "🏜️",
+  ערבה: "🌵",
 };
 
 export default function TripPlanner() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [region, setRegion] = useState('');
-  const [groupType, setGroupType] = useState('');
+  const [region, setRegion] = useState("");
+  const [groupType, setGroupType] = useState("");
   const [styles, setStyles] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('16:00');
-  const [stops, setStops] = useState('5');
-  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("16:00");
+  const [stops, setStops] = useState("5");
+  const [date, setDate] = useState("");
   const [includeFood, setIncludeFood] = useState(false);
   const [includeCoffee, setIncludeCoffee] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [apiRegions, setApiRegions] = useState<Array<{ id: string; name: string; icon: string }>>(
-    []
-  );
+  const [apiRegions, setApiRegions] = useState<
+    Array<{ id: string; name: string; icon: string }>
+  >([]);
 
   useEffect(() => {
     if (navigator.geolocation) {
       setLocationLoading(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setUserLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
           setLocationLoading(false);
         },
         () => setLocationLoading(false),
-        { timeout: 8000 }
+        { timeout: 8000 },
       );
     }
   }, []);
@@ -82,21 +88,21 @@ export default function TripPlanner() {
           regions.map((r) => ({
             id: r.slug || String(r.id),
             name: r.name,
-            icon: REGION_ICONS[r.name] || '📍',
-          }))
+            icon: REGION_ICONS[r.name] || "📍",
+          })),
         );
       })
       .catch(() => {
         // Fallback if regions fail to load
         setApiRegions([
-          { id: 'golan', name: 'גולן', icon: '⛰️' },
-          { id: 'galil_u', name: 'גליל עליון', icon: '⛰️' },
-          { id: 'galil_t', name: 'גליל תחתון', icon: '💧' },
-          { id: 'carmel', name: 'כרמל', icon: '🌲' },
-          { id: 'mercaz', name: 'מרכז', icon: '📍' },
-          { id: 'jeru', name: 'ירושלים', icon: '🕐' },
-          { id: 'darom', name: 'דרום', icon: '⛰️' },
-          { id: 'eilat', name: 'אילת', icon: '💧' },
+          { id: "golan", name: "גולן", icon: "⛰️" },
+          { id: "galil_u", name: "גליל עליון", icon: "⛰️" },
+          { id: "galil_t", name: "גליל תחתון", icon: "💧" },
+          { id: "carmel", name: "כרמל", icon: "🌲" },
+          { id: "mercaz", name: "מרכז", icon: "📍" },
+          { id: "jeru", name: "ירושלים", icon: "🕐" },
+          { id: "darom", name: "דרום", icon: "⛰️" },
+          { id: "eilat", name: "אילת", icon: "💧" },
         ]);
       });
   }, []);
@@ -104,20 +110,24 @@ export default function TripPlanner() {
   const REGIONS = apiRegions;
 
   const toggleStyle = (id: string) => {
-    setStyles((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+    setStyles((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
   };
 
   const handleGenerate = async () => {
     setLoading(true);
     try {
-      const selectedRegionName = REGIONS.find((r) => r.id === region)?.name || region;
-      const selectedGroupType = GROUP_TYPES.find((g) => g.id === groupType)?.name || groupType;
+      const selectedRegionName =
+        REGIONS.find((r) => r.id === region)?.name || region;
+      const selectedGroupType =
+        GROUP_TYPES.find((g) => g.id === groupType)?.name || groupType;
       const selectedStyles = styles
         .map((s) => STYLES.find((st) => st.id === s)?.name || s)
-        .join(', ');
+        .join(", ");
 
       // Generate trip data (AI simulation via base44 shim)
-      const { base44 } = await import('../api');
+      const { base44 } = await import("../api");
       const tripData = await base44.integrations.Core.InvokeLLM({
         body: JSON.stringify({
           region: selectedRegionName,
@@ -142,8 +152,8 @@ export default function TripPlanner() {
       });
       navigate(`/TripDetail?id=${saved.id}`);
     } catch (e) {
-      console.error('Trip generation failed:', e);
-      navigate('/MyTrips');
+      console.error("Trip generation failed:", e);
+      navigate("/MyTrips");
     }
     setLoading(false);
   };
@@ -153,46 +163,46 @@ export default function TripPlanner() {
   return (
     <div
       style={{
-        minHeight: '100vh',
-        background: '#f8fafc',
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
+        minHeight: "100vh",
+        background: "#f8fafc",
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
       }}
     >
       {/* ── Header (Full Width) ── */}
       <div
         style={{
-          background: 'linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)',
-          width: '100%',
+          background: "linear-gradient(160deg, #0d9e6e 0%, #0bba7e 100%)",
+          width: "100%",
         }}
       >
         {/* Header Content (Centered) */}
         <div
           style={{
             maxWidth: 600,
-            margin: '0 auto',
-            position: 'relative',
+            margin: "0 auto",
+            position: "relative",
             paddingTop: 48,
             paddingBottom: 64,
             paddingLeft: 20,
             paddingRight: 20,
-            textAlign: 'center',
+            textAlign: "center",
           }}
         >
           {/* Back button */}
           <button
             onClick={() => navigate(-1)}
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 16,
               right: 16,
-              background: 'rgba(255,255,255,0.2)',
-              border: 'none',
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
               borderRadius: 12,
-              padding: '8px 12px',
-              cursor: 'pointer',
-              color: '#fff',
+              padding: "8px 12px",
+              cursor: "pointer",
+              color: "#fff",
             }}
           >
             <svg
@@ -211,24 +221,37 @@ export default function TripPlanner() {
 
           <div
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
+              display: "inline-flex",
+              alignItems: "center",
               gap: 6,
-              background: 'rgba(255,255,255,0.2)',
+              background: "rgba(255,255,255,0.2)",
               borderRadius: 20,
-              padding: '5px 14px',
+              padding: "5px 14px",
               marginBottom: 12,
               fontSize: 12,
               fontWeight: 600,
-              color: '#fff',
+              color: "#fff",
             }}
           >
             ✨ מתכנן מסלול חכם
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: '#fff', marginBottom: 6 }}>
+          <h1
+            style={{
+              fontSize: 26,
+              fontWeight: 900,
+              color: "#fff",
+              marginBottom: 6,
+            }}
+          >
             בוא ניצור לך מסלול
           </h1>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>
+          <p
+            style={{
+              fontSize: 14,
+              color: "rgba(255,255,255,0.85)",
+              fontWeight: 500,
+            }}
+          >
             ענה על כמה שאלות ונבנה לך יום מושלם
           </p>
         </div>
@@ -238,10 +261,10 @@ export default function TripPlanner() {
       <div
         style={{
           maxWidth: 600,
-          margin: '0 auto',
-          width: '100%',
-          padding: '0 16px',
-          position: 'relative',
+          margin: "0 auto",
+          width: "100%",
+          padding: "0 16px",
+          position: "relative",
           zIndex: 10,
           marginTop: -32,
           paddingBottom: 60,
@@ -250,13 +273,13 @@ export default function TripPlanner() {
         {/* Stepper */}
         <div
           style={{
-            background: '#fff',
+            background: "#fff",
             borderRadius: 20,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-            padding: '20px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
+            padding: "20px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
             marginBottom: 24,
           }}
         >
@@ -266,25 +289,34 @@ export default function TripPlanner() {
             return (
               <React.Fragment key={label}>
                 <div
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
                 >
                   <div
                     style={{
                       width: 32,
                       height: 32,
-                      borderRadius: '50%',
-                      background: done ? '#0d9e6e' : active ? '#0d9e6e' : '#f1f5f9',
-                      color: done || active ? '#fff' : '#94a3b8',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      borderRadius: "50%",
+                      background: done
+                        ? "#0d9e6e"
+                        : active
+                          ? "#0d9e6e"
+                          : "#f1f5f9",
+                      color: done || active ? "#fff" : "#94a3b8",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       fontSize: 13,
                       fontWeight: 800,
                       border: done
-                        ? '2px solid #0d9e6e'
+                        ? "2px solid #0d9e6e"
                         : active
-                          ? '2px solid #0d9e6e'
-                          : '2px solid #e2e8f0',
+                          ? "2px solid #0d9e6e"
+                          : "2px solid #e2e8f0",
                     }}
                   >
                     {done ? (
@@ -305,7 +337,11 @@ export default function TripPlanner() {
                     )}
                   </div>
                   <span
-                    style={{ fontSize: 11, fontWeight: 700, color: active ? '#0d9e6e' : '#94a3b8' }}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: active ? "#0d9e6e" : "#94a3b8",
+                    }}
                   >
                     {label}
                   </span>
@@ -315,10 +351,10 @@ export default function TripPlanner() {
                     style={{
                       flex: 1,
                       height: 3,
-                      background: i < step ? '#0d9e6e' : '#e2e8f0',
+                      background: i < step ? "#0d9e6e" : "#e2e8f0",
                       marginBottom: 16,
                       borderRadius: 3,
-                      margin: '0 4px',
+                      margin: "0 4px",
                     }}
                   />
                 )}
@@ -330,10 +366,10 @@ export default function TripPlanner() {
         {/* Step Content */}
         <div
           style={{
-            background: '#fff',
+            background: "#fff",
             borderRadius: 24,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-            padding: '32px 20px',
+            boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+            padding: "32px 20px",
             marginBottom: 24,
           }}
         >
@@ -344,20 +380,27 @@ export default function TripPlanner() {
                 style={{
                   fontSize: 22,
                   fontWeight: 900,
-                  color: '#0f172a',
+                  color: "#0f172a",
                   marginBottom: 4,
-                  textAlign: 'center',
+                  textAlign: "center",
                 }}
               >
                 לאן נוסעים?
               </h2>
-              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "#64748b",
+                  marginBottom: 24,
+                  textAlign: "center",
+                }}
+              >
                 בחר את האזור לטיול
               </p>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
                   gap: 16,
                 }}
               >
@@ -366,17 +409,20 @@ export default function TripPlanner() {
                     key={r.id}
                     onClick={() => setRegion(r.id)}
                     style={{
-                      border: `2px solid ${region === r.id ? '#0d9e6e' : '#f1f5f9'}`,
+                      border: `2px solid ${region === r.id ? "#0d9e6e" : "#f1f5f9"}`,
                       borderRadius: 16,
-                      padding: '20px 12px',
-                      background: region === r.id ? '#f0fdf8' : '#fff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
+                      padding: "20px 12px",
+                      background: region === r.id ? "#f0fdf8" : "#fff",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
                       gap: 12,
-                      transition: 'all 0.2s ease',
-                      boxShadow: region === r.id ? '0 4px 12px rgba(13, 158, 110, 0.15)' : 'none',
+                      transition: "all 0.2s ease",
+                      boxShadow:
+                        region === r.id
+                          ? "0 4px 12px rgba(13, 158, 110, 0.15)"
+                          : "none",
                     }}
                   >
                     <span style={{ fontSize: 32 }}>{r.icon}</span>
@@ -384,7 +430,7 @@ export default function TripPlanner() {
                       style={{
                         fontSize: 15,
                         fontWeight: 800,
-                        color: region === r.id ? '#0d9e6e' : '#334155',
+                        color: region === r.id ? "#0d9e6e" : "#334155",
                       }}
                     >
                       {r.name}
@@ -402,20 +448,27 @@ export default function TripPlanner() {
                 style={{
                   fontSize: 22,
                   fontWeight: 900,
-                  color: '#0f172a',
+                  color: "#0f172a",
                   marginBottom: 4,
-                  textAlign: 'center',
+                  textAlign: "center",
                 }}
               >
                 עם מי הטיול?
               </h2>
-              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "#64748b",
+                  marginBottom: 24,
+                  textAlign: "center",
+                }}
+              >
                 זה יעזור לנו להתאים את המסלול
               </p>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
                   gap: 16,
                 }}
               >
@@ -424,18 +477,20 @@ export default function TripPlanner() {
                     key={g.id}
                     onClick={() => setGroupType(g.id)}
                     style={{
-                      border: `2px solid ${groupType === g.id ? '#0d9e6e' : '#f1f5f9'}`,
+                      border: `2px solid ${groupType === g.id ? "#0d9e6e" : "#f1f5f9"}`,
                       borderRadius: 16,
-                      padding: '28px 12px',
-                      background: groupType === g.id ? '#f0fdf8' : '#fff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
+                      padding: "28px 12px",
+                      background: groupType === g.id ? "#f0fdf8" : "#fff",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
                       gap: 12,
-                      transition: 'all 0.2s ease',
+                      transition: "all 0.2s ease",
                       boxShadow:
-                        groupType === g.id ? '0 4px 12px rgba(13, 158, 110, 0.15)' : 'none',
+                        groupType === g.id
+                          ? "0 4px 12px rgba(13, 158, 110, 0.15)"
+                          : "none",
                     }}
                   >
                     <span style={{ fontSize: 40 }}>{g.emoji}</span>
@@ -443,7 +498,7 @@ export default function TripPlanner() {
                       style={{
                         fontSize: 16,
                         fontWeight: 800,
-                        color: groupType === g.id ? '#0d9e6e' : '#334155',
+                        color: groupType === g.id ? "#0d9e6e" : "#334155",
                       }}
                     >
                       {g.name}
@@ -461,20 +516,27 @@ export default function TripPlanner() {
                 style={{
                   fontSize: 22,
                   fontWeight: 900,
-                  color: '#0f172a',
+                  color: "#0f172a",
                   marginBottom: 4,
-                  textAlign: 'center',
+                  textAlign: "center",
                 }}
               >
                 מה מעניין אותך?
               </h2>
-              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "#64748b",
+                  marginBottom: 24,
+                  textAlign: "center",
+                }}
+              >
                 אפשר לבחור כמה אפשרויות
               </p>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
                   gap: 16,
                 }}
               >
@@ -485,17 +547,19 @@ export default function TripPlanner() {
                       key={st.id}
                       onClick={() => toggleStyle(st.id)}
                       style={{
-                        border: `2px solid ${active ? '#0d9e6e' : '#f1f5f9'}`,
+                        border: `2px solid ${active ? "#0d9e6e" : "#f1f5f9"}`,
                         borderRadius: 16,
-                        padding: '24px 12px',
-                        background: active ? '#f0fdf8' : '#fff',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
+                        padding: "24px 12px",
+                        background: active ? "#f0fdf8" : "#fff",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
                         gap: 12,
-                        transition: 'all 0.2s ease',
-                        boxShadow: active ? '0 4px 12px rgba(13, 158, 110, 0.15)' : 'none',
+                        transition: "all 0.2s ease",
+                        boxShadow: active
+                          ? "0 4px 12px rgba(13, 158, 110, 0.15)"
+                          : "none",
                       }}
                     >
                       <span style={{ fontSize: 32 }}>{st.icon}</span>
@@ -503,8 +567,8 @@ export default function TripPlanner() {
                         style={{
                           fontSize: 14,
                           fontWeight: 800,
-                          color: active ? '#0d9e6e' : '#334155',
-                          textAlign: 'center',
+                          color: active ? "#0d9e6e" : "#334155",
+                          textAlign: "center",
                         }}
                       >
                         {st.name}
@@ -518,19 +582,26 @@ export default function TripPlanner() {
 
           {/* STEP 3: Details */}
           {step === 3 && (
-            <div style={{ maxWidth: 400, margin: '0 auto' }}>
+            <div style={{ maxWidth: 400, margin: "0 auto" }}>
               <h2
                 style={{
                   fontSize: 22,
                   fontWeight: 900,
-                  color: '#0f172a',
+                  color: "#0f172a",
                   marginBottom: 4,
-                  textAlign: 'center',
+                  textAlign: "center",
                 }}
               >
                 פרטים אחרונים
               </h2>
-              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "#64748b",
+                  marginBottom: 24,
+                  textAlign: "center",
+                }}
+              >
                 כמעט סיימנו!
               </p>
 
@@ -538,10 +609,10 @@ export default function TripPlanner() {
                 style={{
                   fontSize: 14,
                   fontWeight: 800,
-                  color: '#475569',
-                  display: 'block',
+                  color: "#475569",
+                  display: "block",
                   marginBottom: 8,
-                  textAlign: 'right',
+                  textAlign: "right",
                 }}
               >
                 תאריך הטיול (אופציונלי)
@@ -551,18 +622,18 @@ export default function TripPlanner() {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  border: '2px solid #e2e8f0',
-                  boxSizing: 'border-box',
+                  width: "100%",
+                  padding: "14px 16px",
+                  border: "2px solid #e2e8f0",
+                  boxSizing: "border-box",
                   borderRadius: 14,
                   fontSize: 15,
                   marginBottom: 24,
-                  fontFamily: 'Heebo, sans-serif',
-                  textAlign: 'right',
-                  outline: 'none',
-                  background: '#f8fafc',
-                  color: '#334155',
+                  fontFamily: "Heebo, sans-serif",
+                  textAlign: "right",
+                  outline: "none",
+                  background: "#f8fafc",
+                  color: "#334155",
                 }}
               />
 
@@ -570,22 +641,29 @@ export default function TripPlanner() {
                 style={{
                   fontSize: 14,
                   fontWeight: 800,
-                  color: '#475569',
-                  display: 'block',
+                  color: "#475569",
+                  display: "block",
                   marginBottom: 10,
-                  textAlign: 'right',
+                  textAlign: "right",
                 }}
               >
                 שעות הטיול
               </label>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center' }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  marginBottom: 24,
+                  alignItems: "center",
+                }}
+              >
                 <div style={{ flex: 1 }}>
                   <div
                     style={{
                       fontSize: 12,
-                      color: '#94a3b8',
+                      color: "#94a3b8",
                       fontWeight: 600,
-                      textAlign: 'center',
+                      textAlign: "center",
                       marginBottom: 4,
                     }}
                   >
@@ -596,28 +674,32 @@ export default function TripPlanner() {
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
                     style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '2px solid #e2e8f0',
+                      width: "100%",
+                      padding: "12px",
+                      border: "2px solid #e2e8f0",
                       borderRadius: 12,
                       fontSize: 16,
-                      fontFamily: 'Heebo, sans-serif',
-                      textAlign: 'center',
-                      outline: 'none',
-                      background: '#f8fafc',
-                      color: '#334155',
-                      cursor: 'pointer',
+                      fontFamily: "Heebo, sans-serif",
+                      textAlign: "center",
+                      outline: "none",
+                      background: "#f8fafc",
+                      color: "#334155",
+                      cursor: "pointer",
                     }}
                   />
                 </div>
-                <div style={{ color: '#94a3b8', fontWeight: 800, paddingTop: 20 }}>—</div>
+                <div
+                  style={{ color: "#94a3b8", fontWeight: 800, paddingTop: 20 }}
+                >
+                  —
+                </div>
                 <div style={{ flex: 1 }}>
                   <div
                     style={{
                       fontSize: 12,
-                      color: '#94a3b8',
+                      color: "#94a3b8",
                       fontWeight: 600,
-                      textAlign: 'center',
+                      textAlign: "center",
                       marginBottom: 4,
                     }}
                   >
@@ -628,17 +710,17 @@ export default function TripPlanner() {
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
                     style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '2px solid #e2e8f0',
+                      width: "100%",
+                      padding: "12px",
+                      border: "2px solid #e2e8f0",
                       borderRadius: 12,
                       fontSize: 16,
-                      fontFamily: 'Heebo, sans-serif',
-                      textAlign: 'center',
-                      outline: 'none',
-                      background: '#f8fafc',
-                      color: '#334155',
-                      cursor: 'pointer',
+                      fontFamily: "Heebo, sans-serif",
+                      textAlign: "center",
+                      outline: "none",
+                      background: "#f8fafc",
+                      color: "#334155",
+                      cursor: "pointer",
                     }}
                   />
                 </div>
@@ -647,52 +729,54 @@ export default function TripPlanner() {
               {/* Location status */}
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
+                  display: "flex",
+                  alignItems: "center",
                   gap: 8,
-                  justifyContent: 'flex-end',
+                  justifyContent: "flex-end",
                   marginBottom: 24,
-                  padding: '10px 14px',
+                  padding: "10px 14px",
                   borderRadius: 12,
-                  background: userLocation ? '#f0fdf8' : '#f8fafc',
-                  border: `1.5px solid ${userLocation ? '#6ee7b7' : '#e2e8f0'}`,
+                  background: userLocation ? "#f0fdf8" : "#f8fafc",
+                  border: `1.5px solid ${userLocation ? "#6ee7b7" : "#e2e8f0"}`,
                 }}
               >
                 <span
                   style={{
                     fontSize: 13,
-                    color: userLocation ? '#0d9e6e' : '#94a3b8',
+                    color: userLocation ? "#0d9e6e" : "#94a3b8",
                     fontWeight: 700,
                   }}
                 >
                   {locationLoading
-                    ? 'מאתר מיקום...'
+                    ? "מאתר מיקום..."
                     : userLocation
-                      ? 'מיקום זוהה — יחושב זמן נסיעה'
-                      : 'לא זוהה מיקום'}
+                      ? "מיקום זוהה — יחושב זמן נסיעה"
+                      : "לא זוהה מיקום"}
                 </span>
-                <span style={{ fontSize: 18 }}>{userLocation ? '📍' : '🔍'}</span>
+                <span style={{ fontSize: 18 }}>
+                  {userLocation ? "📍" : "🔍"}
+                </span>
               </div>
 
               <label
                 style={{
                   fontSize: 14,
                   fontWeight: 800,
-                  color: '#475569',
-                  display: 'block',
+                  color: "#475569",
+                  display: "block",
                   marginBottom: 10,
-                  textAlign: 'right',
+                  textAlign: "right",
                 }}
               >
                 מספר עצירות מקסימלי
               </label>
               <div
                 style={{
-                  display: 'flex',
+                  display: "flex",
                   gap: 10,
                   marginBottom: 32,
-                  justifyContent: 'flex-end',
-                  flexDirection: 'row-reverse',
+                  justifyContent: "flex-end",
+                  flexDirection: "row-reverse",
                 }}
               >
                 {STOP_COUNTS.map((c) => (
@@ -701,16 +785,16 @@ export default function TripPlanner() {
                     onClick={() => setStops(c)}
                     style={{
                       flex: 1,
-                      padding: '12px 8px',
-                      border: `2px solid ${stops === c ? '#0d9e6e' : '#e2e8f0'}`,
+                      padding: "12px 8px",
+                      border: `2px solid ${stops === c ? "#0d9e6e" : "#e2e8f0"}`,
                       borderRadius: 12,
-                      background: stops === c ? '#f0fdf8' : '#fff',
-                      color: stops === c ? '#0d9e6e' : '#64748b',
+                      background: stops === c ? "#f0fdf8" : "#fff",
+                      color: stops === c ? "#0d9e6e" : "#64748b",
                       fontSize: 14,
                       fontWeight: 800,
-                      cursor: 'pointer',
-                      fontFamily: 'Heebo, sans-serif',
-                      transition: 'all 0.2s ease',
+                      cursor: "pointer",
+                      fontFamily: "Heebo, sans-serif",
+                      transition: "all 0.2s ease",
                     }}
                   >
                     עצירות {c}
@@ -718,22 +802,38 @@ export default function TripPlanner() {
                 ))}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              >
                 {[
-                  { state: includeFood, setState: setIncludeFood, label: 'כלול מקומות אכילה בדרך' },
-                  { state: includeCoffee, setState: setIncludeCoffee, label: 'כלול עגלות קפה' },
+                  {
+                    state: includeFood,
+                    setState: setIncludeFood,
+                    label: "כלול מקומות אכילה בדרך",
+                  },
+                  {
+                    state: includeCoffee,
+                    setState: setIncludeCoffee,
+                    label: "כלול עגלות קפה",
+                  },
                 ].map((item) => (
                   <label
                     key={item.label}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
+                      display: "flex",
+                      alignItems: "center",
                       gap: 14,
-                      cursor: 'pointer',
-                      justifyContent: 'flex-end',
+                      cursor: "pointer",
+                      justifyContent: "flex-end",
                     }}
                   >
-                    <span style={{ fontSize: 15, color: '#334155', fontWeight: 700 }}>
+                    <span
+                      style={{
+                        fontSize: 15,
+                        color: "#334155",
+                        fontWeight: 700,
+                      }}
+                    >
                       {item.label}
                     </span>
                     <div
@@ -743,13 +843,13 @@ export default function TripPlanner() {
                         height: 24,
                         borderRadius: 6,
                         flexShrink: 0,
-                        border: `2px solid ${item.state ? '#0d9e6e' : '#cbd5e1'}`,
-                        background: item.state ? '#0d9e6e' : '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
+                        border: `2px solid ${item.state ? "#0d9e6e" : "#cbd5e1"}`,
+                        background: item.state ? "#0d9e6e" : "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
                       }}
                     >
                       {item.state && (
@@ -775,26 +875,26 @@ export default function TripPlanner() {
         </div>
 
         {/* Bottom Buttons */}
-        <div style={{ display: 'flex', gap: 16 }}>
+        <div style={{ display: "flex", gap: 16 }}>
           {step > 0 && (
             <button
               onClick={() => setStep((s) => s - 1)}
               style={{
                 flex: 1,
-                padding: '18px',
-                border: '2px solid #cbd5e1',
+                padding: "18px",
+                border: "2px solid #cbd5e1",
                 borderRadius: 16,
-                background: '#fff',
+                background: "#fff",
                 fontSize: 16,
                 fontWeight: 800,
-                cursor: 'pointer',
-                color: '#475569',
-                fontFamily: 'Heebo, sans-serif',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                cursor: "pointer",
+                color: "#475569",
+                fontFamily: "Heebo, sans-serif",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
-                transition: 'all 0.2s ease',
+                transition: "all 0.2s ease",
               }}
             >
               חזרה
@@ -819,20 +919,20 @@ export default function TripPlanner() {
               disabled={!canNext}
               style={{
                 flex: 2,
-                padding: '18px',
-                border: 'none',
+                padding: "18px",
+                border: "none",
                 borderRadius: 16,
-                background: canNext ? '#6ee7b7' : '#e2e8f0',
-                color: canNext ? '#064e3b' : '#94a3b8',
+                background: canNext ? "#6ee7b7" : "#e2e8f0",
+                color: canNext ? "#064e3b" : "#94a3b8",
                 fontSize: 16,
                 fontWeight: 800,
-                cursor: canNext ? 'pointer' : 'not-allowed',
-                fontFamily: 'Heebo, sans-serif',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                cursor: canNext ? "pointer" : "not-allowed",
+                fontFamily: "Heebo, sans-serif",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
-                transition: 'all 0.2s ease',
+                transition: "all 0.2s ease",
               }}
             >
               המשך
@@ -855,23 +955,23 @@ export default function TripPlanner() {
               disabled={loading}
               style={{
                 flex: 2,
-                padding: '18px',
-                border: 'none',
+                padding: "18px",
+                border: "none",
                 borderRadius: 16,
-                background: '#6ee7b7',
-                color: '#064e3b',
+                background: "#6ee7b7",
+                color: "#064e3b",
                 fontSize: 16,
                 fontWeight: 800,
-                cursor: loading ? 'wait' : 'pointer',
-                fontFamily: 'Heebo, sans-serif',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                cursor: loading ? "wait" : "pointer",
+                fontFamily: "Heebo, sans-serif",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
-                transition: 'all 0.2s ease',
+                transition: "all 0.2s ease",
               }}
             >
-              {loading ? 'יוצר...' : '✨ צור מסלול'}
+              {loading ? "יוצר..." : "✨ צור מסלול"}
             </button>
           )}
         </div>
