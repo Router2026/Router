@@ -1,7 +1,7 @@
-import { cookies } from 'next/headers';
-import { NextRequest } from 'next/server';
+import { cookies } from "next/headers";
+import { NextRequest } from "next/server";
 
-const COOKIE_NAME = 'admin_token';
+const COOKIE_NAME = "admin_token";
 
 // Constant-time string comparison to prevent timing attacks.
 // SHA-256 hex strings are always 64 chars, so length check is just a guard.
@@ -17,11 +17,11 @@ function safeEqual(a: string, b: string): boolean {
 // SHA-256 hash of secret — not trivially reversible unlike base64.
 // Uses Web Crypto API (available in both Edge and Node.js 18+ runtimes).
 async function makeToken(secret: string): Promise<string> {
-  const data = new TextEncoder().encode(secret + ':router-admin');
-  const hash = await crypto.subtle.digest('SHA-256', data);
+  const data = new TextEncoder().encode(secret + ":router-admin");
+  const hash = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export async function verifyAdminCookie(): Promise<boolean> {

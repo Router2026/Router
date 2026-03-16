@@ -2,11 +2,14 @@
 // Thin wrapper around Firebase Cloud Messaging (FCM) HTTP v1 API.
 // For APNS tokens, route through FCM as well (Firebase handles the bridge).
 
-import { rawDb } from '@/lib/db/raw-client';
+import { rawDb } from "@/lib/db/raw-client";
 
 /** Retrieve all push tokens for a given user */
 export async function getPushTokensForUser(userId: number): Promise<string[]> {
-  const { rows } = await rawDb.query(`SELECT token FROM push_tokens WHERE user_id = $1`, [userId]);
+  const { rows } = await rawDb.query(
+    `SELECT token FROM push_tokens WHERE user_id = $1`,
+    [userId],
+  );
   return rows.map((r) => r.token as string);
 }
 
@@ -14,19 +17,25 @@ export async function getPushTokensForUser(userId: number): Promise<string[]> {
 export async function upsertPushToken(
   userId: number,
   token: string,
-  platform: 'fcm' | 'apns' = 'fcm'
+  platform: "fcm" | "apns" = "fcm",
 ): Promise<void> {
   await rawDb.query(
     `INSERT INTO push_tokens (user_id, token, platform)
      VALUES ($1, $2, $3)
      ON CONFLICT (user_id, token) DO NOTHING`,
-    [userId, token, platform]
+    [userId, token, platform],
   );
 }
 
 /** Remove a stale push token (e.g. after FCM returns UNREGISTERED) */
-export async function removePushToken(userId: number, token: string): Promise<void> {
-  await rawDb.query(`DELETE FROM push_tokens WHERE user_id = $1 AND token = $2`, [userId, token]);
+export async function removePushToken(
+  userId: number,
+  token: string,
+): Promise<void> {
+  await rawDb.query(
+    `DELETE FROM push_tokens WHERE user_id = $1 AND token = $2`,
+    [userId, token],
+  );
 }
 
 export interface PushPayload {
@@ -43,13 +52,16 @@ export interface PushPayload {
  * For simplicity we use the FCM legacy HTTP API here.
  * Swap to v1 API + service account for production.
  */
-export async function sendPushToUser(userId: number, payload: PushPayload): Promise<void> {
+export async function sendPushToUser(
+  userId: number,
+  payload: PushPayload,
+): Promise<void> {
   const serverKey = process.env.FIREBASE_SERVER_KEY;
   if (!serverKey) {
     // Log the notification without failing — allows local dev without FCM
     console.info(
       `[push-service] FIREBASE_SERVER_KEY not set — skipping push for user ${userId}:`,
-      payload.title
+      payload.title,
     );
     return;
   }
@@ -61,10 +73,10 @@ export async function sendPushToUser(userId: number, payload: PushPayload): Prom
   await Promise.all(
     tokens.map(async (token) => {
       try {
-        const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-          method: 'POST',
+        const res = await fetch("https://fcm.googleapis.com/fcm/send", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `key=${serverKey}`,
           },
           body: JSON.stringify({
@@ -75,18 +87,23 @@ export async function sendPushToUser(userId: number, payload: PushPayload): Prom
         });
 
         if (!res.ok) {
-          console.error(`[push-service] FCM error for token ${token.slice(0, 10)}…:`, res.status);
+          console.error(
+            `[push-service] FCM error for token ${token.slice(0, 10)}…:`,
+            res.status,
+          );
           return;
         }
 
-        const json = (await res.json()) as { results?: Array<{ error?: string }> };
+        const json = (await res.json()) as {
+          results?: Array<{ error?: string }>;
+        };
         // Remove tokens that FCM reports as unregistered/invalid
-        if (json?.results?.[0]?.error === 'NotRegistered') {
+        if (json?.results?.[0]?.error === "NotRegistered") {
           await removePushToken(userId, token);
         }
       } catch (err) {
-        console.error('[push-service] Failed to send push notification:', err);
+        console.error("[push-service] Failed to send push notification:", err);
       }
-    })
+    }),
   );
 }

@@ -28,10 +28,10 @@
  *   }
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { successResponse, errorResponse } from '@/lib/api/response';
-import { fetchBucketPois } from '@/lib/trip-bucket/bucket-db';
-import { runSmartBuild } from '@/lib/trip-bucket/smart-build';
+import { NextRequest, NextResponse } from "next/server";
+import { successResponse, errorResponse } from "@/lib/api/response";
+import { fetchBucketPois } from "@/lib/trip-bucket/bucket-db";
+import { runSmartBuild } from "@/lib/trip-bucket/smart-build";
 
 export const maxDuration = 60; // seconds — LLM calls can take 15–30 s
 
@@ -43,14 +43,20 @@ export async function POST(req: NextRequest) {
     // ── Validation ────────────────────────────────────────────────────────────
     if (!Array.isArray(poi_ids) || poi_ids.length < 2) {
       return NextResponse.json(
-        errorResponse('poi_ids must be an array of at least 2 IDs', 'VALIDATION_ERROR'),
-        { status: 400 }
+        errorResponse(
+          "poi_ids must be an array of at least 2 IDs",
+          "VALIDATION_ERROR",
+        ),
+        { status: 400 },
       );
     }
     if (poi_ids.length > 15) {
       return NextResponse.json(
-        errorResponse('Maximum 15 POIs supported for Smart Build', 'VALIDATION_ERROR'),
-        { status: 400 }
+        errorResponse(
+          "Maximum 15 POIs supported for Smart Build",
+          "VALIDATION_ERROR",
+        ),
+        { status: 400 },
       );
     }
 
@@ -59,8 +65,11 @@ export async function POST(req: NextRequest) {
 
     if (pois.length < 2) {
       return NextResponse.json(
-        errorResponse('Could not find enough valid POIs for the provided IDs', 'NOT_FOUND'),
-        { status: 404 }
+        errorResponse(
+          "Could not find enough valid POIs for the provided IDs",
+          "NOT_FOUND",
+        ),
+        { status: 404 },
       );
     }
 
@@ -73,7 +82,7 @@ export async function POST(req: NextRequest) {
     // Calculate total duration including visits
     const totalDurationMinutes = smartPlan.stops.reduce(
       (acc, stop) => acc + stop.duration_minutes,
-      0
+      0,
     );
 
     const stops = smartPlan.stops.map((stop, i) => ({
@@ -88,21 +97,21 @@ export async function POST(req: NextRequest) {
     // ── Response ──────────────────────────────────────────────────────────────
     return NextResponse.json(
       successResponse({
-        mode: 'smart',
+        mode: "smart",
         stops,
         smart_plan: smartPlan, // full plan for rich UI rendering
         total_duration_minutes: totalDurationMinutes,
       }),
-      { status: 200 }
+      { status: 200 },
     );
   } catch (err) {
-    console.error('[POST /api/trip-bucket/smart-build]', err);
+    console.error("[POST /api/trip-bucket/smart-build]", err);
     return NextResponse.json(
       errorResponse(
-        err instanceof Error ? err.message : 'Smart Build generation failed',
-        'GENERATION_ERROR'
+        err instanceof Error ? err.message : "Smart Build generation failed",
+        "GENERATION_ERROR",
       ),
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

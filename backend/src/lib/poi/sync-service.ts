@@ -1,8 +1,8 @@
-import { db } from '@/lib/db/client';
-import { pois, dataSources } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
-import { PoiRecordSchema } from '@/lib/admin/schemas';
-import { HttpJsonSourceAdapter } from './source-adapter';
+import { db } from "@/lib/db/client";
+import { pois, dataSources } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { PoiRecordSchema } from "@/lib/admin/schemas";
+import { HttpJsonSourceAdapter } from "./source-adapter";
 
 export interface SyncResult {
   fetched: number;
@@ -11,8 +11,12 @@ export interface SyncResult {
 }
 
 export async function syncDataSource(sourceId: string): Promise<SyncResult> {
-  const [source] = await db.select().from(dataSources).where(eq(dataSources.id, sourceId)).limit(1);
-  if (!source) throw new Error('Data source not found');
+  const [source] = await db
+    .select()
+    .from(dataSources)
+    .where(eq(dataSources.id, sourceId))
+    .limit(1);
+  if (!source) throw new Error("Data source not found");
 
   const adapter = new HttpJsonSourceAdapter();
   const raw = await adapter.fetchPois(source.sourceUrl);

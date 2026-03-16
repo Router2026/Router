@@ -1,4 +1,4 @@
-import { rawDb } from '@/lib/db/raw-client';
+import { rawDb } from "@/lib/db/raw-client";
 
 export interface RouterUser {
   id: number;
@@ -14,21 +14,25 @@ export interface RouterUser {
 }
 
 export async function getCurrentUser(): Promise<RouterUser | null> {
-  const { rows } = await rawDb.query(`SELECT * FROM users WHERE id = 1 LIMIT 1`);
+  const { rows } = await rawDb.query(
+    `SELECT * FROM users WHERE id = 1 LIMIT 1`,
+  );
   return rows.length ? (rows[0] as unknown as RouterUser) : null;
 }
 
 export async function getLeaderboard(): Promise<RouterUser[]> {
-  const { rows } = await rawDb.query(`SELECT * FROM users ORDER BY xp_points DESC LIMIT 50`);
+  const { rows } = await rawDb.query(
+    `SELECT * FROM users ORDER BY xp_points DESC LIMIT 50`,
+  );
   if (!rows.length) {
     return [
       {
         id: 1,
-        email: 'omri@example.com',
-        full_name: 'עומרי חליפה',
-        display_name: 'עומרי חליפה',
+        email: "omri@example.com",
+        full_name: "עומרי חליפה",
+        display_name: "עומרי חליפה",
         xp_points: 1250,
-        level: 'שועל שטח',
+        level: "שועל שטח",
         reports_count: 5,
         reviews_count: 8,
         trips_count: 10,
@@ -36,11 +40,11 @@ export async function getLeaderboard(): Promise<RouterUser[]> {
       },
       {
         id: 2,
-        email: 'sarah@example.com',
-        full_name: 'שרה לוי',
-        display_name: 'שרה לוי',
+        email: "sarah@example.com",
+        full_name: "שרה לוי",
+        display_name: "שרה לוי",
         xp_points: 980,
-        level: 'חוקר',
+        level: "חוקר",
         reports_count: 3,
         reviews_count: 6,
         trips_count: 7,
@@ -48,11 +52,11 @@ export async function getLeaderboard(): Promise<RouterUser[]> {
       },
       {
         id: 3,
-        email: 'yoav@example.com',
-        full_name: 'יואב כהן',
-        display_name: 'יואב כהן',
+        email: "yoav@example.com",
+        full_name: "יואב כהן",
+        display_name: "יואב כהן",
         xp_points: 850,
-        level: 'חוקר',
+        level: "חוקר",
         reports_count: 2,
         reviews_count: 4,
         trips_count: 6,
@@ -60,11 +64,11 @@ export async function getLeaderboard(): Promise<RouterUser[]> {
       },
       {
         id: 4,
-        email: 'noa@example.com',
-        full_name: 'נועה ברק',
-        display_name: 'נועה ברק',
+        email: "noa@example.com",
+        full_name: "נועה ברק",
+        display_name: "נועה ברק",
         xp_points: 720,
-        level: 'מתחיל',
+        level: "מתחיל",
         reports_count: 1,
         reviews_count: 3,
         trips_count: 4,
@@ -72,11 +76,11 @@ export async function getLeaderboard(): Promise<RouterUser[]> {
       },
       {
         id: 5,
-        email: 'gil@example.com',
-        full_name: 'גיל שמש',
-        display_name: 'גיל שמש',
+        email: "gil@example.com",
+        full_name: "גיל שמש",
+        display_name: "גיל שמש",
         xp_points: 650,
-        level: 'מתחיל',
+        level: "מתחיל",
         reports_count: 1,
         reviews_count: 2,
         trips_count: 3,
@@ -96,7 +100,7 @@ export async function getStats(): Promise<{
     `SELECT
        (SELECT COUNT(*) FROM locations)::int AS total_locations,
        (SELECT COUNT(*) FROM regions)::int AS total_regions,
-       (SELECT ROUND(AVG(average_rating)::numeric, 1) FROM locations) AS average_rating`
+       (SELECT ROUND(AVG(average_rating)::numeric, 1) FROM locations) AS average_rating`,
   );
   return {
     total_locations: (rows[0].total_locations as number) || 0,

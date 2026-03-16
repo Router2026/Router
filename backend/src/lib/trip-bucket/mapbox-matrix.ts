@@ -12,9 +12,10 @@
  * Docs: https://docs.mapbox.com/api/navigation/matrix/
  */
 
-import { haversineKm, type TspNode, type DistanceMatrix } from './tsp-engine';
+import { haversineKm, type TspNode, type DistanceMatrix } from "./tsp-engine";
 
-const MAPBOX_BASE = 'https://api.mapbox.com/directions-matrix/v1/mapbox/driving';
+const MAPBOX_BASE =
+  "https://api.mapbox.com/directions-matrix/v1/mapbox/driving";
 /** Mapbox Matrix API limit per single request */
 const MAPBOX_MAX_NODES = 25;
 /** Average driving speed assumption for fallback (km/h) */
@@ -30,14 +31,16 @@ interface MapboxMatrixResponse {
  * Build a travel-time matrix (minutes) using the Mapbox Directions Matrix API.
  * Returns null when Mapbox is unavailable — callers should fall back to Haversine.
  */
-export async function fetchMapboxMatrix(nodes: TspNode[]): Promise<DistanceMatrix | null> {
+export async function fetchMapboxMatrix(
+  nodes: TspNode[],
+): Promise<DistanceMatrix | null> {
   const token = process.env.MAPBOX_TOKEN;
   if (!token || nodes.length > MAPBOX_MAX_NODES) {
     return null;
   }
 
   // Build the coordinate string: "lng,lat;lng,lat;..."
-  const coords = nodes.map((n) => `${n.longitude},${n.latitude}`).join(';');
+  const coords = nodes.map((n) => `${n.longitude},${n.latitude}`).join(";");
 
   const url = `${MAPBOX_BASE}/${coords}?annotations=duration,distance&access_token=${token}`;
 
@@ -49,14 +52,16 @@ export async function fetchMapboxMatrix(nodes: TspNode[]): Promise<DistanceMatri
     }
 
     const data = (await res.json()) as MapboxMatrixResponse;
-    if (data.code !== 'Ok' || !data.durations) {
-      console.error('[Mapbox Matrix] Non-OK response:', data.code);
+    if (data.code !== "Ok" || !data.durations) {
+      console.error("[Mapbox Matrix] Non-OK response:", data.code);
       return null;
     }
 
     // Convert seconds → minutes; replace null cells with Haversine estimate
     const n = nodes.length;
-    const matrix: DistanceMatrix = Array.from({ length: n }, () => new Array(n).fill(0));
+    const matrix: DistanceMatrix = Array.from({ length: n }, () =>
+      new Array(n).fill(0),
+    );
 
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
@@ -69,7 +74,7 @@ export async function fetchMapboxMatrix(nodes: TspNode[]): Promise<DistanceMatri
             nodes[i].latitude,
             nodes[i].longitude,
             nodes[j].latitude,
-            nodes[j].longitude
+            nodes[j].longitude,
           );
           matrix[i][j] = (km / AVG_SPEED_KMH) * 60;
         }
@@ -78,7 +83,7 @@ export async function fetchMapboxMatrix(nodes: TspNode[]): Promise<DistanceMatri
 
     return matrix;
   } catch (err) {
-    console.error('[Mapbox Matrix] Fetch failed:', err);
+    console.error("[Mapbox Matrix] Fetch failed:", err);
     return null;
   }
 }

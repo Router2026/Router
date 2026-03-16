@@ -1,6 +1,6 @@
-import type { TripPlan } from '@/types/llm';
+import type { TripPlan } from "@/types/llm";
 
-export type { TripInput, TripStop, TripDay, TripPlan } from '@/types/llm';
+export type { TripInput, TripStop, TripDay, TripPlan } from "@/types/llm";
 
 export interface GenerateTripResponse {
   tripId: string;

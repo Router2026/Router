@@ -1,11 +1,11 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 const POI_CATEGORIES = [
-  'restaurant',
-  'coffee_trail',
-  'hiking_trail',
-  'attraction',
-  'campsite',
+  "restaurant",
+  "coffee_trail",
+  "hiking_trail",
+  "attraction",
+  "campsite",
 ] as const;
 
 export const PoiRecordSchema = z.object({

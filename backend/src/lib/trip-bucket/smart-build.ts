@@ -13,8 +13,8 @@
  *   - Clear, actionable smart_insight per stop
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-import type { BucketPoi, SmartStop, SmartPlan } from './types';
+import Anthropic from "@anthropic-ai/sdk";
+import type { BucketPoi, SmartStop, SmartPlan } from "./types";
 
 // ── Prompt Builder ────────────────────────────────────────────────────────────
 
@@ -85,19 +85,19 @@ function extractJsonFromLlmResponse(raw: string): unknown {
   } catch {
     // Strip markdown fences and retry
     const stripped = raw
-      .replace(/^```(?:json)?\s*/m, '')
-      .replace(/\s*```$/m, '')
+      .replace(/^```(?:json)?\s*/m, "")
+      .replace(/\s*```$/m, "")
       .trim();
     try {
       return JSON.parse(stripped);
     } catch {
       // Last resort: find the outermost { ... } block
-      const start = raw.indexOf('{');
-      const end = raw.lastIndexOf('}');
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
       if (start !== -1 && end > start) {
         return JSON.parse(raw.slice(start, end + 1));
       }
-      throw new Error('No valid JSON found in LLM response');
+      throw new Error("No valid JSON found in LLM response");
     }
   }
 }
@@ -105,43 +105,49 @@ function extractJsonFromLlmResponse(raw: string): unknown {
 // ── Validator ─────────────────────────────────────────────────────────────────
 
 function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
-  if (typeof raw !== 'object' || raw === null) {
-    throw new Error('LLM response is not an object');
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("LLM response is not an object");
   }
 
   const obj = raw as Record<string, unknown>;
 
-  if (typeof obj.route_title !== 'string' || !obj.route_title) {
-    throw new Error('Missing route_title');
+  if (typeof obj.route_title !== "string" || !obj.route_title) {
+    throw new Error("Missing route_title");
   }
-  if (typeof obj.route_description !== 'string') {
-    throw new Error('Missing route_description');
+  if (typeof obj.route_description !== "string") {
+    throw new Error("Missing route_description");
   }
   if (!Array.isArray(obj.stops) || obj.stops.length === 0) {
-    throw new Error('stops must be a non-empty array');
+    throw new Error("stops must be a non-empty array");
   }
 
-  const stops: SmartStop[] = obj.stops.map((s: Record<string, unknown>, idx: number) => {
-    if (typeof s.location_id !== 'string') throw new Error(`Stop ${idx}: missing location_id`);
-    if (typeof s.poi_name !== 'string') throw new Error(`Stop ${idx}: missing poi_name`);
-    if (typeof s.arrival_time !== 'string') throw new Error(`Stop ${idx}: missing arrival_time`);
-    if (typeof s.duration_minutes !== 'number')
-      throw new Error(`Stop ${idx}: missing duration_minutes`);
-    return {
-      location_id: s.location_id,
-      poi_name: s.poi_name,
-      arrival_time: s.arrival_time,
-      duration_minutes: s.duration_minutes,
-      smart_insight: typeof s.smart_insight === 'string' ? s.smart_insight : '',
-      visit_type: typeof s.visit_type === 'string' ? s.visit_type : '',
-    };
-  });
+  const stops: SmartStop[] = obj.stops.map(
+    (s: Record<string, unknown>, idx: number) => {
+      if (typeof s.location_id !== "string")
+        throw new Error(`Stop ${idx}: missing location_id`);
+      if (typeof s.poi_name !== "string")
+        throw new Error(`Stop ${idx}: missing poi_name`);
+      if (typeof s.arrival_time !== "string")
+        throw new Error(`Stop ${idx}: missing arrival_time`);
+      if (typeof s.duration_minutes !== "number")
+        throw new Error(`Stop ${idx}: missing duration_minutes`);
+      return {
+        location_id: s.location_id,
+        poi_name: s.poi_name,
+        arrival_time: s.arrival_time,
+        duration_minutes: s.duration_minutes,
+        smart_insight:
+          typeof s.smart_insight === "string" ? s.smart_insight : "",
+        visit_type: typeof s.visit_type === "string" ? s.visit_type : "",
+      };
+    },
+  );
 
   // Verify all returned stop IDs were in the original request
   for (const stop of stops) {
     if (!expectedIds.has(stop.location_id)) {
       console.warn(
-        `[SmartBuild] LLM returned unexpected location_id: ${stop.location_id} — keeping anyway`
+        `[SmartBuild] LLM returned unexpected location_id: ${stop.location_id} — keeping anyway`,
       );
     }
   }
@@ -166,7 +172,7 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
  */
 export async function runSmartBuild(pois: BucketPoi[]): Promise<SmartPlan> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not configured');
+    throw new Error("ANTHROPIC_API_KEY is not configured");
   }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -174,14 +180,14 @@ export async function runSmartBuild(pois: BucketPoi[]): Promise<SmartPlan> {
   const expectedIds = new Set(pois.map((p) => p.id));
 
   const message = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
+    model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
     max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: "user", content: prompt }],
   });
 
   const block = message.content[0];
-  if (!block || block.type !== 'text') {
-    throw new Error('Anthropic returned no text content');
+  if (!block || block.type !== "text") {
+    throw new Error("Anthropic returned no text content");
   }
 
   const rawJson = extractJsonFromLlmResponse(block.text);

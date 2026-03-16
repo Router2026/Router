@@ -1,14 +1,15 @@
 // src/lib/reviews/review-service.ts
 // Updated to include explicit user_id linkage (Feature 2).
 
-import { rawDb } from '@/lib/db/raw-client';
-import { CreateReviewInput, Review } from './types';
+import { rawDb } from "@/lib/db/raw-client";
+import { CreateReviewInput, Review } from "./types";
 
 export async function getReviews(locationId?: number): Promise<Review[]> {
   const { rows } = locationId
-    ? await rawDb.query(`SELECT * FROM reviews WHERE location_id = $1 ORDER BY created_at DESC`, [
-        locationId,
-      ])
+    ? await rawDb.query(
+        `SELECT * FROM reviews WHERE location_id = $1 ORDER BY created_at DESC`,
+        [locationId],
+      )
     : await rawDb.query(`SELECT * FROM reviews ORDER BY created_at DESC`);
   return rows as unknown as Review[];
 }
@@ -23,10 +24,10 @@ export async function createReview(data: CreateReviewInput): Promise<Review> {
       data.user_id ?? null,
       data.location_id ?? null,
       data.poi_name ?? null,
-      data.reviewer_name ?? 'אנונימי',
+      data.reviewer_name ?? "אנונימי",
       data.rating,
       data.content,
-    ]
+    ],
   );
 
   // Increment the user's review counter and award XP
@@ -36,7 +37,7 @@ export async function createReview(data: CreateReviewInput): Promise<Review> {
        SET reviews_count = reviews_count + 1,
            xp_points     = xp_points + 20
        WHERE id = $1`,
-      [data.user_id]
+      [data.user_id],
     );
   }
 

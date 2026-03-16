@@ -1,5 +1,5 @@
 /** POI status values aligned with the DB enum */
-export type CommunityPoiStatus = 'pending' | 'approved' | 'rejected';
+export type CommunityPoiStatus = "pending" | "approved" | "rejected";
 
 export interface CommunityPoiRow {
   id: number;

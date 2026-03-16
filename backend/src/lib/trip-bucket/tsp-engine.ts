@@ -40,7 +40,12 @@ export interface TspResult {
 
 // ── Haversine distance ────────────────────────────────────────────────────────
 
-export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function haversineKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
   const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
@@ -61,14 +66,16 @@ function toRad(deg: number): number {
  */
 export function buildHaversineMatrix(nodes: TspNode[]): DistanceMatrix {
   const n = nodes.length;
-  const matrix: DistanceMatrix = Array.from({ length: n }, () => new Array(n).fill(0));
+  const matrix: DistanceMatrix = Array.from({ length: n }, () =>
+    new Array(n).fill(0),
+  );
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const km = haversineKm(
         nodes[i].latitude,
         nodes[i].longitude,
         nodes[j].latitude,
-        nodes[j].longitude
+        nodes[j].longitude,
       );
       const minutes = km; // 60 km/h → 1 km ≈ 1 min
       matrix[i][j] = minutes;
@@ -108,8 +115,12 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
     const m = n - 1; // number of POI nodes
     const FULL = (1 << m) - 1;
 
-    const dp: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(INF));
-    const parent: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(-1));
+    const dp: number[][] = Array.from({ length: 1 << m }, () =>
+      new Array(n).fill(INF),
+    );
+    const parent: number[][] = Array.from({ length: 1 << m }, () =>
+      new Array(n).fill(-1),
+    );
 
     // Initialise: travel from fixed start (0) to each POI directly
     for (let v = 1; v < n; v++) {
@@ -163,8 +174,12 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
 
   // ── Standard variant (no fixed start) ────────────────────────────────────
   const FULL_MASK = (1 << n) - 1;
-  const dp: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(INF));
-  const parent: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(-1));
+  const dp: number[][] = Array.from({ length: 1 << n }, () =>
+    new Array(n).fill(INF),
+  );
+  const parent: number[][] = Array.from({ length: 1 << n }, () =>
+    new Array(n).fill(-1),
+  );
 
   dp[1][0] = 0;
 
@@ -207,7 +222,10 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
 
 // ── Greedy Nearest-Neighbor fallback ─────────────────────────────────────────
 
-function nearestNeighbor(matrix: DistanceMatrix, _fixedStart: boolean): number[] {
+function nearestNeighbor(
+  matrix: DistanceMatrix,
+  _fixedStart: boolean,
+): number[] {
   const n = matrix.length;
   const visited = new Array(n).fill(false);
   const path: number[] = [0];
@@ -241,12 +259,21 @@ function nearestNeighbor(matrix: DistanceMatrix, _fixedStart: boolean): number[]
  * @param fixedStart Pin node 0 as the route origin (user's live location).
  *                   The returned `orderedNodes` will start with that node.
  */
-export function solveTsp(nodes: TspNode[], matrix: DistanceMatrix, fixedStart = false): TspResult {
+export function solveTsp(
+  nodes: TspNode[],
+  matrix: DistanceMatrix,
+  fixedStart = false,
+): TspResult {
   const n = nodes.length;
-  if (n === 0) return { orderedNodes: [], totalTravelMinutes: 0, totalDistanceKm: 0 };
-  if (n === 1) return { orderedNodes: nodes, totalTravelMinutes: 0, totalDistanceKm: 0 };
+  if (n === 0)
+    return { orderedNodes: [], totalTravelMinutes: 0, totalDistanceKm: 0 };
+  if (n === 1)
+    return { orderedNodes: nodes, totalTravelMinutes: 0, totalDistanceKm: 0 };
 
-  const ordering = n <= 20 ? heldKarp(matrix, fixedStart) : nearestNeighbor(matrix, fixedStart);
+  const ordering =
+    n <= 20
+      ? heldKarp(matrix, fixedStart)
+      : nearestNeighbor(matrix, fixedStart);
 
   const orderedNodes = ordering.map((i) => nodes[i]);
 
@@ -260,7 +287,7 @@ export function solveTsp(nodes: TspNode[], matrix: DistanceMatrix, fixedStart = 
       nodes[from].latitude,
       nodes[from].longitude,
       nodes[to].latitude,
-      nodes[to].longitude
+      nodes[to].longitude,
     );
   }
 

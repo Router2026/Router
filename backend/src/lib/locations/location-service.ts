@@ -1,8 +1,8 @@
-import { rawDb } from '@/lib/db/raw-client';
-import { cacheGet, cacheSet } from '@/lib/cache/mem-cache';
+import { rawDb } from "@/lib/db/raw-client";
+import { cacheGet, cacheSet } from "@/lib/cache/mem-cache";
 
-const MAP_CACHE_TTL = parseInt(process.env.MAP_CACHE_TTL || '30');
-const LIST_CACHE_TTL = parseInt(process.env.LIST_CACHE_TTL || '300');
+const MAP_CACHE_TTL = parseInt(process.env.MAP_CACHE_TTL || "30");
+const LIST_CACHE_TTL = parseInt(process.env.LIST_CACHE_TTL || "300");
 
 export interface Location {
   id: number;
@@ -15,7 +15,7 @@ export interface Location {
   longitude: number;
   images: string[];
   main_image?: string;
-  source: 'kkl' | 'inpa' | 'osm' | 'manual' | 'seed';
+  source: "kkl" | "inpa" | "osm" | "manual" | "seed";
   source_id?: string;
   difficulty?: string;
   duration_minutes?: number;
@@ -57,23 +57,23 @@ export interface Cluster {
 function rowToLocation(row: Record<string, unknown>): Location {
   const images = Array.isArray(row.images)
     ? (row.images as string[])
-    : typeof row.images === 'string'
+    : typeof row.images === "string"
       ? JSON.parse(row.images as string)
       : [];
   return {
     id: row.id as number,
     name: row.name as string,
-    description: (row.description as string) || '',
+    description: (row.description as string) || "",
     category: row.category as string,
     region_id: row.region_id as number,
     region_name: row.region_name as string | undefined,
     latitude: parseFloat(row.latitude as string),
     longitude: parseFloat(row.longitude as string),
     images,
-    main_image: (row.main_image as string) || images[0] || '',
-    source: row.source as Location['source'],
+    main_image: (row.main_image as string) || images[0] || "",
+    source: row.source as Location["source"],
     source_id: row.source_id as string | undefined,
-    difficulty: (row.difficulty as string) || 'בינוני',
+    difficulty: (row.difficulty as string) || "בינוני",
     duration_minutes: row.duration_minutes as number | undefined,
     has_water: row.has_water as boolean | undefined,
     has_shade: row.has_shade as boolean | undefined,
@@ -94,7 +94,9 @@ export async function getLocations(query: LocationQuery): Promise<Location[]> {
 
   if (query.region) {
     params.push(query.region);
-    conditions.push(`(r.slug = $${params.length} OR r.name = $${params.length})`);
+    conditions.push(
+      `(r.slug = $${params.length} OR r.name = $${params.length})`,
+    );
   }
   if (query.category) {
     params.push(query.category);
@@ -110,11 +112,11 @@ export async function getLocations(query: LocationQuery): Promise<Location[]> {
   if (query.search) {
     params.push(`%${query.search}%`);
     conditions.push(
-      `(l.name ILIKE $${params.length} OR l.description ILIKE $${params.length} OR l.category ILIKE $${params.length})`
+      `(l.name ILIKE $${params.length} OR l.description ILIKE $${params.length} OR l.category ILIKE $${params.length})`,
     );
   }
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = Math.min(query.limit || 200, 500);
   const offset = query.offset || 0;
   params.push(limit);
@@ -147,7 +149,7 @@ export async function getLocationById(id: number): Promise<Location | null> {
      FROM locations l
      LEFT JOIN regions r ON l.region_id = r.id
      WHERE l.id = $1`,
-    [id]
+    [id],
   );
   if (!rows.length) return null;
   const result = rowToLocation(rows[0]);
@@ -155,7 +157,9 @@ export async function getLocationById(id: number): Promise<Location | null> {
   return result;
 }
 
-export async function getLocationsInBounds(bounds: MapBounds): Promise<Location[]> {
+export async function getLocationsInBounds(
+  bounds: MapBounds,
+): Promise<Location[]> {
   const { north, south, east, west } = bounds;
   const cacheKey = `locations:map:${north.toFixed(4)}:${south.toFixed(4)}:${east.toFixed(4)}:${west.toFixed(4)}`;
   const cached = cacheGet<Location[]>(cacheKey);
@@ -168,7 +172,7 @@ export async function getLocationsInBounds(bounds: MapBounds): Promise<Location[
      WHERE ST_Within(l.geom::geometry, ST_MakeEnvelope($1, $2, $3, $4, 4326))
      ORDER BY l.average_rating DESC
      LIMIT 500`,
-    [west, south, east, north]
+    [west, south, east, north],
   );
 
   const result = rows.map(rowToLocation);
@@ -176,8 +180,10 @@ export async function getLocationsInBounds(bounds: MapBounds): Promise<Location[
   return result;
 }
 
-export async function getLocationClusters(bounds?: MapBounds): Promise<Cluster[]> {
-  let where = '';
+export async function getLocationClusters(
+  bounds?: MapBounds,
+): Promise<Cluster[]> {
+  let where = "";
   const params: number[] = [];
 
   if (bounds) {
@@ -196,7 +202,7 @@ export async function getLocationClusters(bounds?: MapBounds): Promise<Cluster[]
      ${where}
      GROUP BY ROUND(l.latitude::numeric, 1), ROUND(l.longitude::numeric, 1)
      ORDER BY count DESC`,
-    params
+    params,
   );
 
   return rows.map((r) => ({
@@ -214,12 +220,12 @@ export async function upsertLocation(
     latitude: number;
     longitude: number;
     source: string;
-  }
+  },
 ): Promise<number> {
   const {
     name,
-    description = '',
-    category = 'טבע',
+    description = "",
+    category = "טבע",
     region_id,
     latitude,
     longitude,
@@ -227,7 +233,7 @@ export async function upsertLocation(
     main_image,
     source,
     source_id,
-    difficulty = 'בינוני',
+    difficulty = "בינוני",
     duration_minutes,
     has_water = false,
     has_shade = false,
@@ -271,12 +277,12 @@ export async function upsertLocation(
       has_shade,
       accessible,
       average_rating,
-    ]
+    ],
   );
   return rows[0].id as number;
 }
 
 export async function getTotalCount(): Promise<number> {
-  const { rows } = await rawDb.query('SELECT COUNT(*) FROM locations');
+  const { rows } = await rawDb.query("SELECT COUNT(*) FROM locations");
   return parseInt(rows[0].count as string);
 }

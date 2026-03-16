@@ -14,6 +14,8 @@
     "db:seed:v2": "npx tsx src/lib/db/seed-v2.ts",
     "db:migrate:subregions": "npx tsx src/lib/db/migrate-subregions.ts",
     "db:seed:v3": "npx tsx src/lib/db/seed-v3.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vitest",
     "test:coverage": "vitest run --coverage"
   },

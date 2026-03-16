@@ -1,5 +1,5 @@
-import { jsonrepair } from 'jsonrepair';
-import { LLMOutputError } from '@/types/llm';
+import { jsonrepair } from "jsonrepair";
+import { LLMOutputError } from "@/types/llm";
 
 /**
  * Extracts and parses JSON from a raw LLM response string.
@@ -10,7 +10,7 @@ import { LLMOutputError } from '@/types/llm';
  *  4. jsonrepair on the extracted block
  */
 export function extractJson(raw: string): unknown {
-  const cleaned = raw.replace(/```(?:json)?\n?/g, '').trim();
+  const cleaned = raw.replace(/```(?:json)?\n?/g, "").trim();
 
   // 1. Direct parse
   try {
@@ -42,5 +42,7 @@ export function extractJson(raw: string): unknown {
     }
   }
 
-  throw new LLMOutputError(`Could not parse JSON from response: ${raw.slice(0, 200)}`);
+  throw new LLMOutputError(
+    `Could not parse JSON from response: ${raw.slice(0, 200)}`,
+  );
 }

@@ -1,7 +1,7 @@
 // src/lib/reports/report-service.ts
 // Updated to include explicit user_id linkage (Feature 2).
 
-import { rawDb } from '@/lib/db/raw-client';
+import { rawDb } from "@/lib/db/raw-client";
 
 export interface CommunityReport {
   id: number;
@@ -16,13 +16,17 @@ export interface CommunityReport {
   created_at: Date;
 }
 
-export async function getReports(locationId?: number): Promise<CommunityReport[]> {
+export async function getReports(
+  locationId?: number,
+): Promise<CommunityReport[]> {
   const { rows } = locationId
     ? await rawDb.query(
         `SELECT * FROM community_reports WHERE location_id = $1 ORDER BY created_at DESC`,
-        [locationId]
+        [locationId],
       )
-    : await rawDb.query(`SELECT * FROM community_reports ORDER BY created_at DESC`);
+    : await rawDb.query(
+        `SELECT * FROM community_reports ORDER BY created_at DESC`,
+      );
   return rows as unknown as CommunityReport[];
 }
 
@@ -39,7 +43,9 @@ export interface CreateReportInput {
   reporter_name?: string;
 }
 
-export async function createReport(data: CreateReportInput): Promise<CommunityReport> {
+export async function createReport(
+  data: CreateReportInput,
+): Promise<CommunityReport> {
   const { rows } = await rawDb.query(
     `INSERT INTO community_reports
        (user_id, location_id, poi_name, report_type, severity, content, reporter_name)
@@ -50,10 +56,10 @@ export async function createReport(data: CreateReportInput): Promise<CommunityRe
       data.location_id ?? null,
       data.poi_name ?? null,
       data.report_type,
-      data.severity ?? 'בינונית',
+      data.severity ?? "בינונית",
       data.content,
-      data.reporter_name ?? 'אנונימי',
-    ]
+      data.reporter_name ?? "אנונימי",
+    ],
   );
 
   // Increment the user's report counter and award XP
@@ -63,17 +69,19 @@ export async function createReport(data: CreateReportInput): Promise<CommunityRe
        SET reports_count = reports_count + 1,
            xp_points     = xp_points + 10
        WHERE id = $1`,
-      [data.user_id]
+      [data.user_id],
     );
   }
 
   return rows[0] as unknown as CommunityReport;
 }
 
-export async function upvoteReport(id: number): Promise<CommunityReport | null> {
+export async function upvoteReport(
+  id: number,
+): Promise<CommunityReport | null> {
   const { rows } = await rawDb.query(
     `UPDATE community_reports SET upvotes = upvotes + 1 WHERE id = $1 RETURNING *`,
-    [id]
+    [id],
   );
   return (rows[0] as unknown as CommunityReport) ?? null;
 }

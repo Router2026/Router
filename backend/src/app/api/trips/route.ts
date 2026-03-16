@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { TripInputSchema } from '@/lib/trips/schemas';
-import { generateTrip } from '@/lib/trips/trip-service';
-import { successResponse, errorResponse } from '@/lib/api/response';
+import { NextRequest, NextResponse } from "next/server";
+import { TripInputSchema } from "@/lib/trips/schemas";
+import { generateTrip } from "@/lib/trips/trip-service";
+import { successResponse, errorResponse } from "@/lib/api/response";
 
 // Simple in-memory rate limiter: 5 trips per IP per 10 minutes.
 // Note: resets on serverless cold start — use Redis for strict enforcement in production.
@@ -25,14 +25,14 @@ function isRateLimited(ip: string): boolean {
 const IP_RE = /^[0-9a-fA-F.:]{2,45}$/;
 
 function extractClientIp(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
+  const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) {
-    const first = forwarded.split(',')[0].trim();
+    const first = forwarded.split(",")[0].trim();
     if (IP_RE.test(first)) return first;
   }
-  const real = req.headers.get('x-real-ip')?.trim();
+  const real = req.headers.get("x-real-ip")?.trim();
   if (real && IP_RE.test(real)) return real;
-  return 'unknown';
+  return "unknown";
 }
 
 export async function POST(req: NextRequest) {
@@ -41,10 +41,10 @@ export async function POST(req: NextRequest) {
   if (isRateLimited(ip)) {
     return NextResponse.json(
       errorResponse(
-        'Too many requests — please wait before generating another trip',
-        'RATE_LIMITED'
+        "Too many requests — please wait before generating another trip",
+        "RATE_LIMITED",
       ),
-      { status: 429 }
+      { status: 429 },
     );
   }
 
@@ -53,7 +53,10 @@ export async function POST(req: NextRequest) {
     const parsed = TripInputSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(errorResponse('Invalid input', 'VALIDATION_ERROR'), { status: 400 });
+      return NextResponse.json(
+        errorResponse("Invalid input", "VALIDATION_ERROR"),
+        { status: 400 },
+      );
     }
 
     const { uuid, plan } = await generateTrip(parsed.data);
@@ -62,13 +65,15 @@ export async function POST(req: NextRequest) {
       status: 201,
     });
   } catch (err) {
-    console.error('[POST /api/trips]', err);
+    console.error("[POST /api/trips]", err);
     return NextResponse.json(
       errorResponse(
-        err instanceof Error ? err.message : 'Plan generation failed — please try again',
-        'GENERATION_ERROR'
+        err instanceof Error
+          ? err.message
+          : "Plan generation failed — please try again",
+        "GENERATION_ERROR",
       ),
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

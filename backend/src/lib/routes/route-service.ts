@@ -1,4 +1,4 @@
-import { rawDb } from '@/lib/db/raw-client';
+import { rawDb } from "@/lib/db/raw-client";
 
 export interface RouteStop {
   id?: number;
@@ -36,12 +36,12 @@ export async function getRoutes(userId?: number): Promise<Route[]> {
          LEFT JOIN regions reg ON r.region_id = reg.id
          WHERE r.user_id = $1
          ORDER BY r.created_at DESC`,
-        [userId]
+        [userId],
       )
     : await rawDb.query(
         `SELECT r.*, reg.name AS region FROM routes r
          LEFT JOIN regions reg ON r.region_id = reg.id
-         ORDER BY r.created_at DESC`
+         ORDER BY r.created_at DESC`,
       );
   if (!routeRows.length) return [];
 
@@ -52,7 +52,7 @@ export async function getRoutes(userId?: number): Promise<Route[]> {
      LEFT JOIN locations l ON rs.location_id = l.id
      WHERE rs.route_id = ANY($1)
      ORDER BY rs.route_id, rs.order_index`,
-    [routeIds]
+    [routeIds],
   );
 
   return routeRows.map((route) => ({
@@ -60,7 +60,10 @@ export async function getRoutes(userId?: number): Promise<Route[]> {
     total_duration_hours: parseFloat(route.total_duration_hours as string) || 0,
     stops: stopRows
       .filter((s) => s.route_id === route.id)
-      .map((s) => ({ ...s, poi_name: (s.poi_name || s.location_name || '') as string })),
+      .map((s) => ({
+        ...s,
+        poi_name: (s.poi_name || s.location_name || "") as string,
+      })),
   })) as unknown as Route[];
 }
 
@@ -69,7 +72,7 @@ export async function getRouteById(id: number): Promise<Route | null> {
     `SELECT r.*, reg.name AS region FROM routes r
      LEFT JOIN regions reg ON r.region_id = reg.id
      WHERE r.id = $1`,
-    [id]
+    [id],
   );
   if (!rows.length) return null;
   const route = rows[0];
@@ -84,7 +87,7 @@ export async function getRouteById(id: number): Promise<Route | null> {
      LEFT JOIN locations l2 ON rs.location_id IS NULL AND l2.name = rs.poi_name
      WHERE rs.route_id = $1
      ORDER BY rs.order_index`,
-    [id]
+    [id],
   );
 
   return {
@@ -92,7 +95,7 @@ export async function getRouteById(id: number): Promise<Route | null> {
     total_duration_hours: parseFloat(route.total_duration_hours as string) || 0,
     stops: stopRows.map((s) => ({
       ...s,
-      poi_name: (s.poi_name || s.location_name || '') as string,
+      poi_name: (s.poi_name || s.location_name || "") as string,
       latitude: s.latitude ?? null,
       longitude: s.longitude ?? null,
     })),
@@ -100,23 +103,25 @@ export async function getRouteById(id: number): Promise<Route | null> {
 }
 
 export async function deleteRoute(id: number): Promise<void> {
-  await rawDb.query('DELETE FROM routes WHERE id = $1', [id]);
+  await rawDb.query("DELETE FROM routes WHERE id = $1", [id]);
 }
 
-export async function createRoute(data: Partial<Route> & { user_id?: number }): Promise<Route> {
+export async function createRoute(
+  data: Partial<Route> & { user_id?: number },
+): Promise<Route> {
   const { rows } = await rawDb.query(
     `INSERT INTO routes (name, description, region_id, total_duration_hours, difficulty, group_type, style, user_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
     [
-      data.name || 'מסלול חדש',
+      data.name || "מסלול חדש",
       data.description || null,
       data.region_id || null,
       data.total_duration_hours || 0,
-      data.difficulty || 'בינוני',
-      data.group_type || 'משפחה',
-      data.style || 'טבע',
+      data.difficulty || "בינוני",
+      data.group_type || "משפחה",
+      data.style || "טבע",
       data.user_id || null,
-    ]
+    ],
   );
   const route = rows[0];
   const routeId = route.id as number;
@@ -132,14 +137,14 @@ export async function createRoute(data: Partial<Route> & { user_id?: number }): 
         s.location_id || null,
         s.poi_name || null,
         i,
-        s.arrival_time || '09:00',
+        s.arrival_time || "09:00",
         s.duration_minutes || 60,
         s.smart_insight || null,
-      ]
+      ],
     );
   }
 
   const result = await getRouteById(routeId);
-  if (!result) throw new Error('Failed to retrieve created route');
+  if (!result) throw new Error("Failed to retrieve created route");
   return result;
 }

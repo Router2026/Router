@@ -8,9 +8,9 @@
  * connection by the pool's `connect` handler in raw-client.ts).
  */
 
-import { rawDb } from '@/lib/db/raw-client';
-import type { TspNode } from './tsp-engine';
-import { BucketPoi } from './types';
+import { rawDb } from "@/lib/db/raw-client";
+import type { TspNode } from "./tsp-engine";
+import { BucketPoi } from "./types";
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ export async function fetchBucketPois(ids: string[]): Promise<BucketPoi[]> {
      LEFT JOIN regions r ON r.id = l.region_id
      WHERE  l.id = ANY($1::int[])
      ORDER  BY array_position($1::int[], l.id)`,
-    [ids]
+    [ids],
   );
 
   return rows.map((r) => ({

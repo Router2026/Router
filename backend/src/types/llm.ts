@@ -1,15 +1,15 @@
-import type { Poi } from '@/lib/db/schema';
+import type { Poi } from "@/lib/db/schema";
 
 export interface TripInput {
   groupSize: number;
-  travelerType: 'couple' | 'friends' | 'family' | 'solo';
+  travelerType: "couple" | "friends" | "family" | "solo";
   durationDays: number;
   poiCategories: string[];
   areas: string[];
   subAreas: string[];
   dayStartTime: string;
   dayEndTime: string;
-  difficulty: 'easy' | 'moderate' | 'challenging' | 'extreme';
+  difficulty: "easy" | "moderate" | "challenging" | "extreme";
   userLocation?: { lat: number; lng: number };
 }
 
@@ -48,13 +48,13 @@ export interface LLMProvider {
     plan: TripPlan,
     dayIndex: number,
     stopIndex: number,
-    pois: Poi[]
+    pois: Poi[],
   ): Promise<TripStop>;
 }
 
 export class LLMOutputError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'LLMOutputError';
+    this.name = "LLMOutputError";
   }
 }
