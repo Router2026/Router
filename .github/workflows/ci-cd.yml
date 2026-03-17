@@ -7,6 +7,15 @@ on:
     branches: [main]
 
 jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block non-dev branches
+        if: github.head_ref != 'dev'
+        run: |
+          echo "❌ Only 'dev' branch can be merged into 'main'."
+          echo "Source branch was: ${{ github.head_ref }}"
+          exit 1
   lint-backend:
     name: Lint Backend
     runs-on: ubuntu-latest
