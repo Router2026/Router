@@ -7,6 +7,9 @@ import { api, type POI, type Review, type CommunityReport } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketSheet from '../components/TripBucketSheet';
+// ── NEW: Favorite + Upload ─────────────────────────────────────────────────
+import FavoriteButton from '../components/FavoriteButton';
+import UploadPhotoButton from '../components/UploadPhotoButton';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -44,7 +47,6 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
 
   useEffect(() => {
     if (!userCoords) return;
-    // Draw user position dot
     userMarkerRef.current?.remove();
     userMarkerRef.current = L.circleMarker(userCoords, {
       radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1,
@@ -58,7 +60,6 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
           color: '#0d9e6e', weight: 4, opacity: 0.85, dashArray: '8,6',
         }).addTo(map);
         onRouteLoaded({ distanceKm: route.distanceKm, durationMin: route.durationMin });
-        // Fit both points
         map.fitBounds(L.latLngBounds([userCoords, poiCoords]).pad(0.2));
       }
     });
@@ -69,61 +70,34 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
   return null;
 }
 
-// ── Hero Image component (Feature 2) ─────────────────────────────────────────
+// ── Hero Image ─────────────────────────────────────────────────────────────
 function HeroImage({ poi }: { poi: POI }) {
   const [imgIdx, setImgIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
-
-  // Deduplicated image list, main_image first
   const images = useMemo(() => {
     const all = poi.main_image
       ? [poi.main_image, ...poi.images.filter(i => i !== poi.main_image)]
       : [...poi.images];
     return all.filter(Boolean);
   }, [poi.main_image, poi.images]);
-
   const currentImage = !imgError && images[imgIdx] ? images[imgIdx] : null;
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       {currentImage ? (
-        <img
-          key={currentImage}
-          src={currentImage}
-          alt={poi.name}
-          onError={() => setImgError(true)}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        <img key={currentImage} src={currentImage} alt={poi.name} onError={() => setImgError(true)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 72, opacity: 0.3 }}>🏞️</span>
         </div>
       )}
-
-      {/* Gradient scrim */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)' }} />
-
-      {/* Pagination dots */}
       {images.length > 1 && !imgError && (
-        <div style={{
-          position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 6, zIndex: 12,
-        }}>
+        <div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 12 }}>
           {images.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setImgIdx(i)}
-              style={{
-                width: i === imgIdx ? 20 : 6, height: 6, borderRadius: 3,
-                background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.5)',
-                border: 'none', cursor: 'pointer', padding: 0,
-                transition: 'all 0.2s ease',
-              }}
-            />
+            <button key={i} onClick={() => setImgIdx(i)}
+              style={{ width: i === imgIdx ? 20 : 6, height: 6, borderRadius: 3, background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.5)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.2s ease' }} />
           ))}
         </div>
       )}
@@ -143,19 +117,13 @@ function MiniMap({ poi }: { poi: POI }) {
     if (!navigator.geolocation) { setGeoError('הדפדפן אינו תומך בגישה למיקום'); return; }
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
-      pos => {
-        setUserCoords([pos.coords.latitude, pos.coords.longitude]);
-        setGeoError(null);
-        setGeoLoading(false);
-      },
+      pos => { setUserCoords([pos.coords.latitude, pos.coords.longitude]); setGeoError(null); setGeoLoading(false); },
       () => { setGeoError('לא ניתן לקבל את מיקומך'); setGeoLoading(false); },
       { timeout: 10000, enableHighAccuracy: false }
     );
   };
 
-  const onRouteLoaded = useCallback((info: { distanceKm: number; durationMin: number }) => {
-    setRouteInfo(info);
-  }, []);
+  const onRouteLoaded = useCallback((info: { distanceKm: number; durationMin: number }) => setRouteInfo(info), []);
 
   return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', marginBottom: 16 }}>
@@ -176,8 +144,6 @@ function MiniMap({ poi }: { poi: POI }) {
         </div>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>🗺️ מפת ניווט</div>
       </div>
-
-      {/* Map */}
       <div style={{ height: 220, position: 'relative' }}>
         <MapContainer center={poiCoords} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false} scrollWheelZoom={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -185,8 +151,6 @@ function MiniMap({ poi }: { poi: POI }) {
           {userCoords && <RouteLayer userCoords={userCoords} poiCoords={poiCoords} onRouteLoaded={onRouteLoaded} />}
         </MapContainer>
       </div>
-
-      {/* Controls */}
       <div style={{ padding: '12px 16px', direction: 'rtl' }}>
         {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8, textAlign: 'center' }}>{geoError}</div>}
         {!userCoords ? (
@@ -253,26 +217,37 @@ export default function POIDetail() {
   );
 
   const diffColor = DIFF_COLORS[poi.difficulty] || '#16a34a';
+  const poiIdNum = Number(poiId);
 
   return (
     <>
       <div style={{ background: '#f0f4f3', minHeight: '100vh', width: '100%' }}>
 
-        {/* ── Feature 2: Hero Banner ── */}
+        {/* Hero Banner */}
         <div style={{ position: 'relative', height: 350, width: '100%' }}>
           <HeroImage poi={poi} />
 
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
-            {/* Top bar: share + heart + back */}
+            {/* Top bar: share + favorite heart + back */}
             <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
+                {/* Share */}
                 <button
                   onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 </button>
+                {/* ── NEW: Favorite heart button ── */}
+                {!isNaN(poiIdNum) && (
+                  <FavoriteButton
+                    locationId={poiIdNum}
+                    size={20}
+                    style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 14, width: 42, height: 42 }}
+                  />
+                )}
               </div>
+              {/* Back */}
               <button
                 onClick={() => navigate(-1)}
                 style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -293,7 +268,7 @@ export default function POIDetail() {
           </div>
         </div>
 
-        {/* ── Main content ── */}
+        {/* Main content */}
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 16px', marginTop: -20, position: 'relative', zIndex: 20, paddingBottom: 100 }}>
 
           {/* Info card */}
@@ -313,58 +288,22 @@ export default function POIDetail() {
                   {poi.duration_minutes} דקות
                 </span>
               )}
-              {poi.has_water && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#0284c7' }}>💧 יש מים</span>}
-              {poi.has_shade && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🌿 יש צל</span>}
-              {poi.accessible && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf5ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>♿ נגיש</span>}
+              {poi.has_water  && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff',  borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#0284c7' }}>💧 יש מים</span>}
+              {poi.has_shade  && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4',  borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🌿 יש צל</span>}
+              {poi.accessible && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf5ff',  borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>♿ נגיש</span>}
             </div>
 
-            {/* ── Add to Trip Bucket button (prominent CTA) ── */}
+            {/* Google Maps CTA */}
             <button
-              onClick={() => {
-                window.open(`https://www.google.com/maps/search/?api=1&query=${poi.name}`, '_blank', 'noopener,noreferrer')
-              }
-              }
-              style={{
-                width: '100%',
-                marginTop: 20,
-                padding: '14px',
-                border: 'none',
-                borderRadius: 16,
-                background: hasPoi(poi.id)
-                  ? 'linear-gradient(135deg, #e8f5e9, #f0fdf8)'
-                  : 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                color: hasPoi(poi.id) ? '#0d9e6e' : '#fff',
-                fontSize: 16,
-                fontWeight: 900,
-                cursor: 'pointer',
-                fontFamily: 'Heebo, sans-serif',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                boxShadow: hasPoi(poi.id) ? 'none' : '0 6px 20px rgba(13,158,110,0.25)',
-                transition: 'all 0.2s ease',
-              }}
+              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${poi.name}`, '_blank', 'noopener,noreferrer')}
+              style={{ width: '100%', marginTop: 20, padding: '14px', border: 'none', borderRadius: 16, background: hasPoi(poi.id) ? 'linear-gradient(135deg, #e8f5e9, #f0fdf8)' : 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: hasPoi(poi.id) ? '#0d9e6e' : '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: hasPoi(poi.id) ? 'none' : '0 6px 20px rgba(13,158,110,0.25)', transition: 'all 0.2s ease' }}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {/* Map pin icon */}
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               פתח בגוגל מפות
             </button>
           </div>
 
-          {/* Feature 1: Mini-Map (fixed flickering) */}
+          {/* Mini-Map */}
           <MiniMap poi={poi} />
 
           {/* Tabs */}
@@ -373,11 +312,8 @@ export default function POIDetail() {
               { key: 'reports', label: `דיווחים (${reports.length})` },
               { key: 'reviews', label: `ביקורות (${reviews.length})` },
             ].map(t => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key as any)}
-                style={{ flex: 1, padding: '12px', borderRadius: 16, border: 'none', background: tab === t.key ? '#0d9e6e' : 'transparent', color: tab === t.key ? '#fff' : '#94a3b8', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}
-              >
+              <button key={t.key} onClick={() => setTab(t.key as any)}
+                style={{ flex: 1, padding: '12px', borderRadius: 16, border: 'none', background: tab === t.key ? '#0d9e6e' : 'transparent', color: tab === t.key ? '#fff' : '#94a3b8', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>
                 {t.label}
               </button>
             ))}
@@ -409,7 +345,6 @@ export default function POIDetail() {
             </div>
           )}
 
-          {/* Reviews tab */}
           {tab === 'reviews' && (
             <div style={{ direction: 'rtl' }}>
               {reviews.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין ביקורות עדיין</div>}
@@ -436,6 +371,13 @@ export default function POIDetail() {
             </div>
           )}
 
+          {/* ── NEW: Upload Photo button (above Waze CTA) ── */}
+          {isLoggedIn && !isNaN(poiIdNum) && (
+            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
+              <UploadPhotoButton locationId={poiIdNum} />
+            </div>
+          )}
+
           <button
             onClick={() => window.open(`https://waze.com/ul?q=${encodeURIComponent(poi.name)}`, '_blank')}
             style={{ width: '100%', padding: '18px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 18, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 24px rgba(13,158,110,0.25)', marginTop: 8 }}
@@ -444,7 +386,7 @@ export default function POIDetail() {
             נווט לשם
           </button>
         </div>
-      </div >
+      </div>
       <TripBucketSheet />
     </>
   );

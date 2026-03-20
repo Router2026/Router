@@ -1,11 +1,6 @@
-// src/pages/ContributePOI.tsx
-// Feature 3: User form to contribute a new community POI.
-// The user taps the map to set a point, then fills out name/category/description
-// and optionally attaches photo URLs.  Submits to POST /api/community-pois.
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
@@ -21,8 +16,24 @@ L.Icon.Default.mergeOptions({
   iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow,
 });
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-// ── Map click handler ─────────────────────────────────────────────────────────
+/**
+ * Extracts coordinates from a Google Maps URL or string.
+ * Looks for patterns like @32.123,34.123 or q=32.123,34.123
+ */
+const extractLatLngFromGoogle = (input: string): LatLng | null => {
+  const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)/;
+  const match = input.match(regex);
+  if (match) {
+    const lat = parseFloat(match[1] || match[3]);
+    const lng = parseFloat(match[2] || match[4]);
+    return { lat, lng };
+  }
+  return null;
+};
+
+// ── Map Components ───────────────────────────────────────────────────────────
 
 function MapClickHandler({ onPick }: { onPick: (ll: LatLng) => void }) {
   useMapEvents({
@@ -31,7 +42,18 @@ function MapClickHandler({ onPick }: { onPick: (ll: LatLng) => void }) {
   return null;
 }
 
-// ── Picked-point marker ───────────────────────────────────────────────────────
+/**
+ * Automatically pans and zooms the map when a point is picked (via import)
+ */
+function MapRecenter({ position }: { position: LatLng | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (position) {
+      map.setView([position.lat, position.lng], 16, { animate: true });
+    }
+  }, [position, map]);
+  return null;
+}
 
 function PickedMarker({ position }: { position: LatLng }) {
   const icon = L.divIcon({
@@ -54,9 +76,7 @@ function PickedMarker({ position }: { position: LatLng }) {
   return <Marker position={[position.lat, position.lng]} icon={icon} />;
 }
 
-// ── Category config ───────────────────────────────────────────────────────────
-
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ContributePOI() {
   const navigate = useNavigate();
@@ -64,6 +84,7 @@ export default function ContributePOI() {
 
   // Map state
   const [pickedPoint, setPickedPoint] = useState<LatLng | null>(null);
+  const [googleUrl, setGoogleUrl] = useState('');
 
   // Form state
   const [name, setName] = useState('');
@@ -77,8 +98,18 @@ export default function ContributePOI() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  // Default center: Israel
   const defaultCenter: LatLng = { lat: 31.8, lng: 35.2 };
+
+  const handleImportGoogleMaps = () => {
+    const coords = extractLatLngFromGoogle(googleUrl);
+    if (coords) {
+      setPickedPoint(coords);
+      setGoogleUrl('');
+      setError('');
+    } else {
+      setError('לא הצלחנו למצוא מיקום בלינק שסיפקת. וודא שהעתקת לינק תקין מ-Google Maps.');
+    }
+  };
 
   const addPhoto = () => {
     const url = photoUrl.trim();
@@ -120,7 +151,6 @@ export default function ContributePOI() {
         const json = await res.json().catch(() => ({}));
         throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
       }
-
       setSubmitted(true);
     } catch (err: any) {
       setError(err.message ?? 'אירעה שגיאה בשמירה');
@@ -129,7 +159,6 @@ export default function ContributePOI() {
     }
   };
 
-  // ── Success screen ──────────────────────────────────────────────────────────
   if (submitted) {
     return (
       <div style={{
@@ -164,7 +193,6 @@ export default function ContributePOI() {
     );
   }
 
-  // ── Auth guard ──────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
     return (
       <div style={{
@@ -198,7 +226,6 @@ export default function ContributePOI() {
     );
   }
 
-  // ── Main form ───────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl' }}>
 
@@ -239,15 +266,28 @@ export default function ContributePOI() {
             1. בחר נקודה על המפה
           </div>
 
-          {!pickedPoint && (
-            <div style={{
-              marginBottom: 8, padding: '8px 14px', background: '#fefce8',
-              borderRadius: 10, fontSize: 12, color: '#92400e', textAlign: 'right',
-              border: '1px solid #fde68a',
-            }}>
-              לחץ על המפה כדי לסמן את המיקום
-            </div>
-          )}
+          {/* Google Maps Import UI */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input
+              value={googleUrl}
+              onChange={e => setGoogleUrl(e.target.value)}
+              placeholder="הדבק לינק מ-Google Maps..."
+              style={{
+                flex: 1, border: '2px solid #e2e8f0', borderRadius: 12,
+                padding: '10px 14px', fontSize: 13, fontFamily: 'Heebo, sans-serif',
+                textAlign: 'right', outline: 'none', color: '#1a2e2a',
+              }}
+            />
+            <button
+              onClick={handleImportGoogleMaps}
+              style={{
+                padding: '10px 16px', background: '#4285F4', color: '#fff',
+                border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 800,
+                cursor: 'pointer', fontFamily: 'Heebo, sans-serif'
+              }}>
+              ייבוא
+            </button>
+          </div>
 
           <div style={{
             borderRadius: 16, overflow: 'hidden', height: 240,
@@ -262,6 +302,7 @@ export default function ContributePOI() {
             >
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <MapClickHandler onPick={setPickedPoint} />
+              <MapRecenter position={pickedPoint} />
               {pickedPoint && <PickedMarker position={pickedPoint} />}
             </MapContainer>
           </div>

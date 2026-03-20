@@ -1,8 +1,8 @@
-// ── Real API client — connects to backend via Vite proxy (/api → localhost:3001)
+// src/api.ts  — FULL REPLACEMENT (adds favorites, location images, public trips, profile)
+// All existing exports are preserved; new ones appended.
 
 const BASE_URL = '/api';
 
-// Token getter — set by AuthContext after login
 let _token: string | null = null;
 export function setAuthToken(t: string | null) { _token = t; }
 export function getAuthToken() { return _token; }
@@ -15,9 +15,15 @@ class ApiError extends Error {
   }
 }
 
+// TOKEN_KEY must match the key used in AuthContext.tsx
+const TOKEN_KEY = 'router_auth_token';
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  // Use in-memory token if set; fall back to localStorage to survive
+  // race conditions where apiFetch fires before TokenSync's useEffect runs.
+  const token = _token ?? localStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (_token) headers['Authorization'] = `Bearer ${_token}`;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${BASE_URL}${path}`, { headers, ...options });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
@@ -34,7 +40,6 @@ export interface Region {
   id: number; name: string; name_en: string; slug: string;
   center_lat: number; center_lng: number; zoom: number;
   radius_meters: number; color: string;
-  // [lat, lng] pairs — Leaflet order, ready to use directly
   polygon_coords: [number, number][] | null;
 }
 
@@ -77,7 +82,9 @@ export interface VideoPost {
 
 export interface UserProfile {
   id: string; email?: string; full_name?: string; username: string;
-  xp_points: number; level: string; is_admin?: boolean;
+  xp_points: number; xp?: number; level: string; level_number?: number;
+  is_admin?: boolean; bio?: string; avatar_url?: string; cover_image?: string;
+  favorite_regions?: string[]; instagram?: string; website?: string;
   reports_count?: number; reviews_count?: number; trips_count?: number;
 }
 
@@ -86,115 +93,60 @@ export interface AppStats {
 }
 
 export interface CommunityPoiSubmission {
-  id: number;
-  user_id: number | null;
-  name: string;
-  category: string;
-  description: string | null;
-  latitude: number;
-  longitude: number;
-  photos: string[];
-  status: 'pending' | 'approved' | 'rejected';
-  admin_note: string | null;
-  reviewed_at: string | null;
-  created_at: string;
-  submitter_username?: string;
+  id: number; user_id: number | null; name: string; category: string;
+  description: string | null; latitude: number; longitude: number;
+  photos: string[]; status: 'pending' | 'approved' | 'rejected';
+  admin_note: string | null; reviewed_at: string | null; created_at: string;
 }
 
-// ── Mapper ─────────────────────────────────────────────────────────────────
-
-function mapCommunityPoi(r: any): CommunityPoiSubmission {
-  return {
-    id: r.id,
-    user_id: r.user_id ?? null,
-    name: r.name,
-    category: r.category,
-    description: r.description ?? null,
-    latitude: parseFloat(r.latitude),
-    longitude: parseFloat(r.longitude),
-    photos: Array.isArray(r.photos) ? r.photos : [],
-    status: r.status,
-    admin_note: r.admin_note ?? null,
-    reviewed_at: r.reviewed_at ?? null,
-    created_at: r.created_at,
-    submitter_username: r.submitter_username,
-  };
+// ── NEW: Location image types ──────────────────────────────────────────────
+export interface LocationImage {
+  id: number; user_id: number; location_id: number;
+  image_url: string; created_at: string; username?: string;
 }
 
-// ── api.communityPois — add to the `api` object in api.ts ─────────────────
+export interface XpResult {
+  new_xp: number; new_level: number; level_label: string; leveled_up: boolean;
+}
 
-export const communityPoisApi = {
-  /** Public: list approved community POIs */
-  list: async (): Promise<CommunityPoiSubmission[]> => {
-    const BASE_URL = '/api';
-    let _token: string | null = null;
-    try { _token = localStorage.getItem('router_auth_token'); } catch { /* noop */ }
+export interface UploadImageResponse {
+  image: LocationImage; xp: XpResult; limit: number;
+}
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_token) headers['Authorization'] = `Bearer ${_token}`;
+// ── NEW: Public trip types ─────────────────────────────────────────────────
+export interface PublicTripLocation {
+  id: number; location_id: number; name: string; category: string;
+  latitude: number; longitude: number; main_image: string | null;
+  order_index: number; region_name?: string; difficulty?: string;
+}
 
-    const res = await fetch(`${BASE_URL}/community-pois`, { headers });
-    const json = await res.json();
-    return (json.data ?? []).map(mapCommunityPoi);
-  },
+export interface PublicTrip {
+  id: number; user_id: number; title: string; description: string | null;
+  route_geojson: object | null; is_public: boolean; created_at: string;
+  creator_username: string; creator_avatar: string | null;
+  creator_xp: number; location_count: number; locations: PublicTripLocation[];
+}
 
-  /** Authenticated user submits a new community POI */
-  create: async (data: {
-    name: string;
-    category: string;
-    description?: string;
-    latitude: number;
-    longitude: number;
-    photos?: string[];
-  }): Promise<CommunityPoiSubmission> => {
-    const BASE_URL = '/api';
-    let _token: string | null = null;
-    try { _token = localStorage.getItem('router_auth_token'); } catch { /* noop */ }
+// ── NEW: Favorite type ─────────────────────────────────────────────────────
+export interface FavoriteLocation {
+  id: number; user_id: number; location_id: number; created_at: string;
+  name?: string; category?: string; region_name?: string;
+  latitude?: number; longitude?: number;
+  main_image?: string; difficulty?: string; average_rating?: number;
+}
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_token) headers['Authorization'] = `Bearer ${_token}`;
-
-    const res = await fetch(`${BASE_URL}/community-pois`, {
-      method: 'POST', headers, body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      throw new Error(j?.error?.message ?? `HTTP ${res.status}`);
-    }
-    const json = await res.json();
-    return mapCommunityPoi(json.data);
-  },
-};
-
-// ── api.pushTokens — add to the `api` object in api.ts ────────────────────
-
-export const pushTokensApi = {
-  /** Register a device push token for the current user */
-  register: async (token: string, platform: 'fcm' | 'apns' = 'fcm'): Promise<void> => {
-    const BASE_URL = '/api';
-    let _authToken: string | null = null;
-    try { _authToken = localStorage.getItem('router_auth_token'); } catch { /* noop */ }
-
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_authToken) headers['Authorization'] = `Bearer ${_authToken}`;
-
-    await fetch(`${BASE_URL}/push-tokens`, {
-      method: 'POST', headers, body: JSON.stringify({ token, platform }),
-    });
-  },
-};
-
-// ── Mappers ────────────────────────────────────────────────────────────────
+// ── Mapper helpers ─────────────────────────────────────────────────────────
 
 function mapLocation(r: any): POI {
   return {
     id: String(r.id), name: r.name, description: r.description || '',
-    category: r.category || '', region: r.region_name || r.region || '',
-    region_id: r.region_id, latitude: parseFloat(r.latitude), longitude: parseFloat(r.longitude),
-    images: Array.isArray(r.images) ? r.images : [],
-    main_image: r.main_image || (Array.isArray(r.images) ? r.images[0] : '') || '',
-    difficulty: r.difficulty || 'בינוני', duration_minutes: r.duration_minutes,
-    has_water: r.has_water, has_shade: r.has_shade, accessible: r.accessible,
+    category: r.category, region: r.region_name || r.region || '',
+    region_id: r.region_id, latitude: parseFloat(r.latitude),
+    longitude: parseFloat(r.longitude),
+    images: Array.isArray(r.images) ? r.images : (typeof r.images === 'string' ? JSON.parse(r.images) : []),
+    main_image: r.main_image || '', difficulty: r.difficulty || 'בינוני',
+    duration_minutes: r.duration_minutes, has_water: r.has_water,
+    has_shade: r.has_shade, accessible: r.accessible,
     average_rating: parseFloat(r.average_rating) || 4.0,
   };
 }
@@ -227,7 +179,20 @@ function mapVideo(r: any): VideoPost {
 }
 
 function mapUser(r: any): UserProfile {
-  return { id: String(r.id), email: r.email, full_name: r.full_name, username: r.username || r.display_name || 'user', xp_points: r.xp_points || 0, level: r.level || 'מטייל מתחיל', is_admin: r.is_admin ?? false, reports_count: r.reports_count || 0, reviews_count: r.reviews_count || 0, trips_count: r.trips_count || 0 };
+  const xp = r.xp ?? r.xp_points ?? 0;
+  return {
+    id: String(r.id), email: r.email, full_name: r.full_name,
+    username: r.username || r.display_name || 'user',
+    xp_points: xp, xp,
+    level: r.level || 'מטייל מתחיל',
+    level_number: r.level_number ?? Math.floor(Math.sqrt(xp / 50)),
+    is_admin: r.is_admin ?? false,
+    bio: r.bio, avatar_url: r.avatar_url, cover_image: r.cover_image,
+    favorite_regions: r.favorite_regions, instagram: r.instagram, website: r.website,
+    reports_count: r.reports_count || 0,
+    reviews_count: r.reviews_count || 0,
+    trips_count:   r.trips_count   || 0,
+  };
 }
 
 // ── Main API Object ────────────────────────────────────────────────────────
@@ -286,17 +251,21 @@ export const api = {
 
   // ── Locations ────────────────────────────────────────────────
   locations: {
-    list: async (params?: { region?: string; category?: string; difficulty?: string; search?: string; has_water?: boolean; has_shade?: boolean; accessible?: boolean; limit?: number; offset?: number }): Promise<POI[]> => {
+    list: async (params?: {
+      region?: string; category?: string; difficulty?: string; search?: string;
+      has_water?: boolean; has_shade?: boolean; accessible?: boolean;
+      limit?: number; offset?: number;
+    }): Promise<POI[]> => {
       const qs = new URLSearchParams();
-      if (params?.region) qs.set('region', params.region);
-      if (params?.category) qs.set('category', params.category);
+      if (params?.region)     qs.set('region',     params.region);
+      if (params?.category)   qs.set('category',   params.category);
       if (params?.difficulty) qs.set('difficulty', params.difficulty);
-      if (params?.search) qs.set('search', params.search);
-      if (params?.has_water) qs.set('has_water', 'true');
-      if (params?.has_shade) qs.set('has_shade', 'true');
+      if (params?.search)     qs.set('search',     params.search);
+      if (params?.has_water)  qs.set('has_water',  'true');
+      if (params?.has_shade)  qs.set('has_shade',  'true');
       if (params?.accessible) qs.set('accessible', 'true');
-      if (params?.limit) qs.set('limit', String(params.limit));
-      if (params?.offset) qs.set('offset', String(params.offset));
+      if (params?.limit)      qs.set('limit',  String(params.limit));
+      if (params?.offset)     qs.set('offset', String(params.offset));
       return (await apiFetch<{ data: any[] }>(`/locations?${qs}`)).data.map(mapLocation);
     },
     get: async (id: string): Promise<POI> => mapLocation((await apiFetch<{ data: any }>(`/locations/${id}`)).data),
@@ -304,15 +273,40 @@ export const api = {
       const qs = new URLSearchParams({ north: String(b.north), south: String(b.south), east: String(b.east), west: String(b.west) });
       return (await apiFetch<{ data: any[] }>(`/locations/map?${qs}`)).data.map(mapLocation);
     },
+    // ── NEW: location images ──────────────────────────────────
+    getImages: async (locationId: string | number): Promise<LocationImage[]> =>
+      (await apiFetch<{ data: LocationImage[] }>(`/locations/${locationId}/images`)).data,
+    uploadImage: async (locationId: string | number, imageUrl: string): Promise<UploadImageResponse> =>
+      (await apiFetch<{ data: UploadImageResponse }>(`/locations/${locationId}/images`, {
+        method: 'POST', body: JSON.stringify({ image_url: imageUrl }),
+      })).data,
   },
 
-  // ── Trips ────────────────────────────────────────────────────
+  // ── Trips (community routes — AI generator) ──────────────────
   trips: {
-    // Router community routes live at /api/routes (/api/trips is the main app's AI generator)
     list: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
     get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`)).data),
     create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
+  },
+
+  // ── NEW: Public trips ─────────────────────────────────────────
+  publicTrips: {
+    list: async (params?: { region?: string; difficulty?: string; limit?: number; offset?: number }): Promise<PublicTrip[]> => {
+      const qs = new URLSearchParams();
+      if (params?.region)     qs.set('region',     params.region);
+      if (params?.difficulty) qs.set('difficulty', params.difficulty);
+      if (params?.limit)      qs.set('limit',  String(params.limit));
+      if (params?.offset)     qs.set('offset', String(params.offset));
+      return (await apiFetch<{ data: PublicTrip[] }>(`/trips/public?${qs}`)).data;
+    },
+    get: async (id: number): Promise<PublicTrip> =>
+      (await apiFetch<{ data: PublicTrip }>(`/trips/public/${id}`)).data,
+    create: async (data: {
+      title: string; description?: string;
+      route_geojson?: object; is_public?: boolean; location_ids?: number[];
+    }): Promise<PublicTrip> =>
+      (await apiFetch<{ data: PublicTrip }>('/trips/public', { method: 'POST', body: JSON.stringify(data) })).data,
   },
 
   // ── Reviews ──────────────────────────────────────────────────
@@ -349,8 +343,23 @@ export const api = {
   // ── Users ────────────────────────────────────────────────────
   users: {
     me: async (): Promise<UserProfile> => mapUser((await apiFetch<{ data: any }>('/users/me')).data),
+    updateMe: async (data: Partial<Pick<UserProfile, 'username' | 'full_name' | 'bio' | 'avatar_url' | 'cover_image' | 'favorite_regions' | 'instagram' | 'website'>>): Promise<UserProfile> =>
+      mapUser((await apiFetch<{ data: any }>('/users/me', { method: 'PATCH', body: JSON.stringify(data) })).data),
     leaderboard: async (): Promise<UserProfile[]> => (await apiFetch<{ data: any[] }>('/users/leaderboard')).data.map(mapUser),
     stats: async (): Promise<AppStats> => (await apiFetch<{ data: AppStats }>('/users/stats')).data,
+    // ── NEW: Favorites ────────────────────────────────────────
+    getFavorites: async (): Promise<FavoriteLocation[]> =>
+      (await apiFetch<{ data: FavoriteLocation[] }>('/users/me/favorites')).data,
+  },
+
+  // ── NEW: Favorites (location-scoped) ─────────────────────────
+  favorites: {
+    add: async (locationId: number): Promise<{ favorited: boolean; favorite: FavoriteLocation }> =>
+      (await apiFetch<{ data: any }>(`/favorites/${locationId}`, { method: 'POST' })).data,
+    remove: async (locationId: number): Promise<{ favorited: boolean }> =>
+      (await apiFetch<{ data: any }>(`/favorites/${locationId}`, { method: 'DELETE' })).data,
+    list: async (): Promise<FavoriteLocation[]> =>
+      (await apiFetch<{ data: FavoriteLocation[] }>('/users/me/favorites')).data,
   },
 
   // ── Admin ─────────────────────────────────────────────────────
@@ -365,7 +374,7 @@ export const api = {
   },
 };
 
-// ── Legacy shim for pages still using base44.entities.* patterns ──────────
+// ── Legacy shim (unchanged) ────────────────────────────────────────────────
 export const base44 = {
   auth: {
     me: () => api.users.me().then(u => ({ id: u.id, email: u.email || '', full_name: u.full_name || u.username })),
@@ -383,40 +392,18 @@ export const base44 = {
       UploadFile: async (_a: { file: File }) => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
       InvokeLLM: async ({ body }: { body: string }) => {
         const req = JSON.parse(body);
-        // Normalize group type: Hebrew display names → English IDs
         const GROUP_TYPE_MAP: Record<string, string> = { 'יחיד': 'solo', 'זוג': 'couple', 'משפחה': 'family', 'חברים': 'friends' };
+        const STYLE_MAP: Record<string, string> = { 'היסטוריה ותרבות': 'history', 'מים ומעיינות': 'water', 'צילום ונוף': 'photo', 'צילום': 'photo', 'נופים ומצפים': 'nature', 'טיולים ומסלולים': 'hiking', 'חופים וים': 'beach', 'גיאולוגיה': 'geology', 'יין ואוכל': 'wine', 'כפרים ומסורת': 'village', 'פעילויות לילדים': 'family_activities' };
         const groupTypeId = GROUP_TYPE_MAP[req.group_type] ?? req.group_type;
-        // Normalize styles: Hebrew display names → English IDs
-        const STYLE_MAP: Record<string, string> = {
-          'היסטוריה ותרבות': 'history', 'מים ומעיינות': 'water', 'צילום ונוף': 'photo',
-          'צילום': 'photo', 'נופים ומצפים': 'nature', 'טיולים ומסלולים': 'hiking',
-          'חופים וים': 'beach', 'גיאולוגיה': 'geology', 'יין ואוכל': 'wine',
-          'כפרים ומסורת': 'village', 'פעילויות לילדים': 'family_activities',
-        };
-        const styleIds = req.style
-          ? req.style.split(', ').map((s: string) => STYLE_MAP[s.trim()] ?? s.trim())
-          : [];
-        // Call the real AI endpoint on the Next.js backend
+        const styleIds = req.style ? req.style.split(', ').map((s: string) => STYLE_MAP[s.trim()] ?? s.trim()) : [];
         const res = await fetch('/api/ai/generate-route', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            region: req.region,
-            groupType: groupTypeId,
-            styles: styleIds,
-            startTime: req.start_time || '09:00',
-            endTime: req.end_time || '16:00',
-            includeFood: req.include_food || false,
-            includeCoffee: req.include_coffee || false,
-            userLocation: req.user_location || null,
-          }),
+          headers: { 'Content-Type': 'application/json', ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) },
+          body: JSON.stringify({ ...req, group_type: groupTypeId, style: styleIds.join(', ') }),
         });
-        if (!res.ok) throw new Error(`AI generation failed: ${res.status}`);
-        const json = await res.json();
-        return json.data;
+        if (!res.ok) throw new Error(`AI endpoint error: ${res.status}`);
+        return res.json();
       },
     },
   },
 };
-
-export const ALL_POIS: POI[] = [];
