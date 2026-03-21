@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const justVerified = searchParams.get('verified') === 'true';
   const { login } = useAuth();
   const from = (location.state as any)?.from?.pathname || '/';
   const [email, setEmail] = useState('');
@@ -71,6 +73,11 @@ export default function Login() {
       <div style={{ maxWidth: 420, margin: '-28px auto 0', padding: '0 20px 100px', position: 'relative', zIndex: 10 }}>
         <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.1)', padding: '28px 24px 24px' }}>
 
+          {justVerified && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '10px 14px', marginBottom: 16, color: '#166534', fontWeight: 700, fontSize: 14, textAlign: 'right' }}>
+              ✓ האימייל אומת בהצלחה! כעת ניתן להתחבר.
+            </div>
+          )}
           <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', textAlign: 'right', marginBottom: 22 }}>כניסה לחשבון</div>
 
           {/* Email */}

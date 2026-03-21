@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       password,
       options: {
         data: { full_name: full_name.trim(), username: normalizedUsername },
-        emailRedirectTo: `${process.env.APP_URL}/auth/verify`,
+        emailRedirectTo: `${process.env.FRONTEND_URL}/VerifyEmail`,
       },
     });
 

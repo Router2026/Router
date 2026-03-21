@@ -18,9 +18,8 @@ export default function VerifyEmail() {
     if (!token) { setStatus('no_token'); return; }
 
     api.auth.verifyEmail(token)
-      .then(async ({ token: jwt }) => {
-        await loginWithToken(jwt);
-        navigate('/', { replace: true });
+      .then(async () => {
+        navigate('/Login?verified=true', { replace: true });
       })
       .catch((err: any) => {
         if (err.message?.includes('expired')) setStatus('expired');
