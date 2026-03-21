@@ -14,6 +14,17 @@ export default function VerifyEmail() {
   const [resent, setResent] = useState(false);
 
   useEffect(() => {
+    // Supabase redirects with hash: #access_token=...&type=signup
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hash.get('access_token');
+    const type = hash.get('type');
+
+    if (accessToken && (type === 'signup' || type === 'email' || type === 'recovery')) {
+      navigate('/Login?verified=true', { replace: true });
+      return;
+    }
+
+    // Fallback: token in query param
     const token = params.get('token');
     if (!token) { setStatus('no_token'); return; }
 
