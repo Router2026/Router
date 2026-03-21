@@ -116,8 +116,8 @@ export interface PublicTrip {
   route_geojson: object | null; is_public: boolean; created_at: string;
   creator_username: string; creator_avatar: string | null;
   creator_xp: number; location_count: number; locations: PublicTripLocation[];
+  region?: string; difficulty?: string; style?: string; total_duration_hours?: number; group_type?: string;
 }
-
 export interface FavoriteLocation {
   id: number; user_id: number; location_id: number; created_at: string;
   name?: string; category?: string; region_name?: string;
@@ -185,7 +185,7 @@ function mapUser(r: any): UserProfile {
     favorite_regions: r.favorite_regions, instagram: r.instagram, website: r.website,
     reports_count: r.reports_count || 0,
     reviews_count: r.reviews_count || 0,
-    trips_count:   r.trips_count   || 0,
+    trips_count: r.trips_count || 0,
   };
 }
 
@@ -251,15 +251,15 @@ export const api = {
       limit?: number; offset?: number;
     }): Promise<POI[]> => {
       const qs = new URLSearchParams();
-      if (params?.region)     qs.set('region',     params.region);
-      if (params?.category)   qs.set('category',   params.category);
+      if (params?.region) qs.set('region', params.region);
+      if (params?.category) qs.set('category', params.category);
       if (params?.difficulty) qs.set('difficulty', params.difficulty);
-      if (params?.search)     qs.set('search',     params.search);
-      if (params?.has_water)  qs.set('has_water',  'true');
-      if (params?.has_shade)  qs.set('has_shade',  'true');
+      if (params?.search) qs.set('search', params.search);
+      if (params?.has_water) qs.set('has_water', 'true');
+      if (params?.has_shade) qs.set('has_shade', 'true');
       if (params?.accessible) qs.set('accessible', 'true');
-      if (params?.limit)      qs.set('limit',  String(params.limit));
-      if (params?.offset)     qs.set('offset', String(params.offset));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
       return (await apiFetch<{ data: any[] }>(`/locations?${qs}`)).data.map(mapLocation);
     },
     get: async (id: string): Promise<POI> => mapLocation((await apiFetch<{ data: any }>(`/locations/${id}`)).data),
@@ -315,10 +315,10 @@ export const api = {
   publicTrips: {
     list: async (params?: { region?: string; difficulty?: string; limit?: number; offset?: number }): Promise<PublicTrip[]> => {
       const qs = new URLSearchParams();
-      if (params?.region)     qs.set('region',     params.region);
+      if (params?.region) qs.set('region', params.region);
       if (params?.difficulty) qs.set('difficulty', params.difficulty);
-      if (params?.limit)      qs.set('limit',  String(params.limit));
-      if (params?.offset)     qs.set('offset', String(params.offset));
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
       return (await apiFetch<{ data: PublicTrip[] }>(`/trips/public?${qs}`)).data;
     },
     get: async (id: number): Promise<PublicTrip> =>
