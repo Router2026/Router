@@ -414,8 +414,8 @@ export default function TripBucketSheet() {
       const poiIds = items.map(i => i.poi.id);
       const endpoint =
         buildMode === 'smart'
-          ? '/api/trip-bucket/smart-build'
-          : '/api/trip-bucket/proximity';
+          ? (import.meta.env.VITE_API_URL ?? '') + '/api/trip-bucket/smart-build'
+          : (import.meta.env.VITE_API_URL ?? '') + '/api/trip-bucket/proximity';
 
       const res = await fetch(endpoint, {
         method: 'POST',
