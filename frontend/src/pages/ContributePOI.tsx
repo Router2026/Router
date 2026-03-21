@@ -19,19 +19,59 @@ L.Icon.Default.mergeOptions({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Extracts coordinates from a Google Maps URL or string.
- * Looks for patterns like @32.123,34.123 or q=32.123,34.123
+ * Feature 14: Robust coordinate extraction from Google Maps URLs and raw text.
+ *
+ * Handles:
+ *  • https://maps.google.com/…@32.1,34.9,…z
+ *  • https://www.google.com/maps/place/…/@32.1,34.9,17z
+ *  • https://www.google.com/maps/search/…/@32.1,34.9
+ *  • ?q=32.1,34.9 and &ll=32.1,34.9
+ *  • !3d32.1!4d34.9  (embedded in long URLs)
+ *  • Raw "32.1, 34.9" coordinate string
+ *  • maps.app.goo.gl short links  →  returns null (can't expand client-side)
  */
 const extractLatLngFromGoogle = (input: string): LatLng | null => {
-  const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)|q=(-?\d+\.\d+),(-?\d+\.\d+)/;
-  const match = input.match(regex);
-  if (match) {
-    const lat = parseFloat(match[1] || match[3]);
-    const lng = parseFloat(match[2] || match[4]);
-    return { lat, lng };
+  const s = input.trim();
+
+  // Raw lat,lng paste e.g. "32.1234, 34.9876" or "32.1234,34.9876"
+  const rawCoord = s.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
+  if (rawCoord) {
+    const lat = parseFloat(rawCoord[1]);
+    const lng = parseFloat(rawCoord[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
   }
+
+  // @lat,lng,zoom pattern (most common Maps URL)
+  const atCoord = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atCoord) return { lat: parseFloat(atCoord[1]), lng: parseFloat(atCoord[2]) };
+
+  // !3dlat!4dlng embedded params
+  const embCoord = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (embCoord) return { lat: parseFloat(embCoord[1]), lng: parseFloat(embCoord[2]) };
+
+  // ?q=lat,lng or &q=lat,lng
+  const qParam = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qParam) return { lat: parseFloat(qParam[1]), lng: parseFloat(qParam[2]) };
+
+  // ?ll=lat,lng
+  const llParam = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (llParam) return { lat: parseFloat(llParam[1]), lng: parseFloat(llParam[2]) };
+
   return null;
 };
+
+/** Feature 14: Geocode a place name via Nominatim (OSM) as fallback. */
+async function geocodePlaceName(name: string): Promise<LatLng | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=1&countrycodes=il`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
+    const data = await res.json();
+    if (data && data[0]) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+  } catch { /* network error — silent */ }
+  return null;
+}
 
 // ── Map Components ───────────────────────────────────────────────────────────
 
@@ -85,6 +125,7 @@ export default function ContributePOI() {
   // Map state
   const [pickedPoint, setPickedPoint] = useState<LatLng | null>(null);
   const [googleUrl, setGoogleUrl] = useState('');
+  const [geocoding, setGeocoding] = useState(false);
 
   // Form state
   const [name, setName] = useState('');
@@ -100,14 +141,35 @@ export default function ContributePOI() {
 
   const defaultCenter: LatLng = { lat: 31.8, lng: 35.2 };
 
-  const handleImportGoogleMaps = () => {
-    const coords = extractLatLngFromGoogle(googleUrl);
+  const handleImportGoogleMaps = async () => {
+    const input = googleUrl.trim();
+    if (!input) return;
+
+    setError('');
+
+    // Short link — can't expand client-side, ask user to open + copy the full URL
+    if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps')) {
+      setError('לינק מקוצר: פתח אותו בדפדפן, העתק את הכתובת המלאה מסרגל הכתובות ונסה שנית.');
+      return;
+    }
+
+    // Try coordinate extraction first
+    const coords = extractLatLngFromGoogle(input);
     if (coords) {
       setPickedPoint(coords);
       setGoogleUrl('');
-      setError('');
+      return;
+    }
+
+    // Nothing found — try Nominatim geocoding as fallback
+    setGeocoding(true);
+    const geocoded = await geocodePlaceName(input);
+    setGeocoding(false);
+    if (geocoded) {
+      setPickedPoint(geocoded);
+      setGoogleUrl('');
     } else {
-      setError('לא הצלחנו למצוא מיקום בלינק שסיפקת. וודא שהעתקת לינק תקין מ-Google Maps.');
+      setError('לא מצאנו מיקום. נסה לפתוח את הלינק בדפדפן ולהעתיק כתובת מלאה, או הקלד שם מקום בעברית/אנגלית.');
     }
   };
 
@@ -266,27 +328,42 @@ export default function ContributePOI() {
             1. בחר נקודה על המפה
           </div>
 
-          {/* Google Maps Import UI */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <input
-              value={googleUrl}
-              onChange={e => setGoogleUrl(e.target.value)}
-              placeholder="הדבק לינק מ-Google Maps..."
-              style={{
-                flex: 1, border: '2px solid #e2e8f0', borderRadius: 12,
-                padding: '10px 14px', fontSize: 13, fontFamily: 'Heebo, sans-serif',
-                textAlign: 'right', outline: 'none', color: '#1a2e2a',
-              }}
-            />
-            <button
-              onClick={handleImportGoogleMaps}
-              style={{
-                padding: '10px 16px', background: '#4285F4', color: '#fff',
-                border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 800,
-                cursor: 'pointer', fontFamily: 'Heebo, sans-serif'
-              }}>
-              ייבוא
-            </button>
+          {/* Feature 14: Google Maps Import UI — robust URL + name fallback */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <input
+                value={googleUrl}
+                onChange={e => { setGoogleUrl(e.target.value); setError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') handleImportGoogleMaps(); }}
+                placeholder="לינק מ-Google Maps, קואורדינטות (32.1, 34.9) או שם מקום..."
+                style={{
+                  flex: 1, border: '2px solid #e2e8f0', borderRadius: 12,
+                  padding: '10px 14px', fontSize: 13, fontFamily: 'Heebo, sans-serif',
+                  textAlign: 'right', outline: 'none', color: '#1a2e2a',
+                  direction: 'rtl',
+                }}
+              />
+              <button
+                onClick={handleImportGoogleMaps}
+                disabled={geocoding || !googleUrl.trim()}
+                style={{
+                  padding: '10px 16px', background: geocoding ? '#94a3b8' : '#4285F4',
+                  color: '#fff', border: 'none', borderRadius: 12, fontSize: 13,
+                  fontWeight: 800, cursor: geocoding ? 'not-allowed' : 'pointer',
+                  fontFamily: 'Heebo, sans-serif', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                {geocoding ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    מחפש...
+                  </>
+                ) : 'ייבוא'}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', lineHeight: 1.5 }}>
+              💡 הדבק לינק מלא מ-Google Maps, קואורדינטות, או שם מקום לחיפוש אוטומטי
+            </div>
           </div>
 
           <div style={{
