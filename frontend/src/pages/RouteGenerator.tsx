@@ -202,10 +202,28 @@ export default function RouteGenerator() {
     const state = routerLocation.state as { bucketPois?: POI[] } | null;
     if (state?.bucketPois && state.bucketPois.length >= 2) {
       const incoming = state.bucketPois;
-      const opt = optimizeRoute([...incoming], startPoint);
       setSelectedPois(incoming);
-      setOptimized(opt);
       setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
+      // Feature 11: auto-request user location and optimise order from it
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const sp = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            setStartPoint(sp);
+            const opt = optimizeRoute([...incoming], sp);
+            setOptimized(opt);
+          },
+          () => {
+            // No location — still optimise without start
+            const opt = optimizeRoute([...incoming], null);
+            setOptimized(opt);
+          },
+          { timeout: 5000, enableHighAccuracy: false }
+        );
+      } else {
+        const opt = optimizeRoute([...incoming], null);
+        setOptimized(opt);
+      }
       setStep('route');
       window.history.replaceState({}, '');
     }

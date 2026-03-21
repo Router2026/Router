@@ -104,6 +104,13 @@ export default function TripPlanner() {
           include_coffee: includeCoffee,
           date,
           user_location: userLocation,
+          // Feature 11: explicitly tell the AI to start from user's location
+          // and optimise stop order. RouteGenerator already handles this via
+          // nearest-neighbour TSP; TripPlanner passes it as a hint to the LLM.
+          starting_point: userLocation
+            ? { lat: userLocation.lat, lng: userLocation.lng, label: 'מיקום נוכחי' }
+            : null,
+          optimize_order: true,
         })
       });
 

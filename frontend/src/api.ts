@@ -1,5 +1,4 @@
-// src/api.ts  — FULL REPLACEMENT (adds favorites, location images, public trips, profile)
-// All existing exports are preserved; new ones appended.
+// src/api.ts — UPDATED: all 11 feature changes
 
 const BASE_URL = '/api';
 
@@ -9,18 +8,12 @@ export function getAuthToken() { return _token; }
 
 class ApiError extends Error {
   code?: string;
-  constructor(message: string, code?: string) {
-    super(message);
-    this.code = code;
-  }
+  constructor(message: string, code?: string) { super(message); this.code = code; }
 }
 
-// TOKEN_KEY must match the key used in AuthContext.tsx
 const TOKEN_KEY = 'router_auth_token';
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  // Use in-memory token if set; fall back to localStorage to survive
-  // race conditions where apiFetch fires before TokenSync's useEffect runs.
   const token = _token ?? localStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -99,10 +92,9 @@ export interface CommunityPoiSubmission {
   admin_note: string | null; reviewed_at: string | null; created_at: string;
 }
 
-// ── NEW: Location image types ──────────────────────────────────────────────
 export interface LocationImage {
   id: number; user_id: number; location_id: number;
-  image_url: string; created_at: string; username?: string;
+  image_url: string; is_approved: boolean; created_at: string; username?: string;
 }
 
 export interface XpResult {
@@ -113,7 +105,6 @@ export interface UploadImageResponse {
   image: LocationImage; xp: XpResult; limit: number;
 }
 
-// ── NEW: Public trip types ─────────────────────────────────────────────────
 export interface PublicTripLocation {
   id: number; location_id: number; name: string; category: string;
   latitude: number; longitude: number; main_image: string | null;
@@ -127,12 +118,15 @@ export interface PublicTrip {
   creator_xp: number; location_count: number; locations: PublicTripLocation[];
 }
 
-// ── NEW: Favorite type ─────────────────────────────────────────────────────
 export interface FavoriteLocation {
   id: number; user_id: number; location_id: number; created_at: string;
   name?: string; category?: string; region_name?: string;
   latitude?: number; longitude?: number;
   main_image?: string; difficulty?: string; average_rating?: number;
+}
+
+export interface ShareTripResult {
+  shared: boolean; xp_awarded: boolean; xp: XpResult | null;
 }
 
 // ── Mapper helpers ─────────────────────────────────────────────────────────
@@ -269,28 +263,55 @@ export const api = {
       return (await apiFetch<{ data: any[] }>(`/locations?${qs}`)).data.map(mapLocation);
     },
     get: async (id: string): Promise<POI> => mapLocation((await apiFetch<{ data: any }>(`/locations/${id}`)).data),
+    update: async (id: string | number, data: Partial<POI> & { images?: string[] }): Promise<POI> =>
+      mapLocation((await apiFetch<{ data: any }>(`/locations/${id}`, {
+        method: 'PATCH', body: JSON.stringify(data),
+      })).data),
     inBounds: async (b: { north: number; south: number; east: number; west: number }): Promise<POI[]> => {
       const qs = new URLSearchParams({ north: String(b.north), south: String(b.south), east: String(b.east), west: String(b.west) });
       return (await apiFetch<{ data: any[] }>(`/locations/map?${qs}`)).data.map(mapLocation);
     },
-    // ── NEW: location images ──────────────────────────────────
     getImages: async (locationId: string | number): Promise<LocationImage[]> =>
       (await apiFetch<{ data: LocationImage[] }>(`/locations/${locationId}/images`)).data,
+    // URL upload
     uploadImage: async (locationId: string | number, imageUrl: string): Promise<UploadImageResponse> =>
       (await apiFetch<{ data: UploadImageResponse }>(`/locations/${locationId}/images`, {
         method: 'POST', body: JSON.stringify({ image_url: imageUrl }),
       })).data,
+    // File upload (base64)
+    uploadImageFile: async (locationId: string | number, file: File): Promise<UploadImageResponse> => {
+      const base64 = await fileToBase64(file);
+      return (await apiFetch<{ data: UploadImageResponse }>(`/locations/${locationId}/images`, {
+        method: 'POST',
+        body: JSON.stringify({ image_data: base64, mime_type: file.type }),
+      })).data;
+    },
+    approveImage: async (locationId: string | number, imageId: number): Promise<LocationImage> =>
+      (await apiFetch<{ data: LocationImage }>(`/locations/${locationId}/images/${imageId}`, {
+        method: 'PATCH', body: JSON.stringify({ action: 'approve' }),
+      })).data,
+    rejectImage: async (locationId: string | number, imageId: number): Promise<void> => {
+      await apiFetch(`/locations/${locationId}/images/${imageId}`, {
+        method: 'PATCH', body: JSON.stringify({ action: 'reject' }),
+      });
+    },
+    deleteImage: async (locationId: string | number, imageId: number): Promise<void> => {
+      await apiFetch(`/locations/${locationId}/images/${imageId}`, { method: 'DELETE' });
+    },
   },
 
-  // ── Trips (community routes — AI generator) ──────────────────
+  // ── Trips (AI generator routes) ──────────────────────────────
   trips: {
     list: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
     get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`)).data),
     create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
+    // Feature 9: share trip & earn XP
+    share: async (id: string): Promise<ShareTripResult> =>
+      (await apiFetch<{ data: ShareTripResult }>(`/routes/${id}/share`, { method: 'POST' })).data,
   },
 
-  // ── NEW: Public trips ─────────────────────────────────────────
+  // ── Public trips ─────────────────────────────────────────────
   publicTrips: {
     list: async (params?: { region?: string; difficulty?: string; limit?: number; offset?: number }): Promise<PublicTrip[]> => {
       const qs = new URLSearchParams();
@@ -307,6 +328,8 @@ export const api = {
       route_geojson?: object; is_public?: boolean; location_ids?: number[];
     }): Promise<PublicTrip> =>
       (await apiFetch<{ data: PublicTrip }>('/trips/public', { method: 'POST', body: JSON.stringify(data) })).data,
+    myTrips: async (): Promise<{ id: number; title: string; description: string | null; is_public: boolean; created_at: string; location_count: number }[]> =>
+      (await apiFetch<{ data: any[] }>('/users/me/trips')).data,
   },
 
   // ── Reviews ──────────────────────────────────────────────────
@@ -317,6 +340,8 @@ export const api = {
     },
     create: async (data: Partial<Review> & { location_id?: number }): Promise<Review> =>
       mapReview((await apiFetch<{ data: any }>('/reviews', { method: 'POST', body: JSON.stringify(data) })).data),
+    myReviews: async (): Promise<Review[]> =>
+      (await apiFetch<{ data: any[] }>('/users/me/reviews')).data.map(mapReview),
   },
 
   // ── Reports ──────────────────────────────────────────────────
@@ -329,6 +354,8 @@ export const api = {
       mapReport((await apiFetch<{ data: any }>('/reports', { method: 'POST', body: JSON.stringify(data) })).data),
     upvote: async (id: string): Promise<CommunityReport> =>
       mapReport((await apiFetch<{ data: any }>(`/reports/${id}/upvote`, { method: 'PATCH' })).data),
+    myReports: async (): Promise<CommunityReport[]> =>
+      (await apiFetch<{ data: any[] }>('/users/me/reports')).data.map(mapReport),
   },
 
   // ── Videos ───────────────────────────────────────────────────
@@ -347,12 +374,11 @@ export const api = {
       mapUser((await apiFetch<{ data: any }>('/users/me', { method: 'PATCH', body: JSON.stringify(data) })).data),
     leaderboard: async (): Promise<UserProfile[]> => (await apiFetch<{ data: any[] }>('/users/leaderboard')).data.map(mapUser),
     stats: async (): Promise<AppStats> => (await apiFetch<{ data: AppStats }>('/users/stats')).data,
-    // ── NEW: Favorites ────────────────────────────────────────
     getFavorites: async (): Promise<FavoriteLocation[]> =>
       (await apiFetch<{ data: FavoriteLocation[] }>('/users/me/favorites')).data,
   },
 
-  // ── NEW: Favorites (location-scoped) ─────────────────────────
+  // ── Favorites ─────────────────────────────────────────────────
   favorites: {
     add: async (locationId: number): Promise<{ favorited: boolean; favorite: FavoriteLocation }> =>
       (await apiFetch<{ data: any }>(`/favorites/${locationId}`, { method: 'POST' })).data,
@@ -371,10 +397,25 @@ export const api = {
       mapUser((await apiFetch<{ data: any }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ is_admin }) })).data),
     listRoutes: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
     deleteRoute: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
+    // Location image moderation
+    approveImage: async (locationId: number, imageId: number): Promise<LocationImage> =>
+      api.locations.approveImage(locationId, imageId),
+    rejectImage: async (locationId: number, imageId: number): Promise<void> =>
+      api.locations.rejectImage(locationId, imageId),
   },
 };
 
-// ── Legacy shim (unchanged) ────────────────────────────────────────────────
+// ── Helper: convert File to base64 ────────────────────────────────────────
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── Legacy shim ────────────────────────────────────────────────────────────
 export const base44 = {
   auth: {
     me: () => api.users.me().then(u => ({ id: u.id, email: u.email || '', full_name: u.full_name || u.username })),

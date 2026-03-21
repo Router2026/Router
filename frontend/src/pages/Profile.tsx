@@ -1,9 +1,10 @@
-// src/pages/Profile.tsx  — UPDATED
-// Shows avatar, XP bar, level, stats, favorite regions, social links, and new nav to favorites/trips/edit.
+// src/pages/Profile.tsx — UPDATED
+// Feature 5: reports, reviews, trips synced with DB.
+// Feature 8: "My Trips" link added to actions.
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type UserProfile } from '../api';
+import { api, type UserProfile, type CommunityReport, type Review } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 function LevelBar({ xp }: { xp: number }) {
@@ -11,14 +12,11 @@ function LevelBar({ xp }: { xp: number }) {
   const nextLevelXp = (level + 1) * (level + 1) * 50;
   const currentLevelXp = level * level * 50;
   const progress = nextLevelXp > currentLevelXp
-    ? Math.min(((xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100, 100)
-    : 100;
-
+    ? Math.min(((xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100, 100) : 100;
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
-        <span>רמה {level}</span>
-        <span>{xp} / {nextLevelXp} XP</span>
+        <span>רמה {level}</span><span>{xp} / {nextLevelXp} XP</span>
       </div>
       <div style={{ height: 6, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg,#0d9e6e,#34d399)', borderRadius: 999, transition: 'width 0.6s ease' }} />
@@ -32,20 +30,25 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recentReports, setRecentReports] = useState<CommunityReport[]>([]);
+  const [recentReviews, setRecentReviews] = useState<Review[]>([]);
 
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    api.users.me()
-      .then(setProfile)
-      .catch(() => setProfile(null))
-      .finally(() => setLoading(false));
-  }, [user]);
+    // Feature 5: load all data from DB
+    Promise.all([
+      api.users.me(),
+      api.reports.myReports().catch(() => [] as CommunityReport[]),
+      api.reviews.myReviews().catch(() => [] as Review[]),
+    ]).then(([p, reports, reviews]) => {
+      setProfile(p);
+      setRecentReports(reports.slice(0, 3));
+      setRecentReviews(reviews.slice(0, 3));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [user?.id]);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/Login');
-  };
+  const handleLogout = async () => { await logout(); navigate('/Login'); };
 
   if (!user) {
     return (
@@ -66,94 +69,58 @@ export default function Profile() {
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', width: '100%', direction: 'rtl' }}>
-
       {/* Cover */}
-      <div style={{
-        height: 120, position: 'relative',
-        background: profile?.cover_image
-          ? `url(${profile.cover_image}) center/cover no-repeat`
-          : 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)',
-      }}>
-        <button onClick={() => navigate('/profile/edit')} style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: 10, padding: '6px 12px', color: '#fff', fontSize: 13, fontFamily: 'Heebo, sans-serif', cursor: 'pointer', fontWeight: 600 }}>
-          ✏️ עריכה
-        </button>
+      <div style={{ height: 120, position: 'relative', background: profile?.cover_image ? `url(${profile.cover_image}) center/cover no-repeat` : 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)' }}>
+        <button onClick={() => navigate('/profile/edit')} style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: 10, padding: '6px 12px', color: '#fff', fontSize: 13, fontFamily: 'Heebo, sans-serif', cursor: 'pointer', fontWeight: 600 }}>✏️ עריכה</button>
       </div>
 
       {/* Avatar + header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', paddingBottom: 20 }}>
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 20px' }}>
-          {/* Avatar (overlaps cover) */}
           <div style={{ transform: 'translateY(-32px)', marginBottom: -16 }}>
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%',
-              border: '3px solid #fff',
-              background: profile?.avatar_url ? 'none' : 'linear-gradient(135deg, #0d9e6e, #34d399)',
-              overflow: 'hidden',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 28, color: '#fff', fontWeight: 800,
-              boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
-            }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #fff', background: profile?.avatar_url ? 'none' : 'linear-gradient(135deg, #0d9e6e, #34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#fff', fontWeight: 800, boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
               {profile?.avatar_url
                 ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                 : (user.full_name?.charAt(0) || user.email?.charAt(0) || 'ע')}
             </div>
           </div>
-
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>{profile?.full_name || user.full_name || 'משתמש'}</div>
               <div style={{ fontSize: 13, color: '#94a3b8' }}>@{profile?.username || user.username}</div>
               {profile?.bio && <div style={{ fontSize: 14, color: '#475569', marginTop: 6, maxWidth: 320, lineHeight: 1.5 }}>{profile.bio}</div>}
             </div>
-            {/* Level badge */}
             <div style={{ background: '#ecfdf5', border: '2px solid #0d9e6e', borderRadius: 12, padding: '6px 12px', textAlign: 'center' }}>
               <div style={{ fontSize: 11, color: '#0d9e6e', fontWeight: 600 }}>רמה {levelNum}</div>
               <div style={{ fontSize: 14, fontWeight: 900, color: '#0d9e6e' }}>⚡ {xp} XP</div>
               <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{level}</div>
             </div>
           </div>
-
           <LevelBar xp={xp} />
-
-          {/* Social links */}
           {(profile?.instagram || profile?.website) && (
             <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-              {profile.instagram && (
-                <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 13, color: '#475569', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  📸 {profile.instagram}
-                </a>
-              )}
-              {profile.website && (
-                <a href={profile.website} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 13, color: '#0284c7', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  🌐 אתר אישי
-                </a>
-              )}
+              {profile.instagram && <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#475569', textDecoration: 'none' }}>📸 {profile.instagram}</a>}
+              {profile.website && <a href={profile.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#0284c7', textDecoration: 'none' }}>🌐 אתר אישי</a>}
             </div>
           )}
-
-          {/* Favorite regions */}
           {profile?.favorite_regions?.length ? (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
               {profile.favorite_regions.map(r => (
-                <span key={r} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: '#166534', fontWeight: 600 }}>
-                  📍 {r}
-                </span>
+                <span key={r} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: '#166534', fontWeight: 600 }}>📍 {r}</span>
               ))}
             </div>
           ) : null}
         </div>
       </div>
 
-      {/* Stats */}
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '16px 20px' }}>
+        {/* Stats — synced from DB (Feature 5) */}
         <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, textAlign: 'center' }}>
             {[
-              { label: 'דיווחים', value: profile?.reports_count ?? 0, emoji: '📊' },
-              { label: 'ביקורות', value: profile?.reviews_count ?? 0, emoji: '⭐' },
-              { label: 'מסלולים', value: profile?.trips_count ?? 0,   emoji: '🗺️' },
+              { label: 'דיווחים',  value: profile?.reports_count ?? recentReports.length, emoji: '📊' },
+              { label: 'ביקורות', value: profile?.reviews_count ?? recentReviews.length, emoji: '⭐' },
+              { label: 'מסלולים', value: profile?.trips_count   ?? 0,                   emoji: '🗺️' },
             ].map(stat => (
               <div key={stat.label}>
                 <div style={{ fontSize: 22, fontWeight: 900, color: '#1a2e2a' }}>{stat.emoji} {stat.value}</div>
@@ -163,44 +130,39 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Recent activity — Feature 5 */}
+        {recentReports.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>הדיווחים האחרונים שלי</div>
+            {recentReports.map(r => (
+              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0', direction: 'rtl' }}>
+                <span style={{ fontSize: 13, color: '#64748b' }}>{r.poi_name || 'מיקום לא ידוע'}</span>
+                <span style={{ fontSize: 11, background: '#fffbeb', color: '#d97706', borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>{r.report_type}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Quick actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Admin panel — only visible to admins */}
           {user.is_admin && (
-            <button onClick={() => navigate('/Admin')} style={{
-              width: '100%', padding: '14px 18px', border: '2px solid #7c3aed', borderRadius: 14,
-              background: 'linear-gradient(135deg, #faf5ff, #ede9fe)',
-              color: '#6d28d9', fontFamily: 'Heebo, sans-serif',
-              fontWeight: 800, fontSize: 15, cursor: 'pointer', textAlign: 'right',
-              boxShadow: '0 2px 8px rgba(124,58,237,0.12)', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
+            <button onClick={() => navigate('/Admin')} style={{ width: '100%', padding: '14px 18px', border: '2px solid #7c3aed', borderRadius: 14, background: 'linear-gradient(135deg, #faf5ff, #ede9fe)', color: '#6d28d9', fontFamily: 'Heebo, sans-serif', fontWeight: 800, fontSize: 15, cursor: 'pointer', textAlign: 'right', boxShadow: '0 2px 8px rgba(124,58,237,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ color: '#7c3aed', fontSize: 18 }}>›</span>
               <span>🛡️ לוח ניהול</span>
             </button>
           )}
-
+          {/* Feature 8: My Trips added */}
           {[
-            { label: '❤️ המועדפים שלי', path: '/favorites' },
-            { label: '🗺️ מסלולים ציבוריים', path: '/trips' },
-            { label: '✏️ עריכת פרופיל', path: '/profile/edit' },
+            { label: '❤️ המועדפים שלי',    path: '/favorites' },
+            { label: '🗺️ המסלולים שלי',    path: '/MyTrips' },
+            { label: '🌍 מסלולים ציבוריים', path: '/trips' },
+            { label: '✏️ עריכת פרופיל',    path: '/profile/edit' },
           ].map(item => (
-            <button key={item.path} onClick={() => navigate(item.path)} style={{
-              width: '100%', padding: '14px 18px', border: 'none', borderRadius: 14,
-              background: '#fff', color: '#1a2e2a', fontFamily: 'Heebo, sans-serif',
-              fontWeight: 700, fontSize: 15, cursor: 'pointer', textAlign: 'right',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
+            <button key={item.path} onClick={() => navigate(item.path)} style={{ width: '100%', padding: '14px 18px', border: 'none', borderRadius: 14, background: '#fff', color: '#1a2e2a', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 15, cursor: 'pointer', textAlign: 'right', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               {item.label} <span style={{ color: '#94a3b8', fontSize: 18 }}>›</span>
             </button>
           ))}
-
-          <button onClick={handleLogout} style={{
-            width: '100%', padding: '14px 18px', border: '1.5px solid #fecaca', borderRadius: 14,
-            background: '#fff', color: '#ef4444', fontFamily: 'Heebo, sans-serif',
-            fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 8,
-          }}>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '14px 18px', border: '1.5px solid #fecaca', borderRadius: 14, background: '#fff', color: '#ef4444', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 8 }}>
             🚪 התנתקות
           </button>
         </div>

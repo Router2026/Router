@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type POI } from '../api';
 import RouterLogo from '../assets/logo.jpeg';
 import { useTripBucket } from '../context/TripBucketContext';
+import { useFavorites } from '../context/FavoritesContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 
@@ -69,7 +70,8 @@ function TagGrid({ items, selected, onToggle }: { items: string[]; selected: str
 }
 
 /** POI Card — includes Quick Add to Trip Bucket button */
-function POICard({ poi, onFav, favs }: { poi: POI; onFav: (id: string) => void; favs: Set<string> }) {
+function POICard({ poi }: { poi: POI }) {
+  const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
   const diff = DIFF_COLORS[poi.difficulty] || DIFF_COLORS['קל'];
@@ -88,8 +90,8 @@ function POICard({ poi, onFav, favs }: { poi: POI; onFav: (id: string) => void; 
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
 
         {/* Favourite button */}
-        <button onClick={e => { e.stopPropagation(); onFav(poi.id); }} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill={favs.has(poi.id) ? '#ef4444' : 'none'} stroke={favs.has(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+        <button onClick={e => { e.stopPropagation(); toggleFavorite(Number(poi.id)); }} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill={isFavorite(poi.id) ? '#ef4444' : 'none'} stroke={isFavorite(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
         </button>
 
         {/* Quick Add to Trip Bucket button (top-left) */}
@@ -171,7 +173,6 @@ export default function Explore() {
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState(urlQuery);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [favs, setFavs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -337,13 +338,7 @@ export default function Explore() {
           const isLast = index === displayedPois.length - 1;
           return (
             <div key={poi.id} ref={isLast ? lastPoiElementRef : null}>
-              <POICard
-                poi={poi}
-                favs={favs}
-                onFav={id => setFavs(prev => {
-                  const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
-                })}
-              />
+              <POICard poi={poi} />
             </div>
           );
         })}
