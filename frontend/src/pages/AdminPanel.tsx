@@ -13,7 +13,7 @@ import type { CommunityPoiAdmin, EditModalProps, PoiStatus, Tab } from '../utils
 async function fetchAdminPois(status?: PoiStatus): Promise<CommunityPoiAdmin[]> {
   const token = localStorage.getItem('router_auth_token');
   const qs = status ? `?status=${status}` : '';
-  const res = await fetch(`/api/admin/community-pois${qs}`, {
+  const res = await fetch((import.meta.env.VITE_API_URL ?? '') + `/api/admin/community-pois${qs}`, {
     headers: { Authorization: `Bearer ${token ?? ''}` },
   });
   const json = await res.json();
@@ -25,7 +25,7 @@ async function patchAdminPoi(
   payload: Record<string, unknown>
 ): Promise<CommunityPoiAdmin> {
   const token = localStorage.getItem('router_auth_token');
-  const res = await fetch(`/api/admin/community-pois/${id}`, {
+  const res = await fetch((import.meta.env.VITE_API_URL ?? '') + `/api/admin/community-pois/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',

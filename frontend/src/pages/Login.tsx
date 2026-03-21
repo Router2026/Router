@@ -46,7 +46,7 @@ export default function Login() {
 
   const handleResendVerification = async () => {
     if (!unverifiedEmail) return;
-    await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: unverifiedEmail }) });
+    await fetch((import.meta.env.VITE_API_URL ?? '') + '/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: unverifiedEmail }) });
     setResentVerification(true);
   };
 

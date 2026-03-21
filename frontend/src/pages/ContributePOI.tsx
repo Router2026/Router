@@ -193,7 +193,7 @@ export default function ContributePOI() {
 
     try {
       const token = localStorage.getItem('router_auth_token');
-      const res = await fetch('/api/community-pois', {
+      const res = await fetch((import.meta.env.VITE_API_URL ?? '') + '/api/community-pois', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

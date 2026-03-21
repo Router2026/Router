@@ -112,7 +112,7 @@ export default function Register() {
       <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>
         לא קיבלת? בדוק תיקיית ספאם או{' '}
         <button onClick={async () => {
-          try { await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); alert('נשלח שוב!'); } catch { }
+          try { await fetch((import.meta.env.VITE_API_URL ?? '') + '/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); alert('נשלח שוב!'); } catch { }
         }} style={{ background: 'none', border: 'none', color: '#0d9e6e', cursor: 'pointer', fontWeight: 700, fontSize: 13, padding: 0 }}>שלח שוב</button>
       </div>
       <button onClick={() => navigate('/Login')} style={{ marginTop: 8, padding: '12px 28px', background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>

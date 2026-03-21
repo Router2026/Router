@@ -1,6 +1,6 @@
 // src/api.ts — UPDATED: all 11 feature changes
 
-const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
+export const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
 let _token: string | null = null;
 export function setAuthToken(t: string | null) { _token = t; }
@@ -437,7 +437,7 @@ export const base44 = {
         const STYLE_MAP: Record<string, string> = { 'היסטוריה ותרבות': 'history', 'מים ומעיינות': 'water', 'צילום ונוף': 'photo', 'צילום': 'photo', 'נופים ומצפים': 'nature', 'טיולים ומסלולים': 'hiking', 'חופים וים': 'beach', 'גיאולוגיה': 'geology', 'יין ואוכל': 'wine', 'כפרים ומסורת': 'village', 'פעילויות לילדים': 'family_activities' };
         const groupTypeId = GROUP_TYPE_MAP[req.group_type] ?? req.group_type;
         const styleIds = req.style ? req.style.split(', ').map((s: string) => STYLE_MAP[s.trim()] ?? s.trim()) : [];
-        const res = await fetch('/api/ai/generate-route', {
+        const res = await fetch(BASE_URL + '/ai/generate-route', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) },
           body: JSON.stringify({ ...req, group_type: groupTypeId, style: styleIds.join(', ') }),
