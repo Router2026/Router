@@ -67,10 +67,15 @@ export default function Home() {
           {/* ── Categories — click routes to Explore with filter ── */}
           {/* Right Card: Route Planning */}
           <button onClick={() => navigate('/TripPlanner')}
-            style={{ flex: 1, background: '#fff', border: 'none', borderRadius: 16, padding: '20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 130, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', transition: 'transform 0.15s' }}
+            style={{ position: 'relative', overflow: 'hidden', flex: 1, background: '#fff', border: 'none', borderRadius: 16, padding: '20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 130, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', transition: 'transform 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
           >
+            {/* "Coming Soon" tilted ribbon */}
+            <div style={{ position: 'absolute', top: 16, left: -30, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 900, padding: '4px 34px', transform: 'rotate(-45deg)', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)' }}>
+              בקרוב
+            </div>
+
             <div style={{ background: '#10b981', borderRadius: 12, width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
             </div>
