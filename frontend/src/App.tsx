@@ -1,3 +1,5 @@
+// src/App.tsx  — UPDATED (adds /trips, /trips/:id, /favorites, /profile/edit routes)
+
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -22,13 +24,20 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import RouteGenerator from './pages/RouteGenerator';
 import AdminPanel from './pages/AdminPanel';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { TripBucketProvider } from './context/TripBucketContext';
-import { setAuthToken } from './api';
-import './index.css';
 import ContributePOI from './pages/ContributePOI';
 
-// Sync auth token to api module whenever auth state changes
+// ── NEW pages ────────────────────────────────────────────────────────────────
+import PublicTrips from './pages/PublicTrips';
+import PublicTripDetail from './pages/PublicTripDetail';
+import Favorites from './pages/Favorites';
+import ProfileEdit from './pages/ProfileEdit';
+
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { TripBucketProvider } from './context/TripBucketContext';
+import { FavoritesProvider } from './context/FavoritesContext';
+import { setAuthToken } from './api';
+import './index.css';
+
 function TokenSync() {
   const { token } = useAuth();
   useEffect(() => { setAuthToken(token); }, [token]);
@@ -39,7 +48,6 @@ const Wrap = ({ name, children }: { name: string; children: React.ReactNode }) =
   <Layout currentPageName={name}>{children}</Layout>
 );
 
-// Guard: redirect unauthenticated users to /Login
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
@@ -52,37 +60,47 @@ export default function App() {
   return (
     <AuthProvider>
       <TripBucketProvider>
+        <FavoritesProvider>
         <TokenSync />
-      <Router>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/Login" element={<Wrap name="Login"><Login /></Wrap>} />
-          <Route path="/Register" element={<Wrap name="Register"><Register /></Wrap>} />
-          <Route path="/VerifyEmail" element={<Wrap name="VerifyEmail"><VerifyEmail /></Wrap>} />
-          <Route path="/ForgotPassword" element={<Wrap name="ForgotPassword"><ForgotPassword /></Wrap>} />
-          <Route path="/ResetPassword" element={<Wrap name="ResetPassword"><ResetPassword /></Wrap>} />
+        <Router>
+          <Routes>
+            {/* ── Public routes ── */}
+            <Route path="/Login"           element={<Wrap name="Login"><Login /></Wrap>} />
+            <Route path="/Register"        element={<Wrap name="Register"><Register /></Wrap>} />
+            <Route path="/VerifyEmail"     element={<Wrap name="VerifyEmail"><VerifyEmail /></Wrap>} />
+            <Route path="/ForgotPassword"  element={<Wrap name="ForgotPassword"><ForgotPassword /></Wrap>} />
+            <Route path="/ResetPassword"   element={<Wrap name="ResetPassword"><ResetPassword /></Wrap>} />
+            <Route path="/ContributePOI"   element={<ContributePOI />} />
 
-          {/* Protected routes */}
-          <Route path="/" element={<RequireAuth><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
-          <Route path="/Home" element={<RequireAuth><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
-          <Route path="/Explore" element={<RequireAuth><Wrap name="Explore"><Explore /></Wrap></RequireAuth>} />
-          <Route path="/MapView" element={<RequireAuth><Wrap name="MapView"><MapView /></Wrap></RequireAuth>} />
-          <Route path="/TripPlanner" element={<RequireAuth><Wrap name="TripPlanner"><TripPlanner /></Wrap></RequireAuth>} />
-          <Route path="/POIDetail" element={<RequireAuth><Wrap name="POIDetail"><POIDetail /></Wrap></RequireAuth>} />
-          <Route path="/TripDetail" element={<RequireAuth><Wrap name="TripDetail"><TripDetail /></Wrap></RequireAuth>} />
-          <Route path="/Profile" element={<RequireAuth><Wrap name="Profile"><Profile /></Wrap></RequireAuth>} />
-          <Route path="/Reports" element={<RequireAuth><Wrap name="Reports"><Reports /></Wrap></RequireAuth>} />
-          <Route path="/CommunityVideos" element={<RequireAuth><Wrap name="CommunityVideos"><CommunityVideos /></Wrap></RequireAuth>} />
-          <Route path="/Leaderboard" element={<RequireAuth><Wrap name="Leaderboard"><Leaderboard /></Wrap></RequireAuth>} />
-          <Route path="/AddReport" element={<RequireAuth><Wrap name="AddReport"><AddReport /></Wrap></RequireAuth>} />
-          <Route path="/AddReview" element={<RequireAuth><Wrap name="AddReview"><AddReview /></Wrap></RequireAuth>} />
-          <Route path="/UploadVideo" element={<RequireAuth><Wrap name="UploadVideo"><UploadVideo /></Wrap></RequireAuth>} />
-          <Route path="/MyTrips" element={<RequireAuth><Wrap name="MyTrips"><MyTrips /></Wrap></RequireAuth>} />
-          <Route path="/RouteGenerator" element={<RequireAuth><Wrap name="RouteGenerator"><RouteGenerator /></Wrap></RequireAuth>} />
-          <Route path="/Admin" element={<RequireAuth><Wrap name="Admin"><AdminPanel /></Wrap></RequireAuth>} />
-          <Route path="/ContributePOI" element={<ContributePOI />} />
-        </Routes>
-      </Router>
+            {/* Public trips — accessible without login */}
+            <Route path="/trips"           element={<Wrap name="Trips"><PublicTrips /></Wrap>} />
+            <Route path="/trips/:id"       element={<Wrap name="TripDetail"><PublicTripDetail /></Wrap>} />
+
+            {/* ── Protected routes ── */}
+            <Route path="/"             element={<RequireAuth><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
+            <Route path="/Home"         element={<RequireAuth><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
+            <Route path="/Explore"      element={<RequireAuth><Wrap name="Explore"><Explore /></Wrap></RequireAuth>} />
+            <Route path="/MapView"      element={<RequireAuth><Wrap name="MapView"><MapView /></Wrap></RequireAuth>} />
+            <Route path="/TripPlanner"  element={<RequireAuth><Wrap name="TripPlanner"><TripPlanner /></Wrap></RequireAuth>} />
+            <Route path="/POIDetail"    element={<RequireAuth><Wrap name="POIDetail"><POIDetail /></Wrap></RequireAuth>} />
+            <Route path="/TripDetail"   element={<RequireAuth><Wrap name="TripDetail"><TripDetail /></Wrap></RequireAuth>} />
+            <Route path="/Profile"      element={<RequireAuth><Wrap name="Profile"><Profile /></Wrap></RequireAuth>} />
+            <Route path="/Reports"      element={<RequireAuth><Wrap name="Reports"><Reports /></Wrap></RequireAuth>} />
+            <Route path="/CommunityVideos" element={<RequireAuth><Wrap name="CommunityVideos"><CommunityVideos /></Wrap></RequireAuth>} />
+            <Route path="/Leaderboard"  element={<RequireAuth><Wrap name="Leaderboard"><Leaderboard /></Wrap></RequireAuth>} />
+            <Route path="/AddReport"    element={<RequireAuth><Wrap name="AddReport"><AddReport /></Wrap></RequireAuth>} />
+            <Route path="/AddReview"    element={<RequireAuth><Wrap name="AddReview"><AddReview /></Wrap></RequireAuth>} />
+            <Route path="/UploadVideo"  element={<RequireAuth><Wrap name="UploadVideo"><UploadVideo /></Wrap></RequireAuth>} />
+            <Route path="/MyTrips"      element={<RequireAuth><Wrap name="MyTrips"><MyTrips /></Wrap></RequireAuth>} />
+            <Route path="/RouteGenerator" element={<RequireAuth><Wrap name="RouteGenerator"><RouteGenerator /></Wrap></RequireAuth>} />
+            <Route path="/Admin"        element={<RequireAuth><Wrap name="Admin"><AdminPanel /></Wrap></RequireAuth>} />
+
+            {/* ── NEW protected routes ── */}
+            <Route path="/favorites"      element={<RequireAuth><Wrap name="Favorites"><Favorites /></Wrap></RequireAuth>} />
+            <Route path="/profile/edit"   element={<RequireAuth><Wrap name="ProfileEdit"><ProfileEdit /></Wrap></RequireAuth>} />
+          </Routes>
+        </Router>
+        </FavoritesProvider>
       </TripBucketProvider>
     </AuthProvider>
   );

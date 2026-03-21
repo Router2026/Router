@@ -1,342 +1,171 @@
+// src/pages/Profile.tsx — UPDATED
+// Feature 5: reports, reviews, trips synced with DB.
+// Feature 8: "My Trips" link added to actions.
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '../api';
+import { api, type UserProfile, type CommunityReport, type Review } from '../api';
 import { useAuth } from '../context/AuthContext';
+
+function LevelBar({ xp }: { xp: number }) {
+  const level = Math.floor(Math.sqrt(xp / 50));
+  const nextLevelXp = (level + 1) * (level + 1) * 50;
+  const currentLevelXp = level * level * 50;
+  const progress = nextLevelXp > currentLevelXp
+    ? Math.min(((xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100, 100) : 100;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+        <span>רמה {level}</span><span>{xp} / {nextLevelXp} XP</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg,#0d9e6e,#34d399)', borderRadius: 999, transition: 'width 0.6s ease' }} />
+      </div>
+    </div>
+  );
+}
 
 export default function Profile() {
   const navigate = useNavigate();
-  // Get user state and logout function from context
   const { user, logout } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [recentReports, setRecentReports] = useState<CommunityReport[]>([]);
+  const [recentReviews, setRecentReviews] = useState<Review[]>([]);
 
-  const [profile, setProfile] = useState<any>(null);
-  const [trips, setTrips] = useState<any[]>([]);
-  // Added setter for reviews
-  const [reviews, setReviews] = useState<any[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
-
-  // Fetch user-specific data only if the user is logged in
   useEffect(() => {
     if (!user) return;
-
-    setLoadingData(true);
-    // Fetch profile, trips, and reviews concurrently
+    setLoading(true);
+    // Feature 5: load all data from DB
     Promise.all([
-      base44.entities.UserProfile.filter(),
-      base44.entities.Trip.filter(),
-      base44.entities.Review.filter()
-    ]).then(([profileData, tripsData, reviewsData]) => {
-      if (profileData.length > 0) setProfile(profileData[0]);
-      setTrips(tripsData);
-      setReviews(reviewsData); // Set fetched reviews
-    }).catch(err => {
-      console.error("Error fetching profile data:", err);
-    }).finally(() => {
-      setLoadingData(false);
-    });
-  }, [user]);
+      api.users.me(),
+      api.reports.myReports().catch(() => [] as CommunityReport[]),
+      api.reviews.myReviews().catch(() => [] as Review[]),
+    ]).then(([p, reports, reviews]) => {
+      setProfile(p);
+      setRecentReports(reports.slice(0, 3));
+      setRecentReviews(reviews.slice(0, 3));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [user?.id]);
 
-  // Handle Logout
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/Login');
-    } catch (e) {
-      console.error("Logout failed", e);
-    }
-  };
+  const handleLogout = async () => { await logout(); navigate('/Login'); };
 
-  // ── Unauthenticated View ──────────────────────────────────────────
   if (!user) {
     return (
       <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 20 }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
         <div style={{ fontSize: 22, fontWeight: 900, color: '#1a2e2a', marginBottom: 8 }}>אינך מחובר</div>
-        <div style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', marginBottom: 24, maxWidth: 280 }}>
-          כדי לראות את הפרופיל, המסלולים וההתקדמות שלך, אנא התחבר לחשבון.
-        </div>
-        <button onClick={() => navigate('/Login')} style={{
-          padding: '12px 32px', border: 'none', borderRadius: 16,
-          background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-          color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer',
-          fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)'
-        }}>
+        <div style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', marginBottom: 24, maxWidth: 280 }}>כדי לראות את הפרופיל, המסלולים וההתקדמות שלך, אנא התחבר לחשבון.</div>
+        <button onClick={() => navigate('/Login')} style={{ padding: '12px 32px', border: 'none', borderRadius: 16, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)' }}>
           התחבר עכשיו
         </button>
       </div>
     );
   }
 
-  // ── Authenticated View ────────────────────────────────────────────
-  const xp = profile?.xp_points ?? 0;
-  const nextLevelXP = 100;
-  const progress = Math.min((xp / nextLevelXP) * 100, 100);
-  const level = profile?.level || 'מטייל מתחיל';
+  const xp       = profile?.xp_points ?? 0;
+  const level    = profile?.level || 'מטייל מתחיל';
+  const levelNum = profile?.level_number ?? Math.floor(Math.sqrt(xp / 50));
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', width: '100%', direction: 'rtl' }}>
+      {/* Cover */}
+      <div style={{ height: 120, position: 'relative', background: profile?.cover_image ? `url(${profile.cover_image}) center/cover no-repeat` : 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)' }}>
+        <button onClick={() => navigate('/profile/edit')} style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: 10, padding: '6px 12px', color: '#fff', fontSize: 13, fontFamily: 'Heebo, sans-serif', cursor: 'pointer', fontWeight: 600 }}>✏️ עריכה</button>
+      </div>
 
-      {/* ── Top header (Full Width) ─────────────────────────────────────── */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', width: '100%' }}>
-        <div style={{
-          maxWidth: 600, margin: '0 auto', padding: '24px 20px 20px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 52, height: 52, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #0d9e6e, #34d399)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22, color: '#fff', fontWeight: 800,
-            }}>
-              {user.full_name?.charAt(0) || user.email?.charAt(0) || 'ע'}
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>{user.full_name || 'משתמש'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13, marginTop: 3 }}>
-                <span>· {level}</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#0d9e6e', fontWeight: 700 }}>
-                  ⚡ {xp} XP
-                </span>
-              </div>
+      {/* Avatar + header */}
+      <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', paddingBottom: 20 }}>
+        <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 20px' }}>
+          <div style={{ transform: 'translateY(-32px)', marginBottom: -16 }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #fff', background: profile?.avatar_url ? 'none' : 'linear-gradient(135deg, #0d9e6e, #34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#fff', fontWeight: 800, boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
+              {profile?.avatar_url
+                ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                : (user.full_name?.charAt(0) || user.email?.charAt(0) || 'ע')}
             </div>
           </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(user as any)?.is_admin && (
-              <button onClick={() => navigate('/Admin')} style={{
-                background: '#0f172a', border: 'none', borderRadius: 10, padding: '8px 12px',
-                color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif'
-              }}>
-                🛡 ניהול
-              </button>
-            )}
-            {/* Logout Button */}
-            <button onClick={handleLogout} style={{
-              background: '#fef2f2', border: 'none', borderRadius: 10, padding: '8px 12px',
-              color: '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif'
-            }}>
-              התנתק
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>{profile?.full_name || user.full_name || 'משתמש'}</div>
+              <div style={{ fontSize: 13, color: '#94a3b8' }}>@{profile?.username || user.username}</div>
+              {profile?.bio && <div style={{ fontSize: 14, color: '#475569', marginTop: 6, maxWidth: 320, lineHeight: 1.5 }}>{profile.bio}</div>}
+            </div>
+            <div style={{ background: '#ecfdf5', border: '2px solid #0d9e6e', borderRadius: 12, padding: '6px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: '#0d9e6e', fontWeight: 600 }}>רמה {levelNum}</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#0d9e6e' }}>⚡ {xp} XP</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{level}</div>
+            </div>
           </div>
+          <LevelBar xp={xp} />
+          {(profile?.instagram || profile?.website) && (
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              {profile.instagram && <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#475569', textDecoration: 'none' }}>📸 {profile.instagram}</a>}
+              {profile.website && <a href={profile.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#0284c7', textDecoration: 'none' }}>🌐 אתר אישי</a>}
+            </div>
+          )}
+          {profile?.favorite_regions?.length ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+              {profile.favorite_regions.map(r => (
+                <span key={r} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: '#166534', fontWeight: 600 }}>📍 {r}</span>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {/* ── Main Content Container (Centered) ─────────────────────────── */}
-      <div style={{ maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
-
-        {loadingData ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען נתונים...</div>
-        ) : (
-          <>
-            {/* ── Stats row ─────────────────────────────────────── */}
-            <div style={{ padding: '16px 16px 0' }}>
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 10, background: '#fff', borderRadius: 20,
-                boxShadow: '0 2px 12px rgba(0,0,0,0.05)', padding: '16px',
-              }}>
-                {[
-                  { label: 'מסלולים', value: profile?.trips_count ?? trips.length, icon: '↔️', color: '#0d9e6e' },
-                  { label: 'ביקורות', value: profile?.reviews_count ?? reviews.length, icon: '💬', color: '#0891b2' },
-                  { label: 'דיווחים', value: profile?.reports_count ?? 0, icon: '⚠️', color: '#f59e0b' },
-                ].map(stat => (
-                  <div key={stat.label} style={{ textAlign: 'center', padding: '8px 0' }}>
-                    <div style={{ fontSize: 22, marginBottom: 6 }}>{stat.icon}</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: '#1a2e2a', lineHeight: 1 }}>{stat.value}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, fontWeight: 600 }}>{stat.label}</div>
-                  </div>
-                ))}
+      <div style={{ maxWidth: 600, margin: '0 auto', padding: '16px 20px' }}>
+        {/* Stats — synced from DB (Feature 5) */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, textAlign: 'center' }}>
+            {[
+              { label: 'דיווחים',  value: profile?.reports_count ?? recentReports.length, emoji: '📊' },
+              { label: 'ביקורות', value: profile?.reviews_count ?? recentReviews.length, emoji: '⭐' },
+              { label: 'מסלולים', value: profile?.trips_count   ?? 0,                   emoji: '🗺️' },
+            ].map(stat => (
+              <div key={stat.label}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: '#1a2e2a' }}>{stat.emoji} {stat.value}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{stat.label}</div>
               </div>
-            </div>
-
-            {/* ── My Trips + My Reviews ──────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 16px 0' }}>
-
-              {/* My Trips */}
-              <div style={{ background: '#fff', borderRadius: 20, padding: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <span style={{ color: '#94a3b8' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="5" cy="6" r="2" /><path d="M5 8v12" /><circle cx="19" cy="18" r="2" /><path d="M19 16V4" />
-                    </svg>
-                  </span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>המסלולים שלי</span>
-                </div>
-                <div>
-                  {trips.length === 0 ? (
-                    <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>אין מסלולים עדיין</div>
-                  ) : (
-                    trips.slice(0, 4).map(t => (
-                      <div key={t.id} onClick={() => navigate(`/TripDetail?id=${t.id}`)} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '8px 0', borderBottom: '1px solid #f8fafc', cursor: 'pointer',
-                      }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 10,
-                          background: '#f0fdf8', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0,
-                        }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-                          </svg>
-                        </div>
-                        <div style={{ textAlign: 'right', flex: 1, paddingRight: 8 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#1a2e2a', lineHeight: 1.3 }}>{t.name}</div>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{t.region}</div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* My Reviews */}
-              <div style={{ background: '#fff', borderRadius: 20, padding: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <span style={{ color: '#94a3b8' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                  </span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>הביקורות שלי</span>
-                </div>
-                <div>
-                  {reviews.length === 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 140, color: '#94a3b8' }}>
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8, opacity: 0.4 }}>
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                      </svg>
-                      <span style={{ fontSize: 13, opacity: 0.6 }}>אין ביקורות</span>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {reviews.slice(0, 3).map((r, index) => {
-                        const rating = r.rating || 5;
-                        const emptyStars = 5 - rating;
-                        return (
-                          <div key={r.id || index} style={{ paddingBottom: 8, borderBottom: '1px solid #f8fafc' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, color: '#f59e0b', fontSize: 10 }}>
-                              {'★'.repeat(rating)}{'☆'.repeat(emptyStars)}
-                            </div>
-                            <div style={{ fontSize: 12, color: '#1a2e2a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {r.content || r.text || 'ביקורת ללא טקסט'}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Progress / Gamification ───────────────────────── */}
-            <div style={{ padding: '12px 16px 0' }}>
-              <div style={{ background: '#fff', borderRadius: 20, padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
-                    <line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" />
-                  </svg>
-                  <span style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a' }}>התקדמות</span>
-                </div>
-
-                {/* Level + avatar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ fontSize: 14, color: '#94a3b8' }}>{nextLevelXP} XP לדרגה הבאה</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a' }}>{level}</div>
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>XP {xp}</div>
-                    </div>
-                    <div style={{ fontSize: 28 }}>🦊</div>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div style={{ height: 8, background: '#f0f4f3', borderRadius: 4, overflow: 'hidden', marginBottom: 20 }}>
-                  <div style={{
-                    height: '100%', width: `${progress}%`,
-                    background: 'linear-gradient(90deg, #0d9e6e, #34d399)',
-                    borderRadius: 4, transition: 'width 0.6s ease',
-                  }} />
-                </div>
-
-                {/* XP methods */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                  {[
-                    { label: 'מסלול שהושלם', xp: 'XP 20+', color: '#0d9e6e', bg: '#f0fdf8' },
-                    { label: 'כתיבת ביקורת', xp: 'XP 15+', color: '#0284c7', bg: '#eff6ff' },
-                    { label: 'העלאת וידאו', xp: 'XP 10+', color: '#d97706', bg: '#fffbeb' },
-                  ].map(item => (
-                    <div key={item.label} style={{
-                      background: item.bg, borderRadius: 12, padding: '10px 8px', textAlign: 'center',
-                    }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: item.color }}>{item.xp}</div>
-                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>{item.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ── Action buttons ────────────────────────────────── */}
-        <div style={{ padding: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* AI planner */}
-          <button onClick={() => navigate('/TripPlanner')} style={{
-            background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-            border: 'none', borderRadius: 18, padding: '0 20px',
-            cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            height: 72, overflow: 'hidden', position: 'relative',
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>שילוב AI למסלולים</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>צור מסלול מותאם אישית עם AI</div>
-            </div>
-            <div style={{
-              width: 44, height: 44, borderRadius: 14,
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <span style={{ fontSize: 22 }}>✨</span>
-            </div>
-          </button>
-
-          {/* Community */}
-          <button onClick={() => navigate('/CommunityVideos')} style={{
-            background: 'linear-gradient(135deg, #7c3aed, #9333ea)',
-            border: 'none', borderRadius: 18, padding: '0 20px',
-            cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            height: 72,
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>פיתוח קהילה</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>שתף וידאו, דווח ותרום לקהילה</div>
-            </div>
-            <div style={{
-              width: 44, height: 44, borderRadius: 14,
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-              </svg>
-            </div>
-          </button>
+            ))}
+          </div>
         </div>
 
+        {/* Recent activity — Feature 5 */}
+        {recentReports.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>הדיווחים האחרונים שלי</div>
+            {recentReports.map(r => (
+              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0', direction: 'rtl' }}>
+                <span style={{ fontSize: 13, color: '#64748b' }}>{r.poi_name || 'מיקום לא ידוע'}</span>
+                <span style={{ fontSize: 11, background: '#fffbeb', color: '#d97706', borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>{r.report_type}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Quick actions */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {user.is_admin && (
+            <button onClick={() => navigate('/Admin')} style={{ width: '100%', padding: '14px 18px', border: '2px solid #7c3aed', borderRadius: 14, background: 'linear-gradient(135deg, #faf5ff, #ede9fe)', color: '#6d28d9', fontFamily: 'Heebo, sans-serif', fontWeight: 800, fontSize: 15, cursor: 'pointer', textAlign: 'right', boxShadow: '0 2px 8px rgba(124,58,237,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ color: '#7c3aed', fontSize: 18 }}>›</span>
+              <span>🛡️ לוח ניהול</span>
+            </button>
+          )}
+          {/* Feature 8: My Trips added */}
+          {[
+            { label: '❤️ המועדפים שלי',    path: '/favorites' },
+            { label: '🗺️ המסלולים שלי',    path: '/MyTrips' },
+            { label: '🌍 מסלולים ציבוריים', path: '/trips' },
+            { label: '✏️ עריכת פרופיל',    path: '/profile/edit' },
+          ].map(item => (
+            <button key={item.path} onClick={() => navigate(item.path)} style={{ width: '100%', padding: '14px 18px', border: 'none', borderRadius: 14, background: '#fff', color: '#1a2e2a', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 15, cursor: 'pointer', textAlign: 'right', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {item.label} <span style={{ color: '#94a3b8', fontSize: 18 }}>›</span>
+            </button>
+          ))}
+          <button onClick={handleLogout} style={{ width: '100%', padding: '14px 18px', border: '1.5px solid #fecaca', borderRadius: 14, background: '#fff', color: '#ef4444', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 8 }}>
+            🚪 התנתקות
+          </button>
+        </div>
       </div>
     </div>
   );

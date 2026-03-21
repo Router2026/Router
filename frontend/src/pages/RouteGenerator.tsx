@@ -186,6 +186,12 @@ export default function RouteGenerator() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
+  // ── Feature 12: trip metadata ─────────────────────────────────────────────
+  const [tripType, setTripType] = useState<string>('משפחה');
+  const [tripStyle, setTripStyle] = useState<string>('טבע');
+  const [tripDifficulty, setTripDifficulty] = useState<string>('בינוני');
+  const [tripDuration, setTripDuration] = useState<string>('');
+
   // ── Start point state ──────────────────────────────────────────────────────
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -202,10 +208,28 @@ export default function RouteGenerator() {
     const state = routerLocation.state as { bucketPois?: POI[] } | null;
     if (state?.bucketPois && state.bucketPois.length >= 2) {
       const incoming = state.bucketPois;
-      const opt = optimizeRoute([...incoming], startPoint);
       setSelectedPois(incoming);
-      setOptimized(opt);
       setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
+      // Feature 11: auto-request user location and optimise order from it
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const sp = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            setStartPoint(sp);
+            const opt = optimizeRoute([...incoming], sp);
+            setOptimized(opt);
+          },
+          () => {
+            // No location — still optimise without start
+            const opt = optimizeRoute([...incoming], null);
+            setOptimized(opt);
+          },
+          { timeout: 5000, enableHighAccuracy: false }
+        );
+      } else {
+        const opt = optimizeRoute([...incoming], null);
+        setOptimized(opt);
+      }
       setStep('route');
       window.history.replaceState({}, '');
     }
@@ -281,13 +305,17 @@ export default function RouteGenerator() {
         order_index: i,
       }));
       const dist = totalDistance(optimized);
+      const autoHours = parseFloat(
+        (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
+      );
       const saved = await api.trips.create({
         name: routeName || `מסלול ב${selectedRegion?.name}`,
         region: selectedRegion?.name,
-        total_duration_hours: parseFloat(
-          (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
-        ),
+        total_duration_hours: tripDuration ? parseFloat(tripDuration) : autoHours,
         total_distance_km: parseFloat(dist.toFixed(1)),
+        difficulty: tripDifficulty,
+        group_type: tripType,
+        style: tripStyle,
         stops,
       });
       navigate(`/TripDetail?id=${saved.id}`);
@@ -775,6 +803,62 @@ export default function RouteGenerator() {
                   }}>{i + 1}</div>
                 </div>
               ))}
+            </div>
+
+            {/* ── Feature 12: Trip metadata ─────────────────────────────────── */}
+            <div style={{ background: '#fff', borderRadius: 20, padding: '18px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', direction: 'rtl' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', marginBottom: 14 }}>פרטי המסלול</div>
+
+              {/* Trip type */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>סוג הטיול</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[['solo', '🚶 יחיד'], ['couple', '👫 זוג'], ['family', '👨‍👩‍👧‍👦 משפחה'], ['friends', '👥 חברים']].map(([id, label]) => (
+                    <button key={id} onClick={() => setTripType(id)}
+                      style={{ padding: '6px 14px', borderRadius: 20, border: `2px solid ${tripType === id ? '#0d9e6e' : '#e2e8f0'}`, background: tripType === id ? '#f0fdf8' : '#fff', color: tripType === id ? '#0d9e6e' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: tripType === id ? 700 : 500, fontSize: 12, cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Style */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>סגנון</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {['טבע', 'היסטוריה', 'מים', 'נוף', 'מסלולים', 'חופים', 'גיאולוגיה', 'יין ואוכל'].map(s => (
+                    <button key={s} onClick={() => setTripStyle(s)}
+                      style={{ padding: '6px 14px', borderRadius: 20, border: `2px solid ${tripStyle === s ? '#0d9e6e' : '#e2e8f0'}`, background: tripStyle === s ? '#f0fdf8' : '#fff', color: tripStyle === s ? '#0d9e6e' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: tripStyle === s ? 700 : 500, fontSize: 12, cursor: 'pointer' }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Difficulty */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>רמת קושי</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[['קל - משפחות', '#16a34a'], ['בינוני', '#d97706'], ['קשה', '#dc2626'], ['מאתגר', '#7c3aed']].map(([d, color]) => (
+                    <button key={d} onClick={() => setTripDifficulty(d)}
+                      style={{ padding: '6px 14px', borderRadius: 20, border: `2px solid ${tripDifficulty === d ? color : '#e2e8f0'}`, background: tripDifficulty === d ? `${color}15` : '#fff', color: tripDifficulty === d ? color : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: tripDifficulty === d ? 700 : 500, fontSize: 12, cursor: 'pointer' }}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Duration override */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>אורך משוער בשעות (אופציונלי)</div>
+                <input
+                  type="number" min="0.5" max="24" step="0.5"
+                  value={tripDuration}
+                  onChange={e => setTripDuration(e.target.value)}
+                  placeholder={`${parseFloat((optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0) / 60).toFixed(1))} שעות (אוטומטי)`}
+                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '9px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', direction: 'ltr', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
             </div>
 
             {/* Actions */}

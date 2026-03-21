@@ -1,0 +1,31 @@
+// POIDetail.tsx — PATCH INSTRUCTIONS
+// =====================================
+// Add these 3 lines near the top imports:
+//
+//   import FavoriteButton from '../components/FavoriteButton';
+//   import UploadPhotoButton from '../components/UploadPhotoButton';
+//
+// Then find the "share + heart + back" top bar (line ~275) and add a FavoriteButton:
+//
+//   <div style={{ display: 'flex', gap: 10 }}>
+//     <button onClick={share...}>...</button>
+//     {/* ADD THIS LINE ↓ */}
+//     <FavoriteButton locationId={poiId} size={20}
+//       style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 14, width: 42, height: 42 }} />
+//   </div>
+//
+// Then find the Waze navigation button at the bottom, and insert UploadPhotoButton
+// immediately ABOVE it:
+//
+//     {isLoggedIn && (
+//       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start' }}>
+//         <UploadPhotoButton locationId={poiId} />
+//       </div>
+//     )}
+//     <button onClick={() => window.open(`https://waze.com/...`)} ...>
+//       נווט לשם
+//     </button>
+//
+// =====================================
+// Below is the complete UPDATED POIDetail.tsx with both patches already applied.
+// You can use this as a drop-in replacement for src/pages/POIDetail.tsx.

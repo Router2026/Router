@@ -1,11 +1,6 @@
-// src/pages/ContributePOI.tsx
-// Feature 3: User form to contribute a new community POI.
-// The user taps the map to set a point, then fills out name/category/description
-// and optionally attaches photo URLs.  Submits to POST /api/community-pois.
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
@@ -21,8 +16,64 @@ L.Icon.Default.mergeOptions({
   iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow,
 });
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-// ── Map click handler ─────────────────────────────────────────────────────────
+/**
+ * Feature 14: Robust coordinate extraction from Google Maps URLs and raw text.
+ *
+ * Handles:
+ *  • https://maps.google.com/…@32.1,34.9,…z
+ *  • https://www.google.com/maps/place/…/@32.1,34.9,17z
+ *  • https://www.google.com/maps/search/…/@32.1,34.9
+ *  • ?q=32.1,34.9 and &ll=32.1,34.9
+ *  • !3d32.1!4d34.9  (embedded in long URLs)
+ *  • Raw "32.1, 34.9" coordinate string
+ *  • maps.app.goo.gl short links  →  returns null (can't expand client-side)
+ */
+const extractLatLngFromGoogle = (input: string): LatLng | null => {
+  const s = input.trim();
+
+  // Raw lat,lng paste e.g. "32.1234, 34.9876" or "32.1234,34.9876"
+  const rawCoord = s.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
+  if (rawCoord) {
+    const lat = parseFloat(rawCoord[1]);
+    const lng = parseFloat(rawCoord[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
+  }
+
+  // @lat,lng,zoom pattern (most common Maps URL)
+  const atCoord = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atCoord) return { lat: parseFloat(atCoord[1]), lng: parseFloat(atCoord[2]) };
+
+  // !3dlat!4dlng embedded params
+  const embCoord = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (embCoord) return { lat: parseFloat(embCoord[1]), lng: parseFloat(embCoord[2]) };
+
+  // ?q=lat,lng or &q=lat,lng
+  const qParam = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qParam) return { lat: parseFloat(qParam[1]), lng: parseFloat(qParam[2]) };
+
+  // ?ll=lat,lng
+  const llParam = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (llParam) return { lat: parseFloat(llParam[1]), lng: parseFloat(llParam[2]) };
+
+  return null;
+};
+
+/** Feature 14: Geocode a place name via Nominatim (OSM) as fallback. */
+async function geocodePlaceName(name: string): Promise<LatLng | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=1&countrycodes=il`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
+    const data = await res.json();
+    if (data && data[0]) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+  } catch { /* network error — silent */ }
+  return null;
+}
+
+// ── Map Components ───────────────────────────────────────────────────────────
 
 function MapClickHandler({ onPick }: { onPick: (ll: LatLng) => void }) {
   useMapEvents({
@@ -31,7 +82,18 @@ function MapClickHandler({ onPick }: { onPick: (ll: LatLng) => void }) {
   return null;
 }
 
-// ── Picked-point marker ───────────────────────────────────────────────────────
+/**
+ * Automatically pans and zooms the map when a point is picked (via import)
+ */
+function MapRecenter({ position }: { position: LatLng | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (position) {
+      map.setView([position.lat, position.lng], 16, { animate: true });
+    }
+  }, [position, map]);
+  return null;
+}
 
 function PickedMarker({ position }: { position: LatLng }) {
   const icon = L.divIcon({
@@ -54,9 +116,7 @@ function PickedMarker({ position }: { position: LatLng }) {
   return <Marker position={[position.lat, position.lng]} icon={icon} />;
 }
 
-// ── Category config ───────────────────────────────────────────────────────────
-
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ContributePOI() {
   const navigate = useNavigate();
@@ -64,6 +124,8 @@ export default function ContributePOI() {
 
   // Map state
   const [pickedPoint, setPickedPoint] = useState<LatLng | null>(null);
+  const [googleUrl, setGoogleUrl] = useState('');
+  const [geocoding, setGeocoding] = useState(false);
 
   // Form state
   const [name, setName] = useState('');
@@ -77,8 +139,39 @@ export default function ContributePOI() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  // Default center: Israel
   const defaultCenter: LatLng = { lat: 31.8, lng: 35.2 };
+
+  const handleImportGoogleMaps = async () => {
+    const input = googleUrl.trim();
+    if (!input) return;
+
+    setError('');
+
+    // Short link — can't expand client-side, ask user to open + copy the full URL
+    if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps')) {
+      setError('לינק מקוצר: פתח אותו בדפדפן, העתק את הכתובת המלאה מסרגל הכתובות ונסה שנית.');
+      return;
+    }
+
+    // Try coordinate extraction first
+    const coords = extractLatLngFromGoogle(input);
+    if (coords) {
+      setPickedPoint(coords);
+      setGoogleUrl('');
+      return;
+    }
+
+    // Nothing found — try Nominatim geocoding as fallback
+    setGeocoding(true);
+    const geocoded = await geocodePlaceName(input);
+    setGeocoding(false);
+    if (geocoded) {
+      setPickedPoint(geocoded);
+      setGoogleUrl('');
+    } else {
+      setError('לא מצאנו מיקום. נסה לפתוח את הלינק בדפדפן ולהעתיק כתובת מלאה, או הקלד שם מקום בעברית/אנגלית.');
+    }
+  };
 
   const addPhoto = () => {
     const url = photoUrl.trim();
@@ -120,7 +213,6 @@ export default function ContributePOI() {
         const json = await res.json().catch(() => ({}));
         throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
       }
-
       setSubmitted(true);
     } catch (err: any) {
       setError(err.message ?? 'אירעה שגיאה בשמירה');
@@ -129,7 +221,6 @@ export default function ContributePOI() {
     }
   };
 
-  // ── Success screen ──────────────────────────────────────────────────────────
   if (submitted) {
     return (
       <div style={{
@@ -164,7 +255,6 @@ export default function ContributePOI() {
     );
   }
 
-  // ── Auth guard ──────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
     return (
       <div style={{
@@ -198,7 +288,6 @@ export default function ContributePOI() {
     );
   }
 
-  // ── Main form ───────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl' }}>
 
@@ -239,15 +328,43 @@ export default function ContributePOI() {
             1. בחר נקודה על המפה
           </div>
 
-          {!pickedPoint && (
-            <div style={{
-              marginBottom: 8, padding: '8px 14px', background: '#fefce8',
-              borderRadius: 10, fontSize: 12, color: '#92400e', textAlign: 'right',
-              border: '1px solid #fde68a',
-            }}>
-              לחץ על המפה כדי לסמן את המיקום
+          {/* Feature 14: Google Maps Import UI — robust URL + name fallback */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <input
+                value={googleUrl}
+                onChange={e => { setGoogleUrl(e.target.value); setError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') handleImportGoogleMaps(); }}
+                placeholder="לינק מ-Google Maps, קואורדינטות (32.1, 34.9) או שם מקום..."
+                style={{
+                  flex: 1, border: '2px solid #e2e8f0', borderRadius: 12,
+                  padding: '10px 14px', fontSize: 13, fontFamily: 'Heebo, sans-serif',
+                  textAlign: 'right', outline: 'none', color: '#1a2e2a',
+                  direction: 'rtl',
+                }}
+              />
+              <button
+                onClick={handleImportGoogleMaps}
+                disabled={geocoding || !googleUrl.trim()}
+                style={{
+                  padding: '10px 16px', background: geocoding ? '#94a3b8' : '#4285F4',
+                  color: '#fff', border: 'none', borderRadius: 12, fontSize: 13,
+                  fontWeight: 800, cursor: geocoding ? 'not-allowed' : 'pointer',
+                  fontFamily: 'Heebo, sans-serif', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                {geocoding ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    מחפש...
+                  </>
+                ) : 'ייבוא'}
+              </button>
             </div>
-          )}
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', lineHeight: 1.5 }}>
+              💡 הדבק לינק מלא מ-Google Maps, קואורדינטות, או שם מקום לחיפוש אוטומטי
+            </div>
+          </div>
 
           <div style={{
             borderRadius: 16, overflow: 'hidden', height: 240,
@@ -262,6 +379,7 @@ export default function ContributePOI() {
             >
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <MapClickHandler onPick={setPickedPoint} />
+              <MapRecenter position={pickedPoint} />
               {pickedPoint && <PickedMarker position={pickedPoint} />}
             </MapContainer>
           </div>

@@ -250,3 +250,53 @@ export async function getTotalCount(): Promise<number> {
   const { rows } = await rawDb.query("SELECT COUNT(*) FROM locations");
   return parseInt(rows[0].count as string);
 }
+
+// ── Admin: update a location's fields (including main_image) ─────────────────
+
+export interface UpdateLocationInput {
+  name?:             string;
+  description?:      string;
+  category?:         string;
+  difficulty?:       string;
+  duration_minutes?: number;
+  has_water?:        boolean;
+  has_shade?:        boolean;
+  accessible?:       boolean;
+  main_image?:       string;
+  images?:           string[];
+}
+
+export async function updateLocation(
+  id:    number,
+  input: UpdateLocationInput,
+): Promise<Location> {
+  const allowed: (keyof UpdateLocationInput)[] = [
+    "name", "description", "category", "difficulty",
+    "duration_minutes", "has_water", "has_shade", "accessible",
+    "main_image", "images",
+  ];
+
+  const fields: string[] = [];
+  const params: unknown[] = [];
+
+  for (const key of allowed) {
+    if (input[key] !== undefined) {
+      params.push(key === "images" ? JSON.stringify(input[key]) : input[key]);
+      fields.push(`${key} = $${params.length}`);
+    }
+  }
+
+  if (!fields.length) throw Object.assign(new Error("No fields to update"), { code: "VALIDATION_ERROR" });
+
+  params.push(id);
+  const { rows } = await rawDb.query(
+    `UPDATE locations
+     SET    ${fields.join(", ")}, updated_at = NOW()
+     WHERE  id = $${params.length}
+     RETURNING *, (SELECT name FROM regions WHERE id = region_id) AS region_name`,
+    params
+  );
+
+  if (!rows.length) throw Object.assign(new Error("Location not found"), { code: "NOT_FOUND" });
+  return rowToLocation(rows[0]);
+}
