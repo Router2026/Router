@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
+import { supabaseAdmin } from "@/lib/db/supabase";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
 
@@ -19,6 +20,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json(errorResponse("Cannot delete your own account", "FORBIDDEN"), { status: 403 });
   }
   try {
+    const { rows } = await rawDb.query("SELECT email FROM users WHERE id = $1", [id]);
+    if (!rows.length) return NextResponse.json(errorResponse("User not found", "NOT_FOUND"), { status: 404 });
+    const email = rows[0].email;
+
+    // Delete from Supabase Auth
+    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const authUser = authUsers?.users?.find((u: { email?: string }) => u.email === email);
+    if (authUser) {
+      await supabaseAdmin.auth.admin.deleteUser(authUser.id);
+    }
+
     await rawDb.query("DELETE FROM users WHERE id = $1", [id]);
     return NextResponse.json(successResponse({ deleted: true }));
   } catch (err) {

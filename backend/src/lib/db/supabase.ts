@@ -13,3 +13,10 @@ export const supabase = createClient(
   supabaseUrl || "https://placeholder.supabase.co",
   supabaseKey || "placeholder-key",
 );
+
+// Admin client — requires SUPABASE_SERVICE_KEY (service_role key)
+export const supabaseAdmin = createClient(
+  supabaseUrl || "https://placeholder.supabase.co",
+  process.env.SUPABASE_SERVICE_KEY || supabaseKey || "placeholder-key",
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
