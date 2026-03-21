@@ -8,12 +8,12 @@ const RouteIcon = ({ a }: { a: boolean }) => <svg width="22" height="22" viewBox
 const VideoIcon = ({ a }: { a: boolean }) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={a ? '#0d9e6e' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>;
 const AlertIcon = ({ a }: { a: boolean }) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={a ? '#0d9e6e' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>;
 const PersonIcon = ({ a }: { a: boolean }) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={a ? '#0d9e6e' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
-
+const CommunityIcon = ({ a }: { a: boolean }) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={a ? '#0d9e6e' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 21v-2a4 4 0 0 0-4-4H4a4 4 0 0 0-4 4v2" /><circle cx="7" cy="7" r="4" /><path d="M21 9c0 4.5-4 9-4 9s-4-4.5-4-9a4 4 0 0 1 8 0z" /><circle cx="17" cy="9" r="1.5" /></svg>;
 const NAV_ITEMS = [
   { label: 'בית', value: 'Home', Icon: ({ active }: any) => <HomeIcon a={active} /> },
   { label: 'מפה', value: 'MapView', Icon: ({ active }: any) => <MapIcon a={active} /> },
   { label: 'מסלול', value: 'TripPlanner', Icon: ({ active }: any) => <RouteIcon a={active} /> },
-  { label: 'וידאו', value: 'CommunityVideos', Icon: ({ active }: any) => <VideoIcon a={active} /> },
+  { label: 'קהילה', value: 'trips', Icon: ({ active }: any) => <CommunityIcon a={active} /> },
   { label: 'דיווחים', value: 'Reports', Icon: ({ active }: any) => <AlertIcon a={active} /> },
   { label: 'פרופיל', value: 'Profile', Icon: ({ active }: any) => <PersonIcon a={active} /> },
 ];
