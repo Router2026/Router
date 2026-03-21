@@ -1,11 +1,16 @@
-// src/lib/public-trips/public-trips-service.ts
+// src/lib/public-trips/public-trips-service.ts — REWRITTEN
+//
+// The `trips` and `trip_locations` tables are empty.
+// All custom-built trips live in `routes` + `route_stops`.
+// This service now reads from those tables while keeping the same
+// PublicTrip / PublicTripLocation shape so frontend stays unchanged.
 
 import { rawDb } from "@/lib/db/raw-client";
 
 export interface PublicTrip {
   id:               number;
   user_id:          number;
-  title:            string;
+  title:            string;           // mapped from routes.name
   description:      string | null;
   route_geojson:    object | null;
   is_public:        boolean;
@@ -15,6 +20,13 @@ export interface PublicTrip {
   creator_xp:       number;
   location_count:   number;
   locations:        PublicTripLocation[];
+  // extra route fields exposed for richer cards
+  region?:          string;
+  difficulty?:      string;
+  group_type?:      string;
+  style?:           string;
+  total_duration_hours?: number;
+  total_distance_km?:    number;
 }
 
 export interface PublicTripLocation {
@@ -28,6 +40,9 @@ export interface PublicTripLocation {
   order_index:  number;
   region_name?: string;
   difficulty?:  string;
+  arrival_time?:      string;
+  duration_minutes?:  number;
+  smart_insight?:     string;
 }
 
 export interface PublicTripsQuery {
@@ -37,90 +52,110 @@ export interface PublicTripsQuery {
   offset?:     number;
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────────────────
 
-function rowToTripLocation(r: Record<string, unknown>): PublicTripLocation {
+function rowToLocation(r: Record<string, unknown>): PublicTripLocation {
   return {
-    id:           r.tl_id    as number ?? 0,
-    location_id:  r.location_id as number,
-    name:         r.name     as string,
-    category:     r.category as string,
-    latitude:     parseFloat(r.latitude  as string),
-    longitude:    parseFloat(r.longitude as string),
-    main_image:   (r.main_image as string) || null,
-    order_index:  r.order_index as number,
-    region_name:  (r.region_name as string) || undefined,
-    difficulty:   (r.difficulty  as string) || undefined,
+    id:               (r.rs_id       as number) ?? 0,
+    location_id:      r.location_id  as number,
+    name:             (r.name        as string) || (r.poi_name as string) || "מיקום",
+    category:         (r.category    as string) || "טבע",
+    latitude:         parseFloat(r.latitude  as string),
+    longitude:        parseFloat(r.longitude as string),
+    main_image:       (r.main_image  as string) || null,
+    order_index:      (r.order_index as number) ?? 0,
+    region_name:      (r.region_name as string) || undefined,
+    difficulty:       (r.difficulty  as string) || undefined,
+    arrival_time:     (r.arrival_time    as string) || undefined,
+    duration_minutes: (r.duration_minutes as number) || undefined,
+    smart_insight:    (r.smart_insight   as string) || undefined,
   };
 }
 
-async function attachLocations(trips: Record<string, unknown>[]): Promise<PublicTrip[]> {
-  if (!trips.length) return [];
+/** Attach route_stop + location rows to each route. */
+async function attachStops(routes: Record<string, unknown>[]): Promise<PublicTrip[]> {
+  if (!routes.length) return [];
 
-  const tripIds   = trips.map(t => t.id as number);
-  const placeholders = tripIds.map((_, i) => `$${i + 1}`).join(", ");
+  const routeIds    = routes.map(r => r.id as number);
+  const placeholders = routeIds.map((_, i) => `$${i + 1}`).join(", ");
 
-  const { rows: locRows } = await rawDb.query(
-    `SELECT tl.id AS tl_id, tl.trip_id, tl.order_index,
-            l.id AS location_id, l.name, l.category,
-            l.latitude, l.longitude, l.main_image, l.difficulty,
-            r.name AS region_name
-     FROM   trip_locations tl
-     JOIN   locations l ON l.id = tl.location_id
-     LEFT JOIN regions r ON r.id = l.region_id
-     WHERE  tl.trip_id IN (${placeholders})
-     ORDER  BY tl.trip_id, tl.order_index`,
-    tripIds
+  const { rows: stopRows } = await rawDb.query(
+    `SELECT
+       rs.id          AS rs_id,
+       rs.route_id,
+       rs.order_index,
+       rs.arrival_time,
+       rs.duration_minutes,
+       rs.smart_insight,
+       rs.poi_name,
+       COALESCE(l.id,   0)     AS location_id,
+       COALESCE(l.name, rs.poi_name, '') AS name,
+       COALESCE(l.category, 'טבע')      AS category,
+       COALESCE(l.latitude::float,  0)  AS latitude,
+       COALESCE(l.longitude::float, 0)  AS longitude,
+       l.main_image,
+       l.difficulty,
+       reg.name AS region_name
+     FROM   route_stops rs
+     LEFT   JOIN locations l   ON l.id  = rs.location_id
+     LEFT   JOIN regions   reg ON reg.id = l.region_id
+     WHERE  rs.route_id IN (${placeholders})
+     ORDER  BY rs.route_id, rs.order_index`,
+    routeIds
   );
 
-  // Group by trip_id
-  const locsByTrip = new Map<number, PublicTripLocation[]>();
-  for (const row of locRows) {
-    const tid = row.trip_id as number;
-    if (!locsByTrip.has(tid)) locsByTrip.set(tid, []);
-    locsByTrip.get(tid)!.push(rowToTripLocation(row));
+  // Group stops by route_id
+  const stopsByRoute = new Map<number, PublicTripLocation[]>();
+  for (const row of stopRows) {
+    const rid = row.route_id as number;
+    if (!stopsByRoute.has(rid)) stopsByRoute.set(rid, []);
+    // Only include stops that have real coordinates
+    const loc = rowToLocation(row);
+    if (loc.latitude !== 0 || loc.longitude !== 0) {
+      stopsByRoute.get(rid)!.push(loc);
+    }
   }
 
-  return trips.map(t => {
-    const locs = locsByTrip.get(t.id as number) || [];
+  return routes.map(r => {
+    const stops = stopsByRoute.get(r.id as number) || [];
     return {
-      ...(t as any),
-      creator_xp:     parseInt(t.creator_xp as string, 10) || 0,
-      location_count: locs.length,
-      locations:      locs,
+      id:               r.id          as number,
+      user_id:          r.user_id     as number,
+      title:            (r.name       as string) || "מסלול",
+      description:      (r.description as string) || null,
+      route_geojson:    null,
+      is_public:        true,
+      created_at:       r.created_at  as Date,
+      creator_username: (r.creator_username as string) || "משתמש",
+      creator_avatar:   (r.creator_avatar  as string) || null,
+      creator_xp:       parseInt(r.creator_xp as string, 10) || 0,
+      location_count:   stops.length,
+      locations:        stops,
+      region:           (r.region     as string) || undefined,
+      difficulty:       (r.difficulty as string) || undefined,
+      group_type:       (r.group_type as string) || undefined,
+      style:            (r.style      as string) || undefined,
+      total_duration_hours: parseFloat(r.total_duration_hours as string) || undefined,
+      total_distance_km:    parseFloat(r.total_distance_km    as string) || undefined,
     } as PublicTrip;
   });
 }
 
-// ── public API ────────────────────────────────────────────────────────────
+// ── public API ─────────────────────────────────────────────────────────────
 
 export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<PublicTrip[]> {
-  const conditions: string[] = ["t.is_public = TRUE"];
+  const conditions: string[] = ["r.user_id IS NOT NULL"];
   const params: unknown[]    = [];
 
-  // BUG FIX: region filter was joining through trip_locations, turning LEFT JOIN
-  // into an implicit INNER JOIN and dropping trips with no locations.
-  // We now filter by a subquery so the main trip row is always preserved.
   if (query.region) {
     params.push(`%${query.region}%`);
     conditions.push(
-      `EXISTS (
-         SELECT 1 FROM trip_locations tl2
-         JOIN locations l2 ON l2.id = tl2.location_id
-         JOIN regions   r2 ON r2.id = l2.region_id
-         WHERE tl2.trip_id = t.id AND r2.name ILIKE $${params.length}
-       )`
+      `(reg.name ILIKE $${params.length} OR r.description ILIKE $${params.length})`
     );
   }
   if (query.difficulty) {
     params.push(query.difficulty);
-    conditions.push(
-      `EXISTS (
-         SELECT 1 FROM trip_locations tl3
-         JOIN locations l3 ON l3.id = tl3.location_id
-         WHERE tl3.trip_id = t.id AND l3.difficulty = $${params.length}
-       )`
-    );
+    conditions.push(`r.difficulty = $${params.length}`);
   }
 
   const where    = `WHERE ${conditions.join(" AND ")}`;
@@ -129,45 +164,52 @@ export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<Publ
   params.push(limit);  const limitIdx  = params.length;
   params.push(offset); const offsetIdx = params.length;
 
-  // BUG FIX: removed DISTINCT ON + window function combination which was
-  // incompatible in Postgres. Use a simple GROUP BY subquery for location_count.
-  const { rows: trips } = await rawDb.query(
-    `SELECT t.id, t.user_id, t.title, t.description,
-            t.route_geojson, t.is_public, t.created_at,
-            u.username   AS creator_username,
-            u.avatar_url AS creator_avatar,
-            COALESCE(u.xp, u.xp_points, 0) AS creator_xp
-     FROM   trips t
-     JOIN   users u ON u.id = t.user_id
+  const { rows } = await rawDb.query(
+    `SELECT
+       r.id, r.user_id, r.name, r.description,
+       r.total_duration_hours, r.total_distance_km,
+       r.difficulty, r.group_type, r.style,
+       r.created_at,
+       reg.name AS region,
+       u.username   AS creator_username,
+       u.avatar_url AS creator_avatar,
+       COALESCE(u.xp_points, 0) AS creator_xp
+     FROM   routes r
+     JOIN   users u ON u.id = r.user_id
+     LEFT   JOIN regions reg ON reg.id = r.region_id
      ${where}
-     ORDER  BY t.created_at DESC
+     ORDER  BY r.created_at DESC
      LIMIT  $${limitIdx} OFFSET $${offsetIdx}`,
     params
   );
 
-  return attachLocations(trips);
+  return attachStops(rows);
 }
 
 export async function getPublicTripById(tripId: number): Promise<PublicTrip | null> {
-  // BUG FIX: old version called getPublicTrips({limit:1}) — useless, and the
-  // result was thrown away immediately after.
   const { rows } = await rawDb.query(
-    `SELECT t.id, t.user_id, t.title, t.description,
-            t.route_geojson, t.is_public, t.created_at,
-            u.username   AS creator_username,
-            u.avatar_url AS creator_avatar,
-            COALESCE(u.xp, u.xp_points, 0) AS creator_xp
-     FROM   trips t
-     JOIN   users u ON u.id = t.user_id
-     WHERE  t.id = $1 AND t.is_public = TRUE`,
+    `SELECT
+       r.id, r.user_id, r.name, r.description,
+       r.total_duration_hours, r.total_distance_km,
+       r.difficulty, r.group_type, r.style,
+       r.created_at,
+       reg.name AS region,
+       u.username   AS creator_username,
+       u.avatar_url AS creator_avatar,
+       COALESCE(u.xp_points, 0) AS creator_xp
+     FROM   routes r
+     JOIN   users u ON u.id = r.user_id
+     LEFT   JOIN regions reg ON reg.id = r.region_id
+     WHERE  r.id = $1`,
     [tripId]
   );
   if (!rows.length) return null;
 
-  const results = await attachLocations(rows);
+  const results = await attachStops(rows);
   return results[0] ?? null;
 }
 
+// createTrip still inserts into `routes` for consistency with the rest of the app.
 export async function createTrip(
   userId: number,
   data: {
@@ -179,45 +221,24 @@ export async function createTrip(
   }
 ): Promise<PublicTrip> {
   const { rows } = await rawDb.query(
-    `INSERT INTO trips (user_id, title, description, route_geojson, is_public)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO routes (user_id, name, description, difficulty, group_type, style, total_duration_hours)
+     VALUES ($1, $2, $3, 'בינוני', 'משפחה', 'טבע', 0)
      RETURNING id`,
-    [
-      userId,
-      data.title,
-      data.description   || null,
-      data.route_geojson ? JSON.stringify(data.route_geojson) : null,
-      data.is_public     ?? false,
-    ]
+    [userId, data.title, data.description || null]
   );
-  const tripId = rows[0].id as number;
+  const routeId = rows[0].id as number;
 
   if (data.location_ids?.length) {
-    // Insert all locations in a single query via VALUES list
-    const values    = data.location_ids.map((locId, i) => `($1, $${i + 2}, ${i})`).join(", ");
-    const locParams = [tripId, ...data.location_ids];
-    await rawDb.query(
-      `INSERT INTO trip_locations (trip_id, location_id, order_index) VALUES ${values}`,
-      locParams
-    );
+    for (let i = 0; i < data.location_ids.length; i++) {
+      await rawDb.query(
+        `INSERT INTO route_stops (route_id, location_id, order_index, arrival_time, duration_minutes)
+         VALUES ($1, $2, $3, '09:00', 60)`,
+        [routeId, data.location_ids[i], i]
+      );
+    }
   }
 
-  // Increment trips_count regardless of whether locations were attached
-  await rawDb.query(`UPDATE users SET trips_count = trips_count + 1 WHERE id = $1`, [userId]);
-
-  // BUG FIX: was calling getPublicTripById which requires is_public=TRUE.
-  // A just-created trip might be private (is_public=false) — fetch directly.
-  const { rows: tripRows } = await rawDb.query(
-    `SELECT t.id, t.user_id, t.title, t.description,
-            t.route_geojson, t.is_public, t.created_at,
-            u.username   AS creator_username,
-            u.avatar_url AS creator_avatar,
-            COALESCE(u.xp, u.xp_points, 0) AS creator_xp
-     FROM   trips t
-     JOIN   users u ON u.id = t.user_id
-     WHERE  t.id = $1`,
-    [tripId]
-  );
-  const results = await attachLocations(tripRows);
-  return results[0];
+  const result = await getPublicTripById(routeId);
+  if (!result) throw new Error("Failed to fetch created trip");
+  return result;
 }
