@@ -1,6 +1,7 @@
 // src/pages/Profile.tsx — UPDATED
 // Feature 5: reports, reviews, trips synced with DB.
 // Feature 8: "My Trips" link added to actions.
+// Added loading state matching PublicTrips.tsx
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -29,12 +30,15 @@ export default function Profile() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const [recentReports, setRecentReports] = useState<CommunityReport[]>([]);
   const [recentReviews, setRecentReviews] = useState<Review[]>([]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     // Feature 5: load all data from DB
     Promise.all([
@@ -45,12 +49,13 @@ export default function Profile() {
       setProfile(p);
       setRecentReports(reports.slice(0, 3));
       setRecentReviews(reviews.slice(0, 3));
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [user?.id]);
+    }).catch(() => { }).finally(() => setLoading(false));
+  }, [user]);
 
   const handleLogout = async () => { await logout(); navigate('/Login'); };
 
-  if (!user) {
+  // Handle case where user is not logged in
+  if (!user && !loading) {
     return (
       <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 20 }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
@@ -63,8 +68,21 @@ export default function Profile() {
     );
   }
 
-  const xp       = profile?.xp_points ?? 0;
-  const level    = profile?.level || 'מטייל מתחיל';
+  // Display loading spinner while fetching data
+  if (loading) {
+    return (
+      <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 20 }}>
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+        <div style={{ color: '#94a3b8', fontSize: 16, fontFamily: 'Heebo, sans-serif' }}>טוען נתוני פרופיל...</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  const xp = profile?.xp_points ?? 0;
+  const level = profile?.level || 'מטייל מתחיל';
   const levelNum = profile?.level_number ?? Math.floor(Math.sqrt(xp / 50));
 
   return (
@@ -81,13 +99,13 @@ export default function Profile() {
             <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #fff', background: profile?.avatar_url ? 'none' : 'linear-gradient(135deg, #0d9e6e, #34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#fff', fontWeight: 800, boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
               {profile?.avatar_url
                 ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                : (user.full_name?.charAt(0) || user.email?.charAt(0) || 'ע')}
+                : (user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'ע')}
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>{profile?.full_name || user.full_name || 'משתמש'}</div>
-              <div style={{ fontSize: 13, color: '#94a3b8' }}>@{profile?.username || user.username}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>{profile?.full_name || user?.full_name || 'משתמש'}</div>
+              <div style={{ fontSize: 13, color: '#94a3b8' }}>@{profile?.username || user?.username}</div>
               {profile?.bio && <div style={{ fontSize: 14, color: '#475569', marginTop: 6, maxWidth: 320, lineHeight: 1.5 }}>{profile.bio}</div>}
             </div>
             <div style={{ background: '#ecfdf5', border: '2px solid #0d9e6e', borderRadius: 12, padding: '6px 12px', textAlign: 'center' }}>
@@ -118,9 +136,9 @@ export default function Profile() {
         <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, textAlign: 'center' }}>
             {[
-              { label: 'דיווחים',  value: profile?.reports_count ?? recentReports.length, emoji: '📊' },
+              { label: 'דיווחים', value: profile?.reports_count ?? recentReports.length, emoji: '📊' },
               { label: 'ביקורות', value: profile?.reviews_count ?? recentReviews.length, emoji: '⭐' },
-              { label: 'מסלולים', value: profile?.trips_count   ?? 0,                   emoji: '🗺️' },
+              { label: 'מסלולים', value: profile?.trips_count ?? 0, emoji: '🗺️' },
             ].map(stat => (
               <div key={stat.label}>
                 <div style={{ fontSize: 22, fontWeight: 900, color: '#1a2e2a' }}>{stat.emoji} {stat.value}</div>
@@ -145,7 +163,7 @@ export default function Profile() {
 
         {/* Quick actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {user.is_admin && (
+          {user?.is_admin && (
             <button onClick={() => navigate('/Admin')} style={{ width: '100%', padding: '14px 18px', border: '2px solid #7c3aed', borderRadius: 14, background: 'linear-gradient(135deg, #faf5ff, #ede9fe)', color: '#6d28d9', fontFamily: 'Heebo, sans-serif', fontWeight: 800, fontSize: 15, cursor: 'pointer', textAlign: 'right', boxShadow: '0 2px 8px rgba(124,58,237,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ color: '#7c3aed', fontSize: 18 }}>›</span>
               <span>🛡️ לוח ניהול</span>
@@ -153,10 +171,11 @@ export default function Profile() {
           )}
           {/* Feature 8: My Trips added */}
           {[
-            { label: '❤️ המועדפים שלי',    path: '/favorites' },
-            { label: '🗺️ המסלולים שלי',    path: '/MyTrips' },
+            { label: '❤️ המועדפים שלי', path: '/favorites' },
+            { label: '🗺️ המסלולים שלי', path: '/MyTrips' },
             { label: '🌍 מסלולים ציבוריים', path: '/trips' },
-            { label: '✏️ עריכת פרופיל',    path: '/profile/edit' },
+            { label: '🎥 צפייה בוידאו קהילתי', path: '/CommunityVideos' },
+            { label: '✏️ עריכת פרופיל', path: '/profile/edit' },
           ].map(item => (
             <button key={item.path} onClick={() => navigate(item.path)} style={{ width: '100%', padding: '14px 18px', border: 'none', borderRadius: 14, background: '#fff', color: '#1a2e2a', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 15, cursor: 'pointer', textAlign: 'right', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               {item.label} <span style={{ color: '#94a3b8', fontSize: 18 }}>›</span>
