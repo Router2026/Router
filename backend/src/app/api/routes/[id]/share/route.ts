@@ -54,3 +54,5 @@ export async function POST(
     return NextResponse.json(errorResponse("Failed to share trip", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

@@ -56,3 +56,5 @@ export async function DELETE(
     return NextResponse.json(errorResponse("Failed to delete POI", "SERVER_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

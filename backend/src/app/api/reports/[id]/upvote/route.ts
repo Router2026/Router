@@ -15,3 +15,5 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json(errorResponse("Failed to upvote report", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

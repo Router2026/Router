@@ -16,3 +16,5 @@ export async function GET(req: NextRequest) {
   );
   return NextResponse.json(successResponse(rows));
 }
+
+export { OPTIONS } from "@/lib/api/cors";

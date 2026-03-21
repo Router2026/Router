@@ -48,3 +48,5 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json(errorResponse("Failed to update location", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

@@ -15,3 +15,5 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json(errorResponse("Failed to fetch region", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

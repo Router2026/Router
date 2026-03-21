@@ -20,3 +20,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(errorResponse(message, "SERVER_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

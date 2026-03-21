@@ -57,3 +57,5 @@ export async function PATCH(
     );
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

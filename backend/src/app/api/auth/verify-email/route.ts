@@ -21,3 +21,5 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(successResponse({ user: rows[0], token: data.session?.access_token }));
 }
+
+export { OPTIONS } from "@/lib/api/cors";

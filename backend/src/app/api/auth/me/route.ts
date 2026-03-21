@@ -39,3 +39,5 @@ export async function GET(req: NextRequest) {
 }
 
 export { GET as POST };
+
+export { OPTIONS } from "@/lib/api/cors";

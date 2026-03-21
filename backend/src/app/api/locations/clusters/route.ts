@@ -21,3 +21,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(errorResponse("Failed to fetch clusters", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

@@ -99,3 +99,5 @@ export async function POST(
     return NextResponse.json(errorResponse("Failed to upload image", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

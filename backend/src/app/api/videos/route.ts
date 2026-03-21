@@ -22,3 +22,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(errorResponse("Failed to create video", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

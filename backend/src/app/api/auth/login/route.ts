@@ -77,3 +77,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(errorResponse("Login failed", "AUTH_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

@@ -53,3 +53,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(errorResponse("Registration failed", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

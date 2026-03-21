@@ -38,3 +38,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(errorResponse("Failed to create POI", "SERVER_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

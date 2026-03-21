@@ -80,3 +80,5 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json(errorResponse("Failed to delete image", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

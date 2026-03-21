@@ -57,3 +57,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

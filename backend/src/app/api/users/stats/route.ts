@@ -11,3 +11,5 @@ export async function GET() {
     return NextResponse.json(errorResponse("Failed to fetch stats", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

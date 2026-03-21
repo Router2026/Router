@@ -10,3 +10,5 @@ export async function GET(req: NextRequest) {
   const { rows } = await rawDb.query("SELECT id FROM users WHERE username = $1", [username]);
   return NextResponse.json(successResponse({ available: rows.length === 0 }));
 }
+
+export { OPTIONS } from "@/lib/api/cors";

@@ -24,3 +24,5 @@ export async function DELETE(_req: NextRequest) {
     { headers: { "Set-Cookie": clearAdminCookieHeader() } }
   );
 }
+
+export { OPTIONS } from "@/lib/api/cors";

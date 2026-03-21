@@ -46,3 +46,5 @@ export async function DELETE(
     return NextResponse.json(errorResponse("Failed to remove favorite", "DB_ERROR"), { status: 500 });
   }
 }
+
+export { OPTIONS } from "@/lib/api/cors";

@@ -9,3 +9,5 @@ export async function GET(req: NextRequest) {
   const favorites = await getUserFavorites(auth.id);
   return NextResponse.json(successResponse(favorites));
 }
+
+export { OPTIONS } from "@/lib/api/cors";
