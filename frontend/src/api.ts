@@ -1,6 +1,6 @@
 // src/api.ts — UPDATED: all 11 feature changes
 
-const BASE_URL = '/api';
+const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
 let _token: string | null = null;
 export function setAuthToken(t: string | null) { _token = t; }
