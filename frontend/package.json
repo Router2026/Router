@@ -16,6 +16,8 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.9",
     "@mui/material": "^7.3.9",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
