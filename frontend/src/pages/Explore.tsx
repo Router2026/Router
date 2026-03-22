@@ -94,26 +94,7 @@ function POICard({ poi }: { poi: POI }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill={isFavorite(poi.id) ? '#ef4444' : 'none'} stroke={isFavorite(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
         </button>
 
-        {/* Quick Add to Trip Bucket button (top-left) */}
-        <button
-          onClick={handleBucketToggle}
-          title={inBucket ? 'Remove from Trip Bucket' : 'Quick Add to Trip Bucket'}
-          style={{
-            position: 'absolute', top: 10, left: 10,
-            background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)',
-            border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.18s ease',
-            boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : 'none',
-          }}
-        >
-          {inBucket
-            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          }
-        </button>
-
-        <span style={{ position: 'absolute', bottom: 10, left: 10, background: '#fff', color: diff.color, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>{poi.difficulty}</span>
+<span style={{ position: 'absolute', bottom: 10, left: 10, background: '#fff', color: diff.color, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>{poi.difficulty}</span>
       </div>
 
       <div style={{ padding: '14px 14px 16px', direction: 'rtl' }}>
