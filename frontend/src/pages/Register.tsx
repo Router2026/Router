@@ -36,6 +36,7 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -74,6 +75,7 @@ export default function Register() {
     if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
     if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
     if (password !== confirm) return 'הסיסמאות אינן תואמות';
+    if (!agreedToTerms) return 'יש לאשר את מדיניות הפרטיות כדי להמשיך';
     return null;
   };
 
@@ -224,6 +226,25 @@ export default function Register() {
             {confirm && confirm !== password && <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'right', marginTop: 4 }}>הסיסמאות אינן תואמות</div>}
           </div>
 
+          {/* Privacy policy agreement */}
+          <div
+            onClick={() => setAgreedToTerms(v => !v)}
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', direction: 'rtl' }}
+          >
+            <div style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, border: `2px solid ${agreedToTerms ? '#0d9e6e' : '#cbd5e1'}`, background: agreedToTerms ? '#0d9e6e' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', marginTop: 1 }}>
+              {agreedToTerms && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+            </div>
+            <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
+              קראתי ואני מסכים/ה ל
+              <a href="/privacy.html" target="_blank" rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                style={{ color: '#0d9e6e', fontWeight: 700, textDecoration: 'underline' }}>
+                מדיניות הפרטיות
+              </a>
+              {' '}של Router
+            </span>
+          </div>
+
           {error && (
             <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 16, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <span>⚠️</span> {error}
@@ -250,9 +271,6 @@ export default function Register() {
             כניסה לחשבון קיים
           </button>
 
-        </div>
-        <div style={{ textAlign: 'center', marginTop: 14, fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
-          בהרשמה אתה מסכים לתנאי השימוש ומדיניות הפרטיות שלנו.
         </div>
       </div>
 
