@@ -7,6 +7,7 @@ import { api, type POI } from '../api';
 import RouterLogo from '../assets/logo.jpeg';
 import { useTripBucket } from '../context/TripBucketContext';
 import { useFavorites } from '../context/FavoritesContext';
+import { useAuth } from '../context/AuthContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 
@@ -70,10 +71,11 @@ function TagGrid({ items, selected, onToggle }: { items: string[]; selected: str
 }
 
 /** POI Card — includes Quick Add to Trip Bucket button */
-function POICard({ poi }: { poi: POI }) {
+function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
+  const { user } = useAuth();
   const diff = DIFF_COLORS[poi.difficulty] || DIFF_COLORS['קל'];
   const inBucket = hasPoi(poi.id);
 
@@ -93,6 +95,19 @@ function POICard({ poi }: { poi: POI }) {
         <button onClick={e => { e.stopPropagation(); toggleFavorite(Number(poi.id)); }} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill={isFavorite(poi.id) ? '#ef4444' : 'none'} stroke={isFavorite(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
         </button>
+
+        {/* Admin delete button */}
+        {user?.is_admin && onDelete && (
+          <button
+            onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
+            title="מחק מקום"
+            style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
+            </svg>
+          </button>
+        )}
 
 <span style={{ position: 'absolute', bottom: 10, left: 10, background: '#fff', color: diff.color, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>{poi.difficulty}</span>
       </div>
@@ -205,6 +220,11 @@ export default function Explore() {
   useEffect(() => {
     if (urlCategory && categories.includes(urlCategory)) setSelCats([urlCategory]);
   }, [urlCategory, categories]);
+
+  const handleDeletePoi = useCallback(async (id: string) => {
+    await api.locations.delete(id);
+    setAllPois(prev => prev.filter(p => p.id !== id));
+  }, []);
 
   const activeFilterCount = selRegions.length + selCats.length + selDiffs.length + (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
@@ -319,7 +339,7 @@ export default function Explore() {
           const isLast = index === displayedPois.length - 1;
           return (
             <div key={poi.id} ref={isLast ? lastPoiElementRef : null}>
-              <POICard poi={poi} />
+              <POICard poi={poi} onDelete={handleDeletePoi} />
             </div>
           );
         })}

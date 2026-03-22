@@ -297,6 +297,9 @@ export const api = {
     deleteImage: async (locationId: string | number, imageId: number): Promise<void> => {
       await apiFetch(`/locations/${locationId}/images/${imageId}`, { method: 'DELETE' });
     },
+    delete: async (id: string | number): Promise<void> => {
+      await apiFetch(`/locations/${id}`, { method: 'DELETE' });
+    },
   },
 
   // ── Trips (AI generator routes) ──────────────────────────────

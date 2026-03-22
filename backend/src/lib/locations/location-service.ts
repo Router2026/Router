@@ -300,3 +300,11 @@ export async function updateLocation(
   if (!rows.length) throw Object.assign(new Error("Location not found"), { code: "NOT_FOUND" });
   return rowToLocation(rows[0]);
 }
+
+export async function deleteLocation(id: number): Promise<boolean> {
+  const { rowCount } = await rawDb.query(
+    `DELETE FROM locations WHERE id = $1`,
+    [id]
+  );
+  return (rowCount ?? 0) > 0;
+}

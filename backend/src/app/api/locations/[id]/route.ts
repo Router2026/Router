@@ -3,7 +3,7 @@
 // PATCH /locations/:id — admin only, edit location details incl. image
 
 import { NextRequest, NextResponse } from "next/server";
-import { getLocationById, updateLocation } from "@/lib/locations/location-service";
+import { getLocationById, updateLocation, deleteLocation } from "@/lib/locations/location-service";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
 
@@ -46,6 +46,31 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json(errorResponse("Location not found", "NOT_FOUND"), { status: 404 });
     }
     return NextResponse.json(errorResponse("Failed to update location", "DB_ERROR"), { status: 500 });
+  }
+}
+
+// DELETE — admin delete of a location
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  try {
+    const auth = await getUserFromRequest(req);
+    if (!auth?.is_admin) {
+      return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
+    }
+
+    const { id } = await params;
+    const locationId = parseInt(id, 10);
+    if (isNaN(locationId)) {
+      return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
+    }
+
+    const deleted = await deleteLocation(locationId);
+    if (!deleted) {
+      return NextResponse.json(errorResponse("Location not found", "NOT_FOUND"), { status: 404 });
+    }
+    return NextResponse.json(successResponse({ deleted: true }));
+  } catch (err) {
+    console.error("[DELETE /api/locations/[id]]", err);
+    return NextResponse.json(errorResponse("Failed to delete location", "DB_ERROR"), { status: 500 });
   }
 }
 
