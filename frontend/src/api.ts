@@ -351,8 +351,8 @@ export const api = {
     },
     create: async (data: Partial<CommunityReport> & { location_id?: number }): Promise<CommunityReport> =>
       mapReport((await apiFetch<{ data: any }>('/reports', { method: 'POST', body: JSON.stringify(data) })).data),
-    upvote: async (id: string): Promise<CommunityReport> =>
-      mapReport((await apiFetch<{ data: any }>(`/reports/${id}/upvote`, { method: 'PATCH' })).data),
+    upvote: async (id: string, action: 'add' | 'remove' = 'add'): Promise<CommunityReport> =>
+      mapReport((await apiFetch<{ data: any }>(`/reports/${id}/upvote`, { method: 'PATCH', body: JSON.stringify({ action }) })).data),
     myReports: async (): Promise<CommunityReport[]> =>
       (await apiFetch<{ data: any[] }>('/users/me/reports')).data.map(mapReport),
   },

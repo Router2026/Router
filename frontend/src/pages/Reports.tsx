@@ -34,7 +34,12 @@ export default function Reports() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);  // FIX #10: start as true
   const [selectedType, setSelectedType] = useState('הכל');
-  const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
+  const [votedIds, setVotedIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('report_votes');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
 
   useEffect(() => {
     setLoading(true);
@@ -46,11 +51,19 @@ export default function Reports() {
 
   const filtered = selectedType === 'הכל' ? reports : reports.filter(r => r.report_type === selectedType);
 
-  const handleUpvote = async (id: string, currentUpvotes: number) => {
-    if (votedIds.has(id)) return;
-    await api.reports.upvote(id);
-    setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: r.upvotes + 1 } : r));
-    setVotedIds(prev => new Set(prev).add(id));
+  const handleUpvote = async (id: string) => {
+    const alreadyVoted = votedIds.has(id);
+    const action = alreadyVoted ? 'remove' : 'add';
+    const delta = alreadyVoted ? -1 : 1;
+
+    await api.reports.upvote(id, action);
+    setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes + delta) } : r));
+    setVotedIds(prev => {
+      const next = new Set(prev);
+      alreadyVoted ? next.delete(id) : next.add(id);
+      localStorage.setItem('report_votes', JSON.stringify([...next]));
+      return next;
+    });
   };
 
   return (
@@ -114,7 +127,7 @@ export default function Reports() {
                     <div style={{ fontSize: 14, color: '#64748b', textAlign: 'right', lineHeight: 1.5 }}>{report.content}</div>
                   </div>
                   <div style={{ padding: '10px 16px', borderTop: '1px solid #f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <button onClick={() => handleUpvote(report.id, report.upvotes)}
+                    <button onClick={() => handleUpvote(report.id)}
                       style={{ background: votedIds.has(report.id) ? '#f0fdf8' : 'none', border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 6, color: votedIds.has(report.id) ? '#0d9e6e' : '#94a3b8', fontSize: 13, fontWeight: 700, fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill={votedIds.has(report.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />

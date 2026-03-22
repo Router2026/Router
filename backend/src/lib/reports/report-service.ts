@@ -70,10 +70,12 @@ export async function createReport(data: CreateReportInput): Promise<CommunityRe
   return rows[0] as unknown as CommunityReport;
 }
 
-export async function upvoteReport(id: number): Promise<CommunityReport | null> {
+export async function upvoteReport(id: number, delta: 1 | -1): Promise<CommunityReport | null> {
   const { rows } = await rawDb.query(
-    `UPDATE community_reports SET upvotes = upvotes + 1 WHERE id = $1 RETURNING *`,
-    [id]
+    `UPDATE community_reports
+     SET upvotes = GREATEST(0, upvotes + $2)
+     WHERE id = $1 RETURNING *`,
+    [id, delta]
   );
   return (rows[0] as unknown as CommunityReport) ?? null;
 }
