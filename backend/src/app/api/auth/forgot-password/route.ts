@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(errorResponse("Email required", "VALIDATION_ERROR"), { status: 400 });
 
     await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${process.env.APP_URL}/auth/reset-password`,
+      redirectTo: `${process.env.FRONTEND_URL}/ResetPassword`,
     });
 
     return NextResponse.json(successResponse({ sent: true }));

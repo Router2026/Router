@@ -220,11 +220,10 @@ export const api = {
     forgotPassword: async (email: string): Promise<void> => {
       await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
     },
-    resetPassword: async (token: string, password: string): Promise<{ token: string }> => {
-      const res = await apiFetch<{ data: { token: string } }>('/auth/reset-password', {
-        method: 'POST', body: JSON.stringify({ token, password }),
+    resetPassword: async (access_token: string, refresh_token: string, password: string): Promise<void> => {
+      await apiFetch('/auth/reset-password', {
+        method: 'POST', body: JSON.stringify({ access_token, refresh_token, password }),
       });
-      return { token: res.data.token };
     },
     me: async (token?: string): Promise<UserProfile> => {
       const savedToken = _token;

@@ -7,6 +7,7 @@ export default function Login() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const justVerified = searchParams.get('verified') === 'true';
+  const justReset = searchParams.get('reset') === 'true';
   const { login } = useAuth();
   const from = (location.state as any)?.from?.pathname || '/';
   const [email, setEmail] = useState('');
@@ -76,6 +77,11 @@ export default function Login() {
           {justVerified && (
             <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '10px 14px', marginBottom: 16, color: '#166534', fontWeight: 700, fontSize: 14, textAlign: 'right' }}>
               ✓ האימייל אומת בהצלחה! כעת ניתן להתחבר.
+            </div>
+          )}
+          {justReset && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '10px 14px', marginBottom: 16, color: '#166534', fontWeight: 700, fontSize: 14, textAlign: 'right' }}>
+              ✓ הסיסמה עודכנה בהצלחה! כעת ניתן להתחבר.
             </div>
           )}
           <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', textAlign: 'right', marginBottom: 22 }}>כניסה לחשבון</div>

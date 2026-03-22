@@ -33,9 +33,12 @@ export default function ResetPassword() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const token = params.get('token');
+  // Supabase sends tokens as hash fragment: #access_token=...&refresh_token=...&type=recovery
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const accessToken = hash.get('access_token') || params.get('access_token');
+  const refreshToken = hash.get('refresh_token') || params.get('refresh_token');
 
-  if (!token) return (
+  if (!accessToken || !refreshToken) return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl' }}>
       <div style={{ fontSize: 64 }}>❌</div>
       <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>קישור לא תקין</div>
@@ -59,10 +62,9 @@ export default function ResetPassword() {
     setError(null);
     setLoading(true);
     try {
-      const { token: jwt } = await api.auth.resetPassword(token!, password);
-      await loginWithToken(jwt);
+      await api.auth.resetPassword(accessToken!, refreshToken!, password);
       setSuccess(true);
-      setTimeout(() => navigate('/'), 2000);
+      setTimeout(() => navigate('/Login?reset=true'), 2000);
     } catch (e: any) {
       setError(e.message);
       setLoading(false);
