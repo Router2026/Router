@@ -302,9 +302,9 @@ export async function updateLocation(
 }
 
 export async function deleteLocation(id: number): Promise<boolean> {
-  const { rowCount } = await rawDb.query(
-    `DELETE FROM locations WHERE id = $1`,
+  const { rows } = await rawDb.query(
+    `DELETE FROM locations WHERE id = $1 RETURNING id`,
     [id]
   );
-  return (rowCount ?? 0) > 0;
+  return rows.length > 0;
 }
