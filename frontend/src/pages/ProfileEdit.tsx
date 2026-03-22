@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 const REGIONS = ['גליל', 'גולן', 'כרמל', 'שרון', 'שפלה', 'ירושלים', 'יהודה', 'נגב', 'ערבה', 'אילת'];
 
 export default function ProfileEdit() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const coverFileRef = useRef<HTMLInputElement>(null);
@@ -24,6 +24,8 @@ export default function ProfileEdit() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
 
@@ -90,6 +92,18 @@ export default function ProfileEdit() {
       setError('שגיאה בטעינת הקובץ');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await api.users.deleteMe();
+      logout();
+      navigate('/', { replace: true });
+    } catch {
+      setError('מחיקת החשבון נכשלה, נסה שנית');
+      setDeleting(false);
     }
   };
 
@@ -230,6 +244,30 @@ export default function ProfileEdit() {
           style={{ width: '100%', padding: '14px', border: 'none', borderRadius: 14, background: saved ? '#16a34a' : saving ? '#94a3b8' : 'linear-gradient(135deg,#0d9e6e,#0bba7e)', color: '#fff', fontFamily: 'Heebo, sans-serif', fontWeight: 800, fontSize: 16, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.3s' }}>
           {saving ? '⏳ שומר...' : saved ? '✅ נשמר בהצלחה!' : 'שמור שינויים'}
         </button>
+
+        {/* Delete account */}
+        <div style={{ marginTop: 32, background: '#fff', borderRadius: 18, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1.5px solid #fee2e2' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#dc2626', marginBottom: 8 }}>מחיקת חשבון</div>
+          <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
+            פעולה זו תמחק לצמיתות את החשבון שלך ואת כל הנתונים המשויכים אליו. לא ניתן לבטל פעולה זו.
+          </p>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+            הקלד <strong>מחק את החשבון שלי</strong> לאישור:
+          </label>
+          <input
+            value={deleteConfirmText}
+            onChange={e => setDeleteConfirmText(e.target.value)}
+            placeholder="מחק את החשבון שלי"
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #fca5a5', fontSize: 14, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box', direction: 'rtl', marginBottom: 12 }}
+          />
+          <button
+            onClick={handleDeleteAccount}
+            disabled={deleteConfirmText !== 'מחק את החשבון שלי' || deleting}
+            style={{ width: '100%', padding: '12px', border: 'none', borderRadius: 12, background: deleteConfirmText === 'מחק את החשבון שלי' && !deleting ? '#dc2626' : '#f1f5f9', color: deleteConfirmText === 'מחק את החשבון שלי' && !deleting ? '#fff' : '#94a3b8', fontFamily: 'Heebo, sans-serif', fontWeight: 800, fontSize: 15, cursor: deleteConfirmText === 'מחק את החשבון שלי' && !deleting ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}
+          >
+            {deleting ? '⏳ מוחק חשבון...' : '🗑️ מחק חשבון לצמיתות'}
+          </button>
+        </div>
       </div>
     </div>
   );

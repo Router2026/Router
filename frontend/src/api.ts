@@ -374,6 +374,7 @@ export const api = {
     me: async (): Promise<UserProfile> => mapUser((await apiFetch<{ data: any }>('/users/me')).data),
     updateMe: async (data: Partial<Pick<UserProfile, 'username' | 'full_name' | 'bio' | 'avatar_url' | 'cover_image' | 'favorite_regions' | 'instagram' | 'website'>>): Promise<UserProfile> =>
       mapUser((await apiFetch<{ data: any }>('/users/me', { method: 'PATCH', body: JSON.stringify(data) })).data),
+    deleteMe: async (): Promise<void> => { await apiFetch('/users/me', { method: 'DELETE' }); },
     leaderboard: async (): Promise<UserProfile[]> => (await apiFetch<{ data: any[] }>('/users/leaderboard')).data.map(mapUser),
     stats: async (): Promise<AppStats> => (await apiFetch<{ data: AppStats }>('/users/stats')).data,
     getFavorites: async (): Promise<FavoriteLocation[]> =>
