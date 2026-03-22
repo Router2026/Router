@@ -62,7 +62,7 @@ export default function ResetPassword() {
     setError(null);
     setLoading(true);
     try {
-      await api.auth.resetPassword(accessToken!, refreshToken!, password);
+      await api.auth.resetPassword(accessToken!, password);
       setSuccess(true);
       setTimeout(() => navigate('/Login?reset=true'), 2000);
     } catch (e: any) {
