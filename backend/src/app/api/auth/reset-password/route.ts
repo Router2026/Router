@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/db/supabase";
 import { successResponse, errorResponse } from "@/lib/api/response";
+
+function getUserIdFromJwt(jwt: string): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString());
+    return payload.sub ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,15 +19,13 @@ export async function POST(req: NextRequest) {
     if (password.length < 6)
       return NextResponse.json(errorResponse("Password must be at least 6 characters", "VALIDATION_ERROR"), { status: 400 });
 
-    // Use access_token as auth header to update the user's password
-    const userClient = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_KEY!,
-      { global: { headers: { Authorization: `Bearer ${access_token}` } } }
-    );
-    const { error } = await userClient.auth.updateUser({ password });
+    const userId = getUserIdFromJwt(access_token);
+    if (!userId)
+      return NextResponse.json(errorResponse("Invalid reset link", "INVALID_TOKEN"), { status: 400 });
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
     if (error)
-      return NextResponse.json(errorResponse("Invalid or expired reset link", "INVALID_TOKEN"), { status: 400 });
+      return NextResponse.json(errorResponse("Failed to reset password", "AUTH_ERROR"), { status: 400 });
 
     return NextResponse.json(successResponse({ message: "Password reset successfully" }));
   } catch (err) {
