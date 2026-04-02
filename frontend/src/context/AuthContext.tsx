@@ -1,10 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api, type UserProfile } from "../api";
 
+export interface GuestUser {
+  isGuest: true;
+  username: string;
+  id: 'guest';
+  xp_points: 0;
+  level: string;
+}
+
 interface AuthState {
-  user: UserProfile | null;
+  user: UserProfile | GuestUser | null;
   token: string | null;
   isLoggedIn: boolean;
+  isGuest: boolean;
   isLoading: boolean;
 }
 
@@ -12,28 +21,39 @@ interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName: string, username: string) => Promise<{ requiresVerification: true }>;
   loginWithToken: (token: string) => Promise<void>;
+  loginAsGuest: () => void;
+  upgradeGuest: () => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const TOKEN_KEY = 'router_auth_token';
+const GUEST_KEY = 'router_guest_mode';
+const GUEST_USER: GuestUser = { isGuest: true, username: 'אורח', id: 'guest', xp_points: 0, level: 'אורח' };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
-    user: null, token: null, isLoggedIn: false, isLoading: true,
+    user: null, token: null, isLoggedIn: false, isGuest: false, isLoading: true,
   });
 
-  // Restore session from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
+    const isGuest = localStorage.getItem(GUEST_KEY) === 'true';
+
     if (stored) {
       api.auth.me(stored)
-        .then(user => setState({ user, token: stored, isLoggedIn: true, isLoading: false }))
+        .then(user => setState({ user, token: stored, isLoggedIn: true, isGuest: false, isLoading: false }))
         .catch(() => {
           localStorage.removeItem(TOKEN_KEY);
-          setState(s => ({ ...s, isLoading: false }));
+          if (isGuest) {
+            setState({ user: GUEST_USER, token: null, isLoggedIn: false, isGuest: true, isLoading: false });
+          } else {
+            setState(s => ({ ...s, isLoading: false }));
+          }
         });
+    } else if (isGuest) {
+      setState({ user: GUEST_USER, token: null, isLoggedIn: false, isGuest: true, isLoading: false });
     } else {
       setState(s => ({ ...s, isLoading: false }));
     }
@@ -42,7 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const { user, token } = await api.auth.login(email, password);
     localStorage.setItem(TOKEN_KEY, token);
-    setState({ user, token, isLoggedIn: true, isLoading: false });
+    localStorage.removeItem(GUEST_KEY);
+    setState({ user, token, isLoggedIn: true, isGuest: false, isLoading: false });
   }, []);
 
   const register = useCallback(async (email: string, password: string, fullName: string, username: string) => {
@@ -51,17 +72,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithToken = useCallback(async (token: string) => {
     localStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(GUEST_KEY);
     const user = await api.auth.me(token);
-    setState({ user, token, isLoggedIn: true, isLoading: false });
+    setState({ user, token, isLoggedIn: true, isGuest: false, isLoading: false });
+  }, []);
+
+  const loginAsGuest = useCallback(() => {
+    localStorage.setItem(GUEST_KEY, 'true');
+    localStorage.removeItem(TOKEN_KEY);
+    setState({ user: GUEST_USER, token: null, isLoggedIn: false, isGuest: true, isLoading: false });
+  }, []);
+
+  const upgradeGuest = useCallback(() => {
+    localStorage.removeItem(GUEST_KEY);
+    setState({ user: null, token: null, isLoggedIn: false, isGuest: false, isLoading: false });
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
-    setState({ user: null, token: null, isLoggedIn: false, isLoading: false });
+    localStorage.removeItem(GUEST_KEY);
+    setState({ user: null, token: null, isLoggedIn: false, isGuest: false, isLoading: false });
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, loginWithToken, logout }}>
+    <AuthContext.Provider value={{ ...state, login, register, loginWithToken, loginAsGuest, upgradeGuest, logout }}>
       {children}
     </AuthContext.Provider>
   );
