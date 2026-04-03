@@ -17,6 +17,14 @@ export default function AuthCallback() {
     const params = new URLSearchParams(hash.replace('#', ''));
     const accessToken = params.get('access_token');
 
+    // Supabase returns errors in the hash too
+    const errorCode = params.get('error');
+    const errorDesc = params.get('error_description');
+    if (errorCode) {
+      setError(`שגיאה מ-Google: ${errorDesc || errorCode}`);
+      return;
+    }
+
     if (!accessToken) {
       setError('לא התקבל אסימון כניסה מ-Google');
       return;
