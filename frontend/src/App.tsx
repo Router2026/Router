@@ -32,7 +32,7 @@ import AuthCallback from './pages/AuthCallback';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TripBucketProvider } from './context/TripBucketContext';
 import { FavoritesProvider } from './context/FavoritesContext';
-import GuestBanner, { GUEST_BANNER_HEIGHT } from './components/GuestBanner';
+import GuestBanner from './components/GuestBanner';
 import OnboardingTour, { useShouldShowTour } from './components/OnboardingTour';
 import { setAuthToken } from './api';
 import './index.css';
