@@ -10,6 +10,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useAuth } from '../context/AuthContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
+import { useGuestLock } from '../components/LockedFeature';
 
 const DIFFICULTIES = ['קל - משפחות', 'בינוני', 'מאתגר', 'אקסטרים'];
 
@@ -75,13 +76,21 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
   const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const diff = DIFF_COLORS[poi.difficulty] || DIFF_COLORS['קל'];
   const inBucket = hasPoi(poi.id);
 
+  const bucketLock = useGuestLock('הוספה לסל המסלול');
+  const favLock = useGuestLock('שמירת מועדפים');
+
   const handleBucketToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    inBucket ? removePoi(poi.id) : addPoi(poi);
+    bucketLock.guardAction(() => { inBucket ? removePoi(poi.id) : addPoi(poi); });
+  };
+
+  const handleFavToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    favLock.guardAction(() => toggleFavorite(Number(poi.id)));
   };
 
   return (
@@ -92,9 +101,13 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
 
         {/* Favourite button */}
-        <button onClick={e => { e.stopPropagation(); toggleFavorite(Number(poi.id)); }} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill={isFavorite(poi.id) ? '#ef4444' : 'none'} stroke={isFavorite(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+        <button onClick={handleFavToggle} aria-label={isFavorite(poi.id) ? 'הסר ממועדפים' : 'הוסף למועדפים'} style={{ position: 'absolute', top: 10, right: 10, background: isGuest ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {isGuest
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            : <svg width="16" height="16" viewBox="0 0 24 24" fill={isFavorite(poi.id) ? '#ef4444' : 'none'} stroke={isFavorite(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+          }
         </button>
+        {favLock.PromptComponent}
 
         {/* Admin delete button */}
         {user?.is_admin && onDelete && (
@@ -134,20 +147,25 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
         {/* Quick Add text button at bottom of card */}
         <button
           onClick={handleBucketToggle}
+          aria-label={isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול'}
           style={{
             marginTop: 10, width: '100%', padding: '7px',
-            border: `1.5px solid ${inBucket ? '#0d9e6e' : '#e2e8f0'}`,
+            border: `1.5px solid ${isGuest ? '#e2e8f0' : inBucket ? '#0d9e6e' : '#e2e8f0'}`,
             borderRadius: 10,
-            background: inBucket ? '#f0fdf8' : '#f8fafc',
-            color: inBucket ? '#0d9e6e' : '#64748b',
+            background: isGuest ? '#f8fafc' : inBucket ? '#f0fdf8' : '#f8fafc',
+            color: isGuest ? '#94a3b8' : inBucket ? '#0d9e6e' : '#64748b',
             fontSize: 12, fontWeight: 700, cursor: 'pointer',
             fontFamily: 'Heebo, sans-serif',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
             transition: 'all 0.15s',
           }}
         >
-          {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
+          {isGuest
+            ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> הוספה לסל — דרוש חשבון</>
+            : inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>
+          }
         </button>
+        {bucketLock.PromptComponent}
       </div>
     </div>
   );

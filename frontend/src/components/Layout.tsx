@@ -54,19 +54,34 @@ export default function Layout({ children, currentPageName }: { children: React.
           <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', maxWidth: 640, margin: '0 auto', padding: '6px 0 4px' }}>
             {NAV_ITEMS.map(({ label, value, tourId, Icon, path }) => {
               const active = currentPath === value || (currentPath === '' && value === 'Home');
+              // These nav items are locked for guest users
+              const guestLocked = isGuest && (value === 'TripPlanner' || value === 'Profile');
+              const handleNav = () => {
+                if (guestLocked) {
+                  // Navigate to login with a message
+                  navigate('/Login', { state: { from: { pathname: path } } });
+                } else {
+                  navigate(path);
+                }
+              };
               return (
                 <button
                   key={value}
                   data-tour={tourId}
-                  onClick={() => navigate(path)}
-                  aria-label={label}
+                  onClick={handleNav}
+                  aria-label={guestLocked ? `${label} — דרוש חשבון` : label}
                   aria-current={active ? 'page' : undefined}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '5px 10px', borderRadius: 12, minWidth: 44 }}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '5px 10px', borderRadius: 12, minWidth: 44, opacity: guestLocked ? 0.5 : 1, position: 'relative' }}
                 >
                   <div style={{ width: 38, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, background: active ? '#e8f9f3' : 'transparent', transition: 'all 0.2s' }}>
                     <Icon active={active} />
                   </div>
                   <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? '#0d9e6e' : '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>{label}</span>
+                  {guestLocked && (
+                    <div aria-hidden="true" style={{ position: 'absolute', top: 2, right: 6, width: 12, height: 12, background: '#fbbf24', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                  )}
                 </button>
               );
             })}

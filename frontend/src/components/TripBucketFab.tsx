@@ -14,6 +14,7 @@ export default function TripBucketFab() {
   return (
     <button
       onClick={openSheet}
+      data-tour="trip-bucket-fab"
       aria-label={`Trip Bucket — ${count} item${count !== 1 ? 's' : ''}`}
       style={{
         position: 'fixed',
