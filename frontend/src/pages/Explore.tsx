@@ -11,7 +11,6 @@ import { useAuth } from '../context/AuthContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 import { useGuestLock } from '../components/LockedFeature';
-import { LockBadge } from '../components/LockedFeature';
 
 const DIFFICULTIES = ['קל - משפחות', 'בינוני', 'מאתגר', 'אקסטרים'];
 
