@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Region } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useGuestLock, LockBadge } from '../components/LockedFeature';
 
 const CATEGORIES = [
   { name: 'מסלולי מים', icon: '💧', color: '#0891b2', bg: '#eff6ff', key: 'נחל' },
@@ -21,7 +22,8 @@ const REGION_ICONS: Record<string, string> = {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, isGuest } = useAuth();
+  const plannerLock = useGuestLock('יצירת מסלול AI');
   const [search, setSearch] = useState('');
   const [regions, setRegions] = useState<Region[]>([]);
   useEffect(() => {
@@ -62,37 +64,52 @@ export default function Home() {
 
       <div style={{ maxWidth: 600, margin: '0 auto', paddingBottom: 120 }}>
 
-        {/* ── Main Action Cards (New Feature) ── */}
+        {/* ── Main Action Cards ── */}
         <div style={{ padding: '0 16px', marginTop: -30, position: 'relative', zIndex: 10, display: 'flex', gap: 16, marginBottom: 24 }}>
-          {/* ── Categories — click routes to Explore with filter ── */}
-          {/* Right Card: Route Planning */}
-          <button onClick={() => navigate('/TripPlanner')}
-            style={{ position: 'relative', overflow: 'hidden', flex: 1, background: '#fff', border: 'none', borderRadius: 16, padding: '20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 130, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', transition: 'transform 0.15s' }}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+
+          {/* Right Card: Route Planning — locked for guests */}
+          <button
+            onClick={() => plannerLock.guardAction(() => navigate('/TripPlanner'))}
+            aria-label={isGuest ? 'תכנון מסלול AI — דרוש חשבון' : 'תכנון מסלול'}
+            style={{ position: 'relative', overflow: 'hidden', flex: 1, background: isGuest ? '#f8fafc' : '#fff', border: isGuest ? '1.5px dashed #cbd5e1' : 'none', borderRadius: 16, padding: '20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 130, boxShadow: isGuest ? 'none' : '0 4px 20px rgba(0,0,0,0.08)', transition: 'transform 0.15s', opacity: isGuest ? 0.8 : 1 }}
+            onMouseEnter={e => { if (!isGuest) e.currentTarget.style.transform = 'translateY(-2px)'; }}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
           >
-            {/* "Coming Soon" tilted ribbon */}
-            <div style={{ position: 'absolute', top: 16, left: -30, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 900, padding: '4px 34px', transform: 'rotate(-45deg)', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)' }}>
-              בקרוב
-            </div>
+            {/* Lock ribbon for guests, "Coming Soon" for registered */}
+            {isGuest ? (
+              <div style={{ position: 'absolute', top: 10, left: 10 }}>
+                <LockBadge label="דרוש חשבון" />
+              </div>
+            ) : (
+              <div aria-hidden="true" style={{ position: 'absolute', top: 16, left: -30, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 900, padding: '4px 34px', transform: 'rotate(-45deg)', boxShadow: '0 2px 8px rgba(239,68,68,0.4)' }}>
+                בקרוב
+              </div>
+            )}
 
-            <div style={{ background: '#10b981', borderRadius: 12, width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+            <div style={{ background: isGuest ? '#94a3b8' : '#10b981', borderRadius: 12, width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
+              {isGuest
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+              }
             </div>
             <div style={{ textAlign: 'right', width: '100%', marginTop: 'auto' }}>
-              <div style={{ fontSize: 17, fontWeight: 900, color: '#1e293b', marginBottom: 2 }}>תכנון מסלול</div>
-              <div style={{ fontSize: 13, color: '#64748b' }}>AI יוצר לך מסלול מושלם</div>
+              <div style={{ fontSize: 17, fontWeight: 900, color: isGuest ? '#94a3b8' : '#1e293b', marginBottom: 2 }}>תכנון מסלול</div>
+              <div style={{ fontSize: 13, color: isGuest ? '#cbd5e1' : '#64748b' }}>{isGuest ? 'הרשמה נדרשת' : 'AI יוצר לך מסלול מושלם'}</div>
             </div>
           </button>
+          {plannerLock.PromptComponent}
 
-          {/* Left Card: Discover Sites */}
-          <button onClick={() => navigate('/Explore')}
+          {/* Left Card: Discover Sites — open to all */}
+          <button
+            data-tour="nav-explore"
+            onClick={() => navigate('/Explore')}
+            aria-label="גילוי אתרים"
             style={{ flex: 1, background: '#fff', border: 'none', borderRadius: 16, padding: '20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 130, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', transition: 'transform 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
           >
             <div style={{ background: '#6366f1', borderRadius: 12, width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
             </div>
             <div style={{ textAlign: 'right', width: '100%', marginTop: 'auto' }}>
               <div style={{ fontSize: 17, fontWeight: 900, color: '#1e293b', marginBottom: 2 }}>גילוי אתרים</div>

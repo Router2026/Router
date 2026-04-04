@@ -10,6 +10,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type POI, type Review, type CommunityReport, type LocationImage } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useGuestLock } from '../components/LockedFeature';
 import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketSheet from '../components/TripBucketSheet';
 import FavoriteButton from '../components/FavoriteButton';
@@ -320,8 +321,10 @@ export default function POIDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const poiId = searchParams.get('id') || '';
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isGuest } = useAuth();
   const { hasPoi } = useTripBucket();
+  const reportLock = useGuestLock('דיווח');
+  const reviewLock = useGuestLock('הוספת ביקורת');
 
   const [poi, setPoi] = useState<POI | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -494,6 +497,15 @@ export default function POIDetail() {
                   style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
                   + הוסף דיווח
                 </button>
+              ) : isGuest ? (
+                <>
+                  <button onClick={() => reportLock.guardAction(() => {})}
+                    style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    הוסף דיווח — דרוש חשבון
+                  </button>
+                  {reportLock.PromptComponent}
+                </>
               ) : (
                 <button onClick={() => navigate('/Login')}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
@@ -520,6 +532,15 @@ export default function POIDetail() {
                   style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
                   + כתוב ביקורת
                 </button>
+              ) : isGuest ? (
+                <>
+                  <button onClick={() => reviewLock.guardAction(() => {})}
+                    style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    כתוב ביקורת — דרוש חשבון
+                  </button>
+                  {reviewLock.PromptComponent}
+                </>
               ) : (
                 <button onClick={() => navigate('/Login')}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
