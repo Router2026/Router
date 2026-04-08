@@ -45,6 +45,7 @@ export default function TripPlanner() {
   const [includeFood, setIncludeFood] = useState(false);
   const [includeCoffee, setIncludeCoffee] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [apiRegions, setApiRegions] = useState<Array<{ id: string; name: string; icon: string }>>([]);
@@ -85,6 +86,7 @@ export default function TripPlanner() {
 
   const handleGenerate = async () => {
     setLoading(true);
+    setGenError(null);
     try {
       const selectedRegionName = REGIONS.find(r => r.id === region)?.name || region;
       const selectedGroupType = GROUP_TYPES.find(g => g.id === groupType)?.name || groupType;
@@ -123,9 +125,9 @@ export default function TripPlanner() {
         style: selectedStyles,
       });
       navigate(`/TripDetail?id=${saved.id}`);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Trip generation failed:', e);
-      navigate('/MyTrips');
+      setGenError(e?.message || 'שגיאה בייצור המסלול');
     }
     setLoading(false);
   };
@@ -448,6 +450,12 @@ export default function TripPlanner() {
             </button>
           )}
         </div>
+
+        {genError && (
+          <div style={{ margin: '12px 0', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', color: '#dc2626', fontSize: 13, fontWeight: 600, textAlign: 'center', direction: 'rtl' }}>
+            ⚠️ {genError}
+          </div>
+        )}
 
       </div>
     </div>
