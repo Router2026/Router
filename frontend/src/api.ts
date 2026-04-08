@@ -443,9 +443,21 @@ export const base44 = {
         const res = await fetch(BASE_URL + '/ai/generate-route', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) },
-          body: JSON.stringify({ ...req, group_type: groupTypeId, style: styleIds.join(', ') }),
+          body: JSON.stringify({
+            region: req.region,
+            groupType: groupTypeId,
+            styles: styleIds,
+            startTime: req.start_time,
+            endTime: req.end_time,
+            includeFood: req.include_food,
+            includeCoffee: req.include_coffee,
+            userLocation: req.user_location,
+          }),
         });
-        if (!res.ok) throw new Error(`AI endpoint error: ${res.status}`);
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`AI endpoint error: ${res.status} — ${errText}`);
+        }
         return res.json();
       },
     },
