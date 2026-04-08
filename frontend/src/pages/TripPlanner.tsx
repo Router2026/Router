@@ -115,8 +115,9 @@ export default function TripPlanner() {
       });
 
       // Save the generated trip to the backend
+      const trip = tripData?.data ?? tripData;
       const saved = await api.trips.create({
-        ...tripData,
+        ...trip,
         region: selectedRegionName,
         group_type: selectedGroupType,
         style: selectedStyles,
