@@ -47,6 +47,12 @@ const GROUP_MAP: Record<string, { travelerType: TripInput["travelerType"]; group
 
 export async function POST(req: NextRequest) {
   try {
+    const { getUserFromRequest } = await import("@/lib/auth/tokens");
+    const user = await getUserFromRequest(req);
+    if (!user?.is_admin) {
+      return NextResponse.json(errorResponse("Admin access required", "FORBIDDEN"), { status: 403 });
+    }
+
     const body = await req.json();
     const {
       region, groupType, styles = [],
