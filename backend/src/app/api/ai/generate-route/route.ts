@@ -97,21 +97,30 @@ export async function POST(req: NextRequest) {
       userLocation: userLocation ?? undefined,
     };
 
-    // Fetch Hebrew-named locations from the Router's locations table
+    // Fetch Hebrew-named locations from the Router's locations table, filtered by selected categories
+    const categoryList = [...categorySet];
     const { rows: locationRows } = await rawDb.query(
       `SELECT l.name, l.description, l.category, l.latitude, l.longitude, l.duration_minutes
        FROM locations l
        JOIN regions r ON r.id = l.region_id
        WHERE r.name = $1
-       LIMIT 25`,
-      [region]
+         AND l.category = ANY($2)
+       LIMIT 30`,
+      [region, categoryList]
     );
+
+    // If no food/coffee places found in DB, remove them from the LLM input to prevent hallucination
+    const hasFood = locationRows.some(r => r.category === "restaurant");
+    const hasCoffee = locationRows.some(r => r.category === "coffee_trail");
+    if (!hasFood) categorySet.delete("restaurant");
+    if (!hasCoffee) categorySet.delete("coffee_trail");
+    if (categorySet.size === 0) categorySet.add("attraction");
 
     // Map Router locations to Poi shape for the LLM
     const hebrewPois: Poi[] = locationRows.map((r, i) => ({
       id: String(i),
       name: r.name as string,
-      category: "attraction" as Poi["category"],
+      category: (r.category as Poi["category"]) ?? "attraction",
       region: regionMapping.area,
       description: (r.description as string) || "",
       address: "",
