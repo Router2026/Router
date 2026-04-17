@@ -1,14 +1,16 @@
 // src/pages/POIDetail.tsx — UPDATED
-// Feature 1: Google Maps falls back to lat/lng coords when name search might fail.
-// Feature 2: Admin can edit place details (name, desc, category, image) inline.
-// Feature 3: Gallery of user-uploaded images; approved ones shown, become main image if no main_image.
+// New features:
+//  • Fixed Google Maps URL (always uses lat/lng coordinates)
+//  • StarRating widget — users can rate 1-5 stars, stored in DB
+//  • NearbyPlaces section — shows nearby POIs by geo distance
+//  • Enhanced MediaGallery — images + videos, uploader credit, modal viewer, carousel
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api, type POI, type Review, type CommunityReport, type LocationImage } from '../api';
+import { api, type POI, type Review, type CommunityReport, type LocationImage, type LocationMedia, type NearbyPOI, type RatingSummary } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
 import { useTripBucket } from '../context/TripBucketContext';
@@ -69,13 +71,12 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
   return null;
 }
 
-// ── Hero Image — shows approved gallery images too (Feature 3) ─────────────
+// ── Hero Image ───────────────────────────────────────────────────
 function HeroImage({ poi, galleryImages }: { poi: POI; galleryImages: LocationImage[] }) {
   const [imgIdx, setImgIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
   const images = useMemo(() => {
     const approvedUrls = galleryImages.filter(i => i.is_approved).map(i => i.image_url);
-    // Feature 3: if no main_image, use first approved gallery image
     const main = poi.main_image || approvedUrls[0] || '';
     const all = main
       ? [main, ...poi.images.filter(i => i !== main), ...approvedUrls.filter(u => u !== main)]
@@ -107,7 +108,7 @@ function HeroImage({ poi, galleryImages }: { poi: POI; galleryImages: LocationIm
   );
 }
 
-// ── Mini-Map ──────────────────────────────────────────────────────
+// ── Mini-Map ─────────────────────────────────────────────────────
 function MiniMap({ poi }: { poi: POI }) {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -170,7 +171,84 @@ function MiniMap({ poi }: { poi: POI }) {
   );
 }
 
-// ── Admin Edit Modal (Feature 2) ─────────────────────────────────
+// ── Star Rating widget ──────────────────────────────────────────
+function StarRating({ locationId, initialSummary, isLoggedIn }: {
+  locationId: number;
+  initialSummary: RatingSummary | null;
+  isLoggedIn: boolean;
+}) {
+  const [summary, setSummary] = useState<RatingSummary | null>(initialSummary);
+  const [hovered, setHovered] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [justRated, setJustRated] = useState(false);
+
+  useEffect(() => { setSummary(initialSummary); }, [initialSummary]);
+
+  const handleRate = async (star: number) => {
+    if (!isLoggedIn || saving) return;
+    setSaving(true);
+    try {
+      const updated = await api.locations.rate(locationId, star);
+      setSummary(updated);
+      setJustRated(true);
+      setTimeout(() => setJustRated(false), 2000);
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  };
+
+  const displayRating = summary?.average ?? 0;
+  const userRating = summary?.userRating ?? 0;
+  const ratingCount = summary?.count ?? 0;
+  const activeStars = hovered || userRating;
+
+  return (
+    <div style={{ direction: 'rtl' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        {/* Stars */}
+        <div style={{ display: 'flex', gap: 3 }}>
+          {[1, 2, 3, 4, 5].map(star => (
+            <button
+              key={star}
+              onClick={() => handleRate(star)}
+              onMouseEnter={() => isLoggedIn && setHovered(star)}
+              onMouseLeave={() => setHovered(0)}
+              disabled={saving || !isLoggedIn}
+              style={{
+                background: 'none', border: 'none', padding: '2px',
+                cursor: isLoggedIn ? 'pointer' : 'default',
+                fontSize: 22, lineHeight: 1,
+                color: star <= activeStars ? '#f59e0b' : star <= displayRating ? '#fcd34d' : '#d1d5db',
+                transition: 'color 0.1s, transform 0.1s',
+                transform: hovered === star ? 'scale(1.2)' : 'scale(1)',
+              }}>
+              ★
+            </button>
+          ))}
+        </div>
+        <span style={{ fontWeight: 900, color: '#1a2e2a', fontSize: 18 }}>{displayRating.toFixed(1)}</span>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>({ratingCount} דירוגים)</span>
+      </div>
+
+      {justRated && (
+        <div style={{ fontSize: 12, color: '#0d9e6e', fontWeight: 700, animation: 'fadeIn 0.3s ease' }}>
+          ✓ הדירוג שלך נשמר!
+        </div>
+      )}
+      {!isLoggedIn && (
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+          התחבר כדי לדרג את המקום
+        </div>
+      )}
+      {isLoggedIn && !userRating && !hovered && (
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+          לחץ על כוכב כדי לדרג
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Admin Edit Modal ─────────────────────────────────────────────
 function AdminEditModal({ poi, onClose, onSaved }: { poi: POI; onClose: () => void; onSaved: (updated: POI) => void }) {
   const [form, setForm] = useState({
     name: poi.name, description: poi.description, category: poi.category,
@@ -213,8 +291,6 @@ function AdminEditModal({ poi, onClose, onSaved }: { poi: POI; onClose: () => vo
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#64748b' }}>✕</button>
           <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>🛡️ עריכת מקום (אדמין)</div>
         </div>
-
-        {/* Image */}
         <div style={{ marginBottom: 16 }}>
           <label style={lbl}>תמונה ראשית</label>
           {form.main_image && (
@@ -224,44 +300,35 @@ function AdminEditModal({ poi, onClose, onSaved }: { poi: POI; onClose: () => vo
             onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => fileRef.current?.click()}
-              style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1.5px solid #0d9e6e', background: '#f0fdf8', color: '#0d9e6e', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>📁 העלה מהמחשב</button>
+              style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1.5px solid #0d9e6e', background: '#f0fdf8', color: '#0d9e6e', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+              📁 העלה מהמחשב
+            </button>
           </div>
           <input value={form.main_image.startsWith('data:') ? '' : form.main_image}
             onChange={e => set('main_image', e.target.value)}
             placeholder="https://..." style={{ ...inp, marginTop: 8 }} />
         </div>
-
         <label style={lbl}>שם המקום</label>
         <input value={form.name} onChange={e => set('name', e.target.value)} style={inp} />
-
         <label style={lbl}>קטגוריה</label>
         <input value={form.category} onChange={e => set('category', e.target.value)} style={inp} />
-
         <label style={lbl}>רמת קושי</label>
         <select value={form.difficulty} onChange={e => set('difficulty', e.target.value)} style={{ ...inp }}>
           {['קל - משפחות', 'קל', 'בינוני', 'קשה', 'מאתגר'].map(d => <option key={d}>{d}</option>)}
         </select>
-
         <label style={lbl}>משך ביקור (דקות)</label>
-        <input type="number" value={form.duration_minutes}
-          onChange={e => set('duration_minutes', parseInt(e.target.value) || 0)} style={inp} />
-
+        <input type="number" value={form.duration_minutes} onChange={e => set('duration_minutes', parseInt(e.target.value) || 0)} style={inp} />
         <label style={lbl}>תיאור</label>
-        <textarea value={form.description} onChange={e => set('description', e.target.value)}
-          rows={4} style={{ ...inp, resize: 'vertical' } as any} />
-
+        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4} style={{ ...inp, resize: 'vertical' } as any} />
         <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
           {[['has_water', '💧 יש מים'], ['has_shade', '🌿 יש צל'], ['accessible', '♿ נגיש']].map(([key, label]) => (
             <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              <input type="checkbox" checked={(form as any)[key]}
-                onChange={e => set(key, e.target.checked)} style={{ width: 16, height: 16, accentColor: '#0d9e6e' }} />
+              <input type="checkbox" checked={(form as any)[key]} onChange={e => set(key, e.target.checked)} style={{ width: 16, height: 16, accentColor: '#0d9e6e' }} />
               {label}
             </label>
           ))}
         </div>
-
         {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 10 }}>⚠️ {error}</div>}
-
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={handleSave} disabled={saving}
             style={{ flex: 1, padding: '12px', border: 'none', borderRadius: 12, background: saving ? '#e2e8f0' : 'linear-gradient(135deg,#0d9e6e,#0bba7e)', color: saving ? '#94a3b8' : '#fff', fontFamily: 'Heebo, sans-serif', fontWeight: 800, fontSize: 15, cursor: saving ? 'not-allowed' : 'pointer' }}>
@@ -277,38 +344,227 @@ function AdminEditModal({ poi, onClose, onSaved }: { poi: POI; onClose: () => vo
   );
 }
 
-// ── Image Gallery (Feature 3) ─────────────────────────────────────
-function ImageGallery({ locationId, images, isAdmin, onApprove, onReject }:
-  { locationId: number; images: LocationImage[]; isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void }) {
-  if (!images.length) return null;
+// ── Media Gallery (enhanced: images + videos + credits + modal) ──
+function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
+  locationId: number;
+  media: LocationMedia[];
+  isAdmin: boolean;
+  onApprove: (id: number) => void;
+  onReject: (id: number) => void;
+}) {
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  if (!media.length) return null;
+
+  const approvedMedia = media.filter(m => m.is_approved || isAdmin);
+  if (!approvedMedia.length && !isAdmin) return null;
+
+  const openLightbox = (idx: number) => setLightboxIdx(idx);
+  const closeLightbox = () => setLightboxIdx(null);
+  const prevItem = () => setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : null);
+  const nextItem = () => setLightboxIdx(i => i !== null ? Math.min(approvedMedia.length - 1, i + 1) : null);
+
   return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12, direction: 'rtl' }}>📸 גלריית קהילה</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
-        {images.map(img => (
-          <div key={img.id} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: `2px solid ${img.is_approved ? '#0d9e6e' : '#e2e8f0'}` }}>
-            <img src={img.image_url} alt="gallery" style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
-              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-            {img.is_approved && (
-              <div style={{ position: 'absolute', top: 4, right: 4, background: '#0d9e6e', borderRadius: 6, padding: '2px 6px', fontSize: 10, color: '#fff', fontWeight: 700 }}>✓ אושר</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, direction: 'rtl' }}>
+        <span style={{ fontSize: 13, color: '#94a3b8' }}>{approvedMedia.length} פריטים</span>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>📸 גלריית קהילה</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
+        {approvedMedia.map((item, idx) => (
+          <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `2px solid ${item.is_approved ? '#0d9e6e' : '#f59e0b'}`, cursor: 'pointer', aspectRatio: '1' }}
+            onClick={() => openLightbox(idx)}>
+
+            {item.media_type === 'video' ? (
+              <div style={{ width: '100%', height: '100%', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                {item.thumbnail_url ? (
+                  <img src={item.thumbnail_url} alt="video thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
+                ) : null}
+                <div style={{ position: 'relative', zIndex: 2, background: 'rgba(0,0,0,0.6)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#fff', fontSize: 16, marginRight: -2 }}>▶</span>
+                </div>
+              </div>
+            ) : (
+              <img src={item.media_url} alt={item.caption || 'gallery'}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; }}
+              />
             )}
+
+            {/* Status badge */}
+            {item.is_approved ? (
+              <div style={{ position: 'absolute', top: 4, right: 4, background: '#0d9e6e', borderRadius: 6, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>✓</div>
+            ) : (
+              <div style={{ position: 'absolute', top: 4, right: 4, background: '#f59e0b', borderRadius: 6, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>ממתין</div>
+            )}
+
+            {/* Video indicator */}
+            {item.media_type === 'video' && (
+              <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
+            )}
+
+            {/* Uploader credit */}
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '12px 4px 4px', fontSize: 9, color: 'rgba(255,255,255,0.9)', textAlign: 'center', fontWeight: 600 }}>
+              {item.username || 'משתמש'}
+            </div>
+
+            {/* Admin controls */}
             {isAdmin && (
-              <div style={{ display: 'flex', gap: 4, padding: '4px 4px' }}>
-                {!img.is_approved && (
-                  <button onClick={() => onApprove(img.id)}
-                    style={{ flex: 1, padding: '3px', fontSize: 10, border: 'none', borderRadius: 6, background: '#0d9e6e', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
+              <div style={{ display: 'flex', gap: 4, padding: '4px', background: 'rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+                {!item.is_approved ? (
+                  <button onClick={() => onApprove(item.id)}
+                    style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#0d9e6e', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
                     אשר
                   </button>
-                )}
-                {img.is_approved && (
-                  <button onClick={() => onReject(img.id)}
-                    style={{ flex: 1, padding: '3px', fontSize: 10, border: 'none', borderRadius: 6, background: '#f87171', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
+                ) : (
+                  <button onClick={() => onReject(item.id)}
+                    style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#f87171', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
                     בטל
                   </button>
                 )}
               </div>
             )}
-            <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', padding: '2px 4px' }}>{img.username || 'משתמש'}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Lightbox / Modal Viewer */}
+      {lightboxIdx !== null && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={closeLightbox}
+        >
+          <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Close */}
+            <button onClick={closeLightbox}
+              style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', zIndex: 1 }}>
+              ✕
+            </button>
+
+            {/* Current item */}
+            {approvedMedia[lightboxIdx].media_type === 'video' ? (
+              <video
+                src={approvedMedia[lightboxIdx].media_url}
+                controls
+                autoPlay
+                style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }}
+                playsInline
+              />
+            ) : (
+              <img
+                src={approvedMedia[lightboxIdx].media_url}
+                alt={approvedMedia[lightboxIdx].caption || ''}
+                style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12, objectFit: 'contain' }}
+              />
+            )}
+
+            {/* Caption + credit */}
+            <div style={{ marginTop: 12, textAlign: 'center', color: '#fff', direction: 'rtl' }}>
+              {approvedMedia[lightboxIdx].caption && (
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{approvedMedia[lightboxIdx].caption}</div>
+              )}
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                📷 {approvedMedia[lightboxIdx].username || 'משתמש'} ·{' '}
+                {new Date(approvedMedia[lightboxIdx].created_at).toLocaleDateString('he-IL')}
+              </div>
+            </div>
+
+            {/* Navigation arrows */}
+            <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
+              <button onClick={prevItem} disabled={lightboxIdx === 0}
+                style={{ background: lightboxIdx === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ›
+              </button>
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, alignSelf: 'center' }}>
+                {lightboxIdx + 1} / {approvedMedia.length}
+              </span>
+              <button onClick={nextItem} disabled={lightboxIdx === approvedMedia.length - 1}
+                style={{ background: lightboxIdx === approvedMedia.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === approvedMedia.length - 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ‹
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Nearby Places ─────────────────────────────────────────────────
+function NearbyPlaces({ locationId }: { locationId: number }) {
+  const navigate = useNavigate();
+  const [nearby, setNearby] = useState<NearbyPOI[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.locations.getNearby(locationId, 6, 30000)
+      .then(data => setNearby(data))
+      .catch(() => setNearby([]))
+      .finally(() => setLoading(false));
+  }, [locationId]);
+
+  if (loading) return (
+    <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16, direction: 'rtl' }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>📍 מקומות קרובים</div>
+      <div style={{ display: 'flex', gap: 10, overflowX: 'hidden' }}>
+        {[1, 2, 3].map(i => (
+          <div key={i} style={{ flexShrink: 0, width: 140, height: 120, borderRadius: 14, background: '#f0f0f0', animation: 'pulse 1.5s ease infinite' }} />
+        ))}
+      </div>
+    </div>
+  );
+
+  if (!nearby.length) return null;
+
+  const formatDistance = (m: number) => m < 1000 ? `${Math.round(m)} מ'` : `${(m / 1000).toFixed(1)} ק"מ`;
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12, direction: 'rtl' }}>📍 מקומות קרובים</div>
+      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' as any }}>
+        {nearby.map(place => (
+          <div
+            key={place.id}
+            onClick={() => navigate(`/POIDetail?id=${place.id}`)}
+            style={{
+              flexShrink: 0, width: 150, borderRadius: 16, overflow: 'hidden',
+              border: '1px solid #f0f0f0', cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              transition: 'transform 0.15s, box-shadow 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+          >
+            {/* Thumbnail */}
+            <div style={{ height: 90, position: 'relative', background: 'linear-gradient(135deg, #0d9e6e, #34d399)' }}>
+              {place.main_image ? (
+                <img src={place.main_image} alt={place.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <span style={{ fontSize: 28, opacity: 0.5 }}>🏞️</span>
+                </div>
+              )}
+              {/* Distance badge */}
+              <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.65)', borderRadius: 8, padding: '2px 7px', fontSize: 11, color: '#fff', fontWeight: 700 }}>
+                {formatDistance(place.distance_meters)}
+              </div>
+            </div>
+            {/* Info */}
+            <div style={{ padding: '8px 10px', direction: 'rtl' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#1a2e2a', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {place.name}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>{place.category}</span>
+                <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700 }}>★ {place.average_rating.toFixed(1)}</span>
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -316,7 +572,7 @@ function ImageGallery({ locationId, images, isAdmin, onApprove, onReject }:
   );
 }
 
-// ── Main POIDetail ────────────────────────────────────────────────
+// ── Main POIDetail ─────────────────────────────────────────────────
 export default function POIDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -330,6 +586,8 @@ export default function POIDetail() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reports, setReports] = useState<CommunityReport[]>([]);
   const [galleryImages, setGalleryImages] = useState<LocationImage[]>([]);
+  const [media, setMedia] = useState<LocationMedia[]>([]);
+  const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
   const [tab, setTab] = useState<'reports' | 'reviews'>('reports');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -345,17 +603,35 @@ export default function POIDetail() {
     api.locations.get(poiId)
       .then(async poiData => {
         setPoi(poiData);
-        const [revs, reps, imgs] = await Promise.all([
+        const [revs, reps, imgs, mediaData, rating] = await Promise.all([
           api.reviews.list(Number(poiId)),
           api.reports.list(Number(poiId)),
           api.locations.getImages(Number(poiId)).catch(() => []),
+          api.locations.getMedia(Number(poiId)).catch(() => []),
+          api.locations.getRating(Number(poiId)).catch(() => null),
         ]);
-        setReviews(revs); setReports(reps); setGalleryImages(imgs);
+        setReviews(revs);
+        setReports(reps);
+        setGalleryImages(imgs);
+        setMedia(mediaData);
+        setRatingSummary(rating);
         setLoading(false);
       })
       .catch(err => { setError(err.message); setLoading(false); });
   }, [poiId]);
 
+  const handleApproveMedia = async (mediaId: number) => {
+    if (!poi) return;
+    await api.locations.approveMedia(poi.id, mediaId);
+    setMedia(prev => prev.map(m => m.id === mediaId ? { ...m, is_approved: true } : m));
+  };
+  const handleRejectMedia = async (mediaId: number) => {
+    if (!poi) return;
+    await api.locations.rejectMedia(poi.id, mediaId);
+    setMedia(prev => prev.map(m => m.id === mediaId ? { ...m, is_approved: false } : m));
+  };
+
+  // Legacy image approve/reject (for backward compat with old images endpoint)
   const handleApproveImage = async (imageId: number) => {
     if (!poi) return;
     await api.locations.approveImage(poi.id, imageId);
@@ -367,15 +643,10 @@ export default function POIDetail() {
     setGalleryImages(prev => prev.map(i => i.id === imageId ? { ...i, is_approved: false } : i));
   };
 
-  // Feature 1: Google Maps with lat/lng fallback
+  // FIXED: always use coordinate-based URL — never name-based
   const openGoogleMaps = () => {
     if (!poi) return;
-    // Try named search first; if no result expected, use coordinates
-    const namedUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(poi.name)}`;
-    const coordUrl = `https://www.google.com/maps/search/?api=1&query=${poi.latitude},${poi.longitude}`;
-    // We detect if the name is generic/short — use coords for safety
-    const useCoords = poi.name.length < 3 || /^[\d\s]+$/.test(poi.name);
-    window.open(useCoords ? coordUrl : `${namedUrl}&query_place_fallback=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
+    window.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
   };
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}><div>טוען...</div></div>;
@@ -386,6 +657,24 @@ export default function POIDetail() {
       <button onClick={() => navigate(-1)} style={{ background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 24px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>חזרה</button>
     </div>
   );
+
+  // Merge legacy images + new media into one MediaGallery feed
+  const legacyAsMedia: LocationMedia[] = galleryImages.map(img => ({
+    id: img.id,
+    location_id: img.location_id,
+    user_id: img.user_id,
+    media_type: 'image' as const,
+    media_url: img.image_url,
+    thumbnail_url: null,
+    caption: null,
+    is_approved: img.is_approved,
+    created_at: img.created_at,
+    username: img.username,
+  }));
+  const allMedia: LocationMedia[] = [
+    ...media,
+    ...legacyAsMedia.filter(l => !media.some(m => m.media_url === l.media_url)),
+  ];
 
   const diffColor = DIFF_COLORS[poi.difficulty] || '#16a34a';
 
@@ -404,14 +693,12 @@ export default function POIDetail() {
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
-                {/* Share */}
                 <button
                   onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 </button>
                 {!isNaN(poiIdNum) && <FavoriteButton locationId={poiIdNum} size={20} style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 14, width: 42, height: 42 }} />}
-                {/* Feature 2: Admin edit button */}
                 {isAdmin && (
                   <button onClick={() => setShowAdminEdit(true)}
                     style={{ background: 'rgba(124,58,237,0.9)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -437,23 +724,30 @@ export default function POIDetail() {
 
         {/* Main content */}
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 16px', marginTop: -20, position: 'relative', zIndex: 20, paddingBottom: 100 }}>
+
           {/* Info card */}
           <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.08)', padding: '24px 20px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, direction: 'rtl' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-                <span style={{ fontWeight: 900, color: '#1a2e2a', fontSize: 18 }}>{poi.average_rating}</span>
-              </div>
+            {/* Rating row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, direction: 'rtl' }}>
               <span style={{ background: '#f0fdf8', color: '#0d9e6e', borderRadius: 10, padding: '6px 14px', fontSize: 13, fontWeight: 800 }}>{poi.category}</span>
+              <StarRating locationId={poiIdNum} initialSummary={ratingSummary} isLoggedIn={isLoggedIn} />
             </div>
+
             <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.8, textAlign: 'right', marginBottom: 24 }}>{poi.description}</p>
+
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', direction: 'rtl' }}>
-              {poi.duration_minutes && (<span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#64748b' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>{poi.duration_minutes} דקות</span>)}
+              {poi.duration_minutes && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#64748b' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                  {poi.duration_minutes} דקות
+                </span>
+              )}
               {poi.has_water  && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#0284c7' }}>💧 יש מים</span>}
               {poi.has_shade  && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🌿 יש צל</span>}
               {poi.accessible && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf5ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>♿ נגיש</span>}
             </div>
-            {/* Feature 1: Google Maps with lat/lng fallback */}
+
+            {/* FIXED Google Maps button — always coordinate-based */}
             <button onClick={openGoogleMaps}
               style={{ width: '100%', marginTop: 20, padding: '14px', border: 'none', borderRadius: 16, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 6px 20px rgba(13,158,110,0.25)' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
@@ -464,11 +758,33 @@ export default function POIDetail() {
           {/* Mini-Map */}
           <MiniMap poi={poi} />
 
-          {/* Feature 3: Gallery of community images */}
-          <ImageGallery
-            locationId={poiIdNum} images={galleryImages} isAdmin={isAdmin}
-            onApprove={handleApproveImage} onReject={handleRejectImage}
+          {/* Nearby Places */}
+          {!isNaN(poiIdNum) && <NearbyPlaces locationId={poiIdNum} />}
+
+          {/* Media Gallery (images + videos) */}
+          <MediaGallery
+            locationId={poiIdNum}
+            media={allMedia}
+            isAdmin={isAdmin}
+            onApprove={id => {
+              // Try new media first, fall back to legacy
+              if (media.some(m => m.id === id)) handleApproveMedia(id);
+              else handleApproveImage(id);
+            }}
+            onReject={id => {
+              if (media.some(m => m.id === id)) handleRejectMedia(id);
+              else handleRejectImage(id);
+            }}
           />
+
+          {/* Upload button */}
+          {isLoggedIn && !isNaN(poiIdNum) && (
+            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
+              <UploadPhotoButton locationId={poiIdNum} onUploaded={newMedia => {
+                setMedia(prev => [newMedia, ...prev]);
+              }} />
+            </div>
+          )}
 
           {/* Tabs */}
           <div style={{ background: '#fff', borderRadius: 20, padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)', marginBottom: 16, display: 'flex', direction: 'rtl' }}>
@@ -501,8 +817,7 @@ export default function POIDetail() {
                 <>
                   <button onClick={() => reportLock.guardAction(() => {})}
                     style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    הוסף דיווח — דרוש חשבון
+                    🔒 הוסף דיווח — דרוש חשבון
                   </button>
                   {reportLock.PromptComponent}
                 </>
@@ -536,8 +851,7 @@ export default function POIDetail() {
                 <>
                   <button onClick={() => reviewLock.guardAction(() => {})}
                     style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    כתוב ביקורת — דרוש חשבון
+                    🔒 כתוב ביקורת — דרוש חשבון
                   </button>
                   {reviewLock.PromptComponent}
                 </>
@@ -550,15 +864,7 @@ export default function POIDetail() {
             </div>
           )}
 
-          {isLoggedIn && !isNaN(poiIdNum) && (
-            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
-              <UploadPhotoButton locationId={poiIdNum} onUploaded={url => {
-                setGalleryImages(prev => [{ id: Date.now(), user_id: Number(user?.id), location_id: poiIdNum, image_url: url, is_approved: false, created_at: new Date().toISOString(), username: user?.username }, ...prev]);
-              }} />
-            </div>
-          )}
-
-          {/* Feature 1: Waze navigates by coordinates */}
+          {/* Navigate button */}
           <button
             onClick={() => window.open(`https://waze.com/ul?ll=${poi.latitude},${poi.longitude}&navigate=yes`, '_blank')}
             style={{ width: '100%', padding: '18px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 18, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 24px rgba(13,158,110,0.25)', marginTop: 8 }}>
@@ -567,7 +873,13 @@ export default function POIDetail() {
           </button>
         </div>
       </div>
+
       <TripBucketSheet />
+
+      <style>{`
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </>
   );
 }

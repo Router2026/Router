@@ -1,3 +1,6 @@
+// src/lib/locations/location-service.ts — UPDATED
+// Added: getNearbyLocations using PostGIS ST_DWithin for geo queries.
+
 import { rawDb } from "@/lib/db/raw-client";
 import { cacheGet, cacheSet } from "@/lib/cache/mem-cache";
 
@@ -25,6 +28,10 @@ export interface Location {
   average_rating: number;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface NearbyLocation extends Location {
+  distance_meters: number;
 }
 
 export interface LocationQuery {
@@ -149,6 +156,55 @@ export async function getLocationById(id: number): Promise<Location | null> {
   );
   if (!rows.length) return null;
   const result = rowToLocation(rows[0]);
+  cacheSet(cacheKey, result, LIST_CACHE_TTL);
+  return result;
+}
+
+/**
+ * Returns locations within `radiusMeters` of the given location,
+ * sorted by distance ascending, excluding the location itself.
+ * Uses PostGIS ST_DWithin on the geography column for accuracy.
+ */
+export async function getNearbyLocations(
+  locationId: number,
+  limit: number = 6,
+  radiusMeters: number = 25000
+): Promise<NearbyLocation[]> {
+  // Get reference location first
+  const ref = await getLocationById(locationId);
+  if (!ref) throw Object.assign(new Error("Location not found"), { code: "NOT_FOUND" });
+
+  const cacheKey = `locations:nearby:${locationId}:${limit}:${radiusMeters}`;
+  const cached = cacheGet<NearbyLocation[]>(cacheKey);
+  if (cached) return cached;
+
+  const { rows } = await rawDb.query(
+    `SELECT
+       l.*,
+       r.name AS region_name,
+       r.slug AS region_slug,
+       ST_Distance(
+         l.geom::geography,
+         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
+       ) AS distance_meters
+     FROM locations l
+     LEFT JOIN regions r ON l.region_id = r.id
+     WHERE l.id <> $3
+       AND ST_DWithin(
+         l.geom::geography,
+         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+         $4
+       )
+     ORDER BY distance_meters ASC
+     LIMIT $5`,
+    [ref.latitude, ref.longitude, locationId, radiusMeters, limit]
+  );
+
+  const result = rows.map(row => ({
+    ...rowToLocation(row),
+    distance_meters: parseFloat(row.distance_meters as string),
+  }));
+
   cacheSet(cacheKey, result, LIST_CACHE_TTL);
   return result;
 }

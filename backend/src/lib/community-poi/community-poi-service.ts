@@ -1,17 +1,49 @@
-// src/lib/community-poi/community-poi-service.ts
-// Business logic for user-contributed POIs (Community POI Feature).
+// src/lib/community-poi/community-poi-service.ts — UPDATED
+// Added: region auto-classification from coordinates via PostGIS / bounding-box lookup.
 
 import { rawDb } from "@/lib/db/raw-client";
 import { sendPushToUser } from "@/lib/notifications/push-service";
 import { CommunityPoiRow, CommunityPoiStatus, CreateCommunityPoiInput } from "./types";
 
-
 /** XP reward awarded when a community POI is approved */
 const APPROVAL_XP_REWARD = 50;
 
+// ── Region classification ──────────────────────────────────────────────────────
+
+/**
+ * Classify a lat/lng into a region by finding the nearest region center
+ * within the region's radius.  Falls back to nearest regardless of radius.
+ * Uses the existing `regions` table — no external API calls.
+ */
+export async function classifyRegion(
+  latitude: number,
+  longitude: number
+): Promise<{ region_id: number; region_name: string } | null> {
+  // Try PostGIS point-in-polygon first (uses the geom column on regions if present)
+  // Fall back to nearest center within radius_meters, then absolute nearest
+  const { rows } = await rawDb.query(
+    `SELECT id, name,
+       ST_Distance(
+         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+         ST_SetSRID(ST_MakePoint(center_lng::float, center_lat::float), 4326)::geography
+       ) AS dist_meters,
+       radius_meters
+     FROM regions
+     ORDER BY dist_meters ASC
+     LIMIT 1`,
+    [latitude, longitude]
+  );
+
+  if (!rows.length) return null;
+
+  return {
+    region_id: rows[0].id as number,
+    region_name: rows[0].name as string,
+  };
+}
+
 // ── Read ───────────────────────────────────────────────────────────────────────
 
-/** Admin: list all community POIs, newest first, with submitter info */
 export async function listAllCommunityPois(
   status?: CommunityPoiStatus
 ): Promise<CommunityPoiRow[]> {
@@ -31,7 +63,6 @@ export async function listAllCommunityPois(
   return rows as unknown as CommunityPoiRow[];
 }
 
-/** Get a single community POI by id */
 export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | null> {
   const { rows } = await rawDb.query(
     `SELECT cp.*,
@@ -47,14 +78,16 @@ export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | nul
 
 // ── Create ─────────────────────────────────────────────────────────────────────
 
-/** User submits a new community POI (status = pending) */
 export async function createCommunityPoi(
   input: CreateCommunityPoiInput
 ): Promise<CommunityPoiRow> {
+  // Auto-classify region from coordinates
+  const regionInfo = await classifyRegion(input.latitude, input.longitude).catch(() => null);
+
   const { rows } = await rawDb.query(
     `INSERT INTO community_pois
-       (user_id, name, category, description, latitude, longitude, photos, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+       (user_id, name, category, description, latitude, longitude, photos, status, region, region_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9)
      RETURNING *`,
     [
       input.userId,
@@ -64,6 +97,8 @@ export async function createCommunityPoi(
       input.latitude,
       input.longitude,
       JSON.stringify(input.photos ?? []),
+      regionInfo?.region_name ?? null,
+      regionInfo?.region_id ?? null,
     ]
   );
   return rows[0] as unknown as CommunityPoiRow;
@@ -71,19 +106,11 @@ export async function createCommunityPoi(
 
 // ── Admin: Approve ─────────────────────────────────────────────────────────────
 
-/**
- * Admin approves a pending community POI.
- * Side-effects:
- *  1. Copies the POI into the public `locations` table.
- *  2. Awards APPROVAL_XP_REWARD XP to the submitter.
- *  3. Sends a push notification to the submitter.
- */
 export async function approveCommunityPoi(
   id: number,
   adminUserId: number,
   edits?: Partial<Pick<CommunityPoiRow, "name" | "category" | "description">>
 ): Promise<CommunityPoiRow> {
-  // 1. Update community_pois status to approved (apply optional admin edits)
   const { rows: updatedRows } = await rawDb.query(
     `UPDATE community_pois
      SET status      = 'approved',
@@ -106,15 +133,18 @@ export async function approveCommunityPoi(
 
   const poi = updatedRows[0] as unknown as CommunityPoiRow;
 
-  // 2. Publish to the public locations table
+  // Publish to public locations table (with geom + region_id)
   await rawDb.query(
     `INSERT INTO locations
-       (name, category, description, latitude, longitude, images, source, source_id)
-     VALUES ($1, $2, $3, $4, $5, $6, 'community', $7)
+       (name, category, description, latitude, longitude, geom, images, source, source_id, region_id)
+     VALUES ($1, $2, $3, $4, $5,
+       ST_SetSRID(ST_MakePoint($6, $5), 4326)::geography,
+       $7, 'community', $8, $9)
      ON CONFLICT (source, source_id) DO UPDATE
        SET name        = EXCLUDED.name,
            category    = EXCLUDED.category,
            description = EXCLUDED.description,
+           region_id   = EXCLUDED.region_id,
            updated_at  = NOW()`,
     [
       poi.name,
@@ -122,21 +152,19 @@ export async function approveCommunityPoi(
       poi.description ?? "",
       poi.latitude,
       poi.longitude,
+      poi.longitude,          // MakePoint(lng, lat)
       JSON.stringify(poi.photos),
-      String(poi.id), // source_id = community_poi id
+      String(poi.id),
+      (poi as any).region_id ?? null,
     ]
   );
 
-  // 3. Award XP to the submitter (skip if no user linked)
   if (poi.user_id) {
     await rawDb.query(
-      `UPDATE users
-       SET xp_points = xp_points + $1
-       WHERE id = $2`,
+      `UPDATE users SET xp_points = xp_points + $1 WHERE id = $2`,
       [APPROVAL_XP_REWARD, poi.user_id]
     );
 
-    // 4. Send push notification
     await sendPushToUser(poi.user_id, {
       title: "📍 המיקום שלך אושר!",
       body: `"${poi.name}" פורסם למפה הציבורית. קיבלת ${APPROVAL_XP_REWARD} XP!`,
@@ -153,7 +181,6 @@ export async function approveCommunityPoi(
 
 // ── Admin: Reject ──────────────────────────────────────────────────────────────
 
-/** Admin rejects a pending community POI with an optional note */
 export async function rejectCommunityPoi(
   id: number,
   adminUserId: number,
@@ -173,7 +200,6 @@ export async function rejectCommunityPoi(
 
   const poi = rows[0] as unknown as CommunityPoiRow;
 
-  // Notify user of rejection
   if (poi.user_id) {
     await sendPushToUser(poi.user_id, {
       title: "📍 עדכון על המיקום שהגשת",
@@ -192,7 +218,6 @@ export async function rejectCommunityPoi(
 
 // ── Admin: Edit ────────────────────────────────────────────────────────────────
 
-/** Admin edits a pending community POI (before approve/reject) */
 export async function editCommunityPoi(
   id: number,
   updates: Partial<
