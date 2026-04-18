@@ -21,8 +21,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// ── Start-point marker (green "home" pin) ────────────────────────────────────
-
 function StartMarker({ position }: { position: LatLng }) {
   const icon = L.divIcon({
     html: `
@@ -44,8 +42,6 @@ function StartMarker({ position }: { position: LatLng }) {
   return <Marker position={[position.lat, position.lng]} icon={icon} />;
 }
 
-// ── Numbered stop marker ──────────────────────────────────────────────────────
-
 function NumberedMarker({ poi, index }: { poi: POI; index: number }) {
   const icon = L.divIcon({
     html: `<div style="
@@ -63,15 +59,7 @@ function NumberedMarker({ poi, index }: { poi: POI; index: number }) {
   return <Marker position={[poi.latitude, poi.longitude]} icon={icon} />;
 }
 
-// ── Route polyline ────────────────────────────────────────────────────────────
-
-function RoutePolyline({
-  stops,
-  startPoint,
-}: {
-  stops: POI[];
-  startPoint: LatLng | null;
-}) {
+function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng | null }) {
   const map = useMap();
   const lineRef = useRef<L.Polyline | null>(null);
 
@@ -79,7 +67,6 @@ function RoutePolyline({
     lineRef.current?.remove();
     if (stops.length < 2 && !startPoint) return;
 
-    // Build coordinate array: optionally prepend the start point
     const coords: [number, number][] = [
       ...(startPoint ? [[startPoint.lat, startPoint.lng] as [number, number]] : []),
       ...stops.map(s => [s.latitude, s.longitude] as [number, number]),
@@ -101,7 +88,118 @@ function RoutePolyline({
   return null;
 }
 
-// ── Geo-helpers ───────────────────────────────────────────────────────────────
+function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; selected: boolean }) {
+  const map = useMap();
+
+  const icon = L.divIcon({
+    html: poi.main_image
+      ? `<div style="
+          position:relative;
+          width:${selected ? 52 : 44}px;
+          height:${selected ? 52 : 44}px;
+          border-radius:12px;
+          overflow:hidden;
+          border:3px solid ${selected ? '#0d9e6e' : '#fff'};
+          box-shadow:0 3px 12px rgba(0,0,0,0.35);
+          cursor:pointer;
+        ">
+          <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900\\'>${index + 1}</div>'"/>
+          <div style="
+            position:absolute;bottom:0;left:0;right:0;
+            background:linear-gradient(transparent,rgba(0,0,0,0.6));
+            color:#fff;font-size:9px;font-weight:700;
+            padding:4px 4px 3px;text-align:center;
+            font-family:Heebo,Arial;
+          ">${index + 1}</div>
+        </div>`
+      : `<div style="
+          width:${selected ? 44 : 36}px;
+          height:${selected ? 44 : 36}px;
+          border-radius:12px;
+          background:linear-gradient(135deg,#0d9e6e,#0bba7e);
+          border:3px solid ${selected ? '#fff' : '#e2e8f0'};
+          display:flex;align-items:center;justify-content:center;
+          color:#fff;font-size:14px;font-weight:900;
+          box-shadow:0 3px 10px rgba(13,158,110,0.4);
+          font-family:Heebo,Arial;
+        ">${index + 1}</div>`,
+    className: '',
+    iconSize: [selected ? 52 : 44, selected ? 52 : 44],
+    iconAnchor: [selected ? 26 : 22, selected ? 26 : 22],
+  });
+
+  return (
+    <Marker
+      position={[poi.latitude, poi.longitude]}
+      icon={icon}
+      eventHandlers={{
+        click: () => {
+          map.flyTo([poi.latitude, poi.longitude], Math.max(map.getZoom(), 13), { duration: 0.6 });
+        }
+      }}
+    />
+  );
+}
+
+function FitBoundsToSelection({ pois, startPoint, region }: {
+  pois: POI[];
+  startPoint: LatLng | null;
+  region: Region | null;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (pois.length > 0) {
+      const coords: [number, number][] = [
+        ...(startPoint ? [[startPoint.lat, startPoint.lng] as [number, number]] : []),
+        ...pois.map(p => [p.latitude, p.longitude] as [number, number]),
+      ];
+      map.fitBounds(L.latLngBounds(coords).pad(0.2));
+    } else if (region) {
+      map.flyTo([region.center_lat, region.center_lng], region.zoom || 11, { duration: 0.8 });
+    }
+  }, [pois.length, startPoint, region]);
+  return null;
+}
+
+function RegionLabel({ region, count }: { region: Region | null; count: number }) {
+  if (!region) return null;
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      pointerEvents: 'none',
+      textAlign: 'center',
+      zIndex: 500,
+    }}>
+      <div style={{
+        color: '#1a1a1a',
+        textShadow: '0 1px 4px rgba(255,255,255,0.9), 0 -1px 4px rgba(255,255,255,0.9), 1px 0 4px rgba(255,255,255,0.9), -1px 0 4px rgba(255,255,255,0.9)',
+        fontFamily: 'Heebo, Arial',
+        direction: 'rtl',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.8 }}>{region.name}</div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>{region.name_en || region.name}</div>
+        {count > 0 && (
+          <div style={{
+            marginTop: 4,
+            display: 'inline-block',
+            background: '#0d9e6e',
+            color: '#fff',
+            borderRadius: 20,
+            padding: '3px 10px',
+            fontSize: 11,
+            fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          }}>
+            {count} אתרים נבחרו
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
   const R = 6371;
@@ -120,11 +218,6 @@ function totalDistance(stops: POI[]): number {
   return d;
 }
 
-/**
- * Nearest-neighbour TSP, seeded from the start point if provided.
- * The start point itself is NOT added to the ordered POI list —
- * it remains a visual-only pin that anchors the first leg.
- */
 function optimizeRoute(pois: POI[], startPoint?: LatLng | null): POI[] {
   if (pois.length <= 1) return pois;
 
@@ -132,13 +225,9 @@ function optimizeRoute(pois: POI[], startPoint?: LatLng | null): POI[] {
   let firstIdx = 0;
 
   if (startPoint) {
-    // Pick the POI closest to the start point as the first stop
     let minDist = Infinity;
     remaining.forEach((p, i) => {
-      const d = haversineKm(
-        { latitude: startPoint.lat, longitude: startPoint.lng },
-        p
-      );
+      const d = haversineKm({ latitude: startPoint.lat, longitude: startPoint.lng }, p);
       if (d < minDist) { minDist = d; firstIdx = i; }
     });
   }
@@ -159,8 +248,6 @@ function optimizeRoute(pois: POI[], startPoint?: LatLng | null): POI[] {
   return result;
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const REGION_ICONS: Record<string, string> = {
   'גולן': '🏔️', 'גליל עליון': '🌲', 'גליל תחתון': '💧', 'כרמל': '🌿',
   'מרכז': '🏙️', 'ירושלים': '🕌', 'דרום': '🏜️', 'נגב': '🏜️',
@@ -168,8 +255,6 @@ const REGION_ICONS: Record<string, string> = {
 };
 
 type Step = 'region' | 'pois' | 'route';
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function RouteGenerator() {
   const navigate = useNavigate();
@@ -186,49 +271,38 @@ export default function RouteGenerator() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
-  // ── Feature 12: trip metadata ─────────────────────────────────────────────
   const [tripType, setTripType] = useState<string>('משפחה');
   const [tripStyle, setTripStyle] = useState<string>('טבע');
   const [tripDifficulty, setTripDifficulty] = useState<string>('בינוני');
   const [tripDuration, setTripDuration] = useState<string>('');
 
-  // ── Start point state ──────────────────────────────────────────────────────
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState('');
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
 
-  // ── Load regions ───────────────────────────────────────────────────────────
   useEffect(() => {
     api.regions.list().then(setRegions).catch(() => { });
   }, []);
 
-  // ── Pre-load POIs from Trip Bucket ─────────────────────────────────────────
   useEffect(() => {
     const state = routerLocation.state as { bucketPois?: POI[] } | null;
     if (state?.bucketPois && state.bucketPois.length >= 2) {
       const incoming = state.bucketPois;
       setSelectedPois(incoming);
       setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
-      // Feature 11: auto-request user location and optimise order from it
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           pos => {
             const sp = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             setStartPoint(sp);
-            const opt = optimizeRoute([...incoming], sp);
-            setOptimized(opt);
+            setOptimized(optimizeRoute([...incoming], sp));
           },
-          () => {
-            // No location — still optimise without start
-            const opt = optimizeRoute([...incoming], null);
-            setOptimized(opt);
-          },
+          () => { setOptimized(optimizeRoute([...incoming], null)); },
           { timeout: 5000, enableHighAccuracy: false }
         );
       } else {
-        const opt = optimizeRoute([...incoming], null);
-        setOptimized(opt);
+        setOptimized(optimizeRoute([...incoming], null));
       }
       setStep('route');
       window.history.replaceState({}, '');
@@ -236,7 +310,6 @@ export default function RouteGenerator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routerLocation.state]);
 
-  // ── Get current geolocation ────────────────────────────────────────────────
   const requestGeolocation = useCallback(() => {
     if (!navigator.geolocation) {
       setGeoError('הדפדפן שלך אינו תומך באיתור מיקום');
@@ -246,11 +319,7 @@ export default function RouteGenerator() {
     setGeoError('');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const latlng: LatLng = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        };
-        setStartPoint(latlng);
+        setStartPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setUseCurrentLocation(true);
         setGeoLoading(false);
       },
@@ -268,7 +337,6 @@ export default function RouteGenerator() {
     setGeoError('');
   };
 
-  // ── Region selection ───────────────────────────────────────────────────────
   const selectRegion = async (region: Region) => {
     setSelectedRegion(region);
     setLoadingPois(true);
@@ -330,7 +398,6 @@ export default function RouteGenerator() {
     p => !search || p.name.includes(search) || p.category.includes(search)
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl' }}>
 
@@ -397,7 +464,6 @@ export default function RouteGenerator() {
         {/* ── Step 1: Region ─────────────────────────────────────────────────── */}
         {step === 'region' && (
           <>
-            {/* Start-point selector */}
             <div style={{
               background: '#fff', borderRadius: 20, padding: '16px 18px',
               marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
@@ -457,9 +523,7 @@ export default function RouteGenerator() {
               )}
 
               {geoError && (
-                <div style={{
-                  marginTop: 8, fontSize: 11, color: '#ef4444', textAlign: 'right',
-                }}>
+                <div style={{ marginTop: 8, fontSize: 11, color: '#ef4444', textAlign: 'right' }}>
                   {geoError}
                 </div>
               )}
@@ -517,7 +581,6 @@ export default function RouteGenerator() {
               </div>
             </div>
 
-            {/* Start point reminder */}
             {startPoint && (
               <div style={{
                 background: '#eff6ff', borderRadius: 14, padding: '10px 14px',
@@ -561,6 +624,51 @@ export default function RouteGenerator() {
               </div>
             )}
 
+            {/* ── Google Maps-style region overview map ── */}
+            <div style={{
+              borderRadius: 20, overflow: 'hidden',
+              marginBottom: 14, height: 220, position: 'relative',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            }}>
+              {selectedRegion && (
+                <>
+                  <MapContainer
+                    center={[selectedRegion.center_lat, selectedRegion.center_lng]}
+                    zoom={selectedRegion.zoom || 11}
+                    style={{ height: '100%', width: '100%' }}
+                    zoomControl={false}
+                    scrollWheelZoom={false}
+                    dragging={false}
+                    doubleClickZoom={false}
+                  >
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    {startPoint && <StartMarker position={startPoint} />}
+                    {selectedPois.map((poi, i) => (
+                      <PhotoMarker key={poi.id} poi={poi} index={i} selected={true} />
+                    ))}
+                    <FitBoundsToSelection pois={selectedPois} startPoint={startPoint} region={selectedRegion} />
+                  </MapContainer>
+                  <RegionLabel region={selectedRegion} count={selectedPois.length} />
+                  <div style={{
+                    position: 'absolute', bottom: 0, left: 0, right: 0, height: 50,
+                    background: 'linear-gradient(transparent, rgba(0,0,0,0.08))',
+                    pointerEvents: 'none', zIndex: 500,
+                  }} />
+                </>
+              )}
+            </div>
+
+            {selectedPois.length === 0 && (
+              <div style={{
+                background: '#fffbeb', borderRadius: 14, padding: '10px 14px',
+                marginBottom: 12, textAlign: 'right', fontSize: 12,
+                color: '#92400e', fontWeight: 600, border: '1px solid #fde68a',
+              }}>
+                💡 בחר אתרים מהרשימה — הם יופיעו על המפה
+              </div>
+            )}
+
+            {/* Search bar */}
             <div style={{
               background: '#f8fafc', borderRadius: 14, padding: '10px 14px',
               display: 'flex', alignItems: 'center', gap: 8,
@@ -664,26 +772,19 @@ export default function RouteGenerator() {
               textAlign: 'center', direction: 'rtl',
             }}>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>
-                  {optimized.length}
-                </div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>{optimized.length}</div>
                 <div style={{ fontSize: 11, color: '#94a3b8' }}>עצירות</div>
               </div>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>
-                  {dist.toFixed(1)} ק"מ
-                </div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>{dist.toFixed(1)} ק"מ</div>
                 <div style={{ fontSize: 11, color: '#94a3b8' }}>מרחק</div>
               </div>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>
-                  {(totalMin / 60).toFixed(1)} ש'
-                </div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>{(totalMin / 60).toFixed(1)} ש'</div>
                 <div style={{ fontSize: 11, color: '#94a3b8' }}>זמן</div>
               </div>
             </div>
 
-            {/* Start point badge */}
             {startPoint && (
               <div style={{
                 background: '#eff6ff', borderRadius: 14, padding: '10px 14px',
@@ -699,37 +800,34 @@ export default function RouteGenerator() {
               </div>
             )}
 
-            {/* Map — shows start-point pin + numbered stops + polyline */}
+            {/* Map with photo markers */}
             <div style={{
               borderRadius: 20, overflow: 'hidden',
-              marginBottom: 16, height: 260,
+              marginBottom: 16, height: 280, position: 'relative',
               boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
             }}>
               {optimized.length > 0 && (
-                <MapContainer
-                  center={
-                    startPoint
-                      ? [startPoint.lat, startPoint.lng]
-                      : [optimized[0].latitude, optimized[0].longitude]
-                  }
-                  zoom={11}
-                  style={{ height: '100%', width: '100%' }}
-                  zoomControl={false}
-                  scrollWheelZoom={false}
-                >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-                  {/* Blue start-point pin */}
-                  {startPoint && <StartMarker position={startPoint} />}
-
-                  {/* Green numbered stop markers */}
-                  {optimized.map((poi, i) => (
-                    <NumberedMarker key={poi.id} poi={poi} index={i} />
-                  ))}
-
-                  {/* Dashed route line (includes start-point if set) */}
-                  <RoutePolyline stops={optimized} startPoint={startPoint} />
-                </MapContainer>
+                <>
+                  <MapContainer
+                    center={
+                      startPoint
+                        ? [startPoint.lat, startPoint.lng]
+                        : [optimized[0].latitude, optimized[0].longitude]
+                    }
+                    zoom={11}
+                    style={{ height: '100%', width: '100%' }}
+                    zoomControl={false}
+                    scrollWheelZoom={false}
+                  >
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    {startPoint && <StartMarker position={startPoint} />}
+                    {optimized.map((poi, i) => (
+                      <PhotoMarker key={poi.id} poi={poi} index={i} selected={true} />
+                    ))}
+                    <RoutePolyline stops={optimized} startPoint={startPoint} />
+                  </MapContainer>
+                  <RegionLabel region={selectedRegion} count={0} />
+                </>
               )}
             </div>
 
@@ -760,7 +858,6 @@ export default function RouteGenerator() {
                 סדר העצירות {startPoint ? '(מסודר ממיקומך)' : '(מותאם אוטומטית)'}
               </div>
 
-              {/* Start point row */}
               {startPoint && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 12,
@@ -788,9 +885,7 @@ export default function RouteGenerator() {
                   direction: 'rtl',
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a' }}>
-                      {poi.name}
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a' }}>{poi.name}</div>
                     <div style={{ fontSize: 11, color: '#94a3b8' }}>
                       {poi.category}{poi.duration_minutes ? ` · ${poi.duration_minutes} דק'` : ''}
                     </div>
@@ -805,11 +900,10 @@ export default function RouteGenerator() {
               ))}
             </div>
 
-            {/* ── Feature 12: Trip metadata ─────────────────────────────────── */}
+            {/* Trip metadata */}
             <div style={{ background: '#fff', borderRadius: 20, padding: '18px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', direction: 'rtl' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', marginBottom: 14 }}>פרטי המסלול</div>
 
-              {/* Trip type */}
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>סוג הטיול</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -822,7 +916,6 @@ export default function RouteGenerator() {
                 </div>
               </div>
 
-              {/* Style */}
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>סגנון</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -835,7 +928,6 @@ export default function RouteGenerator() {
                 </div>
               </div>
 
-              {/* Difficulty */}
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>רמת קושי</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -848,7 +940,6 @@ export default function RouteGenerator() {
                 </div>
               </div>
 
-              {/* Duration override */}
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>אורך משוער בשעות (אופציונלי)</div>
                 <input

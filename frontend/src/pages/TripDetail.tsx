@@ -1,9 +1,10 @@
 // src/pages/TripDetail.tsx — UPDATED
 // Feature 9: Share trip button that awards XP (once per trip).
+// Feature: Google Maps-style photo markers on map.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../api";
@@ -15,6 +16,84 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
+
+// ── Photo marker ──────────────────────────────────────────────────────────────
+
+function PhotoStopMarker({ stop, index }: { stop: any; index: number }) {
+  const map = useMap();
+  const icon = L.divIcon({
+    html: stop.main_image
+      ? `<div style="
+            position:relative;width:52px;height:52px;border-radius:12px;
+            overflow:hidden;border:3px solid #0d9e6e;
+            box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
+          <img src="${stop.main_image}" style="width:100%;height:100%;object-fit:cover;"
+            onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900\\'>${index + 1}</div>'"/>
+          <div style="
+            position:absolute;bottom:0;left:0;right:0;
+            background:linear-gradient(transparent,rgba(0,0,0,0.65));
+            color:#fff;font-size:9px;font-weight:700;
+            padding:4px 4px 3px;text-align:center;font-family:Heebo,Arial;">
+            ${index + 1}
+          </div>
+        </div>`
+      : `<div style="
+            width:40px;height:40px;border-radius:12px;
+            background:linear-gradient(135deg,#0d9e6e,#0bba7e);
+            border:3px solid #fff;
+            display:flex;align-items:center;justify-content:center;
+            color:#fff;font-size:15px;font-weight:900;
+            box-shadow:0 3px 10px rgba(13,158,110,0.4);font-family:Heebo,Arial;">
+          ${index + 1}
+        </div>`,
+    className: "",
+    iconSize: stop.main_image ? [52, 52] : [40, 40],
+    iconAnchor: stop.main_image ? [26, 26] : [20, 20],
+  });
+
+  return (
+    <Marker
+      position={[stop.latitude, stop.longitude]}
+      icon={icon}
+      eventHandlers={{
+        click: () => map.flyTo([stop.latitude, stop.longitude], Math.max(map.getZoom(), 13), { duration: 0.6 }),
+      }}
+    />
+  );
+}
+
+// ── FitBounds ─────────────────────────────────────────────────────────────────
+
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.18));
+  }, []);
+  return null;
+}
+
+// ── RegionLabel ───────────────────────────────────────────────────────────────
+
+function RegionLabel({ name }: { name: string }) {
+  return (
+    <div style={{
+      position: "absolute", top: "50%", left: "50%",
+      transform: "translate(-50%, -50%)",
+      pointerEvents: "none", textAlign: "center", zIndex: 500,
+    }}>
+      <div style={{
+        color: "#1a1a1a",
+        textShadow: "0 1px 4px rgba(255,255,255,0.9), 0 -1px 4px rgba(255,255,255,0.9), 1px 0 4px rgba(255,255,255,0.9), -1px 0 4px rgba(255,255,255,0.9)",
+        fontFamily: "Heebo, Arial",
+        fontSize: 20, fontWeight: 900,
+      }}>
+        {name}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function TripDetail() {
   const navigate = useNavigate();
@@ -37,7 +116,6 @@ export default function TripDetail() {
       });
   }, [tripId]);
 
-  // Feature 9: Share trip
   const handleShare = async () => {
     if (sharing || !tripId) return;
     setSharing(true);
@@ -46,9 +124,9 @@ export default function TripDetail() {
       if (result.xp_awarded && result.xp) setShareXp(result.xp);
       setShared(true);
       if (navigator.share) {
-        await navigator.share({ title: trip?.name || 'המסלול שלי', text: trip?.description || '', url: window.location.href }).catch(() => {});
+        await navigator.share({ title: trip?.name || 'המסלול שלי', text: trip?.description || '', url: window.location.href }).catch(() => { });
       } else {
-        navigator.clipboard.writeText(window.location.href).catch(() => {});
+        navigator.clipboard.writeText(window.location.href).catch(() => { });
       }
     } catch (err) {
       console.error("Share failed:", err);
@@ -71,9 +149,9 @@ export default function TripDetail() {
   );
 
   const stopsWithCoords = (trip.stops || []).filter((s: any) => s.latitude && s.longitude);
+  const polylinePoints: [number, number][] = stopsWithCoords.map((s: any) => [s.latitude, s.longitude]);
   const center: [number, number] | null = stopsWithCoords.length > 0
     ? [stopsWithCoords[0].latitude, stopsWithCoords[0].longitude] : null;
-  const polylinePoints: [number, number][] = stopsWithCoords.map((s: any) => [s.latitude, s.longitude]);
 
   return (
     <>
@@ -114,6 +192,36 @@ export default function TripDetail() {
             )}
           </div>
 
+          {/* Map with photo markers */}
+          {center && (
+            <div style={{
+              borderRadius: 20, overflow: "hidden", marginBottom: 16,
+              height: 280, position: "relative",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+            }}>
+              <MapContainer
+                center={center} zoom={11}
+                style={{ height: "100%", width: "100%" }}
+                zoomControl={false} scrollWheelZoom={false}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
+                {polylinePoints.length > 1 && (
+                  <Polyline positions={polylinePoints} pathOptions={{ color: "#0d9e6e", weight: 3, opacity: 0.8, dashArray: "8,6" }} />
+                )}
+                {stopsWithCoords.map((s: any, i: number) => (
+                  <PhotoStopMarker key={i} stop={s} index={i} />
+                ))}
+                <FitBounds points={polylinePoints} />
+              </MapContainer>
+              {trip.region && <RegionLabel name={trip.region} />}
+              <div style={{
+                position: "absolute", bottom: 0, left: 0, right: 0, height: 50,
+                background: "linear-gradient(transparent, rgba(0,0,0,0.06))",
+                pointerEvents: "none", zIndex: 500,
+              }} />
+            </div>
+          )}
+
           {/* Stops */}
           <div style={{ background: "#fff", borderRadius: 20, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
             <h2 style={{ fontSize: 18, fontWeight: 900, color: "#1a2e2a", marginBottom: 16, textAlign: "right" }}>עצירות במסלול</h2>
@@ -128,9 +236,14 @@ export default function TripDetail() {
                     <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", background: "#e2e8f0", padding: "2px 6px", borderRadius: 6 }}>{stop.arrival_time}</span>
                     <span style={{ fontSize: 11, color: "#94a3b8" }}>{stop.duration_minutes} דק'</span>
                   </div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "#1a2e2a", textAlign: "right" }}>{stop.poi_name}</div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    {stop.main_image && (
+                      <img src={stop.main_image} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+                    )}
+                    <div style={{ fontWeight: 800, fontSize: 15, color: "#1a2e2a", textAlign: "right" }}>{stop.poi_name}</div>
+                  </div>
                   {stop.smart_insight && (
-                    <div style={{ background: "#fffbeb", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "flex-start", gap: 6, marginTop: 4 }}>
+                    <div style={{ background: "#fffbeb", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6 }}>
                       <span style={{ fontSize: 12, color: "#d97706", fontWeight: 600, flex: 1, textAlign: "right", lineHeight: 1.4 }}>{stop.smart_insight}</span>
                       <span style={{ fontSize: 14 }}>💡</span>
                     </div>
@@ -140,40 +253,19 @@ export default function TripDetail() {
             ))}
           </div>
 
-          {/* Map */}
-          {center && (
-            <div style={{ background: "#fff", borderRadius: 20, boxShadow: "0 8px 32px rgba(0,0,0,0.08)", overflow: "hidden", marginBottom: 16 }}>
-              <div style={{ padding: "16px 20px 12px", textAlign: "right" }}>
-                <h2 style={{ fontSize: 18, fontWeight: 900, color: "#1a2e2a" }}>מפת המסלול</h2>
-              </div>
-              <MapContainer center={center} zoom={12} style={{ height: 280, width: "100%" }} scrollWheelZoom={false}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-                {polylinePoints.length > 1 && <Polyline positions={polylinePoints} color="#0d9e6e" weight={3} dashArray="6 4" />}
-                {stopsWithCoords.map((s: any, i: number) => (
-                  <Marker key={i} position={[s.latitude, s.longitude]}>
-                    <Popup><div style={{ textAlign: "right", fontFamily: "Heebo, sans-serif", fontWeight: 700 }}>{i + 1}. {s.poi_name}</div></Popup>
-                  </Marker>
-                ))}
-              </MapContainer>
-            </div>
-          )}
-
-          {/* Action Buttons — Feature 9: Share */}
+          {/* Action Buttons */}
           <div style={{ display: "flex", gap: 12 }}>
-            {/* Share button */}
             <button onClick={handleShare} disabled={sharing}
               style={{ width: 56, height: 56, border: shared ? "2px solid #0d9e6e" : "2px solid #e2e8f0", borderRadius: 16, background: shared ? "#f0fdf8" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s ease" }}
               title="שתף מסלול וקבל XP">
               {sharing ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               ) : shared ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               ) : (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
               )}
             </button>
-
-            {/* Navigate */}
             <button
               onClick={() => { const addr = encodeURIComponent(trip.stops?.[0]?.poi_name || trip.region); window.open(`https://waze.com/ul?q=${addr}`, "_blank"); }}
               style={{ flex: 1, padding: "16px", border: "none", borderRadius: 16, background: "linear-gradient(135deg, #0d9e6e, #0bba7e)", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", fontFamily: "Heebo, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 12px rgba(13, 158, 110, 0.2)" }}>
@@ -184,7 +276,7 @@ export default function TripDetail() {
 
           {shared && (
             <div style={{ marginTop: 10, textAlign: "center", fontSize: 13, color: "#0d9e6e", fontWeight: 700 }}>
-              🎉 מסלול שותף! {shareXp ? `+${shareXp.new_xp} XP` : ''}
+              🎉 מסלול שותף! {shareXp ? `+${shareXp.new_xp} XP` : ""}
             </div>
           )}
         </div>
