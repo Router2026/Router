@@ -1,7 +1,10 @@
+// src/lib/locations/location-service.ts — UPDATED
+// Added: getNearbyLocations using PostGIS ST_DWithin for geo queries.
+
 import { rawDb } from "@/lib/db/raw-client";
 import { cacheGet, cacheSet } from "@/lib/cache/mem-cache";
 
-const MAP_CACHE_TTL  = parseInt(process.env.MAP_CACHE_TTL  || "30");
+const MAP_CACHE_TTL = parseInt(process.env.MAP_CACHE_TTL || "30");
 const LIST_CACHE_TTL = parseInt(process.env.LIST_CACHE_TTL || "300");
 
 export interface Location {
@@ -23,8 +26,13 @@ export interface Location {
   has_shade?: boolean;
   accessible?: boolean;
   average_rating: number;
+  photo_credit?: string;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface NearbyLocation extends Location {
+  distance_meters: number;
 }
 
 export interface LocationQuery {
@@ -79,6 +87,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     average_rating: parseFloat(row.average_rating as string) || 4.0,
+    photo_credit: (row.photo_credit as string) || undefined,
     created_at: row.created_at as Date,
     updated_at: row.updated_at as Date,
   };
@@ -104,8 +113,8 @@ export async function getLocations(query: LocationQuery): Promise<Location[]> {
     params.push(query.difficulty);
     conditions.push(`l.difficulty = $${params.length}`);
   }
-  if (query.has_water)  conditions.push(`l.has_water = TRUE`);
-  if (query.has_shade)  conditions.push(`l.has_shade = TRUE`);
+  if (query.has_water) conditions.push(`l.has_water = TRUE`);
+  if (query.has_shade) conditions.push(`l.has_shade = TRUE`);
   if (query.accessible) conditions.push(`l.accessible = TRUE`);
   if (query.search) {
     params.push(`%${query.search}%`);
@@ -149,6 +158,55 @@ export async function getLocationById(id: number): Promise<Location | null> {
   );
   if (!rows.length) return null;
   const result = rowToLocation(rows[0]);
+  cacheSet(cacheKey, result, LIST_CACHE_TTL);
+  return result;
+}
+
+/**
+ * Returns locations within `radiusMeters` of the given location,
+ * sorted by distance ascending, excluding the location itself.
+ * Uses PostGIS ST_DWithin on the geography column for accuracy.
+ */
+export async function getNearbyLocations(
+  locationId: number,
+  limit: number = 6,
+  radiusMeters: number = 25000
+): Promise<NearbyLocation[]> {
+  // Get reference location first
+  const ref = await getLocationById(locationId);
+  if (!ref) throw Object.assign(new Error("Location not found"), { code: "NOT_FOUND" });
+
+  const cacheKey = `locations:nearby:${locationId}:${limit}:${radiusMeters}`;
+  const cached = cacheGet<NearbyLocation[]>(cacheKey);
+  if (cached) return cached;
+
+  const { rows } = await rawDb.query(
+    `SELECT
+       l.*,
+       r.name AS region_name,
+       r.slug AS region_slug,
+       ST_Distance(
+         l.geom::geography,
+         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
+       ) AS distance_meters
+     FROM locations l
+     LEFT JOIN regions r ON l.region_id = r.id
+     WHERE l.id <> $3
+       AND ST_DWithin(
+         l.geom::geography,
+         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+         $4
+       )
+     ORDER BY distance_meters ASC
+     LIMIT $5`,
+    [ref.latitude, ref.longitude, locationId, radiusMeters, limit]
+  );
+
+  const result = rows.map(row => ({
+    ...rowToLocation(row),
+    distance_meters: parseFloat(row.distance_meters as string),
+  }));
+
   cacheSet(cacheKey, result, LIST_CACHE_TTL);
   return result;
 }
@@ -254,26 +312,27 @@ export async function getTotalCount(): Promise<number> {
 // ── Admin: update a location's fields (including main_image) ─────────────────
 
 export interface UpdateLocationInput {
-  name?:             string;
-  description?:      string;
-  category?:         string;
-  difficulty?:       string;
+  name?: string;
+  description?: string;
+  category?: string;
+  difficulty?: string;
   duration_minutes?: number;
-  has_water?:        boolean;
-  has_shade?:        boolean;
-  accessible?:       boolean;
-  main_image?:       string;
-  images?:           string[];
+  has_water?: boolean;
+  has_shade?: boolean;
+  accessible?: boolean;
+  main_image?: string;
+  images?: string[];
+  photo_credit?: string;
 }
 
 export async function updateLocation(
-  id:    number,
+  id: number,
   input: UpdateLocationInput,
 ): Promise<Location> {
   const allowed: (keyof UpdateLocationInput)[] = [
     "name", "description", "category", "difficulty",
     "duration_minutes", "has_water", "has_shade", "accessible",
-    "main_image", "images",
+    "main_image", "images", "photo_credit",
   ];
 
   const fields: string[] = [];

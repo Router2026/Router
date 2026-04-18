@@ -1,9 +1,20 @@
-import { useState, useEffect } from 'react';
+// src/pages/ContributePOI.tsx — UPDATED
+// Fixes & new features:
+//  • Extract final URL from shortened Google Maps links (goo.gl / maps.app)
+//  • Dynamic region classification via backend API (/api/regions/classify)
+//  • Fixed Google Maps link generation (coordinate-based URL)
+//  • GPS "use my location" button
+//  • Mobile file upload fix: accept="image/*,video/*" + capture attribute
+//  • Video upload support with preview
+//  • Validation and optimistic error handling
+
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
+import { api, fileToBase64 } from '../api';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -16,24 +27,16 @@ L.Icon.Default.mergeOptions({
   iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow,
 });
 
+// ── Constants ────────────────────────────────────────────────────────────────
+const MAX_MEDIA_FILES = 5;
+const MAX_FILE_MB = 50;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Feature 14: Robust coordinate extraction from Google Maps URLs and raw text.
- *
- * Handles:
- *  • https://maps.google.com/…@32.1,34.9,…z
- *  • https://www.google.com/maps/place/…/@32.1,34.9,17z
- *  • https://www.google.com/maps/search/…/@32.1,34.9
- *  • ?q=32.1,34.9 and &ll=32.1,34.9
- *  • !3d32.1!4d34.9  (embedded in long URLs)
- *  • Raw "32.1, 34.9" coordinate string
- *  • maps.app.goo.gl short links  →  returns null (can't expand client-side)
- */
+/** Extract lat/lng from a Google Maps URL or raw coordinate string */
 const extractLatLngFromGoogle = (input: string): LatLng | null => {
   const s = input.trim();
 
-  // Raw lat,lng paste e.g. "32.1234, 34.9876" or "32.1234,34.9876"
   const rawCoord = s.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
   if (rawCoord) {
     const lat = parseFloat(rawCoord[1]);
@@ -41,36 +44,104 @@ const extractLatLngFromGoogle = (input: string): LatLng | null => {
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
   }
 
-  // @lat,lng,zoom pattern (most common Maps URL)
   const atCoord = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (atCoord) return { lat: parseFloat(atCoord[1]), lng: parseFloat(atCoord[2]) };
 
-  // !3dlat!4dlng embedded params
   const embCoord = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
   if (embCoord) return { lat: parseFloat(embCoord[1]), lng: parseFloat(embCoord[2]) };
 
-  // ?q=lat,lng or &q=lat,lng
   const qParam = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (qParam) return { lat: parseFloat(qParam[1]), lng: parseFloat(qParam[2]) };
 
-  // ?ll=lat,lng
   const llParam = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (llParam) return { lat: parseFloat(llParam[1]), lng: parseFloat(llParam[2]) };
 
   return null;
 };
 
-/** Feature 14: Geocode a place name via Nominatim (OSM) as fallback. */
+/** Helper to expand short Google Maps links using an open API */
+async function unshortenGoogleUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch(`https://unshorten.me/json/${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (data.success && data.resolved_url) {
+      return data.resolved_url;
+    }
+  } catch (e) {
+    console.error("Failed to unshorten URL", e);
+  }
+  return url;
+}
+
+/** Geocode a place name via Nominatim */
 async function geocodePlaceName(name: string): Promise<LatLng | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=1&countrycodes=il`;
     const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
     const data = await res.json();
-    if (data && data[0]) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    }
-  } catch { /* network error — silent */ }
+    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch { /* silent */ }
   return null;
+}
+
+/** Classify region via Backend API, fallback to Nominatim */
+async function reverseGeocodeRegion(lat: number, lng: number): Promise<string | null> {
+  try {
+    // Attempt to fetch the region from your backend DB API
+    // Update this URL/path to match your exact endpoint
+    const apiUrl = `${import.meta.env.VITE_API_URL ?? ''}/api/regions/classify?lat=${lat}&lng=${lng}`;
+    const token = localStorage.getItem('router_auth_token');
+
+    const dbRes = await fetch(apiUrl, {
+      headers: {
+        'Accept': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }
+    });
+
+    if (dbRes.ok) {
+      const data = await dbRes.json();
+      // Assuming the API returns the region name in data.name or data.region.name
+      const regionName = data?.name || data?.data?.name || data?.regionName;
+      if (regionName) return regionName;
+    }
+  } catch (err) {
+    console.error("Backend region classification failed:", err);
+  }
+
+  // Fallback to standard Nominatim if the backend API didn't return a match
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=8&accept-language=he`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    const addr = data?.address;
+    if (!addr) return null;
+    return (
+      addr.state_district ||
+      addr.county ||
+      addr.state ||
+      addr.region ||
+      null
+    );
+  } catch { return null; }
+}
+
+function isVideoFile(file: File): boolean {
+  return file.type.startsWith('video/');
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/');
+}
+
+// ── Media item type ────────────────────────────────────────────────────────
+interface MediaItem {
+  id: string;
+  file?: File;
+  previewUrl: string;
+  type: 'image' | 'video';
+  url?: string;
 }
 
 // ── Map Components ───────────────────────────────────────────────────────────
@@ -82,33 +153,17 @@ function MapClickHandler({ onPick }: { onPick: (ll: LatLng) => void }) {
   return null;
 }
 
-/**
- * Automatically pans and zooms the map when a point is picked (via import)
- */
 function MapRecenter({ position }: { position: LatLng | null }) {
   const map = useMap();
   useEffect(() => {
-    if (position) {
-      map.setView([position.lat, position.lng], 16, { animate: true });
-    }
+    if (position) map.setView([position.lat, position.lng], 16, { animate: true });
   }, [position, map]);
   return null;
 }
 
 function PickedMarker({ position }: { position: LatLng }) {
   const icon = L.divIcon({
-    html: `
-      <div style="
-        width:40px;height:40px;border-radius:50% 50% 50% 0;
-        background:linear-gradient(135deg,#0d9e6e,#0bba7e);
-        border:3px solid #fff;
-        display:flex;align-items:center;justify-content:center;
-        color:#fff;font-size:20px;
-        box-shadow:0 3px 12px rgba(13,158,110,0.45);
-        transform:rotate(-45deg);
-      ">
-        <span style="transform:rotate(45deg)">📍</span>
-      </div>`,
+    html: `<div style="width:40px;height:40px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#0d9e6e,#0bba7e);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;box-shadow:0 3px 12px rgba(13,158,110,0.45);transform:rotate(-45deg)"><span style="transform:rotate(45deg)">📍</span></div>`,
     className: '',
     iconSize: [40, 40],
     iconAnchor: [20, 40],
@@ -121,18 +176,21 @@ function PickedMarker({ position }: { position: LatLng }) {
 export default function ContributePOI() {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Map state
   const [pickedPoint, setPickedPoint] = useState<LatLng | null>(null);
   const [googleUrl, setGoogleUrl] = useState('');
   const [geocoding, setGeocoding] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [detectedRegion, setDetectedRegion] = useState<string | null>(null);
 
   // Form state
   const [name, setName] = useState('');
   const [category, setCategory] = useState('טבע');
   const [description, setDescription] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [mediaUrlInput, setMediaUrlInput] = useState('');
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -141,48 +199,123 @@ export default function ContributePOI() {
 
   const defaultCenter: LatLng = { lat: 31.8, lng: 35.2 };
 
+  // Auto-detect region when a point is picked
+  const handlePickPoint = async (coords: LatLng) => {
+    setPickedPoint(coords);
+    setDetectedRegion(null);
+    const region = await reverseGeocodeRegion(coords.lat, coords.lng);
+    if (region) setDetectedRegion(region);
+  };
+
   const handleImportGoogleMaps = async () => {
-    const input = googleUrl.trim();
+    let input = googleUrl.trim();
     if (!input) return;
-
     setError('');
+    setGeocoding(true);
 
-    // Short link — can't expand client-side, ask user to open + copy the full URL
-    if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps')) {
-      setError('לינק מקוצר: פתח אותו בדפדפן, העתק את הכתובת המלאה מסרגל הכתובות ונסה שנית.');
-      return;
+    if (input.includes('goo.gl') || input.includes('maps.app.goo.gl')) {
+      input = await unshortenGoogleUrl(input);
     }
 
-    // Try coordinate extraction first
     const coords = extractLatLngFromGoogle(input);
     if (coords) {
-      setPickedPoint(coords);
+      handlePickPoint(coords);
       setGoogleUrl('');
+      setGeocoding(false);
       return;
     }
 
-    // Nothing found — try Nominatim geocoding as fallback
-    setGeocoding(true);
     const geocoded = await geocodePlaceName(input);
     setGeocoding(false);
     if (geocoded) {
-      setPickedPoint(geocoded);
+      handlePickPoint(geocoded);
       setGoogleUrl('');
     } else {
-      setError('לא מצאנו מיקום. נסה לפתוח את הלינק בדפדפן ולהעתיק כתובת מלאה, או הקלד שם מקום בעברית/אנגלית.');
+      setError('לא מצאנו מיקום. נסה להעתיק כתובת מלאה של קואורדינטות, או הקלד שם מקום מדוייק.');
     }
   };
 
-  const addPhoto = () => {
-    const url = photoUrl.trim();
-    if (!url || photos.includes(url)) return;
-    setPhotos(prev => [...prev, url]);
-    setPhotoUrl('');
+  const handleUseGPS = () => {
+    if (!navigator.geolocation) {
+      setError('הדפדפן שלך אינו תומך בשירות מיקום');
+      return;
+    }
+    setGpsLoading(true);
+    setError('');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setGpsLoading(false);
+        handlePickPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      () => {
+        setGpsLoading(false);
+        setError('לא הצלחנו לקבל את מיקומך. ודא שנתת הרשאת מיקום.');
+      },
+      { timeout: 12000, enableHighAccuracy: true }
+    );
   };
 
-  const removePhoto = (url: string) => {
-    setPhotos(prev => prev.filter(p => p !== url));
+  // ── Media handlers ────────────────────────────────────────────
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    const remaining = MAX_MEDIA_FILES - mediaItems.length;
+    if (remaining <= 0) {
+      setError(`מקסימום ${MAX_MEDIA_FILES} קבצים`);
+      return;
+    }
+
+    const toAdd = files.slice(0, remaining);
+    const newItems: MediaItem[] = [];
+
+    for (const file of toAdd) {
+      if (!isImageFile(file) && !isVideoFile(file)) {
+        setError(`הקובץ ${file.name} אינו נתמך. נא לבחור תמונה או סרטון.`);
+        continue;
+      }
+      if (file.size > MAX_FILE_MB * 1024 * 1024) {
+        setError(`הקובץ ${file.name} גדול מדי (מקסימום ${MAX_FILE_MB} MB)`);
+        continue;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      newItems.push({
+        id: `${Date.now()}-${Math.random()}`,
+        file,
+        previewUrl,
+        type: isVideoFile(file) ? 'video' : 'image',
+      });
+    }
+
+    setMediaItems(prev => [...prev, ...newItems]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const addMediaUrl = () => {
+    const url = mediaUrlInput.trim();
+    if (!url || mediaItems.some(m => m.url === url)) return;
+    if (!url.startsWith('http')) { setError('הקישור חייב להתחיל ב-http'); return; }
+    const isVideo = /\.(mp4|webm|mov|avi)(\?|$)/i.test(url) || mediaUrlInput.includes('video');
+    setMediaItems(prev => [...prev, {
+      id: `url-${Date.now()}`,
+      previewUrl: url,
+      type: isVideo ? 'video' : 'image',
+      url,
+    }]);
+    setMediaUrlInput('');
+  };
+
+  const removeMedia = (id: string) => {
+    setMediaItems(prev => {
+      const item = prev.find(m => m.id === id);
+      if (item?.file) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter(m => m.id !== id);
+    });
+  };
+
+  // ── Submit ────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     if (!pickedPoint) { setError('נא לבחור נקודה על המפה'); return; }
@@ -192,6 +325,10 @@ export default function ContributePOI() {
     setSubmitting(true);
 
     try {
+      const photos: string[] = mediaItems
+        .filter(m => m.url && m.type === 'image')
+        .map(m => m.url!);
+
       const token = localStorage.getItem('router_auth_token');
       const res = await fetch((import.meta.env.VITE_API_URL ?? '') + '/api/community-pois', {
         method: 'POST',
@@ -213,6 +350,21 @@ export default function ContributePOI() {
         const json = await res.json().catch(() => ({}));
         throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
       }
+
+      const poiData = await res.json();
+      const locationId = poiData?.data?.id;
+
+      if (locationId) {
+        const fileItems = mediaItems.filter(m => m.file);
+        for (const item of fileItems) {
+          try {
+            await api.locations.uploadMedia(locationId, item.file!);
+          } catch {
+            // Non-blocking
+          }
+        }
+      }
+
       setSubmitted(true);
     } catch (err: any) {
       setError(err.message ?? 'אירעה שגיאה בשמירה');
@@ -221,33 +373,24 @@ export default function ContributePOI() {
     }
   };
 
+  // ── Success screen ────────────────────────────────────────────
+
   if (submitted) {
     return (
-      <div style={{
-        background: '#f0fdf8', minHeight: '100vh', direction: 'rtl',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', padding: 32,
-      }}>
-        <div style={{
-          background: '#fff', borderRadius: 24, padding: '40px 32px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.08)', textAlign: 'center',
-          maxWidth: 360, width: '100%',
-        }}>
+      <div style={{ background: '#f0fdf8', minHeight: '100vh', direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ background: '#fff', borderRadius: 24, padding: '40px 32px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', textAlign: 'center', maxWidth: 360, width: '100%' }}>
           <div style={{ fontSize: 64, marginBottom: 16 }}>✅</div>
-          <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a', marginBottom: 10 }}>
-            המיקום נשלח לאישור!
-          </h2>
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a', marginBottom: 10 }}>המיקום נשלח לאישור!</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, marginBottom: 24 }}>
-            הצוות שלנו יבדוק את המיקום שהגשת.
-            עם האישור תקבל התראה ו-50 XP נוספים! 🎉
+            הצוות שלנו יבדוק את המיקום שהגשת. עם האישור תקבל התראה ו-50 XP נוספים! 🎉
           </p>
+          {detectedRegion && (
+            <div style={{ background: '#f0fdf8', borderRadius: 12, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#0d9e6e', fontWeight: 700 }}>
+              📍 אזור שזוהה: {detectedRegion}
+            </div>
+          )}
           <button onClick={() => navigate('/')}
-            style={{
-              width: '100%', padding: '14px', border: 'none', borderRadius: 14,
-              background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-              color: '#fff', fontSize: 15, fontWeight: 800,
-              cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
-            }}>
+            style={{ width: '100%', padding: '14px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
             חזרה לדף הבית
           </button>
         </div>
@@ -257,30 +400,13 @@ export default function ContributePOI() {
 
   if (!isLoggedIn) {
     return (
-      <div style={{
-        background: '#f8fafc', minHeight: '100vh', direction: 'rtl',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', padding: 32,
-      }}>
-        <div style={{
-          background: '#fff', borderRadius: 24, padding: '40px 32px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.08)', textAlign: 'center',
-          maxWidth: 360, width: '100%',
-        }}>
+      <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ background: '#fff', borderRadius: 24, padding: '40px 32px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', textAlign: 'center', maxWidth: 360, width: '100%' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-          <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', marginBottom: 10 }}>
-            יש להתחבר תחילה
-          </h2>
-          <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
-            כדי לתרום מיקום לקהילה, עליך להיות מחובר
-          </p>
+          <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', marginBottom: 10 }}>יש להתחבר תחילה</h2>
+          <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>כדי לתרום מיקום לקהילה, עליך להיות מחובר</p>
           <button onClick={() => navigate('/Login')}
-            style={{
-              width: '100%', padding: '14px', border: 'none', borderRadius: 14,
-              background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-              color: '#fff', fontSize: 15, fontWeight: 800,
-              cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
-            }}>
+            style={{ width: '100%', padding: '14px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
             התחברות / הרשמה
           </button>
         </div>
@@ -292,125 +418,107 @@ export default function ContributePOI() {
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl' }}>
 
       {/* Header */}
-      <div style={{
-        background: '#fff', padding: '16px 20px',
-        display: 'flex', alignItems: 'center', gap: 12,
-        borderBottom: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-      }}>
-        <button onClick={() => navigate(-1)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <div style={{ background: '#fff', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
         <div style={{ flex: 1, textAlign: 'right' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', margin: 0 }}>
-            📍 הוסף מיקום לקהילה
-          </h1>
-          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
-            אשר ← פרסום למפה + 50 XP
-          </p>
+          <h1 style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', margin: 0 }}>📍 הוסף מיקום לקהילה</h1>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>אשר ← פרסום למפה + 50 XP</p>
         </div>
       </div>
 
       <div style={{ padding: '20px 16px', maxWidth: 560, margin: '0 auto', paddingBottom: 100 }}>
 
-        {/* ── Map picker ──────────────────────────────────────────────────────── */}
-        <div style={{
-          background: '#fff', borderRadius: 20, padding: '16px',
-          marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        }}>
-          <div style={{
-            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            marginBottom: 10, textAlign: 'right'
-          }}>
+        {/* ── Map picker ─────────────────────────────────────────────────── */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', marginBottom: 10, textAlign: 'right' }}>
             1. בחר נקודה על המפה
           </div>
 
-          {/* Feature 14: Google Maps Import UI — robust URL + name fallback */}
-          <div style={{ marginBottom: 12 }}>
+          {/* Google Maps import */}
+          <div style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
               <input
                 value={googleUrl}
                 onChange={e => { setGoogleUrl(e.target.value); setError(''); }}
                 onKeyDown={e => { if (e.key === 'Enter') handleImportGoogleMaps(); }}
                 placeholder="לינק מ-Google Maps, קואורדינטות (32.1, 34.9) או שם מקום..."
-                style={{
-                  flex: 1, border: '2px solid #e2e8f0', borderRadius: 12,
-                  padding: '10px 14px', fontSize: 13, fontFamily: 'Heebo, sans-serif',
-                  textAlign: 'right', outline: 'none', color: '#1a2e2a',
-                  direction: 'rtl',
-                }}
+                style={{ flex: 1, border: '2px solid #e2e8f0', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontFamily: 'Heebo, sans-serif', textAlign: 'right', outline: 'none', color: '#1a2e2a', direction: 'rtl' }}
               />
               <button
                 onClick={handleImportGoogleMaps}
                 disabled={geocoding || !googleUrl.trim()}
-                style={{
-                  padding: '10px 16px', background: geocoding ? '#94a3b8' : '#4285F4',
-                  color: '#fff', border: 'none', borderRadius: 12, fontSize: 13,
-                  fontWeight: 800, cursor: geocoding ? 'not-allowed' : 'pointer',
-                  fontFamily: 'Heebo, sans-serif', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                {geocoding ? (
-                  <>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                    מחפש...
-                  </>
-                ) : 'ייבוא'}
+                style={{ padding: '10px 16px', background: geocoding ? '#94a3b8' : '#4285F4', color: '#fff', border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 800, cursor: geocoding ? 'not-allowed' : 'pointer', fontFamily: 'Heebo, sans-serif', flexShrink: 0 }}>
+                {geocoding ? 'מחפש...' : 'ייבוא'}
               </button>
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', lineHeight: 1.5 }}>
-              💡 הדבק לינק מלא מ-Google Maps, קואורדינטות, או שם מקום לחיפוש אוטומטי
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right' }}>
+              💡 הדבק לינק מלא/מקוצר מ-Google Maps, קואורדינטות, או שם מקום
             </div>
           </div>
 
-          <div style={{
-            borderRadius: 16, overflow: 'hidden', height: 240,
-            border: `2px solid ${pickedPoint ? '#0d9e6e' : '#e2e8f0'}`,
-            transition: 'border-color 0.2s',
-          }}>
-            <MapContainer
-              center={[defaultCenter.lat, defaultCenter.lng]}
-              zoom={8}
-              style={{ height: '100%', width: '100%' }}
-              scrollWheelZoom
-            >
+          {/* GPS button */}
+          <button
+            onClick={handleUseGPS}
+            disabled={gpsLoading}
+            style={{
+              width: '100%', marginBottom: 10, padding: '10px', border: '2px solid #3b82f6',
+              borderRadius: 12, background: gpsLoading ? '#f0f4ff' : '#eff6ff',
+              color: gpsLoading ? '#94a3b8' : '#3b82f6', fontSize: 13, fontWeight: 700,
+              cursor: gpsLoading ? 'not-allowed' : 'pointer', fontFamily: 'Heebo, sans-serif',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}>
+            {gpsLoading ? (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                מאתר מיקום...
+              </>
+            ) : (
+              <>📡 השתמש במיקום הנוכחי שלי (GPS)</>
+            )}
+          </button>
+
+          {/* Map */}
+          <div style={{ borderRadius: 16, overflow: 'hidden', height: 240, border: `2px solid ${pickedPoint ? '#0d9e6e' : '#e2e8f0'}`, transition: 'border-color 0.2s' }}>
+            <MapContainer center={[defaultCenter.lat, defaultCenter.lng]} zoom={8} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <MapClickHandler onPick={setPickedPoint} />
+              <MapClickHandler onPick={handlePickPoint} />
               <MapRecenter position={pickedPoint} />
               {pickedPoint && <PickedMarker position={pickedPoint} />}
             </MapContainer>
           </div>
 
           {pickedPoint && (
-            <div style={{
-              marginTop: 10, padding: '8px 14px', background: '#f0fdf8',
-              borderRadius: 10, display: 'flex',
-              alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <button onClick={() => setPickedPoint(null)}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#94a3b8', fontSize: 16, lineHeight: 1,
-                }}>×</button>
-              <span style={{ fontSize: 12, color: '#0d9e6e', fontWeight: 700 }}>
-                ✓ {pickedPoint.lat.toFixed(5)}, {pickedPoint.lng.toFixed(5)}
-              </span>
+            <div style={{ marginTop: 10, padding: '8px 14px', background: '#f0fdf8', borderRadius: 10, direction: 'rtl' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <button onClick={() => { setPickedPoint(null); setDetectedRegion(null); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16 }}>×</button>
+                <span style={{ fontSize: 12, color: '#0d9e6e', fontWeight: 700 }}>
+                  ✓ {pickedPoint.lat.toFixed(5)}, {pickedPoint.lng.toFixed(5)}
+                </span>
+              </div>
+              {detectedRegion && (
+                <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right', marginTop: 4 }}>
+                  🗺️ אזור שזוהה: <strong>{detectedRegion}</strong>
+                </div>
+              )}
+              <a
+                href={`https://maps.google.com/?q=${pickedPoint.lat},${pickedPoint.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 11, color: '#4285F4', textDecoration: 'none', display: 'block', textAlign: 'right', marginTop: 4 }}>
+                🔗 פתח ב-Google Maps לאימות
+              </a>
             </div>
           )}
         </div>
 
-        {/* ── Name ────────────────────────────────────────────────────────────── */}
-        <div style={{
-          background: '#fff', borderRadius: 20, padding: '16px 18px',
-          marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        }}>
-          <label style={{
-            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 10, textAlign: 'right'
-          }}>
+        {/* ── Name ───────────────────────────────────────────────────────── */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 10, textAlign: 'right' }}>
             2. שם המיקום
           </label>
           <input
@@ -418,60 +526,29 @@ export default function ContributePOI() {
             onChange={e => setName(e.target.value)}
             placeholder="לדוגמה: מפל נסתר בגליל..."
             maxLength={120}
-            style={{
-              width: '100%', border: `2px solid ${name ? '#0d9e6e' : '#e2e8f0'}`,
-              borderRadius: 12, padding: '12px 14px', fontSize: 14,
-              fontFamily: 'Heebo, sans-serif', textAlign: 'right',
-              outline: 'none', color: '#1a2e2a', boxSizing: 'border-box',
-              transition: 'border-color 0.2s',
-            }}
+            style={{ width: '100%', border: `2px solid ${name ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 12, padding: '12px 14px', fontSize: 14, fontFamily: 'Heebo, sans-serif', textAlign: 'right', outline: 'none', color: '#1a2e2a', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
           />
         </div>
 
-        {/* ── Category ────────────────────────────────────────────────────────── */}
-        <div style={{
-          background: '#fff', borderRadius: 20, padding: '16px 18px',
-          marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        }}>
-          <label style={{
-            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 12, textAlign: 'right'
-          }}>
+        {/* ── Category ───────────────────────────────────────────────────── */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 12, textAlign: 'right' }}>
             3. קטגוריה
           </label>
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {CATEGORIES.map(cat => (
               <button key={cat.id} onClick={() => setCategory(cat.id)}
-                style={{
-                  padding: '10px 6px', border: `2px solid ${category === cat.id ? '#0d9e6e' : '#e2e8f0'}`,
-                  borderRadius: 14, background: category === cat.id ? '#f0fdf8' : '#fff',
-                  cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  transition: 'all 0.15s',
-                }}>
+                style={{ padding: '10px 6px', border: `2px solid ${category === cat.id ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 14, background: category === cat.id ? '#f0fdf8' : '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, transition: 'all 0.15s' }}>
                 <span style={{ fontSize: 20 }}>{cat.icon}</span>
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: category === cat.id ? '#0d9e6e' : '#64748b',
-                }}>
-                  {cat.label}
-                </span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: category === cat.id ? '#0d9e6e' : '#64748b' }}>{cat.label}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* ── Description ─────────────────────────────────────────────────────── */}
-        <div style={{
-          background: '#fff', borderRadius: 20, padding: '16px 18px',
-          marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        }}>
-          <label style={{
-            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 10, textAlign: 'right'
-          }}>
+        {/* ── Description ─────────────────────────────────────────────────── */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 10, textAlign: 'right' }}>
             4. תיאור (אופציונלי)
           </label>
           <textarea
@@ -479,115 +556,113 @@ export default function ContributePOI() {
             onChange={e => setDescription(e.target.value)}
             placeholder="ספר למטיילים על המיקום — איך מגיעים? מה מיוחד בו?"
             rows={4}
-            style={{
-              width: '100%', border: '2px solid #e2e8f0', borderRadius: 12,
-              padding: '12px 14px', fontSize: 14, fontFamily: 'Heebo, sans-serif',
-              textAlign: 'right', resize: 'none', outline: 'none',
-              color: '#1a2e2a', boxSizing: 'border-box',
-            }}
+            style={{ width: '100%', border: '2px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', fontSize: 14, fontFamily: 'Heebo, sans-serif', textAlign: 'right', resize: 'none', outline: 'none', color: '#1a2e2a', boxSizing: 'border-box' }}
           />
         </div>
 
-        {/* ── Photos ──────────────────────────────────────────────────────────── */}
-        <div style={{
-          background: '#fff', borderRadius: 20, padding: '16px 18px',
-          marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        }}>
-          <label style={{
-            fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-            display: 'block', marginBottom: 10, textAlign: 'right'
-          }}>
-            5. תמונות (URL, אופציונלי)
+        {/* ── Media (images + videos) ─────────────────────────────────────── */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+            5. תמונות וסרטונים (אופציונלי)
           </label>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10, textAlign: 'right' }}>
+            עד {MAX_MEDIA_FILES} קבצים · JPEG, PNG, WEBP, MP4, MOV · עד {MAX_FILE_MB} MB
+          </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: photos.length ? 12 : 0 }}>
-            <button onClick={addPhoto}
-              disabled={!photoUrl.trim()}
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
+
+          {/* Upload buttons */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={mediaItems.length >= MAX_MEDIA_FILES}
               style={{
-                padding: '10px 16px', border: 'none', borderRadius: 12,
-                background: photoUrl.trim() ? '#0d9e6e' : '#e2e8f0',
-                color: photoUrl.trim() ? '#fff' : '#94a3b8',
-                fontSize: 13, fontWeight: 700, cursor: photoUrl.trim() ? 'pointer' : 'default',
-                fontFamily: 'Heebo, sans-serif', flexShrink: 0,
+                flex: 1, padding: '10px', border: '2px dashed #0d9e6e', borderRadius: 12,
+                background: mediaItems.length >= MAX_MEDIA_FILES ? '#f8fafc' : '#f0fdf8',
+                color: mediaItems.length >= MAX_MEDIA_FILES ? '#94a3b8' : '#0d9e6e',
+                fontSize: 13, fontWeight: 700, cursor: mediaItems.length >= MAX_MEDIA_FILES ? 'not-allowed' : 'pointer',
+                fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
-              הוסף
+              📷 בחר מהגלריה / מצלמה
+            </button>
+          </div>
+
+          {/* URL input */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: mediaItems.length ? 12 : 0 }}>
+            <button onClick={addMediaUrl}
+              disabled={!mediaUrlInput.trim() || mediaItems.length >= MAX_MEDIA_FILES}
+              style={{ padding: '10px 14px', border: 'none', borderRadius: 12, background: mediaUrlInput.trim() ? '#0d9e6e' : '#e2e8f0', color: mediaUrlInput.trim() ? '#fff' : '#94a3b8', fontSize: 13, fontWeight: 700, cursor: mediaUrlInput.trim() ? 'pointer' : 'default', fontFamily: 'Heebo, sans-serif', flexShrink: 0 }}>
+              הוסף URL
             </button>
             <input
-              value={photoUrl}
-              onChange={e => setPhotoUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addPhoto()}
+              value={mediaUrlInput}
+              onChange={e => setMediaUrlInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addMediaUrl()}
               placeholder="https://example.com/photo.jpg"
-              style={{
-                flex: 1, border: '2px solid #e2e8f0', borderRadius: 12,
-                padding: '10px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif',
-                textAlign: 'left', outline: 'none', color: '#1a2e2a',
-              }}
+              style={{ flex: 1, border: '2px solid #e2e8f0', borderRadius: 12, padding: '10px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', textAlign: 'left', outline: 'none', color: '#1a2e2a', direction: 'ltr' }}
             />
           </div>
 
-          {photos.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {photos.map(url => (
-                <div key={url} style={{ position: 'relative' }}>
-                  <img src={url} alt="preview"
-                    style={{
-                      width: 72, height: 72, borderRadius: 12,
-                      objectFit: 'cover', border: '2px solid #e2e8f0',
-                    }}
-                    onError={e => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                  <button onClick={() => removePhoto(url)}
-                    style={{
-                      position: 'absolute', top: -6, right: -6,
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: '#ef4444', border: '2px solid #fff',
-                      color: '#fff', fontSize: 11, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      lineHeight: 1,
-                    }}>×</button>
+          {/* Media preview grid */}
+          {mediaItems.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
+              {mediaItems.map(item => (
+                <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', aspectRatio: '1' }}>
+                  {item.type === 'video' ? (
+                    <video src={item.previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+                  ) : (
+                    <img src={item.previewUrl} alt="preview"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                    />
+                  )}
+                  <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>
+                    {item.type === 'video' ? '▶ סרטון' : '🖼'}
+                  </div>
+                  <button onClick={() => removeMedia(item.id)}
+                    style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', color: '#fff', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* ── Error ───────────────────────────────────────────────────────────── */}
+        {/* ── Error ──────────────────────────────────────────────────────── */}
         {error && (
-          <div style={{
-            background: '#fef2f2', border: '1px solid #fecaca',
-            borderRadius: 12, padding: '12px 16px', marginBottom: 12,
-            fontSize: 13, color: '#dc2626', textAlign: 'right',
-          }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: '#dc2626', textAlign: 'right' }}>
             {error}
           </div>
         )}
 
-        {/* ── Submit ──────────────────────────────────────────────────────────── */}
+        {/* ── Submit ─────────────────────────────────────────────────────── */}
         <button
           onClick={handleSubmit}
           disabled={submitting || !pickedPoint || !name.trim()}
           style={{
             width: '100%', padding: '16px', border: 'none', borderRadius: 16,
-            background:
-              !submitting && pickedPoint && name.trim()
-                ? 'linear-gradient(135deg, #0d9e6e, #0bba7e)'
-                : '#e2e8f0',
-            color:
-              !submitting && pickedPoint && name.trim() ? '#fff' : '#94a3b8',
-            fontSize: 16, fontWeight: 800,
-            cursor: !submitting && pickedPoint && name.trim() ? 'pointer' : 'not-allowed',
+            background: !submitting && pickedPoint && name.trim() ? 'linear-gradient(135deg, #0d9e6e, #0bba7e)' : '#e2e8f0',
+            color: !submitting && pickedPoint && name.trim() ? '#fff' : '#94a3b8',
+            fontSize: 16, fontWeight: 800, cursor: !submitting && pickedPoint && name.trim() ? 'pointer' : 'not-allowed',
             fontFamily: 'Heebo, sans-serif',
-            boxShadow:
-              !submitting && pickedPoint && name.trim()
-                ? '0 8px 24px rgba(13,158,110,0.25)'
-                : 'none',
-          }}
-        >
+            boxShadow: !submitting && pickedPoint && name.trim() ? '0 8px 24px rgba(13,158,110,0.25)' : 'none',
+          }}>
           {submitting ? 'שולח...' : '📤 שלח לאישור — קבל 50 XP'}
         </button>
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

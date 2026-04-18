@@ -1,4 +1,4 @@
-// src/api.ts — UPDATED: all 11 feature changes
+// src/api.ts — UPDATED: media upload (images+video), ratings, nearby locations
 
 export const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
@@ -42,6 +42,12 @@ export interface POI {
   images: string[]; main_image: string; difficulty: string;
   duration_minutes?: number; has_water?: boolean; has_shade?: boolean;
   accessible?: boolean; average_rating: number;
+  /** Optional photographer credit shown as a watermark on the main image, e.g. "צילום: דן לוי" */
+  photo_credit?: string;
+}
+
+export interface NearbyPOI extends POI {
+  distance_meters: number;
 }
 
 export interface TripStop {
@@ -90,11 +96,28 @@ export interface CommunityPoiSubmission {
   description: string | null; latitude: number; longitude: number;
   photos: string[]; status: 'pending' | 'approved' | 'rejected';
   admin_note: string | null; reviewed_at: string | null; created_at: string;
+  region?: string | null; region_id?: number | null;
 }
 
 export interface LocationImage {
   id: number; user_id: number; location_id: number;
   image_url: string; is_approved: boolean; created_at: string; username?: string;
+}
+
+/** Unified media item — images and videos */
+export interface LocationMedia {
+  id: number;
+  location_id: number;
+  user_id: number;
+  media_type: 'image' | 'video';
+  media_url: string;
+  thumbnail_url: string | null;
+  caption: string | null;
+  is_approved: boolean;
+  approved_by?: number;
+  approved_at?: string;
+  created_at: string;
+  username?: string;
 }
 
 export interface XpResult {
@@ -103,6 +126,16 @@ export interface XpResult {
 
 export interface UploadImageResponse {
   image: LocationImage; xp: XpResult; limit: number;
+}
+
+export interface UploadMediaResponse {
+  media: LocationMedia; xp: XpResult;
+}
+
+export interface RatingSummary {
+  average: number;
+  count: number;
+  userRating: number | null;
 }
 
 export interface PublicTripLocation {
@@ -118,6 +151,7 @@ export interface PublicTrip {
   creator_xp: number; location_count: number; locations: PublicTripLocation[];
   region?: string; difficulty?: string; style?: string; total_duration_hours?: number; group_type?: string;
 }
+
 export interface FavoriteLocation {
   id: number; user_id: number; location_id: number; created_at: string;
   name?: string; category?: string; region_name?: string;
@@ -142,7 +176,12 @@ function mapLocation(r: any): POI {
     duration_minutes: r.duration_minutes, has_water: r.has_water,
     has_shade: r.has_shade, accessible: r.accessible,
     average_rating: parseFloat(r.average_rating) || 4.0,
+    photo_credit: r.photo_credit || r.credit || undefined,
   };
+}
+
+function mapNearbyLocation(r: any): NearbyPOI {
+  return { ...mapLocation(r), distance_meters: parseFloat(r.distance_meters) || 0 };
 }
 
 function mapTrip(r: any): Trip {
@@ -270,14 +309,27 @@ export const api = {
       const qs = new URLSearchParams({ north: String(b.north), south: String(b.south), east: String(b.east), west: String(b.west) });
       return (await apiFetch<{ data: any[] }>(`/locations/map?${qs}`)).data.map(mapLocation);
     },
+
+    // ── Nearby ─────────────────────────────────────────────────
+    getNearby: async (locationId: string | number, limit = 6, radiusMeters = 25000): Promise<NearbyPOI[]> =>
+      (await apiFetch<{ data: any[] }>(`/locations/${locationId}/nearby?limit=${limit}&radius=${radiusMeters}`))
+        .data.map(mapNearbyLocation),
+
+    // ── Ratings ────────────────────────────────────────────────
+    getRating: async (locationId: string | number): Promise<RatingSummary> =>
+      (await apiFetch<{ data: RatingSummary }>(`/locations/${locationId}/rating`)).data,
+    rate: async (locationId: string | number, rating: number): Promise<RatingSummary> =>
+      (await apiFetch<{ data: RatingSummary }>(`/locations/${locationId}/rating`, {
+        method: 'POST', body: JSON.stringify({ rating }),
+      })).data,
+
+    // ── Legacy image endpoints (kept for backward compat) ───────
     getImages: async (locationId: string | number): Promise<LocationImage[]> =>
       (await apiFetch<{ data: LocationImage[] }>(`/locations/${locationId}/images`)).data,
-    // URL upload
     uploadImage: async (locationId: string | number, imageUrl: string): Promise<UploadImageResponse> =>
       (await apiFetch<{ data: UploadImageResponse }>(`/locations/${locationId}/images`, {
         method: 'POST', body: JSON.stringify({ image_url: imageUrl }),
       })).data,
-    // File upload (base64)
     uploadImageFile: async (locationId: string | number, file: File): Promise<UploadImageResponse> => {
       const base64 = await fileToBase64(file);
       return (await apiFetch<{ data: UploadImageResponse }>(`/locations/${locationId}/images`, {
@@ -297,6 +349,38 @@ export const api = {
     deleteImage: async (locationId: string | number, imageId: number): Promise<void> => {
       await apiFetch(`/locations/${locationId}/images/${imageId}`, { method: 'DELETE' });
     },
+
+    // ── New unified media endpoints (images + videos) ───────────
+    getMedia: async (locationId: string | number, approvedOnly = false): Promise<LocationMedia[]> =>
+      (await apiFetch<{ data: LocationMedia[] }>(
+        `/locations/${locationId}/media${approvedOnly ? '?approved=true' : ''}`
+      )).data,
+    uploadMedia: async (locationId: string | number, file: File, caption?: string): Promise<UploadMediaResponse> => {
+      const base64 = await fileToBase64(file);
+      return (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
+        method: 'POST',
+        body: JSON.stringify({ media_data: base64, mime_type: file.type, caption }),
+      })).data;
+    },
+    uploadMediaUrl: async (locationId: string | number, url: string, mediaType: 'image' | 'video' = 'image', caption?: string): Promise<UploadMediaResponse> =>
+      (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
+        method: 'POST', body: JSON.stringify({ media_url: url, media_type: mediaType, caption }),
+      })).data,
+    approveMedia: async (locationId: string | number, mediaId: number): Promise<LocationMedia> =>
+      (await apiFetch<{ data: LocationMedia }>(`/locations/${locationId}/media`, {
+        method: 'PATCH', body: JSON.stringify({ media_id: mediaId, action: 'approve' }),
+      })).data,
+    rejectMedia: async (locationId: string | number, mediaId: number): Promise<void> => {
+      await apiFetch(`/locations/${locationId}/media`, {
+        method: 'PATCH', body: JSON.stringify({ media_id: mediaId, action: 'reject' }),
+      });
+    },
+    deleteMedia: async (locationId: string | number, mediaId: number): Promise<void> => {
+      await apiFetch(`/locations/${locationId}/media`, {
+        method: 'DELETE', body: JSON.stringify({ media_id: mediaId }),
+      });
+    },
+
     delete: async (id: string | number): Promise<void> => {
       await apiFetch(`/locations/${id}`, { method: 'DELETE' });
     },
@@ -308,7 +392,6 @@ export const api = {
     get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`)).data),
     create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
-    // Feature 9: share trip & earn XP
     share: async (id: string): Promise<ShareTripResult> =>
       (await apiFetch<{ data: ShareTripResult }>(`/routes/${id}/share`, { method: 'POST' })).data,
   },
@@ -400,7 +483,6 @@ export const api = {
       mapUser((await apiFetch<{ data: any }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ is_admin }) })).data),
     listRoutes: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
     deleteRoute: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
-    // Location image moderation
     approveImage: async (locationId: number, imageId: number): Promise<LocationImage> =>
       api.locations.approveImage(locationId, imageId),
     rejectImage: async (locationId: number, imageId: number): Promise<void> =>
