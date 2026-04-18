@@ -4,7 +4,7 @@
 import { rawDb } from "@/lib/db/raw-client";
 import { cacheGet, cacheSet } from "@/lib/cache/mem-cache";
 
-const MAP_CACHE_TTL  = parseInt(process.env.MAP_CACHE_TTL  || "30");
+const MAP_CACHE_TTL = parseInt(process.env.MAP_CACHE_TTL || "30");
 const LIST_CACHE_TTL = parseInt(process.env.LIST_CACHE_TTL || "300");
 
 export interface Location {
@@ -26,6 +26,7 @@ export interface Location {
   has_shade?: boolean;
   accessible?: boolean;
   average_rating: number;
+  photo_credit?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -86,6 +87,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     average_rating: parseFloat(row.average_rating as string) || 4.0,
+    photo_credit: (row.photo_credit as string) || undefined,
     created_at: row.created_at as Date,
     updated_at: row.updated_at as Date,
   };
@@ -111,8 +113,8 @@ export async function getLocations(query: LocationQuery): Promise<Location[]> {
     params.push(query.difficulty);
     conditions.push(`l.difficulty = $${params.length}`);
   }
-  if (query.has_water)  conditions.push(`l.has_water = TRUE`);
-  if (query.has_shade)  conditions.push(`l.has_shade = TRUE`);
+  if (query.has_water) conditions.push(`l.has_water = TRUE`);
+  if (query.has_shade) conditions.push(`l.has_shade = TRUE`);
   if (query.accessible) conditions.push(`l.accessible = TRUE`);
   if (query.search) {
     params.push(`%${query.search}%`);
@@ -310,26 +312,27 @@ export async function getTotalCount(): Promise<number> {
 // ── Admin: update a location's fields (including main_image) ─────────────────
 
 export interface UpdateLocationInput {
-  name?:             string;
-  description?:      string;
-  category?:         string;
-  difficulty?:       string;
+  name?: string;
+  description?: string;
+  category?: string;
+  difficulty?: string;
   duration_minutes?: number;
-  has_water?:        boolean;
-  has_shade?:        boolean;
-  accessible?:       boolean;
-  main_image?:       string;
-  images?:           string[];
+  has_water?: boolean;
+  has_shade?: boolean;
+  accessible?: boolean;
+  main_image?: string;
+  images?: string[];
+  photo_credit?: string;
 }
 
 export async function updateLocation(
-  id:    number,
+  id: number,
   input: UpdateLocationInput,
 ): Promise<Location> {
   const allowed: (keyof UpdateLocationInput)[] = [
     "name", "description", "category", "difficulty",
     "duration_minutes", "has_water", "has_shade", "accessible",
-    "main_image", "images",
+    "main_image", "images", "photo_credit",
   ];
 
   const fields: string[] = [];

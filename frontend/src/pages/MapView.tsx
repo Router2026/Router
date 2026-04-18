@@ -425,7 +425,27 @@ export default function MapView() {
               )}
             </button>
 
-            {selectedPOI.main_image && <div style={{ height: 140, backgroundImage: `url(${selectedPOI.main_image})`, backgroundSize: "cover", backgroundPosition: "center" }} />}
+            {selectedPOI.main_image && (
+              <div style={{ height: 140, position: "relative" }}>
+                <div style={{ height: "100%", backgroundImage: `url(${selectedPOI.main_image})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                {/* Photo credit watermark */}
+                {selectedPOI.photo_credit && (
+                  <div style={{
+                    position: "absolute", bottom: 8, left: 8,
+                    background: "rgba(255,255,255,0.92)",
+                    borderRadius: 5, padding: "2px 7px",
+                    fontSize: 10, fontWeight: 600, color: "#374151",
+                    fontFamily: "Heebo, sans-serif",
+                    direction: "rtl",
+                    pointerEvents: "none",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+                    lineHeight: 1.4,
+                  }}>
+                    צילום:{selectedPOI.photo_credit}
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ padding: "14px 16px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

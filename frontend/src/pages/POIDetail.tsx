@@ -72,7 +72,7 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
 }
 
 // ── Hero Image ───────────────────────────────────────────────────
-function HeroImage({ poi, galleryImages }: { poi: POI; galleryImages: LocationImage[] }) {
+function HeroImage({ poi, galleryImages, photoCredit }: { poi: POI; galleryImages: LocationImage[]; photoCredit?: string }) {
   const [imgIdx, setImgIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
   const images = useMemo(() => {
@@ -96,6 +96,22 @@ function HeroImage({ poi, galleryImages }: { poi: POI; galleryImages: LocationIm
         </div>
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)' }} />
+      {/* Photo credit watermark — only shown on the first (main) image */}
+      {photoCredit && imgIdx === 0 && !imgError && currentImage && (
+        <div style={{
+          position: 'absolute', bottom: 10, left: 16,
+          background: 'rgba(255,255,255,0.92)',
+          borderRadius: 5, padding: '3px 9px',
+          fontSize: 11, fontWeight: 600, color: '#374151',
+          fontFamily: 'Heebo, sans-serif',
+          direction: 'rtl',
+          pointerEvents: 'none',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+          zIndex: 13, lineHeight: 1.4,
+        }}>
+          צילום: {photoCredit}
+        </div>
+      )}
       {images.length > 1 && !imgError && (
         <div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 12 }}>
           {images.map((_, i) => (
@@ -689,7 +705,7 @@ export default function POIDetail() {
       <div style={{ background: '#f0f4f3', minHeight: '100vh', width: '100%' }}>
         {/* Hero Banner */}
         <div style={{ position: 'relative', height: 350, width: '100%' }}>
-          <HeroImage poi={poi} galleryImages={galleryImages} />
+          <HeroImage poi={poi} galleryImages={galleryImages} photoCredit={poi.photo_credit} />
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
@@ -742,8 +758,8 @@ export default function POIDetail() {
                   {poi.duration_minutes} דקות
                 </span>
               )}
-              {poi.has_water  && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#0284c7' }}>💧 יש מים</span>}
-              {poi.has_shade  && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🌿 יש צל</span>}
+              {poi.has_water && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#0284c7' }}>💧 יש מים</span>}
+              {poi.has_shade && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🌿 יש צל</span>}
               {poi.accessible && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf5ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>♿ נגיש</span>}
             </div>
 
@@ -815,7 +831,7 @@ export default function POIDetail() {
                 </button>
               ) : isGuest ? (
                 <>
-                  <button onClick={() => reportLock.guardAction(() => {})}
+                  <button onClick={() => reportLock.guardAction(() => { })}
                     style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                     🔒 הוסף דיווח — דרוש חשבון
                   </button>
@@ -849,7 +865,7 @@ export default function POIDetail() {
                 </button>
               ) : isGuest ? (
                 <>
-                  <button onClick={() => reviewLock.guardAction(() => {})}
+                  <button onClick={() => reviewLock.guardAction(() => { })}
                     style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                     🔒 כתוב ביקורת — דרוש חשבון
                   </button>
