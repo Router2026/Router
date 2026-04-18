@@ -70,6 +70,7 @@ export default function Home() {
           {/* Right Card: Route Planning — locked for guests */}
           <button
             onClick={() => plannerLock.guardAction(() => navigate('/TripPlanner'))}
+
             aria-label={isGuest ? 'תכנון מסלול AI — דרוש חשבון' : 'תכנון מסלול'}
             style={{ position: 'relative', overflow: 'hidden', flex: 1, background: isGuest ? '#f8fafc' : '#fff', border: isGuest ? '1.5px dashed #cbd5e1' : 'none', borderRadius: 16, padding: '20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 130, boxShadow: isGuest ? 'none' : '0 4px 20px rgba(0,0,0,0.08)', transition: 'transform 0.15s', opacity: isGuest ? 0.8 : 1 }}
             onMouseEnter={e => { if (!isGuest) e.currentTarget.style.transform = 'translateY(-2px)'; }}
@@ -88,8 +89,8 @@ export default function Home() {
 
             <div style={{ background: isGuest ? '#94a3b8' : '#10b981', borderRadius: 12, width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
               {isGuest
-                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" /></svg>
               }
             </div>
             <div style={{ textAlign: 'right', width: '100%', marginTop: 'auto' }}>
@@ -109,7 +110,7 @@ export default function Home() {
             onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
           >
             <div style={{ background: '#6366f1', borderRadius: 12, width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
             </div>
             <div style={{ textAlign: 'right', width: '100%', marginTop: 'auto' }}>
               <div style={{ fontSize: 17, fontWeight: 900, color: '#1e293b', marginBottom: 2 }}>גילוי אתרים</div>

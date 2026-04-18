@@ -1,11 +1,5 @@
-// src/pages/MapView.tsx  — FIXED VERSION
-// Fixes:
-// 1. Clustering — proper zoom-aware grid clustering prevents overlapping
-// 2. Region labels always visible (permanent Tooltip, not on hover)
-// 3. Deselecting region restores default view with all area polygons
-// 4. Selecting region updates colors + flies to area bounds
-// 5. Added Trip Bucket Integration
-// 6. Added Google Maps Navigation Link
+// src/pages/MapView.tsx — UPDATED
+// Added Google Maps-style photo markers for POIs
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -21,7 +15,6 @@ import "leaflet/dist/leaflet.css";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, type POI, type Region } from "../api";
 
-// הייבוא של סל הטיול
 import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
@@ -43,7 +36,31 @@ const CAT_EMOJI: Record<string, string> = {
 };
 const DIFFICULTIES = ["קל - משפחות", "בינוני", "מאתגר", "אקסטרים"];
 
-function makePOIIcon(poi: POI, size = 44) {
+// ── Photo marker (Google Maps style) ─────────────────────────────────────────
+
+function makePhotoIcon(poi: POI, size = 52) {
+  // Check if main image exists, return the square photo icon
+  if (poi.main_image) {
+    return L.divIcon({
+      html: `<div style="
+          position:relative;width:${size}px;height:${size}px;border-radius:12px;
+          overflow:hidden;border:3px solid ${CAT_COLOR[poi.category] || '#0d9e6e'};
+          box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;background:#e2e8f0;">
+        <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;"
+          onerror="this.style.display='none';this.parentElement.querySelector('.fb').style.display='flex'"/>
+        <div class="fb" style="display:none;width:100%;height:100%;background:${CAT_COLOR[poi.category] || '#0d9e6e'};
+          align-items:center;justify-content:center;font-size:22px;position:absolute;top:0;left:0;">
+          ${CAT_EMOJI[poi.category] || '📍'}
+        </div>
+      </div>`,
+      className: "",
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2],
+    });
+  }
+
+  // Fallback: Return the dynamic SVG pin when there is no image
   const color = CAT_COLOR[poi.category] || "#0d9e6e";
   const emoji = CAT_EMOJI[poi.category] || "📍";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size * 1.23}" viewBox="0 0 44 54">
@@ -52,7 +69,14 @@ function makePOIIcon(poi: POI, size = 44) {
     <circle cx="22" cy="21" r="13" fill="white" opacity="0.95"/>
     <text x="22" y="26" font-size="14" text-anchor="middle" font-family="Arial">${emoji}</text>
   </svg>`;
-  return L.divIcon({ html: svg, className: "", iconSize: [size, size * 1.23], iconAnchor: [size / 2, size * 1.23], popupAnchor: [0, -size * 1.23] });
+
+  return L.divIcon({
+    html: svg,
+    className: "",
+    iconSize: [size, size * 1.23],
+    iconAnchor: [size / 2, size * 1.23],
+    popupAnchor: [0, -size * 1.23]
+  });
 }
 
 function makeClusterIcon(count: number, color: string, size = 48) {
@@ -63,14 +87,8 @@ function makeClusterIcon(count: number, color: string, size = 48) {
   return L.divIcon({ html: svg, className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
 }
 
-/**
- * Grid-based clustering — zoom-aware cell size prevents marker overlap.
- * At very low zoom, large grid; at high zoom, individual markers shown.
- */
 function clusterPOIs(pois: POI[], zoom: number) {
   if (zoom >= 13) return pois.map(poi => ({ pois: [poi], lat: poi.latitude, lng: poi.longitude }));
-
-  // Grid cell size in degrees, decreases as zoom increases
   const gridSizeDeg = zoom < 7 ? 1.5 : zoom < 9 ? 0.8 : zoom < 11 ? 0.3 : zoom < 13 ? 0.1 : 0.05;
   const cells = new Map<string, POI[]>();
   for (const poi of pois) {
@@ -111,18 +129,17 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
 
     groups.forEach(g => {
       if (g.pois.length === 1) {
-        const m = L.marker([g.lat, g.lng], { icon: makePOIIcon(g.pois[0]) });
+        // Use photo icon for individual markers
+        const m = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
         m.on("click", e => { L.DomEvent.stopPropagation(e); onMarkerClick(g.pois[0]); });
         m.addTo(map);
         markersRef.current.push(m);
       } else {
         const color = CAT_COLOR[g.pois[0].category] || "#0d9e6e";
-        // Cluster size scales with count
         const size = g.pois.length > 50 ? 60 : g.pois.length > 10 ? 52 : 44;
         const m = L.marker([g.lat, g.lng], { icon: makeClusterIcon(g.pois.length, color, size) });
         m.on("click", e => {
           L.DomEvent.stopPropagation(e);
-          // Zoom into cluster
           map.setView([g.lat, g.lng], Math.min(zoom + 2, 14), { animate: true });
         });
         m.addTo(map);
@@ -137,7 +154,6 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
   return null;
 }
 
-/** Flies to a target view or back to default when target is null. */
 function PanController({ target }: { target: { center: [number, number]; zoom: number } | null }) {
   const map = useMap();
   const prev = useRef("");
@@ -149,7 +165,6 @@ function PanController({ target }: { target: { center: [number, number]; zoom: n
     if (target) {
       map.flyTo(target.center, target.zoom, { duration: 1.2 });
     } else {
-      // FIX: return to full Israel view on deselect
       map.flyTo([31.5, 35.0], 7, { duration: 1.0 });
     }
     const timer = setTimeout(() => map.invalidateSize(), 500);
@@ -233,7 +248,7 @@ function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiff
 export default function MapView() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addPoi, removePoi, hasPoi } = useTripBucket(); // הוק של סל הטיול
+  const { addPoi, removePoi, hasPoi } = useTripBucket();
 
   const urlRegion = searchParams.get("region") || "";
   const urlLat = parseFloat(searchParams.get("lat") || "0");
@@ -295,14 +310,13 @@ export default function MapView() {
 
   const activeFilterCount = selCats.length + selDiffs.length + (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
-  // FIX: toggle — clicking active region deselects and returns to default view
   const handleRegionClick = (region: Region) => {
     setSelectedPOI(null);
     setFilterOpen(false);
     if (selectedRegion?.id === region.id) {
-      setSelectedRegion(null);   // deselect → PanController flies back to full Israel
+      setSelectedRegion(null);
     } else {
-      setSelectedRegion(region); // select → PanController flies to region
+      setSelectedRegion(region);
     }
   };
 
@@ -310,7 +324,7 @@ export default function MapView() {
     ? { center: [urlLat, urlLng] as [number, number], zoom: urlZoom }
     : selectedRegion
       ? { center: [selectedRegion.center_lat, selectedRegion.center_lng] as [number, number], zoom: selectedRegion.zoom }
-      : null;  // null → PanController returns to default
+      : null;
 
   return (
     <div style={{ position: "relative", width: "100%", height: "calc(100vh - 72px)", overflow: "hidden", direction: "rtl" }}>
@@ -359,8 +373,6 @@ export default function MapView() {
         <PanController target={panTarget} />
         <ZoomTracker onZoom={setMapZoom} />
 
-        {/* FIX: Region polygons — always show when no region selected.
-            When a region IS selected, show only that region highlighted. */}
         {!selectedRegion && regions.map(region => {
           if (!region.polygon_coords) return null;
           return (
@@ -369,7 +381,6 @@ export default function MapView() {
               pathOptions={{ color: region.color, fillColor: region.color, fillOpacity: 0.15, weight: 2 }}
               eventHandlers={{ click: () => handleRegionClick(region) }}
             >
-              {/* FIX: permanent={true} so labels are always visible, not just on hover */}
               <Tooltip permanent direction="center" opacity={1} className="region-label">
                 {region.name}
               </Tooltip>
@@ -377,7 +388,6 @@ export default function MapView() {
           );
         })}
 
-        {/* Show selected region outline while viewing its POIs */}
         {selectedRegion && selectedRegion.polygon_coords && (
           <Polygon
             positions={selectedRegion.polygon_coords as [number, number][]}
@@ -395,52 +405,26 @@ export default function MapView() {
       {/* POI popup card */}
       {selectedPOI && (() => {
         const inBucket = hasPoi(selectedPOI.id);
-
         return (
           <div style={{ position: "absolute", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 1200, width: 330, background: "#fff", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", overflow: "hidden", direction: "rtl" }}>
-            {/* כפתור סגירה */}
             <button onClick={() => setSelectedPOI(null)} style={{ position: "absolute", top: 10, right: 10, zIndex: 10, background: "rgba(0,0,0,0.4)", border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
-
-            {/* כפתור הוספה מהירה לסל הטיול (אייקון צף שמאל למעלה) */}
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                inBucket ? removePoi(selectedPOI.id) : addPoi(selectedPOI);
-              }}
-              style={{
-                position: "absolute", top: 10, left: 10, zIndex: 10,
-                background: inBucket ? "#0d9e6e" : "rgba(255,255,255,0.9)",
-                border: "none", borderRadius: "50%", width: 34, height: 34, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: inBucket ? "0 2px 8px rgba(13,158,110,0.4)" : "0 2px 8px rgba(0,0,0,0.1)",
-                transition: "all 0.18s ease"
-              }}
+              onClick={(e) => { e.stopPropagation(); inBucket ? removePoi(selectedPOI.id) : addPoi(selectedPOI); }}
+              style={{ position: "absolute", top: 10, left: 10, zIndex: 10, background: inBucket ? "#0d9e6e" : "rgba(255,255,255,0.9)", border: "none", borderRadius: "50%", width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: inBucket ? "0 2px 8px rgba(13,158,110,0.4)" : "0 2px 8px rgba(0,0,0,0.1)", transition: "all 0.18s ease" }}
             >
-              {inBucket ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              )}
+              {inBucket
+                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              }
             </button>
 
             {selectedPOI.main_image && (
               <div style={{ height: 140, position: "relative" }}>
                 <div style={{ height: "100%", backgroundImage: `url(${selectedPOI.main_image})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-                {/* Photo credit watermark */}
                 {selectedPOI.photo_credit && (
-                  <div style={{
-                    position: "absolute", bottom: 8, left: 8,
-                    background: "rgba(255,255,255,0.92)",
-                    borderRadius: 5, padding: "2px 7px",
-                    fontSize: 10, fontWeight: 600, color: "#374151",
-                    fontFamily: "Heebo, sans-serif",
-                    direction: "rtl",
-                    pointerEvents: "none",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
-                    lineHeight: 1.4,
-                  }}>
+                  <div style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(255,255,255,0.92)", borderRadius: 5, padding: "2px 7px", fontSize: 10, fontWeight: 600, color: "#374151", fontFamily: "Heebo, sans-serif", direction: "rtl", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.15)", lineHeight: 1.4 }}>
                     צילום:{selectedPOI.photo_credit}
                   </div>
                 )}
@@ -455,8 +439,6 @@ export default function MapView() {
                 <div style={{ fontSize: 17, fontWeight: 900, color: "#1a2e2a" }}>{selectedPOI.name}</div>
               </div>
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "right", marginBottom: 14 }}>{selectedPOI.category}</div>
-
-              {/* גריד כפתורים: פרטים וניווט */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                 <button onClick={() => navigate(`/POIDetail?id=${selectedPOI.id}`)} style={{ width: "100%", padding: "10px", border: "none", borderRadius: 12, background: "linear-gradient(135deg, #0d9e6e, #0bba7e)", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "Heebo, sans-serif" }}>
                   פרטים נוספים
@@ -466,28 +448,12 @@ export default function MapView() {
                   ניווט
                 </a>
               </div>
-
-              {/* כפתור הוספה למסלול מלא (למטה) */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  inBucket ? removePoi(selectedPOI.id) : addPoi(selectedPOI);
-                }}
-                style={{
-                  width: "100%", padding: "10px",
-                  border: `2px solid ${inBucket ? "#0d9e6e" : "#f1f5f9"}`,
-                  borderRadius: 12,
-                  background: inBucket ? "#f0fdf8" : "#f8fafc",
-                  color: inBucket ? "#0d9e6e" : "#64748b",
-                  fontSize: 13, fontWeight: 800, cursor: "pointer",
-                  fontFamily: "Heebo, sans-serif",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  transition: "all 0.15s"
-                }}
+                onClick={(e) => { e.stopPropagation(); inBucket ? removePoi(selectedPOI.id) : addPoi(selectedPOI); }}
+                style={{ width: "100%", padding: "10px", border: `2px solid ${inBucket ? "#0d9e6e" : "#f1f5f9"}`, borderRadius: 12, background: inBucket ? "#f0fdf8" : "#f8fafc", color: inBucket ? "#0d9e6e" : "#64748b", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "Heebo, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}
               >
                 {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
               </button>
-
             </div>
           </div>
         );
@@ -496,7 +462,6 @@ export default function MapView() {
       {/* Bottom region bar */}
       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 1100, background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)", padding: "10px 16px 12px", boxShadow: "0 -4px 20px rgba(0,0,0,0.06)" }}>
         <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none", alignItems: "center" }}>
-          {/* FIX: Add "all" button to reset selection */}
           {selectedRegion && (
             <button onClick={() => setSelectedRegion(null)} style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 20, border: "2px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "Heebo, sans-serif", whiteSpace: "nowrap" }}>
               כל האזורים
@@ -505,16 +470,7 @@ export default function MapView() {
           {regions.map(region => {
             const active = selectedRegion?.id === region.id;
             return (
-              <button key={region.id} onClick={() => handleRegionClick(region)} style={{
-                flexShrink: 0, display: "flex", alignItems: "center", gap: 5,
-                padding: "7px 14px", borderRadius: 20,
-                border: `2px solid ${active ? region.color : "#e2e8f0"}`,
-                background: active ? region.color : "#fff",
-                color: active ? "#fff" : "#64748b",
-                fontSize: 12, fontWeight: 700, cursor: "pointer",
-                fontFamily: "Heebo, sans-serif", whiteSpace: "nowrap",
-                transition: "all 0.15s ease",
-              }}>
+              <button key={region.id} onClick={() => handleRegionClick(region)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 20, border: `2px solid ${active ? region.color : "#e2e8f0"}`, background: active ? region.color : "#fff", color: active ? "#fff" : "#64748b", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "Heebo, sans-serif", whiteSpace: "nowrap", transition: "all 0.15s ease" }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: active ? "rgba(255,255,255,0.75)" : region.color, flexShrink: 0 }} />
                 {region.name}
               </button>
@@ -523,10 +479,8 @@ export default function MapView() {
         </div>
       </div>
 
-      {/* קומפוננטות סל הטיול */}
       <TripBucketFab />
       <TripBucketSheet />
-
     </div>
   );
 }

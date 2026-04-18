@@ -302,6 +302,7 @@ function StrategyCards({
     label: string;
     description: string;
     detail: string;
+    comingSoon?: boolean; // הגדרת פיצ'ר עתידי
   }> = [
       {
         id: 'smart',
@@ -309,6 +310,7 @@ function StrategyCards({
         label: 'בנייה חכמה',
         description: 'סידור זמנים חכם מבוסס AI',
         detail: 'מערכת ה-AI מנתחת את אופי המקום ומסדרת הגיונית - הליכות בבוקר, בתי קפה בצהריים ותצפיות בשקיעה.',
+        comingSoon: true, // מוגדר כבקרוב
       },
       {
         id: 'proximity',
@@ -330,15 +332,30 @@ function StrategyCards({
           return (
             <button
               key={s.id}
-              onClick={() => onSelect(s.id)}
+              onClick={() => !s.comingSoon && onSelect(s.id)}
+              disabled={s.comingSoon}
               style={{
-                flex: 1, padding: '14px 12px', borderRadius: 18, cursor: 'pointer',
+                flex: 1, padding: '14px 12px', borderRadius: 18,
+                cursor: s.comingSoon ? 'not-allowed' : 'pointer', // חיווי על כפתור מושבת
                 border: `2px solid ${active ? '#0d9e6e' : '#e2e8f0'}`,
                 background: active ? '#f0fdf8' : '#fff',
                 textAlign: 'right', transition: 'all 0.18s',
                 boxShadow: active ? '0 4px 16px rgba(13,158,110,0.15)' : 'none',
+                position: 'relative', overflow: 'hidden', // נדרש בשביל חיתוך הסרט
+                opacity: s.comingSoon ? 0.75 : 1, // טיפה שקיפות
               }}
             >
+              {/* סרט ה"בקרוב" */}
+              {s.comingSoon && (
+                <div style={{
+                  position: 'absolute', top: 12, left: -26, background: '#ef4444', color: '#fff',
+                  padding: '4px 30px', transform: 'rotate(-45deg)', fontSize: 11, fontWeight: 800,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)', zIndex: 10, letterSpacing: '0.05em'
+                }}>
+                  בקרוב
+                </div>
+              )}
+
               <div style={{ fontSize: 26, marginBottom: 6 }}>{s.icon}</div>
               <div style={{ fontSize: 13, fontWeight: 900, color: active ? '#0d9e6e' : '#1a2e2a', marginBottom: 3 }}>
                 {s.label}
