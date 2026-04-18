@@ -99,7 +99,7 @@ function HeroImage({ poi, galleryImages, photoCredit }: { poi: POI; galleryImage
       {/* Photo credit watermark — only shown on the first (main) image */}
       {photoCredit && imgIdx === 0 && !imgError && currentImage && (
         <div style={{
-          position: 'absolute', bottom: 10, left: 16,
+          position: 'absolute', bottom: 15, left: 16,
           background: 'rgba(255,255,255,0.92)',
           borderRadius: 5, padding: '3px 9px',
           fontSize: 11, fontWeight: 600, color: '#374151',
