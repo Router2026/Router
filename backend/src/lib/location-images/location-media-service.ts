@@ -69,8 +69,8 @@ export async function saveLocationMedia(
   caption?: string,
 ): Promise<SaveMediaResult> {
   const { rows } = await rawDb.query(
-    `INSERT INTO location_media (user_id, location_id, media_type, media_url, thumbnail_url, caption)
-     SELECT $1, $2, $3, $4, $5, $6
+    `INSERT INTO location_media (user_id, location_id, media_type, media_url, thumbnail_url, caption, is_approved, approved_at)
+     SELECT $1, $2, $3, $4, $5, $6, TRUE, NOW()
      WHERE (
        SELECT COUNT(*) FROM location_media
        WHERE user_id = $1 AND location_id = $2

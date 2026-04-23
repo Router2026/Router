@@ -76,11 +76,11 @@ function HeroImage({ poi, galleryImages, photoCredit }: { poi: POI; galleryImage
   const [imgIdx, setImgIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
   const images = useMemo(() => {
-    const approvedUrls = galleryImages.filter(i => i.is_approved).map(i => i.image_url);
-    const main = poi.main_image || approvedUrls[0] || '';
+    const allUrls = galleryImages.map(i => i.image_url);
+    const main = poi.main_image || allUrls[0] || '';
     const all = main
-      ? [main, ...poi.images.filter(i => i !== main), ...approvedUrls.filter(u => u !== main)]
-      : [...poi.images, ...approvedUrls];
+      ? [main, ...poi.images.filter(i => i !== main), ...allUrls.filter(u => u !== main)]
+      : [...poi.images, ...allUrls];
     return [...new Set(all)].filter(Boolean);
   }, [poi.main_image, poi.images, galleryImages]);
   const currentImage = !imgError && images[imgIdx] ? images[imgIdx] : null;
@@ -372,24 +372,21 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
 
   if (!media.length) return null;
 
-  const approvedMedia = media.filter(m => m.is_approved || isAdmin);
-  if (!approvedMedia.length && !isAdmin) return null;
-
   const openLightbox = (idx: number) => setLightboxIdx(idx);
   const closeLightbox = () => setLightboxIdx(null);
   const prevItem = () => setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : null);
-  const nextItem = () => setLightboxIdx(i => i !== null ? Math.min(approvedMedia.length - 1, i + 1) : null);
+  const nextItem = () => setLightboxIdx(i => i !== null ? Math.min(media.length - 1, i + 1) : null);
 
   return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, direction: 'rtl' }}>
-        <span style={{ fontSize: 13, color: '#94a3b8' }}>{approvedMedia.length} פריטים</span>
+        <span style={{ fontSize: 13, color: '#94a3b8' }}>{media.length} פריטים</span>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>📸 גלריית קהילה</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
-        {approvedMedia.map((item, idx) => (
-          <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `2px solid ${item.is_approved ? '#0d9e6e' : '#f59e0b'}`, cursor: 'pointer', aspectRatio: '1' }}
+        {media.map((item, idx) => (
+          <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', cursor: 'pointer', aspectRatio: '1' }}
             onClick={() => openLightbox(idx)}>
 
             {item.media_type === 'video' ? (
@@ -408,13 +405,6 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
               />
             )}
 
-            {/* Status badge */}
-            {item.is_approved ? (
-              <div style={{ position: 'absolute', top: 4, right: 4, background: '#0d9e6e', borderRadius: 6, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>✓</div>
-            ) : (
-              <div style={{ position: 'absolute', top: 4, right: 4, background: '#f59e0b', borderRadius: 6, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>ממתין</div>
-            )}
-
             {/* Video indicator */}
             {item.media_type === 'video' && (
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
@@ -428,17 +418,10 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
             {/* Admin controls */}
             {isAdmin && (
               <div style={{ display: 'flex', gap: 4, padding: '4px', background: 'rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
-                {!item.is_approved ? (
-                  <button onClick={() => onApprove(item.id)}
-                    style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#0d9e6e', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
-                    אשר
-                  </button>
-                ) : (
-                  <button onClick={() => onReject(item.id)}
-                    style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#f87171', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
-                    בטל
-                  </button>
-                )}
+                <button onClick={() => onReject(item.id)}
+                  style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#f87171', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
+                  הסר
+                </button>
               </div>
             )}
           </div>
@@ -461,9 +444,9 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
             </button>
 
             {/* Current item */}
-            {approvedMedia[lightboxIdx].media_type === 'video' ? (
+            {media[lightboxIdx].media_type === 'video' ? (
               <video
-                src={approvedMedia[lightboxIdx].media_url}
+                src={media[lightboxIdx].media_url}
                 controls
                 autoPlay
                 style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }}
@@ -471,20 +454,20 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
               />
             ) : (
               <img
-                src={approvedMedia[lightboxIdx].media_url}
-                alt={approvedMedia[lightboxIdx].caption || ''}
+                src={media[lightboxIdx].media_url}
+                alt={media[lightboxIdx].caption || ''}
                 style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12, objectFit: 'contain' }}
               />
             )}
 
             {/* Caption + credit */}
             <div style={{ marginTop: 12, textAlign: 'center', color: '#fff', direction: 'rtl' }}>
-              {approvedMedia[lightboxIdx].caption && (
-                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{approvedMedia[lightboxIdx].caption}</div>
+              {media[lightboxIdx].caption && (
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{media[lightboxIdx].caption}</div>
               )}
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
-                📷 {approvedMedia[lightboxIdx].username || 'משתמש'} ·{' '}
-                {new Date(approvedMedia[lightboxIdx].created_at).toLocaleDateString('he-IL')}
+                📷 {media[lightboxIdx].username || 'משתמש'} ·{' '}
+                {new Date(media[lightboxIdx].created_at).toLocaleDateString('he-IL')}
               </div>
             </div>
 
@@ -495,10 +478,10 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
                 ›
               </button>
               <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, alignSelf: 'center' }}>
-                {lightboxIdx + 1} / {approvedMedia.length}
+                {lightboxIdx + 1} / {media.length}
               </span>
-              <button onClick={nextItem} disabled={lightboxIdx === approvedMedia.length - 1}
-                style={{ background: lightboxIdx === approvedMedia.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === approvedMedia.length - 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={nextItem} disabled={lightboxIdx === media.length - 1}
+                style={{ background: lightboxIdx === media.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === media.length - 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 ‹
               </button>
             </div>

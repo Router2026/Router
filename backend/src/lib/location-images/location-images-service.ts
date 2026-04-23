@@ -34,8 +34,8 @@ export async function saveLocationImage(
   imageUrl:   string,
 ): Promise<UploadImageResult> {
   const { rows } = await rawDb.query(
-    `INSERT INTO location_images (user_id, location_id, image_url)
-     SELECT $1, $2, $3
+    `INSERT INTO location_images (user_id, location_id, image_url, is_approved, approved_at)
+     SELECT $1, $2, $3, TRUE, NOW()
      WHERE (
        SELECT COUNT(*) FROM location_images
        WHERE user_id = $1 AND location_id = $2
