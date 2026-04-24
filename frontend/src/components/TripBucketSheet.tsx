@@ -526,7 +526,7 @@ export default function TripBucketSheet() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>🎒</span>
             <div>
-              <div style={{ fontWeight: 900, fontSize: 16, color: '#1a2e2a' }}>סל הטיול</div>
+              <div style={{ fontWeight: 900, fontSize: 16, color: '#1a2e2a' }}>סל המסלול</div>
               <div style={{ fontSize: 11, color: '#94a3b8' }}>
                 {count === 1 ? 'מיקום 1 נשמר' : `${count} מיקומים נשמרו`}
               </div>
@@ -573,7 +573,7 @@ export default function TripBucketSheet() {
               {count === 0 ? (
                 <div style={{ textAlign: 'center', padding: '50px 20px', color: '#94a3b8' }}>
                   <div style={{ fontSize: 50, marginBottom: 12 }}>🎒</div>
-                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>סל הטיול שלך ריק</div>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>סל המסלול שלך ריק</div>
                   <div style={{ fontSize: 13 }}>
                     לחץ על <strong>+</strong> בכל כרטיס מיקום כדי להוסיף אותו לכאן.
                   </div>
