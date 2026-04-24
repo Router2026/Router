@@ -286,12 +286,29 @@ export default function RouteGenerator() {
   }, []);
 
   useEffect(() => {
-    const state = routerLocation.state as { bucketPois?: POI[] } | null;
+    const state = routerLocation.state as {
+      bucketPois?: POI[];
+      userLocation?: { lat: number; lng: number } | null;
+      alreadyOrdered?: boolean;
+    } | null;
     if (state?.bucketPois && state.bucketPois.length >= 2) {
       const incoming = state.bucketPois;
       setSelectedPois(incoming);
       setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
-      if (navigator.geolocation) {
+
+      // If the user already set a start point in TripBucketSheet, use it
+      // directly — no need to request GPS again.
+      if (state.userLocation) {
+        const sp: LatLng = { lat: state.userLocation.lat, lng: state.userLocation.lng };
+        setStartPoint(sp);
+        setUseCurrentLocation(true);
+        setOptimized(
+          state.alreadyOrdered
+            ? [...incoming]
+            : optimizeRoute([...incoming], sp)
+        );
+      } else if (navigator.geolocation) {
+        // Fallback: no location from sheet — try GPS as before
         navigator.geolocation.getCurrentPosition(
           pos => {
             const sp = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -304,6 +321,7 @@ export default function RouteGenerator() {
       } else {
         setOptimized(optimizeRoute([...incoming], null));
       }
+
       setStep('route');
       window.history.replaceState({}, '');
     }
@@ -795,7 +813,7 @@ export default function RouteGenerator() {
                   {startPoint.lat.toFixed(4)}, {startPoint.lng.toFixed(4)}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
-                  📡 מתחיל ממיקומך
+                  📡 מתחיל מנקודת ההתחלה
                 </span>
               </div>
             )}
@@ -855,7 +873,7 @@ export default function RouteGenerator() {
                 fontSize: 14, fontWeight: 800, color: '#1a2e2a',
                 marginBottom: 12, textAlign: 'right',
               }}>
-                סדר העצירות {startPoint ? '(מסודר ממיקומך)' : '(מותאם אוטומטית)'}
+                סדר העצירות {startPoint ? '(מסודר)' : '(מותאם אוטומטית)'}
               </div>
 
               {startPoint && (
@@ -865,7 +883,7 @@ export default function RouteGenerator() {
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
-                      📡 נקודת התחלה — מיקומך
+                      📡 נקודת התחלה
                     </div>
                   </div>
                   <div style={{

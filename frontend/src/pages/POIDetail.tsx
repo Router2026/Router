@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
 import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketSheet from '../components/TripBucketSheet';
+import TripBucketFab from '../components/TripBucketFab';
 import FavoriteButton from '../components/FavoriteButton';
 import UploadPhotoButton from '../components/UploadPhotoButton';
 import XpToast from '../components/XpToast';
@@ -99,7 +100,7 @@ function HeroImage({ poi, galleryImages, photoCredit }: { poi: POI; galleryImage
       {/* Photo credit watermark — only shown on the first (main) image */}
       {photoCredit && imgIdx === 0 && !imgError && currentImage && (
         <div style={{
-          position: 'absolute', bottom: 20, left: 16,
+          position: 'absolute', bottom: 22, left: 16,
           background: 'rgba(255,255,255,0.92)',
           borderRadius: 5, padding: '3px 9px',
           fontSize: 11, fontWeight: 600, color: '#374151',
@@ -577,7 +578,7 @@ export default function POIDetail() {
   const [searchParams] = useSearchParams();
   const poiId = searchParams.get('id') || '';
   const { user, isLoggedIn, isGuest } = useAuth();
-  const { hasPoi } = useTripBucket();
+  const { hasPoi, addPoi, removePoi, openSheet } = useTripBucket();
   const reportLock = useGuestLock('דיווח');
   const reviewLock = useGuestLock('הוספת ביקורת');
 
@@ -752,6 +753,46 @@ export default function POIDetail() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               פתח בגוגל מפות
             </button>
+
+            {/* Add to / Remove from Trip Bucket */}
+            {(() => {
+              const inBucket = poi && hasPoi(poi.id);
+              return (
+                <button
+                  onClick={() => {
+                    if (!poi) return;
+                    if (inBucket) {
+                      removePoi(poi.id);
+                    } else {
+                      addPoi(poi);
+                      openSheet();
+                    }
+                  }}
+                  style={{
+                    width: '100%', marginTop: 10, padding: '14px', borderRadius: 16,
+                    background: inBucket ? '#fef2f2' : '#f0fdf8',
+                    color: inBucket ? '#dc2626' : '#0d9e6e',
+                    fontSize: 15, fontWeight: 900, cursor: 'pointer',
+                    fontFamily: 'Heebo, sans-serif',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    border: `2px solid ${inBucket ? '#fca5a5' : '#6ee7b7'}`,
+                    transition: 'all 0.18s',
+                  }}
+                >
+                  {inBucket ? (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                      הסר מסל המסלול
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      הוסף לסל המסלול 🎒
+                    </>
+                  )}
+                </button>
+              );
+            })()}
           </div>
 
           {/* Mini-Map */}
@@ -873,7 +914,7 @@ export default function POIDetail() {
         </div>
       </div>
 
-      <TripBucketSheet />
+      <TripBucketFab />
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
