@@ -165,7 +165,37 @@ function BucketListItem({
   );
 }
 
+// ── Helpers: parse coordinates from a Google Maps URL or a plain "lat,lng" ───
+
+function parseGoogleMapsUrl(raw: string): UserLocation | null {
+  const s = raw.trim();
+
+  // Plain "lat,lng" e.g. "31.7683,35.2137"
+  const plain = s.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (plain) {
+    const lat = parseFloat(plain[1]);
+    const lng = parseFloat(plain[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
+  }
+
+  // @lat,lng,zoom  (appears in most Google Maps share URLs)
+  const atSign = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atSign) return { lat: parseFloat(atSign[1]), lng: parseFloat(atSign[2]) };
+
+  // ?q=lat,lng  or  ll=lat,lng
+  const qParam = s.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qParam) return { lat: parseFloat(qParam[1]), lng: parseFloat(qParam[2]) };
+
+  // /place/.../lat,lng
+  const place = s.match(/\/place\/[^/]+\/(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (place) return { lat: parseFloat(place[1]), lng: parseFloat(place[2]) };
+
+  return null;
+}
+
 // ── Location Detector ─────────────────────────────────────────────────────────
+
+type LocationMode = 'gps' | 'custom';
 
 function LocationStartPoint({
   location,
@@ -174,10 +204,16 @@ function LocationStartPoint({
   location: UserLocation | null;
   onDetected: (loc: UserLocation) => void;
 }) {
+  const [mode, setMode] = useState<LocationMode>('gps');
   const [geoState, setGeoState] = useState<GeoState>(location ? 'success' : 'idle');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleDetect = () => {
+  // Custom location state
+  const [customInput, setCustomInput] = useState('');
+  const [customError, setCustomError] = useState('');
+  const [customSuccess, setCustomSuccess] = useState(false);
+
+  const handleDetectGps = () => {
     if (!navigator.geolocation) {
       setGeoState('error');
       setErrorMsg('הדפדפן שלך אינו תומך בזיהוי מיקום.');
@@ -201,86 +237,194 @@ function LocationStartPoint({
     );
   };
 
+  const handleCustomSubmit = () => {
+    setCustomError('');
+    const parsed = parseGoogleMapsUrl(customInput);
+    if (!parsed) {
+      setCustomError('לא ניתן לחלץ קואורדינטות. הדבק קישור מגוגל מפות או הכנס "קו רוחב, קו אורך".');
+      setCustomSuccess(false);
+      return;
+    }
+    onDetected(parsed);
+    setCustomSuccess(true);
+  };
+
+  const switchMode = (m: LocationMode) => {
+    setMode(m);
+    setCustomError('');
+    setCustomSuccess(false);
+    // Reset GPS state when switching away so re-entering GPS shows the detect button
+    if (m === 'custom') setGeoState('idle');
+  };
+
+  const isResolved = location !== null && (
+    (mode === 'gps' && geoState === 'success') ||
+    (mode === 'custom' && customSuccess)
+  );
+
   return (
     <div style={{
       background: '#fff', borderRadius: 16, padding: '14px 16px',
-      marginBottom: 14, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', direction: 'rtl'
+      marginBottom: 14, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', direction: 'rtl',
     }}>
-      {/* Row: icon + label + status/button */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {/* Pin icon circle */}
-        <div style={{
-          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-          background: geoState === 'success' ? '#f0fdf8' : '#f8fafc',
-          border: `2px solid ${geoState === 'success' ? '#0d9e6e' : '#e2e8f0'}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {geoState === 'loading' ? (
-            <span style={{ fontSize: 18, animation: 'spin 1s linear infinite' }}>⏳</span>
-          ) : geoState === 'success' ? (
-            <span style={{ fontSize: 18 }}>📍</span>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-            </svg>
-          )}
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, color: '#1a2e2a' }}>
-            נקודת התחלה
-          </div>
-          <div style={{
-            fontSize: 11, color: geoState === 'success' ? '#0d9e6e' : '#94a3b8',
-            marginTop: 2,
-          }}>
-            {geoState === 'success' && location
-              ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
-              : geoState === 'loading'
-                ? 'מזהה את מיקומך...'
-                : 'המיקום הנוכחי שלך (חובה)'}
-          </div>
-        </div>
-
-        {/* Action button */}
-        {geoState !== 'success' && (
-          <button
-            onClick={handleDetect}
-            disabled={geoState === 'loading'}
-            style={{
-              padding: '7px 14px', border: 'none', borderRadius: 10,
-              background: geoState === 'loading' ? '#e2e8f0' : '#0d9e6e',
-              color: geoState === 'loading' ? '#94a3b8' : '#fff',
-              fontSize: 12, fontWeight: 700, cursor: geoState === 'loading' ? 'not-allowed' : 'pointer',
-              flexShrink: 0, fontFamily: 'Heebo, sans-serif',
-            }}
-          >
-            {geoState === 'loading' ? 'מזהה...' : 'זהה מיקום'}
-          </button>
-        )}
-
-        {/* Re-detect link when already set */}
-        {geoState === 'success' && (
-          <button
-            onClick={handleDetect}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 11, color: '#94a3b8', fontFamily: 'Heebo, sans-serif',
-              flexShrink: 0, textDecoration: 'underline',
-            }}
-          >
-            זהה מחדש
-          </button>
-        )}
+      {/* Section title */}
+      <div style={{ fontWeight: 800, fontSize: 13, color: '#1a2e2a', marginBottom: 10 }}>
+        נקודת התחלה
       </div>
 
-      {/* Error */}
-      {geoState === 'error' && (
-        <div style={{
-          marginTop: 10, padding: '8px 12px', borderRadius: 10,
-          background: '#fef2f2', fontSize: 12, color: '#dc2626',
-        }}>
+      {/* Mode toggle */}
+      <div style={{
+        display: 'flex', gap: 6, marginBottom: 12,
+        background: '#f1f5f9', borderRadius: 12, padding: 4,
+      }}>
+        {([
+          { id: 'gps' as LocationMode, label: '📡 מיקום נוכחי (GPS)' },
+          { id: 'custom' as LocationMode, label: '🗺️ מיקום מגוגל מפות' },
+        ] as const).map(opt => (
+          <button
+            key={opt.id}
+            onClick={() => switchMode(opt.id)}
+            style={{
+              flex: 1, padding: '7px 8px', border: 'none', borderRadius: 9,
+              background: mode === opt.id ? '#fff' : 'transparent',
+              color: mode === opt.id ? '#0d9e6e' : '#64748b',
+              fontSize: 11, fontWeight: 800, cursor: 'pointer',
+              fontFamily: 'Heebo, sans-serif',
+              boxShadow: mode === opt.id ? '0 1px 6px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── GPS mode ── */}
+      {mode === 'gps' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Icon */}
+          <div style={{
+            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+            background: geoState === 'success' ? '#f0fdf8' : '#f8fafc',
+            border: `2px solid ${geoState === 'success' ? '#0d9e6e' : '#e2e8f0'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {geoState === 'loading'
+              ? <span style={{ fontSize: 18 }}>⏳</span>
+              : geoState === 'success'
+                ? <span style={{ fontSize: 18 }}>📍</span>
+                : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                  </svg>
+                )}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: geoState === 'success' ? '#0d9e6e' : '#94a3b8', marginTop: 2 }}>
+              {geoState === 'success' && location
+                ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
+                : geoState === 'loading'
+                  ? 'מזהה את מיקומך...'
+                  : 'לחץ "זהה מיקום" לאיתור GPS'}
+            </div>
+          </div>
+
+          {geoState !== 'success'
+            ? (
+              <button
+                onClick={handleDetectGps}
+                disabled={geoState === 'loading'}
+                style={{
+                  padding: '7px 14px', border: 'none', borderRadius: 10,
+                  background: geoState === 'loading' ? '#e2e8f0' : '#0d9e6e',
+                  color: geoState === 'loading' ? '#94a3b8' : '#fff',
+                  fontSize: 12, fontWeight: 700,
+                  cursor: geoState === 'loading' ? 'not-allowed' : 'pointer',
+                  flexShrink: 0, fontFamily: 'Heebo, sans-serif',
+                }}
+              >
+                {geoState === 'loading' ? 'מזהה...' : 'זהה מיקום'}
+              </button>
+            )
+            : (
+              <button
+                onClick={handleDetectGps}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 11, color: '#94a3b8', fontFamily: 'Heebo, sans-serif',
+                  flexShrink: 0, textDecoration: 'underline',
+                }}
+              >
+                זהה מחדש
+              </button>
+            )}
+        </div>
+      )}
+
+      {/* GPS error */}
+      {mode === 'gps' && geoState === 'error' && (
+        <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: '#fef2f2', fontSize: 12, color: '#dc2626' }}>
           ⚠️ {errorMsg}
+        </div>
+      )}
+
+      {/* ── Custom / Google Maps mode ── */}
+      {mode === 'custom' && (
+        <div>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>
+            פתח גוגל מפות, לחץ לחיצה ארוכה על המיקום הרצוי → העתק את הקישור מסרגל הכתובת, או הדבק קואורדינטות בפורמט <strong>קו רוחב, קו אורך</strong>.
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={customInput}
+              onChange={e => { setCustomInput(e.target.value); setCustomError(''); setCustomSuccess(false); }}
+              onKeyDown={e => e.key === 'Enter' && handleCustomSubmit()}
+              placeholder="https://maps.google.com/... או 31.7683, 35.2137"
+              dir="ltr"
+              style={{
+                flex: 1, padding: '9px 12px', borderRadius: 10,
+                border: `1.5px solid ${customError ? '#fca5a5' : customSuccess ? '#6ee7b7' : '#e2e8f0'}`,
+                fontSize: 12, fontFamily: 'monospace', color: '#1a2e2a',
+                outline: 'none', background: '#f8fafc',
+              }}
+            />
+            <button
+              onClick={handleCustomSubmit}
+              style={{
+                padding: '9px 16px', border: 'none', borderRadius: 10,
+                background: '#0d9e6e', color: '#fff',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'Heebo, sans-serif', flexShrink: 0,
+              }}
+            >
+              אשר
+            </button>
+          </div>
+
+          {customError && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#dc2626' }}>⚠️ {customError}</div>
+          )}
+
+          {customSuccess && location && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#0d9e6e', display: 'flex', alignItems: 'center', gap: 4 }}>
+              ✅ מיקום נקבע: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Resolved indicator (shown in both modes once set) */}
+      {isResolved && (
+        <div style={{
+          marginTop: 10, padding: '6px 12px', borderRadius: 10,
+          background: '#f0fdf8', fontSize: 11, color: '#0d9e6e', fontWeight: 700,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          נקודת ההתחלה נקבעה בהצלחה
         </div>
       )}
     </div>
