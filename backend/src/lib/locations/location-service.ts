@@ -211,6 +211,93 @@ export async function getNearbyLocations(
   return result;
 }
 
+/**
+ * Returns locations flagged as is_featured = TRUE, ordered by average_rating DESC.
+ * Falls back to top-rated locations if the is_featured column does not yet exist
+ * (migration 0006 has not been run).
+ */
+export async function getFeaturedLocations(limit: number = 10): Promise<Location[]> {
+  const cacheKey = `locations:featured:${limit}`;
+  const cached = cacheGet<Location[]>(cacheKey);
+  if (cached) return cached;
+
+  let rows: Record<string, unknown>[];
+  try {
+    ({ rows } = await rawDb.query(
+      `SELECT l.*, r.name AS region_name, r.slug AS region_slug
+       FROM   locations l
+       LEFT   JOIN regions r ON l.region_id = r.id
+       WHERE  l.is_featured = TRUE
+       ORDER  BY l.average_rating DESC, l.name
+       LIMIT  $1`,
+      [limit]
+    ));
+  } catch (err: any) {
+    if (err?.code === "42703") {
+      console.warn("[getFeaturedLocations] is_featured column missing -- falling back to top-rated. Run migration 0006.");
+      ({ rows } = await rawDb.query(
+        `SELECT l.*, r.name AS region_name, r.slug AS region_slug
+         FROM   locations l
+         LEFT   JOIN regions r ON l.region_id = r.id
+         ORDER  BY l.average_rating DESC, l.name
+         LIMIT  $1`,
+        [limit]
+      ));
+    } else {
+      throw err;
+    }
+  }
+
+  const result = rows.map(rowToLocation);
+  cacheSet(cacheKey, result, LIST_CACHE_TTL);
+  return result;
+}
+
+/**
+ * Returns locations within `radiusMeters` of the user's coordinates,
+ * sorted by distance ascending.
+ * Uses PostGIS ST_DWithin on the geography column for accuracy.
+ */
+export async function getNearbyUserLocations(
+  lat: number,
+  lng: number,
+  limit: number = 8,
+  radiusMeters: number = 30000
+): Promise<NearbyLocation[]> {
+  const cacheKey = `locations:nearby-user:${lat.toFixed(4)}:${lng.toFixed(4)}:${limit}:${radiusMeters}`;
+  const cached = cacheGet<NearbyLocation[]>(cacheKey);
+  if (cached) return cached;
+
+  const { rows } = await rawDb.query(
+    `SELECT
+       l.*,
+       r.name AS region_name,
+       r.slug AS region_slug,
+       ST_Distance(
+         l.geom::geography,
+         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
+       ) AS distance_meters
+     FROM   locations l
+     LEFT   JOIN regions r ON l.region_id = r.id
+     WHERE  ST_DWithin(
+               l.geom::geography,
+               ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+               $3
+             )
+     ORDER  BY distance_meters ASC
+     LIMIT  $4`,
+    [lat, lng, radiusMeters, limit]
+  );
+
+  const result = rows.map(row => ({
+    ...rowToLocation(row),
+    distance_meters: parseFloat(row.distance_meters as string),
+  }));
+
+  cacheSet(cacheKey, result, LIST_CACHE_TTL);
+  return result;
+}
+
 export async function getLocationsInBounds(bounds: MapBounds): Promise<Location[]> {
   const { north, south, east, west } = bounds;
   const cacheKey = `locations:map:${north.toFixed(4)}:${south.toFixed(4)}:${east.toFixed(4)}:${west.toFixed(4)}`;

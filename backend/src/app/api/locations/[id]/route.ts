@@ -12,7 +12,11 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const location = await getLocationById(parseInt(id));
+    const locationId = parseInt(id, 10);
+    if (isNaN(locationId)) {
+      return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
+    }
+    const location = await getLocationById(locationId);
     if (!location) {
       return NextResponse.json(errorResponse("Location not found", "NOT_FOUND"), { status: 404 });
     }
