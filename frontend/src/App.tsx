@@ -22,6 +22,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import RouteGenerator from './pages/RouteGenerator';
 import AdminPanel from './pages/AdminPanel';
+import AdminPlaces from './pages/AdminPlaces';
 import ContributePOI from './pages/ContributePOI';
 import PublicTrips from './pages/PublicTrips';
 import PublicTripDetail from './pages/PublicTripDetail';
@@ -95,40 +96,41 @@ function AppRoutes() {
 
       <Routes>
         {/* ── Auth & callback ───────────────────────────────── */}
-        <Route path="/Login"           element={<Wrap name="Login"><Login /></Wrap>} />
-        <Route path="/Register"        element={<Wrap name="Register"><Register /></Wrap>} />
-        <Route path="/VerifyEmail"     element={<Wrap name="VerifyEmail"><VerifyEmail /></Wrap>} />
-        <Route path="/ForgotPassword"  element={<Wrap name="ForgotPassword"><ForgotPassword /></Wrap>} />
-        <Route path="/ResetPassword"   element={<Wrap name="ResetPassword"><ResetPassword /></Wrap>} />
-        <Route path="/auth/callback"   element={<AuthCallback />} />
-        <Route path="/ContributePOI"   element={<ContributePOI />} />
+        <Route path="/Login" element={<Wrap name="Login"><Login /></Wrap>} />
+        <Route path="/Register" element={<Wrap name="Register"><Register /></Wrap>} />
+        <Route path="/VerifyEmail" element={<Wrap name="VerifyEmail"><VerifyEmail /></Wrap>} />
+        <Route path="/ForgotPassword" element={<Wrap name="ForgotPassword"><ForgotPassword /></Wrap>} />
+        <Route path="/ResetPassword" element={<Wrap name="ResetPassword"><ResetPassword /></Wrap>} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/ContributePOI" element={<ContributePOI />} />
 
         {/* ── Fully public (no auth needed) ────────────────── */}
-        <Route path="/trips"           element={<Wrap name="Trips"><PublicTrips /></Wrap>} />
-        <Route path="/trips/:id"       element={<Wrap name="TripDetail"><PublicTripDetail /></Wrap>} />
+        <Route path="/trips" element={<Wrap name="Trips"><PublicTrips /></Wrap>} />
+        <Route path="/trips/:id" element={<Wrap name="TripDetail"><PublicTripDetail /></Wrap>} />
 
         {/* ── Guest-accessible (read-only browsing) ─────────── */}
-        <Route path="/"             element={<RequireAuth allowGuest><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
-        <Route path="/Home"         element={<RequireAuth allowGuest><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
-        <Route path="/Explore"      element={<RequireAuth allowGuest><Wrap name="Explore"><Explore /></Wrap></RequireAuth>} />
-        <Route path="/MapView"      element={<RequireAuth allowGuest><Wrap name="MapView"><MapView /></Wrap></RequireAuth>} />
-        <Route path="/POIDetail"    element={<RequireAuth allowGuest><Wrap name="POIDetail"><POIDetail /></Wrap></RequireAuth>} />
-        <Route path="/Reports"      element={<RequireAuth allowGuest><Wrap name="Reports"><Reports /></Wrap></RequireAuth>} />
-        <Route path="/Leaderboard"  element={<RequireAuth allowGuest><Wrap name="Leaderboard"><Leaderboard /></Wrap></RequireAuth>} />
+        <Route path="/" element={<RequireAuth allowGuest><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
+        <Route path="/Home" element={<RequireAuth allowGuest><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
+        <Route path="/Explore" element={<RequireAuth allowGuest><Wrap name="Explore"><Explore /></Wrap></RequireAuth>} />
+        <Route path="/MapView" element={<RequireAuth allowGuest><Wrap name="MapView"><MapView /></Wrap></RequireAuth>} />
+        <Route path="/POIDetail" element={<RequireAuth allowGuest><Wrap name="POIDetail"><POIDetail /></Wrap></RequireAuth>} />
+        <Route path="/Reports" element={<RequireAuth allowGuest><Wrap name="Reports"><Reports /></Wrap></RequireAuth>} />
+        <Route path="/Leaderboard" element={<RequireAuth allowGuest><Wrap name="Leaderboard"><Leaderboard /></Wrap></RequireAuth>} />
         <Route path="/CommunityVideos" element={<RequireAuth allowGuest><Wrap name="CommunityVideos"><CommunityVideos /></Wrap></RequireAuth>} />
 
         {/* ── Registered users only ────────────────────────── */}
-        <Route path="/TripPlanner"    element={<RequireAdmin><Wrap name="TripPlanner"><TripPlanner /></Wrap></RequireAdmin>} />
-        <Route path="/TripDetail"     element={<RequireAuth><Wrap name="TripDetail"><TripDetail /></Wrap></RequireAuth>} />
-        <Route path="/Profile"        element={<RequireAuth><Wrap name="Profile"><Profile /></Wrap></RequireAuth>} />
-        <Route path="/AddReport"      element={<RequireAuth><Wrap name="AddReport"><AddReport /></Wrap></RequireAuth>} />
-        <Route path="/AddReview"      element={<RequireAuth><Wrap name="AddReview"><AddReview /></Wrap></RequireAuth>} />
-        <Route path="/UploadVideo"    element={<RequireAuth><Wrap name="UploadVideo"><UploadVideo /></Wrap></RequireAuth>} />
-        <Route path="/MyTrips"        element={<RequireAuth><Wrap name="MyTrips"><MyTrips /></Wrap></RequireAuth>} />
+        <Route path="/TripPlanner" element={<RequireAdmin><Wrap name="TripPlanner"><TripPlanner /></Wrap></RequireAdmin>} />
+        <Route path="/TripDetail" element={<RequireAuth><Wrap name="TripDetail"><TripDetail /></Wrap></RequireAuth>} />
+        <Route path="/Profile" element={<RequireAuth><Wrap name="Profile"><Profile /></Wrap></RequireAuth>} />
+        <Route path="/AddReport" element={<RequireAuth><Wrap name="AddReport"><AddReport /></Wrap></RequireAuth>} />
+        <Route path="/AddReview" element={<RequireAuth><Wrap name="AddReview"><AddReview /></Wrap></RequireAuth>} />
+        <Route path="/UploadVideo" element={<RequireAuth><Wrap name="UploadVideo"><UploadVideo /></Wrap></RequireAuth>} />
+        <Route path="/MyTrips" element={<RequireAuth><Wrap name="MyTrips"><MyTrips /></Wrap></RequireAuth>} />
         <Route path="/RouteGenerator" element={<RequireAuth><Wrap name="RouteGenerator"><RouteGenerator /></Wrap></RequireAuth>} />
-        <Route path="/Admin"          element={<RequireAuth><Wrap name="Admin"><AdminPanel /></Wrap></RequireAuth>} />
-        <Route path="/favorites"      element={<RequireAuth><Wrap name="Favorites"><Favorites /></Wrap></RequireAuth>} />
-        <Route path="/profile/edit"   element={<RequireAuth><Wrap name="ProfileEdit"><ProfileEdit /></Wrap></RequireAuth>} />
+        <Route path="/Admin" element={<RequireAuth><Wrap name="Admin"><AdminPanel /></Wrap></RequireAuth>} />
+        <Route path="/Admin/places" element={<RequireAuth><Wrap name="AdminPlaces"><AdminPlaces /></Wrap></RequireAuth>} />
+        <Route path="/favorites" element={<RequireAuth><Wrap name="Favorites"><Favorites /></Wrap></RequireAuth>} />
+        <Route path="/profile/edit" element={<RequireAuth><Wrap name="ProfileEdit"><ProfileEdit /></Wrap></RequireAuth>} />
       </Routes>
     </>
   );

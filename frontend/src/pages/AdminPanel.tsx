@@ -445,7 +445,7 @@ export default function AdminPanel() {
   }
 
   const TAB_BTN = (t: Tab, label: string, urgent?: boolean) => (
-    <button onClick={() => setTab(t)}
+    <button onClick={() => { if (t === 'places') { navigate('/Admin/places'); return; } setTab(t); }}
       style={{
         flex: 1, padding: '12px 6px', border: 'none', borderRadius: 12,
         background: tab === t ? '#0d9e6e' : 'transparent',
@@ -529,6 +529,7 @@ export default function AdminPanel() {
           boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
         }}>
           {TAB_BTN('community_pois', '📍 מיקומי קהילה', true)}
+          {TAB_BTN('places', '🗺️ כל המקומות')}
           {TAB_BTN('users', `👥 משתמשים (${users.length})`)}
           {TAB_BTN('routes', `🗺️ מסלולים (${routes.length})`)}
         </div>
