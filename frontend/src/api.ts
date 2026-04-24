@@ -315,6 +315,16 @@ export const api = {
       (await apiFetch<{ data: any[] }>(`/locations/${locationId}/nearby?limit=${limit}&radius=${radiusMeters}`))
         .data.map(mapNearbyLocation),
 
+    // ── Featured ───────────────────────────────────────────
+    getFeatured: async (limit = 10): Promise<POI[]> =>
+      (await apiFetch<{ data: any[] }>(`/locations/featured?limit=${limit}`)).data.map(mapLocation),
+
+    // ── Nearby User (by coordinates) ───────────────────────
+    getNearbyUser: async (lat: number, lng: number, limit = 8, radius = 30000): Promise<NearbyPOI[]> => {
+      const qs = new URLSearchParams({ lat: String(lat), lng: String(lng), limit: String(limit), radius: String(radius) });
+      return (await apiFetch<{ data: any[] }>(`/locations/nearby-user?${qs}`)).data.map(mapNearbyLocation);
+    },
+
     // ── Ratings ────────────────────────────────────────────────
     getRating: async (locationId: string | number): Promise<RatingSummary> =>
       (await apiFetch<{ data: RatingSummary }>(`/locations/${locationId}/rating`)).data,
