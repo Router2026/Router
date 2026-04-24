@@ -915,6 +915,8 @@ export default function POIDetail() {
       </div>
 
       <TripBucketFab />
+      <TripBucketSheet />
+
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
