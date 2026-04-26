@@ -42,8 +42,10 @@ export interface POI {
   images: string[]; main_image: string; difficulty: string;
   duration_minutes?: number; has_water?: boolean; has_shade?: boolean;
   accessible?: boolean; average_rating: number;
-  /** Optional photographer credit shown as a watermark on the main image, e.g. "צילום: דן לוי" */
+  /** Optional photographer credit shown as a watermark on the main image */
   photo_credit?: string;
+  /** Username of the community member who originally contributed this place */
+  uploaded_by?: string;
 }
 
 export interface NearbyPOI extends POI {
@@ -177,6 +179,7 @@ function mapLocation(r: any): POI {
     has_shade: r.has_shade, accessible: r.accessible,
     average_rating: parseFloat(r.average_rating) || 4.0,
     photo_credit: r.photo_credit || r.credit || undefined,
+    uploaded_by: r.uploaded_by || undefined,
   };
 }
 

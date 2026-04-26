@@ -111,72 +111,123 @@ export async function approveCommunityPoi(
   adminUserId: number,
   edits?: Partial<Pick<CommunityPoiRow, "name" | "category" | "description">>
 ): Promise<CommunityPoiRow> {
-  const { rows: updatedRows } = await rawDb.query(
-    `UPDATE community_pois
-     SET status      = 'approved',
-         reviewed_by = $2,
-         reviewed_at = NOW(),
-         name        = COALESCE($3, name),
-         category    = COALESCE($4, category),
-         description = COALESCE($5, description),
-         updated_at  = NOW()
-     WHERE id = $1
-     RETURNING *`,
-    [
-      id,
-      adminUserId,
-      edits?.name ?? null,
-      edits?.category ?? null,
-      edits?.description ?? null,
-    ]
-  );
+  const client = await rawDb.getClient();
+  try {
+    await client.query("BEGIN");
 
-  const poi = updatedRows[0] as unknown as CommunityPoiRow;
-
-  // Publish to public locations table (with geom + region_id)
-  await rawDb.query(
-    `INSERT INTO locations
-       (name, category, description, latitude, longitude, geom, images, source, source_id, region_id)
-     VALUES ($1, $2, $3, $4, $5,
-       ST_SetSRID(ST_MakePoint($6, $5), 4326)::geography,
-       $7, 'community', $8, $9)
-     ON CONFLICT (source, source_id) DO UPDATE
-       SET name        = EXCLUDED.name,
-           category    = EXCLUDED.category,
-           description = EXCLUDED.description,
-           region_id   = EXCLUDED.region_id,
-           updated_at  = NOW()`,
-    [
-      poi.name,
-      poi.category,
-      poi.description ?? "",
-      poi.latitude,
-      poi.longitude,
-      poi.longitude,          // MakePoint(lng, lat)
-      JSON.stringify(poi.photos),
-      String(poi.id),
-      (poi as any).region_id ?? null,
-    ]
-  );
-
-  if (poi.user_id) {
-    await rawDb.query(
-      `UPDATE users SET xp_points = xp_points + $1 WHERE id = $2`,
-      [APPROVAL_XP_REWARD, poi.user_id]
+    // 1. Mark the community POI as approved (with optional admin edits)
+    const { rows: updatedRows } = await client.query(
+      `UPDATE community_pois
+       SET status      = 'approved',
+           reviewed_by = $2,
+           reviewed_at = NOW(),
+           name        = COALESCE($3, name),
+           category    = COALESCE($4, category),
+           description = COALESCE($5, description),
+           updated_at  = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [
+        id,
+        adminUserId,
+        edits?.name ?? null,
+        edits?.category ?? null,
+        edits?.description ?? null,
+      ]
     );
 
-    await sendPushToUser(poi.user_id, {
-      title: "📍 המיקום שלך אושר!",
-      body: `"${poi.name}" פורסם למפה הציבורית. קיבלת ${APPROVAL_XP_REWARD} XP!`,
-      data: {
-        type: "community_poi_approved",
-        community_poi_id: String(poi.id),
-        xp_awarded: String(APPROVAL_XP_REWARD),
-      },
-    });
-  }
+    if (!updatedRows.length) {
+      throw Object.assign(new Error("Community POI not found"), { code: "NOT_FOUND" });
+    }
 
-  return poi;
+    const poi = updatedRows[0] as unknown as CommunityPoiRow;
+
+    // 2. Fetch submitter username for credit fields
+    let submitterUsername: string | null = null;
+    if (poi.user_id) {
+      const { rows: userRows } = await client.query(
+        `SELECT username FROM users WHERE id = $1 LIMIT 1`,
+        [poi.user_id]
+      );
+      submitterUsername = (userRows[0]?.username as string) ?? null;
+    }
+
+    const photos: string[] = Array.isArray(poi.photos) ? poi.photos : [];
+    const mainImage = photos.length > 0 ? photos[0] : null;
+    const photoCredit = submitterUsername ? `${submitterUsername}` : null;
+
+    const lat = parseFloat(poi.latitude as unknown as string);
+    const lng = parseFloat(poi.longitude as unknown as string);
+
+    // 3. Upsert into public locations table — inside the same transaction
+    // Note: lat/lng are passed TWICE — once as numeric for the columns,
+    // once as float8 for ST_MakePoint — to avoid PostgreSQL type-inference
+    // error 42P08 ("inconsistent types deduced for parameter $N").
+    await client.query(
+      `INSERT INTO locations
+         (name, category, description, latitude, longitude,
+          geom, images, main_image, source, source_id, region_id, photo_credit, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5,
+         ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326)::geography,
+         $8, $9, 'community', $10, $11, $12, $13)
+       ON CONFLICT (source, source_id) DO UPDATE
+         SET name         = EXCLUDED.name,
+             category     = EXCLUDED.category,
+             description  = EXCLUDED.description,
+             latitude     = EXCLUDED.latitude,
+             longitude    = EXCLUDED.longitude,
+             geom         = EXCLUDED.geom,
+             region_id    = EXCLUDED.region_id,
+             images       = EXCLUDED.images,
+             main_image   = EXCLUDED.main_image,
+             photo_credit = EXCLUDED.photo_credit,
+             uploaded_by  = EXCLUDED.uploaded_by,
+             updated_at   = NOW()`,
+      [
+        poi.name,                        // $1
+        poi.category,                    // $2
+        poi.description ?? "",           // $3
+        lat,                             // $4 latitude  (numeric column)
+        lng,                             // $5 longitude (numeric column)
+        lng,                             // $6 MakePoint(lng, ...) as float8
+        lat,                             // $7 MakePoint(..., lat) as float8
+        JSON.stringify(photos),          // $8
+        mainImage,                       // $9
+        String(poi.id),                  // $10 source_id
+        (poi as any).region_id ?? null,  // $11
+        photoCredit,                     // $12
+        submitterUsername,               // $13 uploaded_by
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    // 4. XP + push notification (outside transaction — non-critical)
+    if (poi.user_id) {
+      await rawDb.query(
+        `UPDATE users SET xp_points = xp_points + $1 WHERE id = $2`,
+        [APPROVAL_XP_REWARD, poi.user_id]
+      );
+
+      await sendPushToUser(poi.user_id, {
+        title: "📍 המיקום שלך אושר!",
+        body: `"${poi.name}" פורסם למפה הציבורית. קיבלת ${APPROVAL_XP_REWARD} XP!`,
+        data: {
+          type: "community_poi_approved",
+          community_poi_id: String(poi.id),
+          xp_awarded: String(APPROVAL_XP_REWARD),
+        },
+      });
+    }
+
+    return poi;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[approveCommunityPoi] transaction failed:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // ── Admin: Reject ──────────────────────────────────────────────────────────────

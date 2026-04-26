@@ -27,6 +27,7 @@ export interface Location {
   accessible?: boolean;
   average_rating: number;
   photo_credit?: string;
+  uploaded_by?: string;  // username of the community member who contributed this place
   created_at: Date;
   updated_at: Date;
 }
@@ -88,6 +89,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
     accessible: row.accessible as boolean | undefined,
     average_rating: parseFloat(row.average_rating as string) || 4.0,
     photo_credit: (row.photo_credit as string) || undefined,
+    uploaded_by: (row.uploaded_by as string) || undefined,
     created_at: row.created_at as Date,
     updated_at: row.updated_at as Date,
   };

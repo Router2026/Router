@@ -142,17 +142,38 @@ function CommunityPoisTab() {
 
   const handleApprove = async (poi: CommunityPoiAdmin) => {
     setBusy(poi.id);
-    const updated = await patchAdminPoi(poi.id, { action: 'approve' });
-    setPois(prev => prev.map(p => p.id === poi.id ? updated : p));
-    setBusy(null);
+    try {
+      const updated = await patchAdminPoi(poi.id, { action: 'approve' });
+      if (updated && updated.status) {
+        setPois(prev => prev.map(p => p.id === poi.id ? updated : p));
+      } else {
+        // Refetch to get latest state if response was malformed
+        const fresh = await fetchAdminPois(filter === 'all' ? undefined : filter);
+        setPois(fresh);
+      }
+    } catch (err) {
+      console.error('Approve failed', err);
+    } finally {
+      setBusy(null);
+    }
   };
 
   const handleReject = async (id: number, note: string) => {
     setBusy(id);
-    const updated = await patchAdminPoi(id, { action: 'reject', admin_note: note || undefined });
-    setPois(prev => prev.map(p => p.id === id ? updated : p));
-    setBusy(null);
-    setRejectNote(null);
+    try {
+      const updated = await patchAdminPoi(id, { action: 'reject', admin_note: note || undefined });
+      if (updated && updated.status) {
+        setPois(prev => prev.map(p => p.id === id ? updated : p));
+      } else {
+        const fresh = await fetchAdminPois(filter === 'all' ? undefined : filter);
+        setPois(fresh);
+      }
+    } catch (err) {
+      console.error('Reject failed', err);
+    } finally {
+      setBusy(null);
+      setRejectNote(null);
+    }
   };
 
   const handleEditSaved = (updated: CommunityPoiAdmin) => {
@@ -238,10 +259,21 @@ function CommunityPoisTab() {
                 </div>
               </div>
 
-              {/* Coordinates + description */}
-              <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>
+              {/* Coordinates + region + description */}
+              <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right', marginBottom: 4 }}>
                 📍 {parseFloat(poi.latitude).toFixed(5)}, {parseFloat(poi.longitude).toFixed(5)}
+                {(poi as any).region && (
+                  <span style={{ marginRight: 8, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 6, padding: '1px 7px', fontWeight: 700 }}>
+                    🗺️ {(poi as any).region}
+                  </span>
+                )}
               </div>
+              {poi.submitter_username && (
+                <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', marginBottom: 6 }}>
+                  👤 הועלה על ידי: <strong>{poi.submitter_username}</strong>
+                  {poi.submitter_email && ` (${poi.submitter_email})`}
+                </div>
+              )}
               {poi.description && (
                 <div style={{
                   fontSize: 12, color: '#475569', textAlign: 'right',

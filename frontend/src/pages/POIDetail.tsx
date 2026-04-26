@@ -735,6 +735,31 @@ export default function POIDetail() {
 
             <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.8, textAlign: 'right', marginBottom: 24 }}>{poi.description}</p>
 
+            {/* Community contributor credit */}
+            {poi.uploaded_by && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: '#f0fdf8', borderRadius: 12,
+                padding: '10px 14px', marginBottom: 16,
+                direction: 'rtl', border: '1px solid #d1fae5',
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 15, flexShrink: 0,
+                }}>👤</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>מקום זה נוסף על ידי</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#065f46' }}>{poi.uploaded_by}</div>
+                </div>
+                <div style={{
+                  fontSize: 11, color: '#0d9e6e', fontWeight: 700,
+                  background: '#d1fae5', borderRadius: 8, padding: '3px 9px',
+                }}>קהילה 🌿</div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', direction: 'rtl' }}>
               {poi.duration_minutes && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#64748b' }}>
@@ -915,6 +940,8 @@ export default function POIDetail() {
       </div>
 
       <TripBucketFab />
+      <TripBucketSheet />
+
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }

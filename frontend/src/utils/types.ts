@@ -110,6 +110,8 @@ export interface CommunityPoiAdmin {
     reviewed_by: number | null;
     reviewed_at: string | null;
     created_at: string;
+    region: string | null;
+    region_id: number | null;
     submitter_username?: string;
     submitter_email?: string;
 }
