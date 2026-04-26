@@ -84,11 +84,9 @@ async function geocodePlaceName(name: string): Promise<LatLng | null> {
   return null;
 }
 
-/** Classify region via Backend API, fallback to Nominatim */
+/** Classify region via Backend API (regions table), fallback to Nominatim */
 async function reverseGeocodeRegion(lat: number, lng: number): Promise<string | null> {
   try {
-    // Attempt to fetch the region from your backend DB API
-    // Update this URL/path to match your exact endpoint
     const apiUrl = `${import.meta.env.VITE_API_URL ?? ''}/api/regions/classify?lat=${lat}&lng=${lng}`;
     const token = localStorage.getItem('router_auth_token');
 
@@ -101,15 +99,15 @@ async function reverseGeocodeRegion(lat: number, lng: number): Promise<string | 
 
     if (dbRes.ok) {
       const data = await dbRes.json();
-      // Assuming the API returns the region name in data.name or data.region.name
-      const regionName = data?.name || data?.data?.name || data?.regionName;
+      // API returns { data: { name, id } }
+      const regionName = data?.data?.name;
       if (regionName) return regionName;
     }
   } catch (err) {
     console.error("Backend region classification failed:", err);
   }
 
-  // Fallback to standard Nominatim if the backend API didn't return a match
+  // Fallback to Nominatim
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=8&accept-language=he`;
     const res = await fetch(url);
