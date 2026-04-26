@@ -193,6 +193,24 @@ function parseGoogleMapsUrl(raw: string): UserLocation | null {
   return null;
 }
 
+/** Geocode a free-text place name via Nominatim, returns up to 5 candidates */
+interface GeoCandidate { lat: number; lng: number; display_name: string }
+
+async function geocodePlaceName(query: string): Promise<GeoCandidate[]> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&accept-language=he`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
+    const data = await res.json();
+    return (data ?? []).map((r: any) => ({
+      lat: parseFloat(r.lat),
+      lng: parseFloat(r.lon),
+      display_name: r.display_name as string,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // ── Location Detector ─────────────────────────────────────────────────────────
 
 type LocationMode = 'gps' | 'custom';
@@ -212,6 +230,8 @@ function LocationStartPoint({
   const [customInput, setCustomInput] = useState('');
   const [customError, setCustomError] = useState('');
   const [customSuccess, setCustomSuccess] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [candidates, setCandidates] = useState<{ lat: number; lng: number; display_name: string }[]>([]);
 
   const handleDetectGps = () => {
     if (!navigator.geolocation) {
@@ -237,22 +257,53 @@ function LocationStartPoint({
     );
   };
 
-  const handleCustomSubmit = () => {
+  const handleCustomSubmit = async () => {
+    const trimmed = customInput.trim();
+    if (!trimmed) return;
     setCustomError('');
-    const parsed = parseGoogleMapsUrl(customInput);
-    if (!parsed) {
-      setCustomError('לא ניתן לחלץ קואורדינטות. הדבק קישור מגוגל מפות או הכנס "קו רוחב, קו אורך".');
-      setCustomSuccess(false);
+    setCustomSuccess(false);
+    setCandidates([]);
+
+    // First try to parse as URL / coordinates — instant, no network call needed
+    const parsed = parseGoogleMapsUrl(trimmed);
+    if (parsed) {
+      onDetected(parsed);
+      setCustomSuccess(true);
       return;
     }
-    onDetected(parsed);
+
+    // Otherwise treat as a place name and geocode it
+    setGeocoding(true);
+    const results = await geocodePlaceName(trimmed);
+    setGeocoding(false);
+
+    if (!results.length) {
+      setCustomError('לא מצאנו מיקום תואם. נסה שם מקום אחר, קואורדינטות, או קישור מגוגל מפות.');
+      return;
+    }
+
+    if (results.length === 1) {
+      // Single hit — pick it automatically
+      onDetected(results[0]);
+      setCustomSuccess(true);
+    } else {
+      // Multiple hits — let the user pick
+      setCandidates(results);
+    }
+  };
+
+  const handlePickCandidate = (c: { lat: number; lng: number; display_name: string }) => {
+    onDetected(c);
     setCustomSuccess(true);
+    setCandidates([]);
   };
 
   const switchMode = (m: LocationMode) => {
     setMode(m);
     setCustomError('');
     setCustomSuccess(false);
+    setCandidates([]);
+    setGeocoding(false);
     // Reset GPS state when switching away so re-entering GPS shows the detect button
     if (m === 'custom') setGeoState('idle');
   };
@@ -279,7 +330,7 @@ function LocationStartPoint({
       }}>
         {([
           { id: 'gps' as LocationMode, label: '📡 מיקום נוכחי (GPS)' },
-          { id: 'custom' as LocationMode, label: '🗺️ מיקום מגוגל מפות' },
+          { id: 'custom' as LocationMode, label: '🔍 חיפוש מיקום' },
         ] as const).map(opt => (
           <button
             key={opt.id}
@@ -369,43 +420,84 @@ function LocationStartPoint({
         </div>
       )}
 
-      {/* ── Custom / Google Maps mode ── */}
+      {/* ── Custom / Google Maps / Place name mode ── */}
       {mode === 'custom' && (
         <div>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>
-            פתח גוגל מפות, לחץ לחיצה ארוכה על המיקום הרצוי → העתק את הקישור מסרגל הכתובת, או הדבק קואורדינטות בפורמט <strong>קו רוחב, קו אורך</strong>.
+            הקלד שם מקום, הדבק קישור מגוגל מפות, או קואורדינטות בפורמט <strong>קו רוחב, קו אורך</strong>.
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               type="text"
               value={customInput}
-              onChange={e => { setCustomInput(e.target.value); setCustomError(''); setCustomSuccess(false); }}
+              onChange={e => { setCustomInput(e.target.value); setCustomError(''); setCustomSuccess(false); setCandidates([]); }}
               onKeyDown={e => e.key === 'Enter' && handleCustomSubmit()}
-              placeholder="https://maps.google.com/... או 31.7683, 35.2137"
-              dir="ltr"
+              placeholder="תל אביב, מצפה רמון, https://maps.google.com/..."
+              dir="rtl"
               style={{
                 flex: 1, padding: '9px 12px', borderRadius: 10,
                 border: `1.5px solid ${customError ? '#fca5a5' : customSuccess ? '#6ee7b7' : '#e2e8f0'}`,
-                fontSize: 12, fontFamily: 'monospace', color: '#1a2e2a',
+                fontSize: 13, fontFamily: 'Heebo, sans-serif', color: '#1a2e2a',
                 outline: 'none', background: '#f8fafc',
               }}
             />
             <button
               onClick={handleCustomSubmit}
+              disabled={geocoding || !customInput.trim()}
               style={{
                 padding: '9px 16px', border: 'none', borderRadius: 10,
-                background: '#0d9e6e', color: '#fff',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: geocoding || !customInput.trim() ? '#e2e8f0' : '#0d9e6e',
+                color: geocoding || !customInput.trim() ? '#94a3b8' : '#fff',
+                fontSize: 12, fontWeight: 700,
+                cursor: geocoding || !customInput.trim() ? 'not-allowed' : 'pointer',
                 fontFamily: 'Heebo, sans-serif', flexShrink: 0,
+                minWidth: 56,
               }}
             >
-              אשר
+              {geocoding ? '⏳' : 'חפש'}
             </button>
           </div>
 
           {customError && (
             <div style={{ marginTop: 8, fontSize: 11, color: '#dc2626' }}>⚠️ {customError}</div>
+          )}
+
+          {/* Candidate list — shown when Nominatim returns multiple hits */}
+          {candidates.length > 0 && (
+            <div style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: '1.5px solid #e2e8f0' }}>
+              <div style={{ fontSize: 11, color: '#64748b', padding: '7px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: 700 }}>
+                נמצאו מספר תוצאות — בחר את המיקום הנכון:
+              </div>
+              {candidates.map((cand, i) => (
+                <button
+                  key={i}
+                  onClick={() => handlePickCandidate(cand)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '10px 12px', border: 'none', borderBottom: i < candidates.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    background: '#fff', cursor: 'pointer', textAlign: 'right',
+                    fontFamily: 'Heebo, sans-serif',
+                    transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f0fdf8')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                >
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>📍</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1a2e2a', marginBottom: 2, direction: 'rtl' }}>
+                      {cand.display_name.split(',')[0]}
+                    </div>
+                    <div style={{
+                      fontSize: 10, color: '#94a3b8', direction: 'rtl',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {cand.display_name}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
 
           {customSuccess && location && (
