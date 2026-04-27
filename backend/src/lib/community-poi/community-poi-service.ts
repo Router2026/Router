@@ -86,8 +86,9 @@ export async function createCommunityPoi(
 
   const { rows } = await rawDb.query(
     `INSERT INTO community_pois
-       (user_id, name, category, description, latitude, longitude, photos, status, region, region_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9)
+       (user_id, name, category, description, latitude, longitude, photos, status, region, region_id,
+        difficulty, duration_minutes, has_water, has_shade, accessible, photo_credit)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
     [
       input.userId,
@@ -99,6 +100,12 @@ export async function createCommunityPoi(
       JSON.stringify(input.photos ?? []),
       regionInfo?.region_name ?? null,
       regionInfo?.region_id ?? null,
+      input.difficulty ?? 'בינוני',
+      input.duration_minutes ?? null,
+      input.has_water ?? false,
+      input.has_shade ?? false,
+      input.accessible ?? false,
+      input.photo_credit ?? null,
     ]
   );
   return rows[0] as unknown as CommunityPoiRow;
@@ -154,7 +161,9 @@ export async function approveCommunityPoi(
 
     const photos: string[] = Array.isArray(poi.photos) ? poi.photos : [];
     const mainImage = photos.length > 0 ? photos[0] : null;
-    const photoCredit = submitterUsername ? `${submitterUsername}` : null;
+    // Use contributor-supplied photo_credit if provided; fall back to submitter username.
+    // uploaded_by always records who submitted the community POI.
+    const photoCredit = (poi as any).photo_credit || submitterUsername || null;
 
     const lat = parseFloat(poi.latitude as unknown as string);
     const lng = parseFloat(poi.longitude as unknown as string);
@@ -166,37 +175,48 @@ export async function approveCommunityPoi(
     await client.query(
       `INSERT INTO locations
          (name, category, description, latitude, longitude,
-          geom, images, main_image, source, source_id, region_id, photo_credit, uploaded_by)
+          geom, images, main_image, source, source_id, region_id, photo_credit, uploaded_by,
+          difficulty, duration_minutes, has_water, has_shade, accessible)
        VALUES ($1, $2, $3, $4, $5,
          ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326)::geography,
-         $8, $9, 'community', $10, $11, $12, $13)
+         $8, $9, 'community', $10, $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT (source, source_id) DO UPDATE
-         SET name         = EXCLUDED.name,
-             category     = EXCLUDED.category,
-             description  = EXCLUDED.description,
-             latitude     = EXCLUDED.latitude,
-             longitude    = EXCLUDED.longitude,
-             geom         = EXCLUDED.geom,
-             region_id    = EXCLUDED.region_id,
-             images       = EXCLUDED.images,
-             main_image   = EXCLUDED.main_image,
-             photo_credit = EXCLUDED.photo_credit,
-             uploaded_by  = EXCLUDED.uploaded_by,
-             updated_at   = NOW()`,
+         SET name             = EXCLUDED.name,
+             category         = EXCLUDED.category,
+             description      = EXCLUDED.description,
+             latitude         = EXCLUDED.latitude,
+             longitude        = EXCLUDED.longitude,
+             geom             = EXCLUDED.geom,
+             region_id        = EXCLUDED.region_id,
+             images           = EXCLUDED.images,
+             main_image       = EXCLUDED.main_image,
+             photo_credit     = EXCLUDED.photo_credit,
+             uploaded_by      = EXCLUDED.uploaded_by,
+             difficulty       = EXCLUDED.difficulty,
+             duration_minutes = EXCLUDED.duration_minutes,
+             has_water        = EXCLUDED.has_water,
+             has_shade        = EXCLUDED.has_shade,
+             accessible       = EXCLUDED.accessible,
+             updated_at       = NOW()`,
       [
-        poi.name,                        // $1
-        poi.category,                    // $2
-        poi.description ?? "",           // $3
-        lat,                             // $4 latitude  (numeric column)
-        lng,                             // $5 longitude (numeric column)
-        lng,                             // $6 MakePoint(lng, ...) as float8
-        lat,                             // $7 MakePoint(..., lat) as float8
-        JSON.stringify(photos),          // $8
-        mainImage,                       // $9
-        String(poi.id),                  // $10 source_id
-        (poi as any).region_id ?? null,  // $11
-        photoCredit,                     // $12
-        submitterUsername,               // $13 uploaded_by
+        poi.name,                                    // $1
+        poi.category,                                // $2
+        poi.description ?? "",                       // $3
+        lat,                                         // $4
+        lng,                                         // $5
+        lng,                                         // $6 MakePoint lng
+        lat,                                         // $7 MakePoint lat
+        JSON.stringify(photos),                      // $8
+        mainImage,                                   // $9
+        String(poi.id),                              // $10 source_id
+        (poi as any).region_id ?? null,              // $11
+        photoCredit,                                 // $12
+        submitterUsername,                           // $13
+        (poi as any).difficulty ?? 'בינוני',         // $14
+        (poi as any).duration_minutes ?? null,       // $15
+        (poi as any).has_water ?? false,             // $16
+        (poi as any).has_shade ?? false,             // $17
+        (poi as any).accessible ?? false,            // $18
       ]
     );
 

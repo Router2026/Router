@@ -68,12 +68,18 @@ export async function POST(req: NextRequest) {
 
     const poi = await createCommunityPoi({
       userId,
-      name:        body.name,
-      category:    body.category    ?? "טבע",
+      name: body.name,
+      category: body.category ?? "טבע",
       description: body.description ?? undefined,
-      latitude:    parseFloat(body.latitude),
-      longitude:   parseFloat(body.longitude),
-      photos:      Array.isArray(body.photos) ? body.photos : [],
+      latitude: parseFloat(body.latitude),
+      longitude: parseFloat(body.longitude),
+      photos: Array.isArray(body.photos) ? body.photos : [],
+      difficulty: body.difficulty ?? undefined,
+      duration_minutes: body.duration_minutes != null ? parseInt(body.duration_minutes) : undefined,
+      has_water: body.has_water != null ? Boolean(body.has_water) : undefined,
+      has_shade: body.has_shade != null ? Boolean(body.has_shade) : undefined,
+      accessible: body.accessible != null ? Boolean(body.accessible) : undefined,
+      photo_credit: body.photo_credit ?? undefined,
     });
 
     return NextResponse.json(successResponse(poi), { status: 201 });

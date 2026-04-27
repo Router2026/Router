@@ -189,6 +189,12 @@ export default function ContributePOI() {
   const [description, setDescription] = useState('');
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [mediaUrlInput, setMediaUrlInput] = useState('');
+  const [difficulty, setDifficulty] = useState('בינוני');
+  const [durationMinutes, setDurationMinutes] = useState('');
+  const [hasWater, setHasWater] = useState(false);
+  const [hasShade, setHasShade] = useState(false);
+  const [accessible, setAccessible] = useState(false);
+  const [photoCredit, setPhotoCredit] = useState('');
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -341,6 +347,12 @@ export default function ContributePOI() {
           latitude: pickedPoint.lat,
           longitude: pickedPoint.lng,
           photos,
+          difficulty,
+          duration_minutes: durationMinutes ? parseInt(durationMinutes) : undefined,
+          has_water: hasWater,
+          has_shade: hasShade,
+          accessible,
+          photo_credit: photoCredit.trim() || undefined,
         }),
       });
 
@@ -558,10 +570,62 @@ export default function ContributePOI() {
           />
         </div>
 
+
+        {/* ── Details ─────────────────────────────────────────────────────── */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 12, textAlign: 'right' }}>
+            5. פרטים נוספים
+          </label>
+
+          {/* Difficulty */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8, textAlign: 'right' }}>רמת קושי</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+              {['קל - משפחות', 'קל', 'בינוני', 'מאתגר', 'קשה', 'אקסטרים'].map(d => {
+                const color = ({ 'קל - משפחות': '#16a34a', 'קל': '#16a34a', 'בינוני': '#d97706', 'מאתגר': '#dc2626', 'קשה': '#dc2626', 'אקסטרים': '#7c3aed' } as any)[d] || '#64748b';
+                const active = difficulty === d;
+                return (
+                  <button key={d} onClick={() => setDifficulty(d)} style={{
+                    padding: '7px 14px', borderRadius: 20, border: `2px solid ${active ? color : '#e2e8f0'}`,
+                    background: active ? color + '18' : '#fff', color: active ? color : '#64748b',
+                    fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
+                  }}>{d}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Duration */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6, textAlign: 'right' }}>משך ביקור משוער (דקות)</div>
+            <input
+              type="number" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)}
+              placeholder="לדוגמה: 90"
+              style={{ width: '100%', border: '2px solid #e2e8f0', borderRadius: 12, padding: '10px 14px', fontSize: 14, fontFamily: 'Heebo, sans-serif', textAlign: 'right', outline: 'none', boxSizing: 'border-box', color: '#1a2e2a' }}
+            />
+          </div>
+
+          {/* Flags */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 14 }}>
+            {([
+              { key: 'water', label: '💧 יש מים / מעיין בקרבת מקום', val: hasWater, set: setHasWater },
+              { key: 'shade', label: '🌳 יש צל', val: hasShade, set: setHasShade },
+              { key: 'accessible', label: '♿ נגיש לעגלות ולנכים', val: accessible, set: setAccessible },
+            ] as const).map(({ key, label, val, set }) => (
+              <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                <div onClick={() => set(!val)} style={{ width: 44, height: 24, borderRadius: 12, background: val ? '#0d9e6e' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                  <div style={{ position: 'absolute', top: 2, left: val ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+                </div>
+                <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         {/* ── Media (images + videos) ─────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 4, textAlign: 'right' }}>
-            5. תמונות וסרטונים (אופציונלי)
+            6. תמונות וסרטונים (אופציונלי)
           </label>
           <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10, textAlign: 'right' }}>
             עד {MAX_MEDIA_FILES} קבצים · JPEG, PNG, WEBP, MP4, MOV · עד {MAX_FILE_MB} MB
@@ -608,7 +672,15 @@ export default function ContributePOI() {
               style={{ flex: 1, border: '2px solid #e2e8f0', borderRadius: 12, padding: '10px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', textAlign: 'left', outline: 'none', color: '#1a2e2a', direction: 'ltr' }}
             />
           </div>
-
+          {/* Photo credit */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6, textAlign: 'right' }}>קרדיט לצלם (אופציונלי)</div>
+            <input
+              value={photoCredit} onChange={e => setPhotoCredit(e.target.value)}
+              placeholder="שמך או שם הצלם..."
+              style={{ width: '100%', border: '2px solid #e2e8f0', borderRadius: 12, padding: '10px 14px', fontSize: 14, fontFamily: 'Heebo, sans-serif', textAlign: 'right', outline: 'none', boxSizing: 'border-box', color: '#1a2e2a' }}
+            />
+          </div>
           {/* Media preview grid */}
           {mediaItems.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
