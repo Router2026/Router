@@ -146,12 +146,23 @@ export interface PublicTripLocation {
   order_index: number; region_name?: string; difficulty?: string;
 }
 
+export interface RouteComment {
+  id: number; route_id: number; user_id: number;
+  username: string; avatar_url: string | null;
+  content: string; created_at: string;
+}
+
 export interface PublicTrip {
   id: number; user_id: number; title: string; description: string | null;
   route_geojson: object | null; is_public: boolean; created_at: string;
   creator_username: string; creator_avatar: string | null;
   creator_xp: number; location_count: number; locations: PublicTripLocation[];
   region?: string; difficulty?: string; style?: string; total_duration_hours?: number; group_type?: string;
+  // user content
+  user_description?: string; image_url?: string; video_url?: string;
+  // social
+  likes_count?: number; comments_count?: number;
+  average_rating?: number; ratings_count?: number;
 }
 
 export interface FavoriteLocation {
@@ -429,6 +440,25 @@ export const api = {
       (await apiFetch<{ data: PublicTrip }>('/trips/public', { method: 'POST', body: JSON.stringify(data) })).data,
     myTrips: async (): Promise<{ id: number; title: string; description: string | null; is_public: boolean; created_at: string; location_count: number }[]> =>
       (await apiFetch<{ data: any[] }>('/users/me/trips')).data,
+    // social
+    toggleLike: async (id: number): Promise<{ liked: boolean; likes_count: number }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/likes`, { method: 'POST' })).data,
+    getLikes: async (id: number): Promise<{ liked: boolean; likes_count: number }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/likes`)).data,
+    getComments: async (id: number): Promise<RouteComment[]> =>
+      (await apiFetch<{ data: RouteComment[] }>(`/trips/public/${id}/comments`)).data,
+    addComment: async (id: number, content: string): Promise<RouteComment> =>
+      (await apiFetch<{ data: RouteComment }>(`/trips/public/${id}/comments`, { method: 'POST', body: JSON.stringify({ content }) })).data,
+    deleteComment: async (id: number, commentId: number): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/comments?commentId=${commentId}`, { method: 'DELETE' });
+    },
+    getRating: async (id: number): Promise<{ average_rating: number; ratings_count: number; user_rating: number | null }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`)).data,
+    setRating: async (id: number, rating: number): Promise<{ average_rating: number; ratings_count: number; user_rating: number }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`, { method: 'POST', body: JSON.stringify({ rating }) })).data,
+    updateMedia: async (id: number, data: { user_description?: string; image_url?: string; video_url?: string }): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/media`, { method: 'PATCH', body: JSON.stringify(data) });
+    },
   },
 
   // ── Reviews ──────────────────────────────────────────────────

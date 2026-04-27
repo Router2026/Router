@@ -27,6 +27,15 @@ export interface PublicTrip {
   style?:           string;
   total_duration_hours?: number;
   total_distance_km?:    number;
+  // user-provided content
+  user_description?: string;
+  image_url?:        string;
+  video_url?:        string;
+  // social stats
+  likes_count?:    number;
+  comments_count?: number;
+  average_rating?: number;
+  ratings_count?:  number;
 }
 
 export interface PublicTripLocation {
@@ -137,6 +146,13 @@ async function attachStops(routes: Record<string, unknown>[]): Promise<PublicTri
       style:            (r.style      as string) || undefined,
       total_duration_hours: parseFloat(r.total_duration_hours as string) || undefined,
       total_distance_km:    parseFloat(r.total_distance_km    as string) || undefined,
+      user_description:     (r.user_description as string) || undefined,
+      image_url:            (r.image_url   as string) || undefined,
+      video_url:            (r.video_url   as string) || undefined,
+      likes_count:          parseInt(r.likes_count    as string, 10) || 0,
+      comments_count:       parseInt(r.comments_count as string, 10) || 0,
+      average_rating:       parseFloat(r.average_rating as string) || 0,
+      ratings_count:        parseInt(r.ratings_count  as string, 10) || 0,
     } as PublicTrip;
   });
 }
@@ -170,6 +186,11 @@ export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<Publ
        r.total_duration_hours, r.total_distance_km,
        r.difficulty, r.group_type, r.style,
        r.created_at,
+       r.user_description, r.image_url, r.video_url,
+       COALESCE(r.likes_count, 0)    AS likes_count,
+       COALESCE(r.comments_count, 0) AS comments_count,
+       COALESCE(r.average_rating, 0) AS average_rating,
+       COALESCE(r.ratings_count, 0)  AS ratings_count,
        reg.name AS region,
        u.username   AS creator_username,
        u.avatar_url AS creator_avatar,
@@ -178,7 +199,7 @@ export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<Publ
      JOIN   users u ON u.id = r.user_id
      LEFT   JOIN regions reg ON reg.id = r.region_id
      ${where}
-     ORDER  BY r.created_at DESC
+     ORDER  BY r.average_rating DESC, r.likes_count DESC, r.created_at DESC
      LIMIT  $${limitIdx} OFFSET $${offsetIdx}`,
     params
   );
@@ -193,6 +214,11 @@ export async function getPublicTripById(tripId: number): Promise<PublicTrip | nu
        r.total_duration_hours, r.total_distance_km,
        r.difficulty, r.group_type, r.style,
        r.created_at,
+       r.user_description, r.image_url, r.video_url,
+       COALESCE(r.likes_count, 0)    AS likes_count,
+       COALESCE(r.comments_count, 0) AS comments_count,
+       COALESCE(r.average_rating, 0) AS average_rating,
+       COALESCE(r.ratings_count, 0)  AS ratings_count,
        reg.name AS region,
        u.username   AS creator_username,
        u.avatar_url AS creator_avatar,
