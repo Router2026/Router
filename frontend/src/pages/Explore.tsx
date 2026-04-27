@@ -12,10 +12,9 @@ import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 import { useGuestLock } from '../components/LockedFeature';
 
-const DIFFICULTIES = ['קל - משפחות', 'בינוני', 'מאתגר', 'אקסטרים'];
+const DIFFICULTIES = ['קל', 'בינוני', 'מאתגר', 'אקסטרים'];
 
 const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
-  'קל - משפחות': { color: '#16a34a', bg: '#f0fdf4' },
   'קל': { color: '#16a34a', bg: '#f0fdf4' },
   'בינוני': { color: '#d97706', bg: '#fffbeb' },
   'מאתגר': { color: '#dc2626', bg: '#fef2f2' },
