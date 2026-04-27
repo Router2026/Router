@@ -90,7 +90,7 @@ export interface LocationSelectorProps {
     onSelect: (poi: POI | null) => void;
 }
 
-export type Tab = 'users' | 'routes' | 'community_pois';
+export type Tab = 'users' | 'routes' | 'community_pois' | 'places';
 
 // ── Community POI types ───────────────────────────────────────────────────────
 
