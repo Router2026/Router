@@ -17,6 +17,13 @@ export interface CommunityPoiRow {
   reviewed_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  // Extra detail fields (optional, supplied by contributor)
+  difficulty: string | null;
+  duration_minutes: number | null;
+  has_water: boolean | null;
+  has_shade: boolean | null;
+  accessible: boolean | null;
+  photo_credit: string | null;
   // Auto-classified from coordinates
   region: string | null;
   region_id: number | null;
@@ -33,4 +40,10 @@ export interface CreateCommunityPoiInput {
   latitude: number;
   longitude: number;
   photos?: string[];
+  difficulty?: string;
+  duration_minutes?: number;
+  has_water?: boolean;
+  has_shade?: boolean;
+  accessible?: boolean;
+  photo_credit?: string;
 }
