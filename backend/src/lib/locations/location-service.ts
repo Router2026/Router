@@ -25,6 +25,7 @@ export interface Location {
   has_water?: boolean;
   has_shade?: boolean;
   accessible?: boolean;
+  is_featured?: boolean;
   average_rating: number;
   photo_credit?: string;
   uploaded_by?: string;  // username of the community member who contributed this place
@@ -87,6 +88,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
     has_water: row.has_water as boolean | undefined,
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
+    is_featured: row.is_featured as boolean | undefined,
     average_rating: parseFloat(row.average_rating as string) || 4.0,
     photo_credit: (row.photo_credit as string) || undefined,
     uploaded_by: (row.uploaded_by as string) || undefined,
@@ -409,9 +411,17 @@ export interface UpdateLocationInput {
   has_water?: boolean;
   has_shade?: boolean;
   accessible?: boolean;
+  is_featured?: boolean;
   main_image?: string;
   images?: string[];
   photo_credit?: string;
+  average_rating?: number;
+  region_id?: number;
+  latitude?: number;
+  longitude?: number;
+  source?: string;
+  source_id?: string;
+  uploaded_by?: string;
 }
 
 export async function updateLocation(
@@ -421,7 +431,9 @@ export async function updateLocation(
   const allowed: (keyof UpdateLocationInput)[] = [
     "name", "description", "category", "difficulty",
     "duration_minutes", "has_water", "has_shade", "accessible",
-    "main_image", "images", "photo_credit",
+    "is_featured", "main_image", "images", "photo_credit",
+    "average_rating", "region_id", "latitude", "longitude",
+    "source", "source_id", "uploaded_by",
   ];
 
   const fields: string[] = [];

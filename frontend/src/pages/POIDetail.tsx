@@ -10,7 +10,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api, type POI, type Review, type CommunityReport, type LocationImage, type LocationMedia, type NearbyPOI, type RatingSummary } from '../api';
+import { api, type POI, type Review, type CommunityReport, type LocationImage, type LocationMedia, type NearbyPOI, type RatingSummary, type Region } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
 import { useTripBucket } from '../context/TripBucketContext';
@@ -19,6 +19,7 @@ import TripBucketFab from '../components/TripBucketFab';
 import FavoriteButton from '../components/FavoriteButton';
 import UploadPhotoButton from '../components/UploadPhotoButton';
 import XpToast from '../components/XpToast';
+import POIDetailsEditAdmin from './POIDetailsEditAdmin';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -265,101 +266,8 @@ function StarRating({ locationId, initialSummary, isLoggedIn }: {
   );
 }
 
-// ── Admin Edit Modal ─────────────────────────────────────────────
-function AdminEditModal({ poi, onClose, onSaved }: { poi: POI; onClose: () => void; onSaved: (updated: POI) => void }) {
-  const [form, setForm] = useState({
-    name: poi.name, description: poi.description, category: poi.category,
-    difficulty: poi.difficulty || 'בינוני', main_image: poi.main_image || '',
-    duration_minutes: poi.duration_minutes || 0,
-    has_water: poi.has_water || false, has_shade: poi.has_shade || false, accessible: poi.accessible || false,
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
-  const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
-
-  const handleImageFile = async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => set('main_image', reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleSave = async () => {
-    setSaving(true); setError(null);
-    try {
-      const updated = await api.locations.update(poi.id, form);
-      onSaved(updated);
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'שמירה נכשלה');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box', direction: 'rtl', marginBottom: 10 };
-  const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', direction: 'rtl', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#64748b' }}>✕</button>
-          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>🛡️ עריכת מקום (אדמין)</div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={lbl}>תמונה ראשית</label>
-          {form.main_image && (
-            <img src={form.main_image} alt="preview" style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 10, marginBottom: 8, border: '2px solid #e2e8f0' }} />
-          )}
-          <input type="file" ref={fileRef} accept="image/*" style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => fileRef.current?.click()}
-              style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1.5px solid #0d9e6e', background: '#f0fdf8', color: '#0d9e6e', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-              📁 העלה מהמחשב
-            </button>
-          </div>
-          <input value={form.main_image.startsWith('data:') ? '' : form.main_image}
-            onChange={e => set('main_image', e.target.value)}
-            placeholder="https://..." style={{ ...inp, marginTop: 8 }} />
-        </div>
-        <label style={lbl}>שם המקום</label>
-        <input value={form.name} onChange={e => set('name', e.target.value)} style={inp} />
-        <label style={lbl}>קטגוריה</label>
-        <input value={form.category} onChange={e => set('category', e.target.value)} style={inp} />
-        <label style={lbl}>רמת קושי</label>
-        <select value={form.difficulty} onChange={e => set('difficulty', e.target.value)} style={{ ...inp }}>
-          {['קל - משפחות', 'קל', 'בינוני', 'קשה', 'מאתגר'].map(d => <option key={d}>{d}</option>)}
-        </select>
-        <label style={lbl}>משך ביקור (דקות)</label>
-        <input type="number" value={form.duration_minutes} onChange={e => set('duration_minutes', parseInt(e.target.value) || 0)} style={inp} />
-        <label style={lbl}>תיאור</label>
-        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4} style={{ ...inp, resize: 'vertical' } as any} />
-        <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-          {[['has_water', '💧 יש מים'], ['has_shade', '🌿 יש צל'], ['accessible', '♿ נגיש']].map(([key, label]) => (
-            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              <input type="checkbox" checked={(form as any)[key]} onChange={e => set(key, e.target.checked)} style={{ width: 16, height: 16, accentColor: '#0d9e6e' }} />
-              {label}
-            </label>
-          ))}
-        </div>
-        {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 10 }}>⚠️ {error}</div>}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={handleSave} disabled={saving}
-            style={{ flex: 1, padding: '12px', border: 'none', borderRadius: 12, background: saving ? '#e2e8f0' : 'linear-gradient(135deg,#0d9e6e,#0bba7e)', color: saving ? '#94a3b8' : '#fff', fontFamily: 'Heebo, sans-serif', fontWeight: 800, fontSize: 15, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? '⏳ שומר...' : '✅ שמור שינויים'}
-          </button>
-          <button onClick={onClose}
-            style={{ padding: '12px 20px', border: '1.5px solid #e2e8f0', borderRadius: 12, background: '#fff', color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-            ביטול
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ── Admin Edit Modal — replaced by POIDetailsEditAdmin (imported from POIDetailsEditAdmin.tsx) ──
 
 // ── Media Gallery (enhanced: images + videos + credits + modal) ──
 function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
@@ -593,6 +501,7 @@ export default function POIDetail() {
   const [error, setError] = useState<string | null>(null);
   const [showAdminEdit, setShowAdminEdit] = useState(false);
   const [shareXp, setShareXp] = useState<any>(null);
+  const [regions, setRegions] = useState<Region[]>([]);
 
   const poiIdNum = Number(poiId);
   const isAdmin = user?.is_admin ?? false;
@@ -600,6 +509,10 @@ export default function POIDetail() {
   useEffect(() => {
     if (!poiId) return;
     setLoading(true); setError(null);
+    // Fetch regions for the admin edit panel (only if admin)
+    if (user?.is_admin) {
+      api.regions.list().then(setRegions).catch(() => { });
+    }
     api.locations.get(poiId)
       .then(async poiData => {
         setPoi(poiData);
@@ -682,8 +595,13 @@ export default function POIDetail() {
     <>
       {shareXp && <XpToast xp={shareXp} onDone={() => setShareXp(null)} />}
       {showAdminEdit && (
-        <AdminEditModal poi={poi} onClose={() => setShowAdminEdit(false)}
-          onSaved={updated => { setPoi(updated); setShowAdminEdit(false); }} />
+        <POIDetailsEditAdmin
+          poi={poi}
+          regions={regions}
+          onClose={() => setShowAdminEdit(false)}
+          onSaved={updated => { setPoi(updated); setShowAdminEdit(false); }}
+          onDeleted={_id => { navigate(-1); }}
+        />
       )}
 
       <div style={{ background: '#f0f4f3', minHeight: '100vh', width: '100%' }}>
