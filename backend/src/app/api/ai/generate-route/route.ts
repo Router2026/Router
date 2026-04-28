@@ -84,19 +84,28 @@ export async function POST(req: NextRequest) {
     if (includeCoffee) requestedCategories.add("coffee_trail");
     if (requestedCategories.size === 0) requestedCategories.add("attraction");
 
-    // Always include attraction as a base so the query returns something useful
+    // Always include attraction + hiking_trail as a base so the query never returns empty
     const queryCategories = [...new Set([...requestedCategories, "attraction", "hiking_trail"])];
 
-    // Fetch real locations from DB — only pass what actually exists to the LLM
+    // Resolve region_id once — avoids a JOIN and an unindexed name scan on every call
+    const { rows: regionRows } = await rawDb.query(
+      `SELECT id FROM regions WHERE name = $1 LIMIT 1`,
+      [region]
+    );
+    if (!regionRows.length) {
+      return NextResponse.json(errorResponse(`Unknown region: ${region}`, "VALIDATION_ERROR"), { status: 400 });
+    }
+    const regionId = regionRows[0].id;
+
+    // Fetch locations using the indexed (region_id, category) lookup — no JOIN needed
     const { rows: locationRows } = await rawDb.query(
-      `SELECT l.name, l.description, l.category, l.latitude, l.longitude, l.duration_minutes
-       FROM locations l
-       JOIN regions r ON r.id = l.region_id
-       WHERE r.name = $1
-         AND l.category = ANY($2)
+      `SELECT name, description, category, latitude, longitude, duration_minutes
+       FROM locations
+       WHERE region_id = $1
+         AND category = ANY($2)
        ORDER BY RANDOM()
        LIMIT 40`,
-      [region, queryCategories]
+      [regionId, queryCategories]
     );
 
     // Only tell the LLM about categories that actually have locations in the DB
