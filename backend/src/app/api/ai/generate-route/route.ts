@@ -73,22 +73,48 @@ export async function POST(req: NextRequest) {
     const groupMapping = GROUP_MAP[groupType] ?? GROUP_MAP["friends"];
     const times = { start: startTime, end: endTime };
 
-    // Build POI categories from styles
-    const categorySet = new Set<string>();
+    // Build requested POI categories from styles
+    const requestedCategories = new Set<string>();
     for (const style of styles) {
       for (const cat of STYLE_TO_CATEGORIES[style] ?? []) {
-        categorySet.add(cat);
+        requestedCategories.add(cat);
       }
     }
-    if (includeFood) categorySet.add("restaurant");
-    if (includeCoffee) categorySet.add("coffee_trail");
-    if (categorySet.size === 0) categorySet.add("attraction"); // fallback
+    if (includeFood) requestedCategories.add("restaurant");
+    if (includeCoffee) requestedCategories.add("coffee_trail");
+    if (requestedCategories.size === 0) requestedCategories.add("attraction");
+
+    // Always include attraction as a base so the query returns something useful
+    const queryCategories = [...new Set([...requestedCategories, "attraction", "hiking_trail"])];
+
+    // Fetch real locations from DB — only pass what actually exists to the LLM
+    const { rows: locationRows } = await rawDb.query(
+      `SELECT l.name, l.description, l.category, l.latitude, l.longitude, l.duration_minutes
+       FROM locations l
+       JOIN regions r ON r.id = l.region_id
+       WHERE r.name = $1
+         AND l.category = ANY($2)
+       ORDER BY RANDOM()
+       LIMIT 40`,
+      [region, queryCategories]
+    );
+
+    // Only tell the LLM about categories that actually have locations in the DB
+    const presentCategories = new Set(locationRows.map(r => r.category as string));
+    const finalCategories = [...requestedCategories].filter(c => presentCategories.has(c));
+    if (finalCategories.length === 0) {
+      // Fallback: use whatever categories are present
+      finalCategories.push(...presentCategories);
+    }
+    if (finalCategories.length === 0) {
+      return NextResponse.json(errorResponse("No locations found for the selected region and styles", "NOT_FOUND"), { status: 404 });
+    }
 
     const input: TripInput = {
       travelerType: groupMapping.travelerType,
       groupSize: groupMapping.groupSize,
       durationDays: 1,
-      poiCategories: [...categorySet] as TripInput["poiCategories"],
+      poiCategories: finalCategories as TripInput["poiCategories"],
       areas: [regionMapping.area],
       subAreas: [regionMapping.subArea],
       dayStartTime: times.start,
@@ -97,27 +123,11 @@ export async function POST(req: NextRequest) {
       userLocation: userLocation ?? undefined,
     };
 
-    // Fetch Hebrew-named locations from the Router's locations table, filtered by selected categories
-    const categoryList = [...categorySet];
-    const { rows: locationRows } = await rawDb.query(
-      `SELECT l.name, l.description, l.category, l.latitude, l.longitude, l.duration_minutes
-       FROM locations l
-       JOIN regions r ON r.id = l.region_id
-       WHERE r.name = $1
-         AND l.category = ANY($2)
-       LIMIT 30`,
-      [region, categoryList]
-    );
-
-    // If no food/coffee places found in DB, remove them from the LLM input to prevent hallucination
-    const hasFood = locationRows.some(r => r.category === "restaurant");
-    const hasCoffee = locationRows.some(r => r.category === "coffee_trail");
-    if (!hasFood) categorySet.delete("restaurant");
-    if (!hasCoffee) categorySet.delete("coffee_trail");
-    if (categorySet.size === 0) categorySet.add("attraction");
-
-    // Map Router locations to Poi shape for the LLM
-    const hebrewPois: Poi[] = locationRows.map((r, i) => ({
+    // Map Router locations to Poi shape for the LLM (only categories the LLM will use)
+    const finalCategorySet = new Set(finalCategories);
+    const hebrewPois: Poi[] = locationRows
+      .filter(r => finalCategorySet.has(r.category as string))
+      .map((r, i) => ({
       id: String(i),
       name: r.name as string,
       category: (r.category as Poi["category"]) ?? "attraction",
