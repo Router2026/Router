@@ -7,6 +7,14 @@
 
 import { rawDb } from "@/lib/db/raw-client";
 
+export interface RouteImageRow {
+  id: number;
+  route_id: number;
+  image_url: string;
+  caption?: string;
+  created_at: Date;
+}
+
 export interface PublicTrip {
   id:               number;
   user_id:          number;
@@ -28,9 +36,12 @@ export interface PublicTrip {
   total_duration_hours?: number;
   total_distance_km?:    number;
   // user-provided content
-  user_description?: string;
-  image_url?:        string;
-  video_url?:        string;
+  user_description?:  string;
+  image_url?:         string;
+  video_url?:         string;
+  points_of_interest?: string;
+  recommended_stops?:  string;
+  route_images?:       RouteImageRow[];
   // social stats
   likes_count?:    number;
   comments_count?: number;
@@ -146,9 +157,11 @@ async function attachStops(routes: Record<string, unknown>[]): Promise<PublicTri
       style:            (r.style      as string) || undefined,
       total_duration_hours: parseFloat(r.total_duration_hours as string) || undefined,
       total_distance_km:    parseFloat(r.total_distance_km    as string) || undefined,
-      user_description:     (r.user_description as string) || undefined,
-      image_url:            (r.image_url   as string) || undefined,
-      video_url:            (r.video_url   as string) || undefined,
+      user_description:     (r.user_description  as string) || undefined,
+      image_url:            (r.image_url          as string) || undefined,
+      video_url:            (r.video_url          as string) || undefined,
+      points_of_interest:   (r.points_of_interest as string) || undefined,
+      recommended_stops:    (r.recommended_stops  as string) || undefined,
       likes_count:          parseInt(r.likes_count    as string, 10) || 0,
       comments_count:       parseInt(r.comments_count as string, 10) || 0,
       average_rating:       parseFloat(r.average_rating as string) || 0,
@@ -187,6 +200,7 @@ export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<Publ
        r.difficulty, r.group_type, r.style,
        r.created_at,
        r.user_description, r.image_url, r.video_url,
+       r.points_of_interest, r.recommended_stops,
        COALESCE(r.likes_count, 0)    AS likes_count,
        COALESCE(r.comments_count, 0) AS comments_count,
        COALESCE(r.average_rating, 0) AS average_rating,
@@ -215,6 +229,7 @@ export async function getPublicTripById(tripId: number): Promise<PublicTrip | nu
        r.difficulty, r.group_type, r.style,
        r.created_at,
        r.user_description, r.image_url, r.video_url,
+       r.points_of_interest, r.recommended_stops,
        COALESCE(r.likes_count, 0)    AS likes_count,
        COALESCE(r.comments_count, 0) AS comments_count,
        COALESCE(r.average_rating, 0) AS average_rating,
@@ -232,7 +247,24 @@ export async function getPublicTripById(tripId: number): Promise<PublicTrip | nu
   if (!rows.length) return null;
 
   const results = await attachStops(rows);
-  return results[0] ?? null;
+  const trip = results[0] ?? null;
+  if (!trip) return null;
+
+  // Attach route images
+  const { rows: imgRows } = await rawDb.query(
+    `SELECT id, route_id, image_url, caption, created_at
+     FROM route_images WHERE route_id = $1 ORDER BY created_at ASC`,
+    [tripId]
+  );
+  trip.route_images = imgRows.map(r => ({
+    id: r.id as number,
+    route_id: r.route_id as number,
+    image_url: r.image_url as string,
+    caption: (r.caption as string) || undefined,
+    created_at: r.created_at as Date,
+  }));
+
+  return trip;
 }
 
 // createTrip still inserts into `routes` for consistency with the rest of the app.
@@ -267,4 +299,30 @@ export async function createTrip(
   const result = await getPublicTripById(routeId);
   if (!result) throw new Error("Failed to fetch created trip");
   return result;
+}
+
+// ── Update route stops (owner only) ──────────────────────────────────────
+
+export async function updateRouteStops(
+  routeId: number,
+  userId: number,
+  locationIds: number[]
+): Promise<void> {
+  // Verify ownership
+  const { rows: ownerRows } = await rawDb.query(
+    `SELECT id FROM routes WHERE id = $1 AND user_id = $2`,
+    [routeId, userId]
+  );
+  if (!ownerRows.length) throw Object.assign(new Error("Not authorized"), { code: "NOT_FOUND" });
+
+  // Replace all stops atomically
+  await rawDb.query(`DELETE FROM route_stops WHERE route_id = $1`, [routeId]);
+
+  for (let i = 0; i < locationIds.length; i++) {
+    await rawDb.query(
+      `INSERT INTO route_stops (route_id, location_id, order_index, arrival_time, duration_minutes)
+       VALUES ($1, $2, $3, $4, 60)`,
+      [routeId, locationIds[i], i, `${String(9 + i).padStart(2, '0')}:00`]
+    );
+  }
 }

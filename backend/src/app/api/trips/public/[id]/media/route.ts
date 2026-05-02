@@ -19,9 +19,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const body = await req.json();
     await updateRouteMedia(routeId, auth.id, {
-      user_description: body.user_description,
-      image_url:        body.image_url,
-      video_url:        body.video_url,
+      user_description:  body.user_description,
+      image_url:         body.image_url,
+      video_url:         body.video_url,
+      points_of_interest: body.points_of_interest,
+      recommended_stops:  body.recommended_stops,
     });
 
     return NextResponse.json(successResponse({ updated: true }));

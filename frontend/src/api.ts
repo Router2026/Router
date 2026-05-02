@@ -46,6 +46,8 @@ export interface POI {
   photo_credit?: string;
   /** Username of the community member who originally contributed this place */
   uploaded_by?: string;
+  /** Distance from user in meters — present only when user_lat/user_lng passed to list() */
+  distance_meters?: number;
 }
 
 export interface NearbyPOI extends POI {
@@ -152,6 +154,10 @@ export interface RouteComment {
   content: string; created_at: string;
 }
 
+export interface RouteImage {
+  id: number; route_id: number; image_url: string; caption?: string; created_at: string;
+}
+
 export interface PublicTrip {
   id: number; user_id: number; title: string; description: string | null;
   route_geojson: object | null; is_public: boolean; created_at: string;
@@ -160,6 +166,8 @@ export interface PublicTrip {
   region?: string; difficulty?: string; style?: string; total_duration_hours?: number; group_type?: string;
   // user content
   user_description?: string; image_url?: string; video_url?: string;
+  points_of_interest?: string; recommended_stops?: string;
+  route_images?: RouteImage[];
   // social
   likes_count?: number; comments_count?: number;
   average_rating?: number; ratings_count?: number;
@@ -192,6 +200,8 @@ function mapLocation(r: any): POI {
     average_rating: parseFloat(r.average_rating) || 4.0,
     photo_credit: r.photo_credit || r.credit || undefined,
     uploaded_by: r.uploaded_by || undefined,
+    distance_meters: r.distance_meters !== undefined && r.distance_meters !== null
+      ? parseFloat(r.distance_meters) : undefined,
   };
 }
 
@@ -302,6 +312,8 @@ export const api = {
       region?: string; category?: string; difficulty?: string; search?: string;
       has_water?: boolean; has_shade?: boolean; accessible?: boolean;
       limit?: number; offset?: number;
+      // Proximity: pass user coords to get distance-sorted results from the DB
+      user_lat?: number; user_lng?: number;
     }): Promise<POI[]> => {
       const qs = new URLSearchParams();
       if (params?.region) qs.set('region', params.region);
@@ -313,6 +325,8 @@ export const api = {
       if (params?.accessible) qs.set('accessible', 'true');
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.offset) qs.set('offset', String(params.offset));
+      if (params?.user_lat !== undefined) qs.set('user_lat', String(params.user_lat));
+      if (params?.user_lng !== undefined) qs.set('user_lng', String(params.user_lng));
       return (await apiFetch<{ data: any[] }>(`/locations?${qs}`)).data.map(mapLocation);
     },
     get: async (id: string): Promise<POI> => mapLocation((await apiFetch<{ data: any }>(`/locations/${id}`)).data),
@@ -456,9 +470,18 @@ export const api = {
       (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`)).data,
     setRating: async (id: number, rating: number): Promise<{ average_rating: number; ratings_count: number; user_rating: number }> =>
       (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`, { method: 'POST', body: JSON.stringify({ rating }) })).data,
-    updateMedia: async (id: number, data: { user_description?: string; image_url?: string; video_url?: string }): Promise<void> => {
+    updateMedia: async (id: number, data: { user_description?: string; image_url?: string; video_url?: string; points_of_interest?: string; recommended_stops?: string }): Promise<void> => {
       await apiFetch(`/trips/public/${id}/media`, { method: 'PATCH', body: JSON.stringify(data) });
     },
+    getImages: async (id: number): Promise<RouteImage[]> =>
+      (await apiFetch<{ data: RouteImage[] }>(`/trips/public/${id}/images`)).data,
+    addImage: async (id: number, image_url: string, caption?: string): Promise<RouteImage> =>
+      (await apiFetch<{ data: RouteImage }>(`/trips/public/${id}/images`, { method: 'POST', body: JSON.stringify({ image_url, caption }) })).data,
+    deleteImage: async (id: number, imageId: number): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/images/${imageId}`, { method: 'DELETE' });
+    },
+    updateStops: async (id: number, location_ids: number[]): Promise<PublicTrip> =>
+      (await apiFetch<{ data: PublicTrip }>(`/trips/public/${id}`, { method: 'PATCH', body: JSON.stringify({ location_ids }) })).data,
   },
 
   // ── Reviews ──────────────────────────────────────────────────

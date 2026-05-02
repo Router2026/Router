@@ -66,3 +66,46 @@ ALTER TABLE reviews
 -- Index for user-scoped queries
 CREATE INDEX IF NOT EXISTS idx_community_reports_user_id ON community_reports(user_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
+
+-- ============================================================
+-- Migration: Route enrichment fields + route images gallery
+-- ============================================================
+
+-- Add points_of_interest and recommended_stops to routes
+ALTER TABLE routes
+  ADD COLUMN IF NOT EXISTS points_of_interest TEXT;
+
+ALTER TABLE routes
+  ADD COLUMN IF NOT EXISTS recommended_stops TEXT;
+
+-- Create route_images table for multi-image gallery
+CREATE TABLE IF NOT EXISTS route_images (
+  id          SERIAL PRIMARY KEY,
+  route_id    INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  image_url   TEXT NOT NULL,
+  caption     TEXT,
+  created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_route_images_route_id ON route_images(route_id);
+
+-- ============================================================
+-- End of route enrichment migration
+-- ============================================================
+
+-- ============================================================
+-- Migration: GIST spatial index for proximity sorting on Explore
+-- ============================================================
+
+-- Ensure PostGIS is enabled (idempotent)
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- GIST index on the geography column — used by ST_Distance ORDER BY in getLocations
+-- This allows the proximity sort query to use an index scan instead of a seq scan
+CREATE INDEX IF NOT EXISTS idx_locations_geom_gist
+  ON locations USING GIST (geom);
+
+-- ============================================================
+-- End of proximity sort migration
+-- ============================================================

@@ -37,6 +37,9 @@ export interface NearbyLocation extends Location {
   distance_meters: number;
 }
 
+// Location with optional proximity distance (returned by getLocations when coords passed)
+export type LocationWithDistance = Location & { distance_meters?: number };
+
 export interface LocationQuery {
   region?: string;
   category?: string;
@@ -47,6 +50,9 @@ export interface LocationQuery {
   search?: string;
   limit?: number;
   offset?: number;
+  // Proximity sorting — pass user coordinates to ORDER BY distance
+  user_lat?: number;
+  user_lng?: number;
 }
 
 export interface MapBounds {
@@ -133,17 +139,41 @@ export async function getLocations(query: LocationQuery): Promise<Location[]> {
   params.push(offset);
   const offsetIdx = params.length;
 
+  // If user coords provided, add distance column and sort by proximity
+  const hasCoords = query.user_lat !== undefined && query.user_lng !== undefined;
+  let distanceSelect = '';
+  let orderBy = 'ORDER BY l.average_rating DESC, l.name';
+
+  if (hasCoords) {
+    params.push(query.user_lat!);
+    const latIdx = params.length;
+    params.push(query.user_lng!);
+    const lngIdx = params.length;
+    distanceSelect = `,
+      ST_Distance(
+        l.geom::geography,
+        ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography
+      ) AS distance_meters`;
+    orderBy = `ORDER BY distance_meters ASC`;
+  }
+
   const sql = `
-    SELECT l.*, r.name AS region_name, r.slug AS region_slug
+    SELECT l.*, r.name AS region_name, r.slug AS region_slug${distanceSelect}
     FROM locations l
     LEFT JOIN regions r ON l.region_id = r.id
     ${where}
-    ORDER BY l.average_rating DESC, l.name
+    ${orderBy}
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;
 
   const { rows } = await rawDb.query(sql, params);
-  const result = rows.map(rowToLocation);
+  const result = rows.map(row => {
+    const loc = rowToLocation(row) as Location & { distance_meters?: number };
+    if (row.distance_meters !== undefined && row.distance_meters !== null) {
+      loc.distance_meters = parseFloat(row.distance_meters as string);
+    }
+    return loc;
+  });
   cacheSet(cacheKey, result, LIST_CACHE_TTL);
   return result;
 }

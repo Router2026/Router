@@ -164,7 +164,13 @@ export async function getRouteRatingStatus(routeId: number, userId: number | nul
 export async function updateRouteMedia(
   routeId: number,
   userId: number,
-  data: { user_description?: string; image_url?: string; video_url?: string }
+  data: {
+    user_description?: string;
+    image_url?: string;
+    video_url?: string;
+    points_of_interest?: string;
+    recommended_stops?: string;
+  }
 ): Promise<void> {
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -181,6 +187,14 @@ export async function updateRouteMedia(
     params.push(data.video_url);
     sets.push(`video_url = $${params.length}`);
   }
+  if (data.points_of_interest !== undefined) {
+    params.push(data.points_of_interest);
+    sets.push(`points_of_interest = $${params.length}`);
+  }
+  if (data.recommended_stops !== undefined) {
+    params.push(data.recommended_stops);
+    sets.push(`recommended_stops = $${params.length}`);
+  }
 
   if (!sets.length) return;
   params.push(routeId, userId);
@@ -190,6 +204,66 @@ export async function updateRouteMedia(
     params
   );
   if (!rows.length) throw Object.assign(new Error("Route not found or not authorized"), { code: "NOT_FOUND" });
+}
+
+// ── Route Images ──────────────────────────────────────────────────────────
+
+export async function addRouteImage(
+  routeId: number,
+  userId: number,
+  image_url: string,
+  caption?: string
+): Promise<{ id: number; route_id: number; image_url: string; caption?: string; created_at: Date }> {
+  // Verify ownership
+  const { rows: ownerRows } = await rawDb.query(
+    `SELECT id FROM routes WHERE id = $1 AND user_id = $2`,
+    [routeId, userId]
+  );
+  if (!ownerRows.length) throw Object.assign(new Error("Not authorized"), { code: "NOT_FOUND" });
+
+  const { rows } = await rawDb.query(
+    `INSERT INTO route_images (route_id, user_id, image_url, caption)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, route_id, image_url, caption, created_at`,
+    [routeId, userId, image_url, caption || null]
+  );
+  const r = rows[0];
+  return {
+    id: r.id as number,
+    route_id: r.route_id as number,
+    image_url: r.image_url as string,
+    caption: (r.caption as string) || undefined,
+    created_at: r.created_at as Date,
+  };
+}
+
+export async function getRouteImages(
+  routeId: number
+): Promise<{ id: number; route_id: number; image_url: string; caption?: string; created_at: Date }[]> {
+  const { rows } = await rawDb.query(
+    `SELECT id, route_id, image_url, caption, created_at
+     FROM route_images WHERE route_id = $1 ORDER BY created_at ASC`,
+    [routeId]
+  );
+  return rows.map(r => ({
+    id: r.id as number,
+    route_id: r.route_id as number,
+    image_url: r.image_url as string,
+    caption: (r.caption as string) || undefined,
+    created_at: r.created_at as Date,
+  }));
+}
+
+export async function deleteRouteImage(
+  routeId: number,
+  imageId: number,
+  userId: number
+): Promise<void> {
+  const { rows } = await rawDb.query(
+    `DELETE FROM route_images WHERE id = $1 AND route_id = $2 AND user_id = $3 RETURNING id`,
+    [imageId, routeId, userId]
+  );
+  if (!rows.length) throw Object.assign(new Error("Image not found or not authorized"), { code: "NOT_FOUND" });
 }
 
 // ── Social stats for a list of route IDs ─────────────────────────────────

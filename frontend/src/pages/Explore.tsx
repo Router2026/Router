@@ -70,6 +70,12 @@ function TagGrid({ items, selected, onToggle }: { items: string[]; selected: str
   );
 }
 
+function formatDistance(m: number): string {
+  if (m < 1000) return `${Math.round(m)} מ'`;
+  if (m < 10000) return `${(m / 1000).toFixed(1)} ק"מ`;
+  return `${Math.round(m / 1000)} ק"מ`;
+}
+
 /** POI Card — includes Quick Add to Trip Bucket button */
 function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -153,9 +159,16 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
           </div>
           <span style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a' }}>{poi.name}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginBottom: 10, color: '#94a3b8' }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-          <span style={{ fontSize: 12 }}>{poi.region}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#94a3b8' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+            <span style={{ fontSize: 12 }}>{poi.region}</span>
+          </div>
+          {poi.distance_meters !== undefined && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#0d9e6e', background: '#f0fdf4', borderRadius: 8, padding: '2px 8px', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 3 }}>
+              📍 {formatDistance(poi.distance_meters)}
+            </span>
+          )}
         </div>
         <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5, textAlign: 'right', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{poi.description}</p>
         <div style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -213,6 +226,12 @@ export default function Explore() {
   // State for controlling how many items are currently rendered
   const [visibleCount, setVisibleCount] = useState(RENDER_CHUNK_SIZE);
 
+  // Proximity state
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [sortByProximity, setSortByProximity] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
   const [selRegions, setSelRegions] = useState<string[]>([]);
   const [selCats, setSelCats] = useState<string[]>(urlCategory ? [urlCategory] : []);
   const [selDiffs, setSelDiffs] = useState<string[]>([]);
@@ -220,40 +239,73 @@ export default function Explore() {
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
 
-  // 1. Fetch all data using pagination loop on mount
-  useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        let allFetchedPois: POI[] = [];
-        let offset = 0;
-        let hasMore = true;
+  // Helper: fetch all POIs (paginated), optionally passing user coords for DB-side proximity sort
+  const fetchAllData = useCallback(async (coords?: { lat: number; lng: number }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      let allFetchedPois: POI[] = [];
+      let offset = 0;
+      let hasMore = true;
 
-        // Loop until the backend returns fewer items than the chunk size
-        while (hasMore) {
-          const chunk = await api.locations.list({ limit: FETCH_CHUNK_SIZE, offset });
-          allFetchedPois = [...allFetchedPois, ...chunk];
-
-          if (chunk.length < FETCH_CHUNK_SIZE) {
-            hasMore = false;
-          } else {
-            offset += FETCH_CHUNK_SIZE;
-          }
-        }
-
-        const regionsData = await api.regions.list();
-
-        setAllPois(allFetchedPois);
-        setRegions(regionsData.map(r => r.name));
-        setCategories([...new Set(allFetchedPois.map(p => p.category).filter(Boolean))].sort());
-        setLoading(false);
-      } catch (err: any) {
-        setError(err.message);
-        setLoading(false);
+      while (hasMore) {
+        const chunk = await api.locations.list({
+          limit: FETCH_CHUNK_SIZE,
+          offset,
+          // Pass coords to the DB so it orders by ST_Distance — no JS sort needed
+          ...(coords ? { user_lat: coords.lat, user_lng: coords.lng } : {}),
+        });
+        allFetchedPois = [...allFetchedPois, ...chunk];
+        if (chunk.length < FETCH_CHUNK_SIZE) hasMore = false;
+        else offset += FETCH_CHUNK_SIZE;
       }
-    };
 
-    fetchAllData();
+      const regionsData = await api.regions.list();
+      setAllPois(allFetchedPois);
+      setRegions(regionsData.map(r => r.name));
+      setCategories([...new Set(allFetchedPois.map(p => p.category).filter(Boolean))].sort());
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // 1. Initial load — no proximity
+  useEffect(() => { fetchAllData(); }, [fetchAllData]);
+
+  // When user toggles proximity sort, get location then re-fetch with coords
+  const handleProximityToggle = useCallback(async () => {
+    if (sortByProximity) {
+      // Turn off — refetch without coords (rating sort)
+      setSortByProximity(false);
+      setUserCoords(null);
+      setGeoError(null);
+      fetchAllData();
+      return;
+    }
+    // Turn on
+    if (!navigator.geolocation) {
+      setGeoError('הדפדפן שלך אינו תומך באיתור מיקום');
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserCoords(coords);
+        setSortByProximity(true);
+        setGeoLoading(false);
+        fetchAllData(coords);
+      },
+      err => {
+        setGeoLoading(false);
+        setGeoError(err.code === 1 ? 'אנא אפשר גישה למיקום בהגדרות הדפדפן' : 'לא ניתן לאתר את המיקום');
+      },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  }, [sortByProximity, fetchAllData]);
 
   useEffect(() => {
     if (urlCategory && categories.includes(urlCategory)) setSelCats([urlCategory]);
@@ -327,6 +379,22 @@ export default function Explore() {
             {activeFilterCount > 0 && <div style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</div>}
           </div>
 
+          {/* Proximity sort button */}
+          <button
+            onClick={handleProximityToggle}
+            disabled={geoLoading}
+            title={sortByProximity ? 'מיין לפי דירוג' : 'מיין לפי קרבה אליי'}
+            style={{ width: 44, height: 44, borderRadius: 14, border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`, background: sortByProximity ? '#0d9e6e' : '#fff', cursor: geoLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', position: 'relative' }}>
+            {geoLoading
+              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : '#0d9e6e'} strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : geoError ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
+                  <path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                </svg>
+            }
+          </button>
+
           {/* Search Input (Fixed for RTL) */}
           <div style={{ flex: 1, background: '#f8fafc', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '2px solid #e2e8f0' }}>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש אתרים..." style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
@@ -351,24 +419,40 @@ export default function Explore() {
           </button>
         </div>
 
-        {selCats.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            {selCats.map(c => (
-              <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #0d9e6e' }}>
-                {c}
-                <button onClick={() => setSelCats(prev => prev.filter(x => x !== c))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0d9e6e', padding: 0, display: 'flex', alignItems: 'center' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Active proximity badge */}
+          {sortByProximity && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #0d9e6e' }}>
+              📍 מיון לפי קרבה
+              <button onClick={handleProximityToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0d9e6e', padding: 0, display: 'flex', alignItems: 'center' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </span>
+          )}
+          {/* Geo error */}
+          {geoError && (
+            <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, background: '#fef2f2', borderRadius: 20, padding: '4px 12px', border: '1.5px solid #fca5a5' }}>
+              ⚠️ {geoError}
+            </span>
+          )}
+          {selCats.map(c => (
+            <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #0d9e6e' }}>
+              {c}
+              <button onClick={() => setSelCats(prev => prev.filter(x => x !== c))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0d9e6e', padding: 0, display: 'flex', alignItems: 'center' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </span>
+          ))}
+        </div>
       </div>
 
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
         {loading ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
           : error ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
-            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{filteredPois.length} אתרים הוצגו מתוך {allPois.length}</span>}
+            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
+                {filteredPois.length} אתרים
+                {sortByProximity ? ' · ממוינים לפי קרבה' : ' · ממוינים לפי דירוג'}
+              </span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: '0 16px 24px' }}>

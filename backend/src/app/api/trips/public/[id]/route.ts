@@ -2,7 +2,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse, errorResponse } from "@/lib/api/response";
-import { getPublicTripById } from "@/lib/public-trips/public-trips-service";
+import { getPublicTripById, updateRouteStops } from "@/lib/public-trips/public-trips-service";
+import { getUserFromRequest } from "@/lib/auth/tokens";
 
 export async function GET(
   _req: NextRequest,
@@ -22,6 +23,31 @@ export async function GET(
   } catch (err) {
     console.error("[GET /api/trips/public/:id]", err);
     return NextResponse.json(errorResponse("Failed to fetch trip", "DB_ERROR"), { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await getUserFromRequest(req);
+    if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
+
+    const { id } = await params;
+    const tripId = parseInt(id, 10);
+    if (isNaN(tripId)) return NextResponse.json(errorResponse("Invalid trip id", "VALIDATION_ERROR"), { status: 400 });
+
+    const body = await req.json();
+    if (!Array.isArray(body.location_ids)) {
+      return NextResponse.json(errorResponse("location_ids array required", "VALIDATION_ERROR"), { status: 400 });
+    }
+
+    await updateRouteStops(tripId, auth.id, body.location_ids);
+
+    const updated = await getPublicTripById(tripId);
+    return NextResponse.json(successResponse(updated));
+  } catch (err: any) {
+    if (err?.code === "NOT_FOUND") return NextResponse.json(errorResponse("Not authorized", "NOT_FOUND"), { status: 403 });
+    console.error("[PATCH /api/trips/public/:id]", err);
+    return NextResponse.json(errorResponse("Failed", "DB_ERROR"), { status: 500 });
   }
 }
 
