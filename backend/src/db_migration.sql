@@ -109,3 +109,53 @@ CREATE INDEX IF NOT EXISTS idx_locations_geom_gist
 -- ============================================================
 -- End of proximity sort migration
 -- ============================================================
+
+-- ============================================================
+-- Migration: Community route media, is_public flag, filters
+-- ============================================================
+
+-- Ensure routes has is_public column
+ALTER TABLE routes ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Community media submitted by any user on a public route
+CREATE TABLE IF NOT EXISTS route_community_media (
+  id          SERIAL PRIMARY KEY,
+  route_id    INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  media_type  TEXT NOT NULL CHECK (media_type IN ('image','video')),
+  url         TEXT NOT NULL,
+  caption     TEXT,
+  created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_route_community_media_route ON route_community_media(route_id);
+
+-- ============================================================
+
+-- ============================================================
+-- Migration: Performance indexes for public trips feed
+-- ============================================================
+
+-- Primary feed filter: only public routes, sorted by rating + likes
+CREATE INDEX IF NOT EXISTS idx_routes_public_feed
+  ON routes (is_public, average_rating DESC, likes_count DESC, created_at DESC)
+  WHERE is_public = TRUE;
+
+-- Filter by user (profile page)
+CREATE INDEX IF NOT EXISTS idx_routes_user_public
+  ON routes (user_id, is_public, created_at DESC)
+  WHERE is_public = TRUE;
+
+-- Filter chips: difficulty, style, group_type
+CREATE INDEX IF NOT EXISTS idx_routes_difficulty ON routes (difficulty) WHERE is_public = TRUE;
+CREATE INDEX IF NOT EXISTS idx_routes_style       ON routes (style)      WHERE is_public = TRUE;
+CREATE INDEX IF NOT EXISTS idx_routes_group_type  ON routes (group_type) WHERE is_public = TRUE;
+
+-- Region join is already fast if regions table is small, but index routes.region_id
+CREATE INDEX IF NOT EXISTS idx_routes_region_id ON routes (region_id) WHERE is_public = TRUE;
+
+-- route_stops lookup by route_id (critical for attachStops)
+CREATE INDEX IF NOT EXISTS idx_route_stops_route_id ON route_stops (route_id, order_index);
+
+-- ============================================================
+-- End of performance indexes migration
+-- ============================================================

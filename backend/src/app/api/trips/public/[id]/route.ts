@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse, errorResponse } from "@/lib/api/response";
-import { getPublicTripById, updateRouteStops } from "@/lib/public-trips/public-trips-service";
+import { getPublicTripById, updateRouteStops, publishRoute } from "@/lib/public-trips/public-trips-service";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 
 export async function GET(
@@ -36,12 +36,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (isNaN(tripId)) return NextResponse.json(errorResponse("Invalid trip id", "VALIDATION_ERROR"), { status: 400 });
 
     const body = await req.json();
-    if (!Array.isArray(body.location_ids)) {
-      return NextResponse.json(errorResponse("location_ids array required", "VALIDATION_ERROR"), { status: 400 });
+
+    // Publish: flip is_public flag and award XP
+    if (body.is_public === true) {
+      const { trip, xp } = await publishRoute(tripId, auth.id);
+      return NextResponse.json(successResponse({ ...trip, xp_awarded: xp }));
     }
 
+    if (!Array.isArray(body.location_ids)) {
+      return NextResponse.json(errorResponse("location_ids array or is_public required", "VALIDATION_ERROR"), { status: 400 });
+    }
     await updateRouteStops(tripId, auth.id, body.location_ids);
-
     const updated = await getPublicTripById(tripId);
     return NextResponse.json(successResponse(updated));
   } catch (err: any) {

@@ -6,6 +6,7 @@
 // PublicTrip / PublicTripLocation shape so frontend stays unchanged.
 
 import { rawDb } from "@/lib/db/raw-client";
+import { awardXp, XP_REWARDS } from "@/lib/xp/xp-service";
 
 export interface RouteImageRow {
   id: number;
@@ -66,8 +67,11 @@ export interface PublicTripLocation {
 }
 
 export interface PublicTripsQuery {
+  user_id?:    number;   // filter to one user's public trips (profile page)
   region?:     string;
   difficulty?: string;
+  style?:      string;
+  group_type?: string;
   limit?:      number;
   offset?:     number;
 }
@@ -173,18 +177,29 @@ async function attachStops(routes: Record<string, unknown>[]): Promise<PublicTri
 // ── public API ─────────────────────────────────────────────────────────────
 
 export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<PublicTrip[]> {
-  const conditions: string[] = ["r.user_id IS NOT NULL"];
+  // is_public = TRUE is mandatory — never leak private routes
+  const conditions: string[] = ["r.is_public = TRUE", "r.user_id IS NOT NULL"];
   const params: unknown[]    = [];
 
+  if (query.user_id) {
+    params.push(query.user_id);
+    conditions.push(`r.user_id = $${params.length}`);
+  }
   if (query.region) {
     params.push(`%${query.region}%`);
-    conditions.push(
-      `(reg.name ILIKE $${params.length} OR r.description ILIKE $${params.length})`
-    );
+    conditions.push(`reg.name ILIKE $${params.length}`);
   }
   if (query.difficulty) {
     params.push(query.difficulty);
     conditions.push(`r.difficulty = $${params.length}`);
+  }
+  if (query.style) {
+    params.push(query.style);
+    conditions.push(`r.style = $${params.length}`);
+  }
+  if (query.group_type) {
+    params.push(query.group_type);
+    conditions.push(`r.group_type = $${params.length}`);
   }
 
   const where    = `WHERE ${conditions.join(" AND ")}`;
@@ -277,12 +292,13 @@ export async function createTrip(
     is_public?:     boolean;
     location_ids?:  number[];
   }
-): Promise<PublicTrip> {
+): Promise<{ trip: PublicTrip; xp?: { new_xp: number; new_level: number; level_label: string; leveled_up: boolean } }> {
+  const isPublic = data.is_public ?? false;
   const { rows } = await rawDb.query(
-    `INSERT INTO routes (user_id, name, description, difficulty, group_type, style, total_duration_hours)
-     VALUES ($1, $2, $3, 'בינוני', 'משפחה', 'טבע', 0)
+    `INSERT INTO routes (user_id, name, description, difficulty, group_type, style, total_duration_hours, is_public)
+     VALUES ($1, $2, $3, 'בינוני', 'משפחה', 'טבע', 0, $4)
      RETURNING id`,
-    [userId, data.title, data.description || null]
+    [userId, data.title, data.description || null, isPublic]
   );
   const routeId = rows[0].id as number;
 
@@ -298,7 +314,31 @@ export async function createTrip(
 
   const result = await getPublicTripById(routeId);
   if (!result) throw new Error("Failed to fetch created trip");
-  return result;
+
+  // Award XP only when publishing publicly
+  let xpResult: { new_xp: number; new_level: number; level_label: string; leveled_up: boolean } | undefined;
+  if (isPublic) {
+    try { xpResult = await awardXp(userId, XP_REWARDS.TRIP_CREATED); } catch { /* swallow */ }
+  }
+
+  return { trip: result, xp: xpResult };
+}
+
+// ── Toggle is_public for a route the user owns ────────────────────────────────
+export async function publishRoute(routeId: number, userId: number): Promise<{ trip: PublicTrip; xp?: { new_xp: number; new_level: number; level_label: string; leveled_up: boolean } }> {
+  const { rows } = await rawDb.query(
+    `UPDATE routes SET is_public = TRUE WHERE id = $1 AND user_id = $2 AND is_public = FALSE RETURNING id`,
+    [routeId, userId]
+  );
+  if (!rows.length) throw Object.assign(new Error("Route not found or already public"), { code: "NOT_FOUND" });
+
+  const trip = await getPublicTripById(routeId);
+  if (!trip) throw new Error("Failed to fetch route");
+
+  let xpResult: { new_xp: number; new_level: number; level_label: string; leveled_up: boolean } | undefined;
+  try { xpResult = await awardXp(userId, XP_REWARDS.TRIP_CREATED); } catch { /* swallow */ }
+
+  return { trip, xp: xpResult };
 }
 
 // ── Update route stops (owner only) ──────────────────────────────────────

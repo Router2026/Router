@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api, type PublicTrip, type RouteComment, type RouteImage, fileToBase64 } from '../api';
+import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia, fileToBase64 } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -87,6 +87,7 @@ export default function PublicTripDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isGuest = !user || (user as any).isGuest === true;
   const [trip, setTrip] = useState<PublicTrip | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -124,6 +125,15 @@ export default function PublicTripDetail() {
   const [editRecommendedStops, setEditRecommendedStops] = useState('');
   const routeImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Community media (any logged-in user)
+  const [communityMedia, setCommunityMedia] = useState<CommunityMedia[]>([]);
+  const [addingMedia, setAddingMedia] = useState(false);
+  const [communityMediaTab, setCommunityMediaTab] = useState<'image' | 'video'>('image');
+  const communityImageRef = useRef<HTMLInputElement>(null);
+  const communityVideoRef = useRef<HTMLInputElement>(null);
+  const [showAddMedia, setShowAddMedia] = useState(false);
+  const [mediaCaption, setMediaCaption] = useState('');
+
   // Stops editor state
   const [editTab, setEditTab] = useState<'content' | 'stops'>('content');
   const [editStops, setEditStops] = useState<Array<{ id: number; name: string; category: string; main_image: string | null }>>([]);
@@ -159,6 +169,7 @@ export default function PublicTripDetail() {
     api.publicTrips.getLikes(tripId).then(r => { setLiked(r.liked); setLikesCount(r.likes_count); }).catch(() => { });
     api.publicTrips.getComments(tripId).then(setComments).catch(() => { });
     api.publicTrips.getImages(tripId).then(setRouteImages).catch(() => { });
+    api.publicTrips.getCommunityMedia(tripId).then(setCommunityMedia).catch(() => { });
     api.publicTrips.getRating(tripId).then(r => {
       setAvgRating(r.average_rating); setRatingsCount(r.ratings_count); setUserRating(r.user_rating ?? 0);
     }).catch(() => { });
@@ -268,6 +279,24 @@ export default function PublicTripDetail() {
       const img = await api.publicTrips.addImage(tripId, base64);
       setRouteImages(prev => [...prev, img]);
     } catch { } finally { setUploadingRouteImage(false); }
+  };
+
+  const handleAddCommunityMedia = async (file: File, type: 'image' | 'video') => {
+    setAddingMedia(true);
+    try {
+      const base64 = await toBase64(file);
+      const result = await api.publicTrips.addCommunityMedia(tripId, base64, type, mediaCaption || undefined);
+      setCommunityMedia(prev => [result, ...prev]);
+      setShowAddMedia(false);
+      setMediaCaption('');
+    } catch { } finally { setAddingMedia(false); }
+  };
+
+  const handleDeleteCommunityMedia = async (mediaId: number) => {
+    try {
+      await api.publicTrips.deleteCommunityMedia(tripId, mediaId);
+      setCommunityMedia(prev => prev.filter(m => m.id !== mediaId));
+    } catch { }
   };
 
   const handleDeleteRouteImage = async (imageId: number) => {
@@ -758,6 +787,85 @@ export default function PublicTripDetail() {
             </button>
           </div>
         )}
+
+        {/* ── Community Media (any user can contribute) ───────────────── */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '18px 20px', marginBottom: 14, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>
+              📸 תמונות וסרטונים מהקהילה
+              {communityMedia.length > 0 && <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500, marginRight: 6 }}>({communityMedia.length})</span>}
+            </div>
+            {user && !isGuest && (
+              <button onClick={() => setShowAddMedia(v => !v)}
+                style={{ padding: '7px 14px', borderRadius: 12, border: '1.5px solid #7c3aed', background: showAddMedia ? '#7c3aed' : '#faf5ff', color: showAddMedia ? '#fff' : '#7c3aed', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+                {showAddMedia ? '▲ סגור' : '+ הוסף'}
+              </button>
+            )}
+          </div>
+
+          {/* Add media panel */}
+          {showAddMedia && user && !isGuest && (
+            <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, marginBottom: 16, border: '1.5px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {(['image', 'video'] as const).map(t => (
+                  <button key={t} onClick={() => setCommunityMediaTab(t)}
+                    style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: communityMediaTab === t ? '#7c3aed' : '#e2e8f0', color: communityMediaTab === t ? '#fff' : '#64748b', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+                    {t === 'image' ? '🖼️ תמונה' : '🎥 סרטון'}
+                  </button>
+                ))}
+              </div>
+              <input value={mediaCaption} onChange={e => setMediaCaption(e.target.value)}
+                placeholder="כיתוב אופציונלי..."
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
+              <input ref={communityImageRef} type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'image'); e.target.value = ''; }} />
+              <input ref={communityVideoRef} type="file" accept="video/*" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'video'); e.target.value = ''; }} />
+              <button
+                onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
+                disabled={addingMedia}
+                style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
+                {addingMedia ? '⏳ מעלה...' : `📤 העלה ${communityMediaTab === 'image' ? 'תמונה' : 'סרטון'} (+10 XP)`}
+              </button>
+            </div>
+          )}
+
+          {/* Media grid */}
+          {communityMedia.length === 0 && !showAddMedia && (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8', fontSize: 13 }}>
+              {user && !isGuest ? 'היה הראשון לשתף תמונה מהמסלול הזה!' : 'אין עדיין תמונות מהקהילה'}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {communityMedia.map(m => (
+              <div key={m.id} style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
+                {/* Uploader info */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f8fafc', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {m.avatar_url
+                      ? <img src={m.avatar_url} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} alt="" />
+                      : <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#7c3aed', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>{m.username?.[0]?.toUpperCase()}</div>
+                    }
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{m.username}</div>
+                      {m.caption && <div style={{ fontSize: 11, color: '#64748b' }}>{m.caption}</div>}
+                    </div>
+                  </div>
+                  {user && (Number(user.id) === m.user_id || Number(user.id) === trip?.user_id) && (
+                    <button onClick={() => handleDeleteCommunityMedia(m.id)}
+                      style={{ background: '#fee2e2', border: 'none', borderRadius: 8, width: 26, height: 26, color: '#ef4444', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>×</button>
+                  )}
+                </div>
+                {m.media_type === 'image'
+                  ? <img src={m.url} alt={m.caption || ''} onClick={() => setSelectedGalleryImg(m.url)}
+                      style={{ width: '100%', maxHeight: 280, objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
+                  : <video src={m.url} controls style={{ width: '100%', maxHeight: 280, display: 'block', background: '#000' }} />
+                }
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* ── Rate this trip ────────────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '18px 20px', marginBottom: 14, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>

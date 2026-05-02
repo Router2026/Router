@@ -700,30 +700,65 @@ export default function PublicTrips() {
   const { user } = useAuth();
   const [trips, setTrips] = useState<PublicTrip[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [selRegion, setSelRegion] = useState('');
+  const [selDifficulty, setSelDifficulty] = useState('');
+  const [selStyle, setSelStyle] = useState('');
+  const [selGroupType, setSelGroupType] = useState('');
+  const [allRegions, setAllRegions] = useState<string[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const DIFFICULTIES = ['קל', 'קל - משפחות', 'בינוני', 'קשה', 'מאתגר'];
+  const STYLES = ['טבע', 'היסטוריה', 'ספורט', 'רכב שטח', 'אופניים', 'ים', 'הרים'];
+  const GROUP_TYPES = [
+    { key: 'solo', label: '🚶 יחיד' },
+    { key: 'couple', label: '👫 זוג' },
+    { key: 'family', label: '👨‍👩‍👧‍👦 משפחה' },
+    { key: 'friends', label: '👥 חברים' },
+  ];
 
   const load = useCallback(() => {
     setLoading(true);
-    api.publicTrips.list({ region: filter || undefined })
+    api.publicTrips.list({
+      region: selRegion || undefined,
+      difficulty: selDifficulty || undefined,
+      style: selStyle || undefined,
+      group_type: selGroupType || undefined,
+    })
       .then(data => {
-        const sorted = [...data].sort((a, b) => {
+        let filtered = data;
+        if (searchText.trim()) {
+          const q = searchText.trim().toLowerCase();
+          filtered = data.filter(t =>
+            t.title?.toLowerCase().includes(q) ||
+            t.creator_username?.toLowerCase().includes(q) ||
+            t.region?.toLowerCase().includes(q) ||
+            t.user_description?.toLowerCase().includes(q)
+          );
+        }
+        const sorted = [...filtered].sort((a, b) => {
           const rA = (a.average_rating ?? 0) * 100 + (a.ratings_count ?? 0);
           const rB = (b.average_rating ?? 0) * 100 + (b.ratings_count ?? 0);
           if (rB !== rA) return rB - rA;
           return (b.likes_count ?? 0) - (a.likes_count ?? 0);
         });
         setTrips(sorted);
+        // collect distinct regions for chips
+        const regions = [...new Set(data.map(t => t.region).filter(Boolean) as string[])].sort();
+        setAllRegions(regions);
       })
       .catch(() => setTrips([]))
       .finally(() => setLoading(false));
-  }, [filter]);
+  }, [selRegion, selDifficulty, selStyle, selGroupType, searchText]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(load, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [load]);
+
+  const activeFilters = [selRegion, selDifficulty, selStyle, selGroupType].filter(Boolean).length;
+  const clearFilters = () => { setSelRegion(''); setSelDifficulty(''); setSelStyle(''); setSelGroupType(''); setSearchText(''); };
 
   return (
     <div style={{ background: '#f1f5f9', minHeight: '100vh', direction: 'rtl', paddingBottom: 80, fontFamily: 'Heebo, sans-serif' }}>
@@ -746,21 +781,84 @@ export default function PublicTrips() {
         </div>
       </div>
 
-      {/* ── Floating search card ─────────────────────────────────────── */}
+      {/* ── Floating filter card ─────────────────────────────────────── */}
       <div style={{ maxWidth: 640, margin: '-40px auto 20px', padding: '0 16px', position: 'relative', zIndex: 10 }}>
-        <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.13)', padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" style={{ flexShrink: 0 }}>
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            placeholder="חפש לפי אזור, קושי, סגנון..."
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            style={{ flex: 1, border: 'none', fontSize: 14, outline: 'none', fontFamily: 'Heebo, sans-serif', color: '#0f172a', background: 'transparent' }}
-          />
-          {filter && (
-            <button onClick={() => setFilter('')} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 16, flexShrink: 0 }}>×</button>
+        <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.13)', padding: '14px 16px' }}>
+
+          {/* Search row */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" style={{ flexShrink: 0 }}>
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              placeholder="חפש מסלול, יוצר, אזור..."
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              style={{ flex: 1, border: 'none', fontSize: 14, outline: 'none', fontFamily: 'Heebo, sans-serif', color: '#0f172a', background: 'transparent' }}
+            />
+            {activeFilters > 0 && (
+              <button onClick={clearFilters}
+                style={{ border: 'none', background: '#fee2e2', borderRadius: 20, padding: '4px 12px', cursor: 'pointer', color: '#ef4444', fontSize: 12, fontWeight: 700, flexShrink: 0, fontFamily: 'Heebo, sans-serif' }}>
+                נקה ({activeFilters})
+              </button>
+            )}
+          </div>
+
+          {/* Region chips */}
+          {allRegions.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>📍 אזור</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {allRegions.map(r => (
+                  <button key={r} onClick={() => setSelRegion(selRegion === r ? '' : r)}
+                    style={{ padding: '5px 12px', borderRadius: 20, border: `1.5px solid ${selRegion === r ? '#0d9e6e' : '#e2e8f0'}`, background: selRegion === r ? '#0d9e6e' : '#fff', color: selRegion === r ? '#fff' : '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
+
+          {/* Difficulty chips */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>💪 קושי</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {DIFFICULTIES.map(d => (
+                <button key={d} onClick={() => setSelDifficulty(selDifficulty === d ? '' : d)}
+                  style={{ padding: '5px 12px', borderRadius: 20, border: `1.5px solid ${selDifficulty === d ? DIFF_COLOR[d] || '#64748b' : '#e2e8f0'}`, background: selDifficulty === d ? (DIFF_COLOR[d] || '#64748b') : '#fff', color: selDifficulty === d ? '#fff' : '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Style + Group type row */}
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>🏕️ סגנון</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {STYLES.map(s => (
+                  <button key={s} onClick={() => setSelStyle(selStyle === s ? '' : s)}
+                    style={{ padding: '5px 10px', borderRadius: 20, border: `1.5px solid ${selStyle === s ? '#7c3aed' : '#e2e8f0'}`, background: selStyle === s ? '#7c3aed' : '#fff', color: selStyle === s ? '#fff' : '#475569', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Group type */}
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>👥 סוג קבוצה</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {GROUP_TYPES.map(g => (
+                <button key={g.key} onClick={() => setSelGroupType(selGroupType === g.key ? '' : g.key)}
+                  style={{ flex: 1, padding: '6px 8px', borderRadius: 12, border: `1.5px solid ${selGroupType === g.key ? '#0284c7' : '#e2e8f0'}`, background: selGroupType === g.key ? '#0284c7' : '#fff', color: selGroupType === g.key ? '#fff' : '#475569', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s', textAlign: 'center' }}>
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -782,9 +880,9 @@ export default function PublicTrips() {
             <div style={{ fontSize: 56, marginBottom: 16 }}>🏔️</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#1a2e2a', marginBottom: 8 }}>אין מסלולים עדיין</div>
             <div style={{ color: '#94a3b8', marginBottom: 28, fontSize: 14 }}>
-              {filter ? `לא נמצאו מסלולים עבור "${filter}"` : 'היה ראשון ליצור מסלול ולשתף אותו!'}
+              {(searchText || activeFilters > 0) ? `לא נמצאו מסלולים עבור "${(searchText || activeFilters > 0)}"` : 'היה ראשון ליצור מסלול ולשתף אותו!'}
             </div>
-            {!filter && (
+            {!(searchText || activeFilters > 0) && (
               <button onClick={() => navigate('/RouteGenerator')}
                 style={{ padding: '13px 32px', borderRadius: 16, border: 'none', background: 'linear-gradient(135deg,#0d9e6e,#059669)', color: '#fff', fontFamily: 'Heebo, sans-serif', cursor: 'pointer', fontWeight: 800, fontSize: 15, boxShadow: '0 4px 14px rgba(13,158,110,0.3)' }}>
                 + צור מסלול

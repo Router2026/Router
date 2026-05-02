@@ -154,6 +154,13 @@ export interface RouteComment {
   content: string; created_at: string;
 }
 
+export interface CommunityMedia {
+  id: number; route_id: number; user_id: number;
+  username: string; avatar_url: string | null;
+  media_type: 'image' | 'video'; url: string;
+  caption: string | null; created_at: string;
+}
+
 export interface RouteImage {
   id: number; route_id: number; image_url: string; caption?: string; created_at: string;
 }
@@ -437,10 +444,12 @@ export const api = {
 
   // ── Public trips ─────────────────────────────────────────────
   publicTrips: {
-    list: async (params?: { region?: string; difficulty?: string; limit?: number; offset?: number }): Promise<PublicTrip[]> => {
+    list: async (params?: { region?: string; difficulty?: string; style?: string; group_type?: string; limit?: number; offset?: number }): Promise<PublicTrip[]> => {
       const qs = new URLSearchParams();
       if (params?.region) qs.set('region', params.region);
       if (params?.difficulty) qs.set('difficulty', params.difficulty);
+      if (params?.style) qs.set('style', params.style);
+      if (params?.group_type) qs.set('group_type', params.group_type);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.offset) qs.set('offset', String(params.offset));
       return (await apiFetch<{ data: PublicTrip[] }>(`/trips/public?${qs}`)).data;
@@ -450,8 +459,8 @@ export const api = {
     create: async (data: {
       title: string; description?: string;
       route_geojson?: object; is_public?: boolean; location_ids?: number[];
-    }): Promise<PublicTrip> =>
-      (await apiFetch<{ data: PublicTrip }>('/trips/public', { method: 'POST', body: JSON.stringify(data) })).data,
+    }): Promise<PublicTrip & { xp_awarded?: any }> =>
+      (await apiFetch<{ data: any }>('/trips/public', { method: 'POST', body: JSON.stringify(data) })).data,
     myTrips: async (): Promise<{ id: number; title: string; description: string | null; is_public: boolean; created_at: string; location_count: number }[]> =>
       (await apiFetch<{ data: any[] }>('/users/me/trips')).data,
     // social
@@ -482,6 +491,22 @@ export const api = {
     },
     updateStops: async (id: number, location_ids: number[]): Promise<PublicTrip> =>
       (await apiFetch<{ data: PublicTrip }>(`/trips/public/${id}`, { method: 'PATCH', body: JSON.stringify({ location_ids }) })).data,
+    publish: async (id: number): Promise<{ trip: PublicTrip; xp_awarded?: any }> => {
+      const data = (await apiFetch<{ data: any }>(`/trips/public/${id}`, { method: 'PATCH', body: JSON.stringify({ is_public: true }) })).data;
+      return { trip: data, xp_awarded: data.xp_awarded };
+    },
+    getCommunityMedia: async (id: number): Promise<CommunityMedia[]> =>
+      (await apiFetch<{ data: CommunityMedia[] }>(`/trips/public/${id}/community-media`)).data,
+    addCommunityMedia: async (id: number, url: string, media_type: 'image' | 'video', caption?: string): Promise<CommunityMedia & { xp_awarded?: any }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/community-media`, { method: 'POST', body: JSON.stringify({ url, media_type, caption }) })).data,
+    deleteCommunityMedia: async (id: number, mediaId: number): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/community-media/${mediaId}`, { method: 'DELETE' });
+    },
+  },
+
+  userProfiles: {
+    get: async (userId: number): Promise<{ profile: any; trips: PublicTrip[] }> =>
+      (await apiFetch<{ data: any }>(`/users/${userId}`)).data,
   },
 
   // ── Reviews ──────────────────────────────────────────────────
