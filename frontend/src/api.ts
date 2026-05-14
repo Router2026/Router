@@ -582,6 +582,55 @@ export const api = {
   },
 };
 
+// ── Helper: geocode a city/locality name to coordinates (Israel-scoped) ──────
+export interface GeocodedCity {
+  name: string;       // display name returned by Nominatim
+  lat: number;
+  lng: number;
+}
+
+export async function geocodeCity(query: string): Promise<GeocodedCity | null> {
+  if (!query.trim()) return null;
+  try {
+    const params = new URLSearchParams({
+      q: query,
+      format: 'json',
+      limit: '1',
+      countrycodes: 'il',
+      addressdetails: '1',
+      'accept-language': 'he,en',
+    });
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { 'User-Agent': 'RouterApp/1.0' },
+    });
+    if (!res.ok) return null;
+    const results = await res.json();
+    if (!results.length) return null;
+    const r = results[0];
+    // Prefer city/town/village display name
+    const displayName =
+      r.address?.city ||
+      r.address?.town ||
+      r.address?.village ||
+      r.address?.municipality ||
+      r.address?.suburb ||
+      r.display_name.split(',')[0];
+    return { name: displayName, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
+  } catch {
+    return null;
+  }
+}
+
+// ── Helper: haversine distance between two lat/lng points (meters) ────────────
+export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ── Helper: convert File to base64 ────────────────────────────────────────
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

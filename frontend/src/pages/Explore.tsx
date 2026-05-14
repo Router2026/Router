@@ -3,7 +3,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, type POI } from '../api';
+import { api, type POI, geocodeCity, haversineDistance, type GeocodedCity } from '../api';
 import RouterLogo from '../assets/logo.jpeg';
 import { useTripBucket } from '../context/TripBucketContext';
 import { useFavorites } from '../context/FavoritesContext';
@@ -239,6 +239,14 @@ export default function Explore() {
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
 
+  // City / locality search state
+  const [cityResult, setCityResult] = useState<GeocodedCity | null>(null);
+  const [citySearching, setCitySearching] = useState(false);
+  const CITY_RADIUS_METERS = 30000; // 30 km radius around the geocoded city
+
+  // Debounced city geocoding: fires when search term changes and no POI text match found
+  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Helper: fetch all POIs (paginated), optionally passing user coords for DB-side proximity sort
   const fetchAllData = useCallback(async (coords?: { lat: number; lng: number }) => {
     setLoading(true);
@@ -307,6 +315,44 @@ export default function Explore() {
     );
   }, [sortByProximity, fetchAllData]);
 
+  // When search changes: try city geocoding if the term doesn't match any POIs directly
+  useEffect(() => {
+    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+
+    const term = search.trim();
+    if (!term) {
+      setCityResult(null);
+      return;
+    }
+
+    // Check if the term already matches some POI names/categories directly
+    const hasDirectMatch = allPois.some(p =>
+      p.name.includes(term) || p.category.includes(term) || p.region.includes(term)
+    );
+
+    if (hasDirectMatch) {
+      setCityResult(null);
+      return;
+    }
+
+    // No direct match → try geocoding as a city/locality after a short delay
+    geocodeTimerRef.current = setTimeout(async () => {
+      setCitySearching(true);
+      const result = await geocodeCity(term);
+      setCityResult(result);
+      setCitySearching(false);
+    }, 500);
+
+    return () => {
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    };
+  }, [search, allPois]);
+
+  // Clear city result when search is cleared
+  useEffect(() => {
+    if (!search.trim()) setCityResult(null);
+  }, [search]);
+
   useEffect(() => {
     if (urlCategory && categories.includes(urlCategory)) setSelCats([urlCategory]);
   }, [urlCategory, categories]);
@@ -321,7 +367,15 @@ export default function Explore() {
   // 2. Apply filters and search to the ENTIRE list
   const filteredPois = useMemo(() => {
     return allPois.filter(p => {
-      if (search && !p.name.includes(search) && !p.region.includes(search) && !p.category.includes(search)) return false;
+      // City/locality proximity search: if a city was geocoded, filter by radius
+      if (cityResult && search.trim()) {
+        const dist = haversineDistance(cityResult.lat, cityResult.lng, p.latitude, p.longitude);
+        if (dist > CITY_RADIUS_METERS) return false;
+        // Attach distance for display
+        (p as POI & { distance_meters?: number }).distance_meters = dist;
+      } else if (search && !p.name.includes(search) && !p.region.includes(search) && !p.category.includes(search)) {
+        return false;
+      }
       if (selRegions.length && !selRegions.includes(p.region)) return false;
       if (selCats.length && !selCats.includes(p.category)) return false;
       if (selDiffs.length && !selDiffs.includes(p.difficulty)) return false;
@@ -329,8 +383,16 @@ export default function Explore() {
       if (hasShade && !p.has_shade) return false;
       if (accessible && !p.accessible) return false;
       return true;
+    }).sort((a, b) => {
+      // When city search active, sort by distance to city center
+      if (cityResult && search.trim()) {
+        const da = (a as any).distance_meters ?? Infinity;
+        const db = (b as any).distance_meters ?? Infinity;
+        return da - db;
+      }
+      return 0; // preserve existing DB sort order
     });
-  }, [allPois, search, selRegions, selCats, selDiffs, hasWater, hasShade, accessible]);
+  }, [allPois, search, cityResult, CITY_RADIUS_METERS, selRegions, selCats, selDiffs, hasWater, hasShade, accessible]);
 
   // 3. Reset the visible count whenever filters or search query change
   useEffect(() => {
@@ -386,18 +448,18 @@ export default function Explore() {
             title={sortByProximity ? 'מיין לפי דירוג' : 'מיין לפי קרבה אליי'}
             style={{ width: 44, height: 44, borderRadius: 14, border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`, background: sortByProximity ? '#0d9e6e' : '#fff', cursor: geoLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', position: 'relative' }}>
             {geoLoading
-              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : '#0d9e6e'} strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : '#0d9e6e'} strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : geoError ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
-                  <path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-                </svg>
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 1v4M12 19v4M1 12h4M19 12h4" />
+                <path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+              </svg>
             }
           </button>
 
           {/* Search Input (Fixed for RTL) */}
           <div style={{ flex: 1, background: '#f8fafc', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '2px solid #e2e8f0' }}>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש אתרים..." style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש אתרים, עיר או יישוב..." style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </div>
 
@@ -420,6 +482,25 @@ export default function Explore() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* City search badge */}
+          {citySearching && search.trim() && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fefce8', color: '#ca8a04', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #fde68a' }}>
+              🔍 מחפש יישוב...
+            </span>
+          )}
+          {cityResult && search.trim() && !citySearching && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#2563eb', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #bfdbfe' }}>
+              📍 אתרים קרוב ל-{cityResult.name}
+              <button onClick={() => { setSearch(''); setCityResult(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: 0, display: 'flex', alignItems: 'center' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </span>
+          )}
+          {!cityResult && !citySearching && search.trim() && allPois.length > 0 && !allPois.some(p => p.name.includes(search) || p.category.includes(search) || p.region.includes(search)) && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', color: '#dc2626', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #fca5a5' }}>
+              ⚠️ לא נמצא יישוב תואם
+            </span>
+          )}
           {/* Active proximity badge */}
           {sortByProximity && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #0d9e6e' }}>
@@ -450,9 +531,11 @@ export default function Explore() {
         {loading ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
           : error ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
             : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
-                {filteredPois.length} אתרים
-                {sortByProximity ? ' · ממוינים לפי קרבה' : ' · ממוינים לפי דירוג'}
-              </span>}
+              {filteredPois.length} אתרים
+              {cityResult && search.trim()
+                ? ` · קרוב ל-${cityResult.name} (עד ${CITY_RADIUS_METERS / 1000} ק"מ)`
+                : sortByProximity ? ' · ממוינים לפי קרבה' : ' · ממוינים לפי דירוג'}
+            </span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: '0 16px 24px' }}>
@@ -468,7 +551,11 @@ export default function Explore() {
         {!loading && filteredPois.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontWeight: 700 }}>לא נמצאו אתרים תואמים לחיפוש שלך</div>
+            <div style={{ fontWeight: 700 }}>
+              {cityResult
+                ? `לא נמצאו אתרים בקרבת ${cityResult.name} (ברדיוס ${CITY_RADIUS_METERS / 1000} ק"מ)`
+                : 'לא נמצאו אתרים תואמים לחיפוש שלך'}
+            </div>
           </div>
         )}
       </div>
