@@ -269,6 +269,11 @@ export default function RouteGenerator() {
   const [routeName, setRouteName] = useState('');
   const [loadingPois, setLoadingPois] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishDesc, setPublishDesc] = useState('');
+  const [publishPOI, setPublishPOI] = useState('');
+  const [publishStops, setPublishStops] = useState('');
+  const [publishing, setPublishing] = useState(false);
   const [search, setSearch] = useState('');
 
   const [tripType, setTripType] = useState<string>('משפחה');
@@ -407,6 +412,43 @@ export default function RouteGenerator() {
       navigate(`/TripDetail?id=${saved.id}`);
     } catch {
       setSaving(false);
+    }
+  };
+
+  const buildStops = () => optimized.map((p, i) => ({
+    poi_name: p.name,
+    location_id: parseInt(p.id),
+    arrival_time: `${String(8 + i * 2).padStart(2, '0')}:00`,
+    duration_minutes: p.duration_minutes || 60,
+    order_index: i,
+  }));
+
+  const handlePublish = async () => {
+    if (!optimized.length) return;
+    setPublishing(true);
+    try {
+      const stops = buildStops();
+      const dist = totalDistance(optimized);
+      const autoHours = parseFloat(
+        (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
+      );
+      const publicTrip = await api.publicTrips.create({
+        title: routeName || `מסלול ב${selectedRegion?.name}`,
+        description: publishDesc || undefined,
+        is_public: true,
+        location_ids: optimized.map(p => parseInt(p.id)),
+      });
+      if (publishDesc || publishPOI || publishStops) {
+        await api.publicTrips.updateMedia(publicTrip.id, {
+          user_description: publishDesc || undefined,
+          points_of_interest: publishPOI || undefined,
+          recommended_stops: publishStops || undefined,
+        });
+      }
+      setShowPublishModal(false);
+      navigate(`/trips/${publicTrip.id}`);
+    } catch {
+      setPublishing(false);
     }
   };
 
@@ -983,6 +1025,15 @@ export default function RouteGenerator() {
                 }}>
                 {saving ? 'שומר...' : '💾 שמור מסלול'}
               </button>
+              <button onClick={() => setShowPublishModal(true)} disabled={saving}
+                style={{
+                  width: '100%', padding: '14px', border: '2px solid #7c3aed', borderRadius: 18,
+                  background: '#faf5ff', color: '#7c3aed', fontSize: 15, fontWeight: 800,
+                  cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                🌐 פרסם כמסלול ציבורי
+              </button>
               <button onClick={() => {
                 const target = startPoint ?? {
                   lat: optimized[0].latitude,
@@ -1005,6 +1056,109 @@ export default function RouteGenerator() {
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* ── Publish Modal ───────────────────────────────────────────── */}
+      {showPublishModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', direction: 'rtl', padding: 16 }}
+          onClick={e => e.target === e.currentTarget && setShowPublishModal(false)}>
+          <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}>
+
+            {/* Header */}
+            <div style={{ padding: '20px 22px 16px', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', zIndex: 10, borderRadius: '24px 24px 0 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: 18, color: '#0f172a' }}>🌐 פרסם מסלול ציבורי</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>הוסף פרטים שיעזרו למטיילים אחרים</div>
+                </div>
+                <button onClick={() => setShowPublishModal(false)} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 20 }}>×</button>
+              </div>
+            </div>
+
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Route name preview */}
+              <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ fontSize: 28 }}>🗺️</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>{routeName || `מסלול ב${selectedRegion?.name}`}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{optimized.length} עצירות · {selectedRegion?.name}</div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
+                  📝 תיאור המסלול <span style={{ fontWeight: 400, color: '#94a3b8' }}>(מה מיוחד? למי מתאים?)</span>
+                </label>
+                <textarea
+                  value={publishDesc}
+                  onChange={e => setPublishDesc(e.target.value)}
+                  rows={3}
+                  placeholder="ספר על המסלול — מה מיוחד בו, מה הכי שווה לראות, מתי כדאי לבוא..."
+                  style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 14, fontSize: 14, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65, transition: 'border-color 0.2s' }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                />
+              </div>
+
+              {/* Points of interest */}
+              <div>
+                <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
+                  ✨ נקודות עניין מיוחדות <span style={{ fontWeight: 400, color: '#94a3b8' }}>(אטרקציות שכדאי לשים לב)</span>
+                </label>
+                <textarea
+                  value={publishPOI}
+                  onChange={e => setPublishPOI(e.target.value)}
+                  rows={3}
+                  placeholder="לדוגמה: מפל מדהים ב-100 מטר מהכניסה, נקודת תצפית לשקיעה, עץ עתיק בן 500 שנה..."
+                  style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 14, fontSize: 14, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65, transition: 'border-color 0.2s' }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                />
+              </div>
+
+              {/* Recommended stops */}
+              <div>
+                <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
+                  🛑 עצירות מומלצות <span style={{ fontWeight: 400, color: '#94a3b8' }}>(היכן כדאי להתעכב?)</span>
+                </label>
+                <textarea
+                  value={publishStops}
+                  onChange={e => setPublishStops(e.target.value)}
+                  rows={3}
+                  placeholder="לדוגמה: כדאי לעצור 30 דק' ליד הנחל, לאכול ליד הפינה הירוקה בכניסה, לנוח בצל העצים בקילומטר ה-3..."
+                  style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 14, fontSize: 14, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65, transition: 'border-color 0.2s' }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                />
+              </div>
+
+              {/* Stops preview */}
+              <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 16px' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 10 }}>📍 עצירות במסלול</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {optimized.map((p, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0d9e6e', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>{p.name}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginRight: 'auto' }}>{p.category}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowPublishModal(false)} style={{ flex: 1, padding: '13px', borderRadius: 14, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>ביטול</button>
+                <button onClick={handlePublish} disabled={publishing}
+                  style={{ flex: 2, padding: '13px', borderRadius: 14, border: 'none', background: publishing ? '#94a3b8' : 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: '#fff', fontWeight: 800, cursor: publishing ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14, transition: 'all 0.2s' }}>
+                  {publishing ? '⏳ מפרסם...' : '🌐 פרסם מסלול'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

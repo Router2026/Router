@@ -22,6 +22,12 @@ export default function MyTrips() {
   const [sharingId, setSharingId] = useState<string | null>(null);
   const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
   const [shareXp, setShareXp] = useState<any>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
+  const [showPublishModal, setShowPublishModal] = useState<string | null>(null);
+  const [publishDesc, setPublishDesc] = useState('');
+  const [publishPOI, setPublishPOI] = useState('');
+  const [publishStops, setPublishStops] = useState('');
 
   useEffect(() => {
     api.trips.list()
@@ -60,6 +66,32 @@ export default function MyTrips() {
     finally { setSharingId(null); }
   };
 
+  const handlePublish = async (id: string) => {
+    setPublishingId(id);
+    try {
+      // First create a public trip entry linked to this private route
+      const trip = trips.find(t => String(t.id) === id);
+      if (!trip) return;
+      const result = await api.publicTrips.create({
+        title: trip.name,
+        description: publishDesc || undefined,
+        is_public: true,
+        location_ids: trip.stops?.map((s: any) => s.location_id).filter(Boolean) || [],
+      });
+      if (publishPOI || publishStops) {
+        await api.publicTrips.updateMedia(result.id, {
+          points_of_interest: publishPOI || undefined,
+          recommended_stops: publishStops || undefined,
+        });
+      }
+      if ((result as any).xp_awarded) setShareXp((result as any).xp_awarded);
+      setPublishedIds(prev => new Set(prev).add(id));
+      setShowPublishModal(null);
+      setPublishDesc(''); setPublishPOI(''); setPublishStops('');
+    } catch (err) { console.error('Publish failed:', err); }
+    finally { setPublishingId(null); }
+  };
+
   return (
     <>
       {shareXp && <XpToast xp={shareXp} onDone={() => setShareXp(null)} />}
@@ -96,7 +128,33 @@ export default function MyTrips() {
                 const isDeleting = deletingId === id;
                 const isSharing = sharingId === id;
                 const hasShared = sharedIds.has(id);
-                return (
+                const handlePublish = async (id: string) => {
+    setPublishingId(id);
+    try {
+      // First create a public trip entry linked to this private route
+      const trip = trips.find(t => String(t.id) === id);
+      if (!trip) return;
+      const result = await api.publicTrips.create({
+        title: trip.name,
+        description: publishDesc || undefined,
+        is_public: true,
+        location_ids: trip.stops?.map((s: any) => s.location_id).filter(Boolean) || [],
+      });
+      if (publishPOI || publishStops) {
+        await api.publicTrips.updateMedia(result.id, {
+          points_of_interest: publishPOI || undefined,
+          recommended_stops: publishStops || undefined,
+        });
+      }
+      if ((result as any).xp_awarded) setShareXp((result as any).xp_awarded);
+      setPublishedIds(prev => new Set(prev).add(id));
+      setShowPublishModal(null);
+      setPublishDesc(''); setPublishPOI(''); setPublishStops('');
+    } catch (err) { console.error('Publish failed:', err); }
+    finally { setPublishingId(null); }
+  };
+
+  return (
                   <div key={id} onClick={() => navigate(`/TripDetail?id=${id}`)}
                     style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', cursor: 'pointer', border: `1px solid ${isConfirming ? '#fecaca' : '#f0fdf8'}`, transition: 'all 0.2s ease', position: 'relative' }}>
                     <div style={{ height: 100, background: isConfirming ? 'linear-gradient(160deg, #ef4444 0%, #f87171 100%)' : 'linear-gradient(160deg, #0d9e6e 0%, #34d399 100%)', display: 'flex', alignItems: 'flex-end', padding: '16px', transition: 'background 0.2s ease' }}>
@@ -141,6 +199,18 @@ export default function MyTrips() {
                           {hasShared ? 'שותף' : 'שתף'}
                         </button>
 
+                        {/* Publish as public */}
+                        {!publishedIds.has(id) && (
+                          <button onClick={e => { e.stopPropagation(); setShowPublishModal(id); }}
+                            title="פרסם כמסלול ציבורי וקבל +25 XP"
+                            style={{ background: '#faf5ff', border: '1.5px solid #7c3aed', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: '#7c3aed', fontSize: 12, fontWeight: 700, fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', gap: 3, transition: 'all 0.2s ease' }}>
+                            🌐
+                          </button>
+                        )}
+                        {publishedIds.has(id) && (
+                          <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700, background: '#faf5ff', borderRadius: 8, padding: '4px 8px', border: '1.5px solid #7c3aed' }}>✓ ציבורי</span>
+                        )}
+
                         <span style={{ fontSize: 16 }}>{GROUP_ICONS[trip.group_type] || '🚶'}</span>
                       </div>
                     </div>
@@ -164,6 +234,56 @@ export default function MyTrips() {
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
+
+      {/* ── Publish Modal ─────────────────────────────────────────────── */}
+      {showPublishModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}
+          onClick={e => e.target === e.currentTarget && setShowPublishModal(null)}>
+          <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '20px 22px 16px', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', zIndex: 10, borderRadius: '24px 24px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 18, color: '#0f172a' }}>🌐 פרסם מסלול ציבורי</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>יוצג בעמוד המסלולים + תקבל +25 XP</div>
+              </div>
+              <button onClick={() => setShowPublishModal(null)} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', fontSize: 18, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>📝 תיאור המסלול</label>
+                <textarea value={publishDesc} onChange={e => setPublishDesc(e.target.value)} rows={3}
+                  placeholder="מה מיוחד במסלול? למי הוא מתאים? מה הייתם ממליצים?"
+                  style={{ width: '100%', padding: '11px 13px', border: '1.5px solid #e2e8f0', borderRadius: 13, fontSize: 13, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>✨ נקודות עניין</label>
+                <textarea value={publishPOI} onChange={e => setPublishPOI(e.target.value)} rows={2}
+                  placeholder="מפל, תצפית, עץ עתיק — מה כדאי לשים לב?"
+                  style={{ width: '100%', padding: '11px 13px', border: '1.5px solid #e2e8f0', borderRadius: 13, fontSize: 13, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>🛑 עצירות מומלצות</label>
+                <textarea value={publishStops} onChange={e => setPublishStops(e.target.value)} rows={2}
+                  placeholder="היכן מומלץ לעצור ולהתעכב?"
+                  style={{ width: '100%', padding: '11px 13px', border: '1.5px solid #e2e8f0', borderRadius: 13, fontSize: 13, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
+                  onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowPublishModal(null)}
+                  style={{ flex: 1, padding: '12px', borderRadius: 13, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>ביטול</button>
+                <button onClick={() => handlePublish(showPublishModal)} disabled={!!publishingId}
+                  style={{ flex: 2, padding: '12px', borderRadius: 13, border: 'none', background: publishingId ? '#94a3b8' : 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff', fontWeight: 800, cursor: publishingId ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
+                  {publishingId ? '⏳ מפרסם...' : '🌐 פרסם + קבל 25 XP'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

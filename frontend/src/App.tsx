@@ -8,6 +8,7 @@ import TripPlanner from './pages/TripPlanner';
 import POIDetail from './pages/POIDetail';
 import TripDetail from './pages/TripDetail';
 import Profile from './pages/Profile';
+import PublicUserProfile from './pages/PublicUserProfile';
 import Reports from './pages/Reports';
 import CommunityVideos from './pages/CommunityVideos';
 import Leaderboard from './pages/Leaderboard';
@@ -107,6 +108,7 @@ function AppRoutes() {
         {/* ── Fully public (no auth needed) ────────────────── */}
         <Route path="/trips" element={<Wrap name="Trips"><PublicTrips /></Wrap>} />
         <Route path="/trips/:id" element={<Wrap name="TripDetail"><PublicTripDetail /></Wrap>} />
+        <Route path="/profile/:id" element={<Wrap name="UserProfile"><PublicUserProfile /></Wrap>} />
 
         {/* ── Guest-accessible (read-only browsing) ─────────── */}
         <Route path="/" element={<RequireAuth allowGuest><Wrap name="Home"><Home /></Wrap></RequireAuth>} />

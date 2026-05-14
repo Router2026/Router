@@ -46,6 +46,8 @@ export interface POI {
   photo_credit?: string;
   /** Username of the community member who originally contributed this place */
   uploaded_by?: string;
+  /** Distance from user in meters — present only when user_lat/user_lng passed to list() */
+  distance_meters?: number;
 }
 
 export interface NearbyPOI extends POI {
@@ -146,12 +148,36 @@ export interface PublicTripLocation {
   order_index: number; region_name?: string; difficulty?: string;
 }
 
+export interface RouteComment {
+  id: number; route_id: number; user_id: number;
+  username: string; avatar_url: string | null;
+  content: string; created_at: string;
+}
+
+export interface CommunityMedia {
+  id: number; route_id: number; user_id: number;
+  username: string; avatar_url: string | null;
+  media_type: 'image' | 'video'; url: string;
+  caption: string | null; created_at: string;
+}
+
+export interface RouteImage {
+  id: number; route_id: number; image_url: string; caption?: string; created_at: string;
+}
+
 export interface PublicTrip {
   id: number; user_id: number; title: string; description: string | null;
   route_geojson: object | null; is_public: boolean; created_at: string;
   creator_username: string; creator_avatar: string | null;
   creator_xp: number; location_count: number; locations: PublicTripLocation[];
   region?: string; difficulty?: string; style?: string; total_duration_hours?: number; group_type?: string;
+  // user content
+  user_description?: string; image_url?: string; video_url?: string;
+  points_of_interest?: string; recommended_stops?: string;
+  route_images?: RouteImage[];
+  // social
+  likes_count?: number; comments_count?: number;
+  average_rating?: number; ratings_count?: number;
 }
 
 export interface FavoriteLocation {
@@ -181,6 +207,8 @@ function mapLocation(r: any): POI {
     average_rating: parseFloat(r.average_rating) || 4.0,
     photo_credit: r.photo_credit || r.credit || undefined,
     uploaded_by: r.uploaded_by || undefined,
+    distance_meters: r.distance_meters !== undefined && r.distance_meters !== null
+      ? parseFloat(r.distance_meters) : undefined,
   };
 }
 
@@ -291,6 +319,8 @@ export const api = {
       region?: string; category?: string; difficulty?: string; search?: string;
       has_water?: boolean; has_shade?: boolean; accessible?: boolean;
       limit?: number; offset?: number;
+      // Proximity: pass user coords to get distance-sorted results from the DB
+      user_lat?: number; user_lng?: number;
     }): Promise<POI[]> => {
       const qs = new URLSearchParams();
       if (params?.region) qs.set('region', params.region);
@@ -302,6 +332,8 @@ export const api = {
       if (params?.accessible) qs.set('accessible', 'true');
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.offset) qs.set('offset', String(params.offset));
+      if (params?.user_lat !== undefined) qs.set('user_lat', String(params.user_lat));
+      if (params?.user_lng !== undefined) qs.set('user_lng', String(params.user_lng));
       return (await apiFetch<{ data: any[] }>(`/locations?${qs}`)).data.map(mapLocation);
     },
     get: async (id: string): Promise<POI> => mapLocation((await apiFetch<{ data: any }>(`/locations/${id}`)).data),
@@ -412,10 +444,12 @@ export const api = {
 
   // ── Public trips ─────────────────────────────────────────────
   publicTrips: {
-    list: async (params?: { region?: string; difficulty?: string; limit?: number; offset?: number }): Promise<PublicTrip[]> => {
+    list: async (params?: { region?: string; difficulty?: string; style?: string; group_type?: string; limit?: number; offset?: number }): Promise<PublicTrip[]> => {
       const qs = new URLSearchParams();
       if (params?.region) qs.set('region', params.region);
       if (params?.difficulty) qs.set('difficulty', params.difficulty);
+      if (params?.style) qs.set('style', params.style);
+      if (params?.group_type) qs.set('group_type', params.group_type);
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.offset) qs.set('offset', String(params.offset));
       return (await apiFetch<{ data: PublicTrip[] }>(`/trips/public?${qs}`)).data;
@@ -425,10 +459,54 @@ export const api = {
     create: async (data: {
       title: string; description?: string;
       route_geojson?: object; is_public?: boolean; location_ids?: number[];
-    }): Promise<PublicTrip> =>
-      (await apiFetch<{ data: PublicTrip }>('/trips/public', { method: 'POST', body: JSON.stringify(data) })).data,
+    }): Promise<PublicTrip & { xp_awarded?: any }> =>
+      (await apiFetch<{ data: any }>('/trips/public', { method: 'POST', body: JSON.stringify(data) })).data,
     myTrips: async (): Promise<{ id: number; title: string; description: string | null; is_public: boolean; created_at: string; location_count: number }[]> =>
       (await apiFetch<{ data: any[] }>('/users/me/trips')).data,
+    // social
+    toggleLike: async (id: number): Promise<{ liked: boolean; likes_count: number }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/likes`, { method: 'POST' })).data,
+    getLikes: async (id: number): Promise<{ liked: boolean; likes_count: number }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/likes`)).data,
+    getComments: async (id: number): Promise<RouteComment[]> =>
+      (await apiFetch<{ data: RouteComment[] }>(`/trips/public/${id}/comments`)).data,
+    addComment: async (id: number, content: string): Promise<RouteComment> =>
+      (await apiFetch<{ data: RouteComment }>(`/trips/public/${id}/comments`, { method: 'POST', body: JSON.stringify({ content }) })).data,
+    deleteComment: async (id: number, commentId: number): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/comments?commentId=${commentId}`, { method: 'DELETE' });
+    },
+    getRating: async (id: number): Promise<{ average_rating: number; ratings_count: number; user_rating: number | null }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`)).data,
+    setRating: async (id: number, rating: number): Promise<{ average_rating: number; ratings_count: number; user_rating: number }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`, { method: 'POST', body: JSON.stringify({ rating }) })).data,
+    updateMedia: async (id: number, data: { user_description?: string; image_url?: string; video_url?: string; points_of_interest?: string; recommended_stops?: string }): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/media`, { method: 'PATCH', body: JSON.stringify(data) });
+    },
+    getImages: async (id: number): Promise<RouteImage[]> =>
+      (await apiFetch<{ data: RouteImage[] }>(`/trips/public/${id}/images`)).data,
+    addImage: async (id: number, image_url: string, caption?: string): Promise<RouteImage> =>
+      (await apiFetch<{ data: RouteImage }>(`/trips/public/${id}/images`, { method: 'POST', body: JSON.stringify({ image_url, caption }) })).data,
+    deleteImage: async (id: number, imageId: number): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/images/${imageId}`, { method: 'DELETE' });
+    },
+    updateStops: async (id: number, location_ids: number[]): Promise<PublicTrip> =>
+      (await apiFetch<{ data: PublicTrip }>(`/trips/public/${id}`, { method: 'PATCH', body: JSON.stringify({ location_ids }) })).data,
+    publish: async (id: number): Promise<{ trip: PublicTrip; xp_awarded?: any }> => {
+      const data = (await apiFetch<{ data: any }>(`/trips/public/${id}`, { method: 'PATCH', body: JSON.stringify({ is_public: true }) })).data;
+      return { trip: data, xp_awarded: data.xp_awarded };
+    },
+    getCommunityMedia: async (id: number): Promise<CommunityMedia[]> =>
+      (await apiFetch<{ data: CommunityMedia[] }>(`/trips/public/${id}/community-media`)).data,
+    addCommunityMedia: async (id: number, url: string, media_type: 'image' | 'video', caption?: string): Promise<CommunityMedia & { xp_awarded?: any }> =>
+      (await apiFetch<{ data: any }>(`/trips/public/${id}/community-media`, { method: 'POST', body: JSON.stringify({ url, media_type, caption }) })).data,
+    deleteCommunityMedia: async (id: number, mediaId: number): Promise<void> => {
+      await apiFetch(`/trips/public/${id}/community-media/${mediaId}`, { method: 'DELETE' });
+    },
+  },
+
+  userProfiles: {
+    get: async (userId: number): Promise<{ profile: any; trips: PublicTrip[] }> =>
+      (await apiFetch<{ data: any }>(`/users/${userId}`)).data,
   },
 
   // ── Reviews ──────────────────────────────────────────────────
@@ -503,6 +581,55 @@ export const api = {
       api.locations.rejectImage(locationId, imageId),
   },
 };
+
+// ── Helper: geocode a city/locality name to coordinates (Israel-scoped) ──────
+export interface GeocodedCity {
+  name: string;       // display name returned by Nominatim
+  lat: number;
+  lng: number;
+}
+
+export async function geocodeCity(query: string): Promise<GeocodedCity | null> {
+  if (!query.trim()) return null;
+  try {
+    const params = new URLSearchParams({
+      q: query,
+      format: 'json',
+      limit: '1',
+      countrycodes: 'il',
+      addressdetails: '1',
+      'accept-language': 'he,en',
+    });
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { 'User-Agent': 'RouterApp/1.0' },
+    });
+    if (!res.ok) return null;
+    const results = await res.json();
+    if (!results.length) return null;
+    const r = results[0];
+    // Prefer city/town/village display name
+    const displayName =
+      r.address?.city ||
+      r.address?.town ||
+      r.address?.village ||
+      r.address?.municipality ||
+      r.address?.suburb ||
+      r.display_name.split(',')[0];
+    return { name: displayName, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
+  } catch {
+    return null;
+  }
+}
+
+// ── Helper: haversine distance between two lat/lng points (meters) ────────────
+export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 // ── Helper: convert File to base64 ────────────────────────────────────────
 export function fileToBase64(file: File): Promise<string> {
