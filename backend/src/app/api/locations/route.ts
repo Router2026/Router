@@ -1,10 +1,3 @@
-// src/app/api/locations/route.ts  ← REPLACE existing file
-// Changes vs original:
-//  • Passes search param through (was missing — caused FTS to be skipped)
-//  • Returns X-Total-Count header so Explore.tsx knows total without a second request
-//  • Adds Cache-Control headers (CDN caches list for 2 min, stale-while-revalidate 5 min)
-//  • Clamps limit to 100 (defence-in-depth on top of service-layer cap)
-
 import { NextRequest, NextResponse } from "next/server";
 import { getLocations, getFilteredCount } from "@/lib/locations/location-service";
 import { successResponse, errorResponse } from "@/lib/api/response";
@@ -22,7 +15,9 @@ export async function GET(req: NextRequest) {
       userLng >= -180 && userLng <= 180;
 
     const rawLimit = sp.get("limit") ? parseInt(sp.get("limit")!) : 40;
-    const limit = Math.min(rawLimit, 100); // never allow >100 per request
+    const limit = Math.min(rawLimit, 100);
+
+    const radius = sp.get("radius") ? parseInt(sp.get("radius")!) : undefined;
 
     const query = {
       region: sp.get("region") || undefined,
@@ -36,20 +31,18 @@ export async function GET(req: NextRequest) {
       offset: sp.get("offset") ? parseInt(sp.get("offset")!) : undefined,
       user_lat: validCoords ? userLat : undefined,
       user_lng: validCoords ? userLng : undefined,
+      radius: radius,
     };
 
-    // Run data + count in parallel — count is cheap (uses index) and cached separately
     const [data, total] = await Promise.all([
       getLocations(query),
       getFilteredCount(query),
     ]);
 
-    // Determine if responses are personalised (coords = no CDN cache)
     const isPersonalised = validCoords;
 
     return NextResponse.json(successResponse(data), {
       headers: {
-        // Tell Explore.tsx the total so it can show "X אתרים" without over-fetching
         "X-Total-Count": String(total),
         "Cache-Control": isPersonalised
           ? "private, no-store"

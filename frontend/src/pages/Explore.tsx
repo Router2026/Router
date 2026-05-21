@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, type POI, geocodeCity, haversineDistance, type GeocodedCity } from '../api';
+import { api, type POI, geocodeCity, type GeocodedCity } from '../api';
 import RouterLogo from '../assets/logo.jpeg';
 import { useTripBucket } from '../context/TripBucketContext';
 import { useFavorites } from '../context/FavoritesContext';
@@ -8,8 +8,6 @@ import { useAuth } from '../context/AuthContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 import { useGuestLock } from '../components/LockedFeature';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
 
 const DIFFICULTIES = ['קל', 'בינוני', 'מאתגר', 'אקסטרים'];
 const PAGE_SIZE = 40;
@@ -22,8 +20,6 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
   'קשה': { color: '#dc2626', bg: '#fef2f2' },
   'אקסטרים': { color: '#7c3aed', bg: '#faf5ff' },
 };
-
-// ── Sub-components ────────────────────────────────────────────────────────────
 
 function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -73,7 +69,6 @@ function FilterPanel({
           </button>
         </div>
 
-        {/* Sorting section (Proximity) */}
         <FilterSection title="מיון">
           <button
             onClick={handleProximityToggle}
@@ -92,13 +87,9 @@ function FilterPanel({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {geoLoading
                 ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M12 1v4M12 19v4M1 12h4M19 12h4" />
-                  <path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
-                </svg>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 1v4M12 19v4M1 12h4M19 12h4" /><path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" /></svg>
               }
-              {geoLoading ? 'מאתר מיקום...' : sortByProximity ? 'מיין לפי קרבה אליי' : 'מיין לפי קרבה אליי'}
+              {geoLoading ? 'מאתר מיקום...' : 'מיין לפי קרבה אליי'}
             </div>
             <div style={{
               width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
@@ -135,8 +126,6 @@ function formatDistance(m: number): string {
   if (m < 10000) return `${(m / 1000).toFixed(1)} ק"מ`;
   return `${Math.round(m / 1000)} ק"מ`;
 }
-
-// ── POICard — wrapped in React.memo to prevent re-renders on parent state changes ──
 
 const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -231,16 +220,15 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
   );
 });
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-
 export default function Explore() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
 
-  // ── Filter state ──────────────────────────────────────────────────────────
   const [search, setSearch] = useState(urlQuery);
+  const [debouncedSearch, setDebouncedSearch] = useState(urlQuery);
+
   const [selRegions, setSelRegions] = useState<string[]>([]);
   const [selCats, setSelCats] = useState<string[]>(urlCategory ? [urlCategory] : []);
   const [selDiffs, setSelDiffs] = useState<string[]>([]);
@@ -249,7 +237,6 @@ export default function Explore() {
   const [accessible, setAccessible] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  // ── Server-side pagination state ──────────────────────────────────────────
   const [pois, setPois] = useState<POI[]>([]);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -257,67 +244,85 @@ export default function Explore() {
   const [error, setError] = useState<string | null>(null);
   const hasMore = totalCount !== null ? pois.length < totalCount : true;
 
-  // ── Filter dropdown data (from /api/locations/meta) ───────────────────────
   const [regions, setRegions] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
 
-  // ── Proximity state ───────────────────────────────────────────────────────
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sortByProximity, setSortByProximity] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
 
-  // ── City geocoding state ──────────────────────────────────────────────────
   const [cityResult, setCityResult] = useState<GeocodedCity | null>(null);
   const [citySearching, setCitySearching] = useState(false);
-  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Fetch filter meta once on mount ──────────────────────────────────────
   useEffect(() => {
-    api.regions.list()
-      .then(r => setRegions(r.map(reg => reg.name)))
-      .catch(console.error);
-
-    // Fetch meta for category/difficulty dropdowns
+    api.regions.list().then(r => setRegions(r.map(reg => reg.name))).catch(console.error);
     fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/locations/meta`)
       .then(r => r.json())
-      .then(({ data }) => {
-        if (data?.categories) setCategories(data.categories);
-      })
+      .then(({ data }) => { if (data?.categories) setCategories(data.categories); })
       .catch(console.error);
   }, []);
 
-  // ── Core fetch function (server-side filtered, paginated) ─────────────────
-  const fetchPage = useCallback(async (pageNum: number, coords?: { lat: number; lng: number }) => {
+  // 1. Debounce and Geocode Search
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      const term = search.trim();
+      if (!term) {
+        setCityResult(null);
+        setDebouncedSearch("");
+        return;
+      }
+
+      if (regions.includes(term) || categories.includes(term)) {
+        setCityResult(null);
+        setDebouncedSearch(term);
+        return;
+      }
+
+      setCitySearching(true);
+      const result = await geocodeCity(term);
+      setCityResult(result);
+      setCitySearching(false);
+      setDebouncedSearch(term);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [search, regions, categories]);
+
+  // 2. The Core API Fetcher
+  const fetchPage = useCallback(async (pageNum: number, coords?: { lat: number; lng: number }, isCitySearch?: boolean) => {
     setLoading(true);
     setError(null);
     try {
       const qs = new URLSearchParams();
-      if (selRegions[0]) qs.set('region', selRegions[0]);
-      if (selCats[0]) qs.set('category', selCats[0]);
-      if (selDiffs[0]) qs.set('difficulty', selDiffs[0]);
-      if (search.trim()) qs.set('search', search.trim());
+      if (selRegions.length > 0) qs.set('region', selRegions.join(','));
+      if (selCats.length > 0) qs.set('category', selCats.join(','));
+      if (selDiffs.length > 0) qs.set('difficulty', selDiffs.join(','));
+
+      if (!isCitySearch && debouncedSearch) {
+        qs.set('search', debouncedSearch);
+      }
+
       if (hasWater) qs.set('has_water', 'true');
       if (hasShade) qs.set('has_shade', 'true');
       if (accessible) qs.set('accessible', 'true');
+
       qs.set('limit', String(PAGE_SIZE));
       qs.set('offset', String(pageNum * PAGE_SIZE));
+
       if (coords) {
         qs.set('user_lat', String(coords.lat));
         qs.set('user_lng', String(coords.lng));
+        if (isCitySearch) qs.set('radius', String(CITY_RADIUS_METERS));
       }
 
       const token = localStorage.getItem('router_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL ?? ''}/api/locations?${qs}`,
-        { headers }
-      );
+      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/locations?${qs}`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Read total from header
       const total = res.headers.get('X-Total-Count');
       if (total) setTotalCount(parseInt(total));
 
@@ -351,22 +356,31 @@ export default function Explore() {
     } finally {
       setLoading(false);
     }
-  }, [selRegions, selCats, selDiffs, search, hasWater, hasShade, accessible]);
+  }, [selRegions, selCats, selDiffs, hasWater, hasShade, accessible, debouncedSearch]);
 
-  // ── Reset + re-fetch when any filter changes ──────────────────────────────
+  // 3. Effect to Reset & Re-Fetch
   useEffect(() => {
     setPage(0);
     setTotalCount(null);
-    fetchPage(0, userCoords ?? undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selRegions, selCats, selDiffs, hasWater, hasShade, accessible, search, userCoords]);
 
-  // ── URL category param sync ───────────────────────────────────────────────
+    let targetCoords = undefined;
+    let isCity = false;
+
+    // Prioritize User Coords if explicitly requested Proximity Sort
+    if (sortByProximity && userCoords) {
+      targetCoords = userCoords;
+    } else if (cityResult) {
+      targetCoords = { lat: cityResult.lat, lng: cityResult.lng };
+      isCity = true;
+    }
+
+    fetchPage(0, targetCoords, isCity);
+  }, [fetchPage, cityResult, userCoords, sortByProximity]);
+
   useEffect(() => {
     if (urlCategory && !selCats.includes(urlCategory)) setSelCats([urlCategory]);
   }, [urlCategory]);
 
-  // ── IntersectionObserver for loading the next server page ─────────────────
   const observer = useRef<IntersectionObserver | null>(null);
   const lastPoiRef = useCallback((node: HTMLDivElement | null) => {
     if (loading) return;
@@ -375,48 +389,22 @@ export default function Explore() {
       if (entries[0].isIntersecting && hasMore && !loading) {
         const nextPage = page + 1;
         setPage(nextPage);
-        fetchPage(nextPage, userCoords ?? undefined);
+
+        let targetCoords = undefined;
+        let isCity = false;
+        if (sortByProximity && userCoords) {
+          targetCoords = userCoords;
+        } else if (cityResult) {
+          targetCoords = { lat: cityResult.lat, lng: cityResult.lng };
+          isCity = true;
+        }
+
+        fetchPage(nextPage, targetCoords, isCity);
       }
     });
     if (node) observer.current.observe(node);
-  }, [loading, hasMore, page, fetchPage, userCoords]);
+  }, [loading, hasMore, page, fetchPage, userCoords, sortByProximity, cityResult]);
 
-  // ── City geocoding (unchanged logic) ─────────────────────────────────────
-  useEffect(() => {
-    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-    const term = search.trim();
-    if (!term) { setCityResult(null); return; }
-
-    const hasDirectMatch = pois.some(p =>
-      p.name.includes(term) || p.category.includes(term) || p.region.includes(term)
-    );
-    if (hasDirectMatch) { setCityResult(null); return; }
-
-    geocodeTimerRef.current = setTimeout(async () => {
-      setCitySearching(true);
-      const result = await geocodeCity(term);
-      setCityResult(result);
-      setCitySearching(false);
-    }, 500);
-
-    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
-  }, [search, pois]);
-
-  useEffect(() => { if (!search.trim()) setCityResult(null); }, [search]);
-
-  // ── City-proximity client-side filter (only when geocoded city found) ─────
-  const displayedPois = useMemo(() => {
-    if (!cityResult || !search.trim()) return pois;
-    return pois
-      .flatMap(p => {
-        const dist = haversineDistance(cityResult.lat, cityResult.lng, p.latitude, p.longitude);
-        if (dist > CITY_RADIUS_METERS) return [];
-        return [{ ...p, distance_meters: dist }];
-      })
-      .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0));
-  }, [pois, cityResult, search]);
-
-  // ── Proximity toggle ──────────────────────────────────────────────────────
   const handleProximityToggle = useCallback(async () => {
     if (sortByProximity) {
       setSortByProximity(false);
@@ -429,8 +417,7 @@ export default function Explore() {
     setGeoError(null);
     navigator.geolocation.getCurrentPosition(
       pos => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserCoords(coords);
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setSortByProximity(true);
         setGeoLoading(false);
       },
@@ -451,7 +438,6 @@ export default function Explore() {
   const activeFilterCount = selRegions.length + selCats.length + selDiffs.length +
     (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
       {urlCategory && (
@@ -461,7 +447,6 @@ export default function Explore() {
         </div>
       )}
 
-      {/* Sticky search + filter bar */}
       <div style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', padding: '14px 16px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
@@ -471,7 +456,6 @@ export default function Explore() {
             {activeFilterCount > 0 && <div style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</div>}
           </div>
 
-          {/* Add POI button now replaces the proximity button */}
           <button onClick={() => navigate('/ContributePOI')}
             style={{ width: 44, height: 44, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 10px rgba(13,158,110,0.2)' }} title="הוסף אתר חדש">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -484,12 +468,11 @@ export default function Explore() {
           </div>
         </div>
 
-        {/* Status badges */}
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {citySearching && search.trim() && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fefce8', color: '#ca8a04', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #fde68a' }}>🔍 מחפש יישוב...</span>
           )}
-          {cityResult && search.trim() && !citySearching && (
+          {cityResult && search.trim() && !citySearching && !sortByProximity && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#2563eb', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #bfdbfe' }}>
               📍 אתרים קרוב ל-{cityResult.name}
               <button onClick={() => { setSearch(''); setCityResult(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: 0, display: 'flex', alignItems: 'center' }}>
@@ -517,47 +500,41 @@ export default function Explore() {
         </div>
       </div>
 
-      {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
         {loading && pois.length === 0
           ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
           : error
             ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
             : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
-              {totalCount !== null ? totalCount : displayedPois.length} אתרים
-              {cityResult && search.trim() ? ` · קרוב ל-${cityResult.name}` : sortByProximity ? ' · ממוינים לפי קרבה' : ' · ממוינים לפי דירוג'}
+              {totalCount !== null ? totalCount : pois.length} אתרים
+              {cityResult && search.trim() && !sortByProximity ? ` · קרוב ל-${cityResult.name}` : sortByProximity ? ' · ממוינים לפי קרבה' : ' · ממוינים לפי דירוג'}
             </span>
         }
       </div>
 
-      {/* Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: '0 16px 24px' }}>
-        {displayedPois.map((poi: POI, index: number) => {
-          const isLast = index === displayedPois.length - 1;
+        {pois.map((poi: POI, index: number) => {
+          const isLast = index === pois.length - 1;
           return (
             <div key={poi.id} ref={isLast ? lastPoiRef : null}>
               <POICard poi={poi} onDelete={handleDeletePoi} />
             </div>
           );
         })}
-        {!loading && displayedPois.length === 0 && (
+        {!loading && pois.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontWeight: 700 }}>
-              {cityResult ? `לא נמצאו אתרים בקרבת ${cityResult.name}` : 'לא נמצאו אתרים תואמים לחיפוש שלך'}
-            </div>
+            <div style={{ fontWeight: 700 }}>לא נמצאו אתרים תואמים לחיפוש שלך</div>
           </div>
         )}
       </div>
 
-      {/* Bottom loader */}
       {loading && pois.length > 0 && (
         <div style={{ textAlign: 'center', padding: '10px 20px 30px', color: '#0d9e6e', fontWeight: 600 }}>
           טוען עוד אתרים...
         </div>
       )}
 
-      {/* Filter and Sorting Panel */}
       <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)}
         selectedRegions={selRegions} setSelectedRegions={setSelRegions}
         selectedCategories={selCats} setSelectedCategories={setSelCats}

@@ -54,6 +54,7 @@ export interface LocationQuery {
   offset?: number;
   user_lat?: number;
   user_lng?: number;
+  radius?: number;
 }
 
 export interface MapBounds {
@@ -165,6 +166,73 @@ const LIST_COLUMNS = `
   r.name AS region_name
 `;
 
+// ── Query Builder Helper ──────────────────────────────────────────────────────
+
+/**
+ * Builds the WHERE clause and params array for getLocations and getFilteredCount.
+ * Handles arrays for region, category, difficulty, and advanced full-text search.
+ */
+function buildLocationConditions(query: Omit<LocationQuery, "limit" | "offset">) {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  // Region filter — matches slug OR display name using ANY()
+  if (query.region) {
+    const regions = query.region.split(',');
+    params.push(regions);
+    conditions.push(`(r.slug = ANY($${params.length}) OR r.name = ANY($${params.length}))`);
+  }
+
+  // Category filter using ANY()
+  if (query.category) {
+    const cats = query.category.split(',');
+    params.push(cats);
+    conditions.push(`l.category = ANY($${params.length})`);
+  }
+
+  // Difficulty filter using ANY()
+  if (query.difficulty) {
+    const diffs = query.difficulty.split(',');
+    params.push(diffs);
+    conditions.push(`l.difficulty = ANY($${params.length})`);
+  }
+
+  // Boolean feature flags
+  if (query.has_water) conditions.push(`l.has_water = TRUE`);
+  if (query.has_shade) conditions.push(`l.has_shade = TRUE`);
+  if (query.accessible) conditions.push(`l.accessible = TRUE`);
+
+  // Full-text search with support for multiple words and region matching
+  if (query.search) {
+    const term = query.search.trim();
+    params.push(term);
+    const exactIdx = params.length;
+    params.push(`%${term}%`);
+    const likeIdx = params.length;
+
+    // Split words to support searches like "מעיין ירושלים"
+    const words = term.split(/\s+/).filter(w => w.length > 1);
+    let wordsCondition = "";
+    if (words.length > 1) {
+      const wordConds = words.map(w => {
+        params.push(`%${w}%`);
+        const wIdx = params.length;
+        return `(l.name ILIKE $${wIdx} OR l.category ILIKE $${wIdx} OR r.name ILIKE $${wIdx} OR r.slug ILIKE $${wIdx})`;
+      });
+      wordsCondition = `OR (${wordConds.join(' AND ')})`;
+    }
+
+    conditions.push(`(
+      l.search_vec @@ plainto_tsquery('simple', $${exactIdx})
+      OR l.name ILIKE $${likeIdx}
+      OR r.name ILIKE $${likeIdx}
+      ${wordsCondition}
+    )`);
+  }
+
+  return { conditions, params };
+}
+
 // ── getLocations (Explore + MapView list) ─────────────────────────────────────
 
 export async function getLocations(query: LocationQuery): Promise<LocationWithDistance[]> {
@@ -172,46 +240,10 @@ export async function getLocations(query: LocationQuery): Promise<LocationWithDi
   const cached = cacheGet<LocationWithDistance[]>(cacheKey);
   if (cached) return cached;
 
-  const conditions: string[] = [];
-  const params: unknown[] = [];
+  const { conditions, params } = buildLocationConditions(query);
+  let where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  // Region filter — matches slug OR display name
-  if (query.region) {
-    params.push(query.region);
-    conditions.push(`(r.slug = $${params.length} OR r.name = $${params.length})`);
-  }
-
-  // Category exact match
-  if (query.category) {
-    params.push(query.category);
-    conditions.push(`l.category = $${params.length}`);
-  }
-
-  // Difficulty exact match
-  if (query.difficulty) {
-    params.push(query.difficulty);
-    conditions.push(`l.difficulty = $${params.length}`);
-  }
-
-  // Boolean feature flags — use partial indexes (see migration_performance.sql)
-  if (query.has_water) conditions.push(`l.has_water = TRUE`);
-  if (query.has_shade) conditions.push(`l.has_shade = TRUE`);
-  if (query.accessible) conditions.push(`l.accessible = TRUE`);
-
-  // Full-text search — uses GIN index on search_vec (much faster than ILIKE)
-  // Falls back to ILIKE if the search_vec column doesn't exist yet (pre-migration)
-  if (query.search) {
-    params.push(query.search);
-    conditions.push(`(
-      l.search_vec @@ plainto_tsquery('simple', $${params.length})
-      OR l.name ILIKE $${params.length + 1}
-    )`);
-    params.push(`%${query.search}%`);
-  }
-
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-
-  // Cap limit at 100 for list views (was 500 — reduces payload ~5×)
+  // Cap limit at 100 for list views
   const limit = Math.min(query.limit ?? 40, 100);
   const offset = query.offset ?? 0;
   params.push(limit);
@@ -220,8 +252,7 @@ export async function getLocations(query: LocationQuery): Promise<LocationWithDi
   const offsetIdx = params.length;
 
   // Proximity sort: add distance column when user coords are provided
-  const hasCoords =
-    query.user_lat !== undefined && query.user_lng !== undefined;
+  const hasCoords = query.user_lat !== undefined && query.user_lng !== undefined;
 
   let distanceSelect = "";
   let orderBy = "ORDER BY l.average_rating DESC, l.name";
@@ -236,6 +267,15 @@ export async function getLocations(query: LocationQuery): Promise<LocationWithDi
         l.geom::geography,
         ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography
       ) AS distance_meters`;
+
+    // Add radius condition for city searches
+    if (query.radius) {
+      params.push(query.radius);
+      const radiusIdx = params.length;
+      const radiusCond = `ST_DWithin(l.geom::geography, ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography, $${radiusIdx})`;
+      where = where ? `${where} AND ${radiusCond}` : `WHERE ${radiusCond}`;
+    }
+
     orderBy = `ORDER BY distance_meters ASC`;
   }
 
@@ -266,39 +306,25 @@ export async function getLocations(query: LocationQuery): Promise<LocationWithDi
 
 // ── getTotalCount (for pagination metadata) ───────────────────────────────────
 
-export async function getFilteredCount(query: Omit<LocationQuery, "limit" | "offset" | "user_lat" | "user_lng">): Promise<number> {
+export async function getFilteredCount(query: Omit<LocationQuery, "limit" | "offset">): Promise<number> {
   const cacheKey = `locations:count:${JSON.stringify(query)}`;
   const cached = cacheGet<number>(cacheKey);
   if (cached) return cached;
 
-  const conditions: string[] = [];
-  const params: unknown[] = [];
+  const { conditions, params } = buildLocationConditions(query);
+  let where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  if (query.region) {
-    params.push(query.region);
-    conditions.push(`(r.slug = $${params.length} OR r.name = $${params.length})`);
+  // Apply radius filtering to count as well
+  if (query.user_lat !== undefined && query.user_lng !== undefined && query.radius) {
+    params.push(query.user_lng);
+    const lngIdx = params.length;
+    params.push(query.user_lat);
+    const latIdx = params.length;
+    params.push(query.radius);
+    const radiusIdx = params.length;
+    const radiusCond = `ST_DWithin(l.geom::geography, ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography, $${radiusIdx})`;
+    where = where ? `${where} AND ${radiusCond}` : `WHERE ${radiusCond}`;
   }
-  if (query.category) {
-    params.push(query.category);
-    conditions.push(`l.category = $${params.length}`);
-  }
-  if (query.difficulty) {
-    params.push(query.difficulty);
-    conditions.push(`l.difficulty = $${params.length}`);
-  }
-  if (query.has_water) conditions.push(`l.has_water = TRUE`);
-  if (query.has_shade) conditions.push(`l.has_shade = TRUE`);
-  if (query.accessible) conditions.push(`l.accessible = TRUE`);
-  if (query.search) {
-    params.push(query.search);
-    conditions.push(`(
-      l.search_vec @@ plainto_tsquery('simple', $${params.length})
-      OR l.name ILIKE $${params.length + 1}
-    )`);
-    params.push(`%${query.search}%`);
-  }
-
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const { rows } = await rawDb.query(
     `SELECT COUNT(*) AS n
@@ -314,8 +340,6 @@ export async function getFilteredCount(query: Omit<LocationQuery, "limit" | "off
 }
 
 // ── getLocationMeta (filter dropdown data) ────────────────────────────────────
-// Replaces the expensive allPois.map(p => p.category) derivation in Explore.tsx.
-// Cached for 1 hour — categories/difficulties almost never change.
 
 export async function getLocationMeta(): Promise<LocationMeta> {
   const cacheKey = "locations:meta";
@@ -340,7 +364,7 @@ export async function getLocationMeta(): Promise<LocationMeta> {
   return meta;
 }
 
-// ── getLocationById (POIDetail — full row, unchanged) ─────────────────────────
+// ── getLocationById (POIDetail — full row) ────────────────────────────────────
 
 export async function getLocationById(id: number): Promise<Location | null> {
   const cacheKey = `locations:id:${id}`;
@@ -360,7 +384,7 @@ export async function getLocationById(id: number): Promise<Location | null> {
   return result;
 }
 
-// ── getNearbyLocations (PostGIS ST_DWithin, unchanged) ────────────────────────
+// ── getNearbyLocations (PostGIS ST_DWithin) ───────────────────────────────────
 
 export async function getNearbyLocations(
   locationId: number,
@@ -423,7 +447,7 @@ export async function getFeaturedLocations(limit: number = 10): Promise<Location
     ));
   } catch (err: any) {
     if (err?.code === "42703") {
-      console.warn("[getFeaturedLocations] is_featured column missing — falling back to top-rated. Run migration.");
+      console.warn("[getFeaturedLocations] is_featured column missing — falling back to top-rated.");
       ({ rows } = await rawDb.query(
         `SELECT ${LIST_COLUMNS}
          FROM   locations l
@@ -505,7 +529,7 @@ export async function getLocationsInBounds(bounds: MapBounds): Promise<Location[
   return result;
 }
 
-// ── getLocationClusters (unchanged — already minimal columns) ─────────────────
+// ── getLocationClusters ───────────────────────────────────────────────────────
 
 export async function getLocationClusters(bounds?: MapBounds): Promise<Cluster[]> {
   let where = "";
@@ -546,7 +570,7 @@ export async function getTotalCount(): Promise<number> {
   return parseInt(rows[0].count as string);
 }
 
-// ── upsertLocation (unchanged) ────────────────────────────────────────────────
+// ── upsertLocation ────────────────────────────────────────────────────────────
 
 export interface UpdateLocationInput {
   name?: string;
