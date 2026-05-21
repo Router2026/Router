@@ -1,6 +1,3 @@
-/**
- * Explore Page — with Trip Bucket integration
- */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type POI, geocodeCity, haversineDistance, type GeocodedCity } from '../api';
@@ -12,7 +9,11 @@ import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 import { useGuestLock } from '../components/LockedFeature';
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const DIFFICULTIES = ['קל', 'בינוני', 'מאתגר', 'אקסטרים'];
+const PAGE_SIZE = 40;
+const CITY_RADIUS_METERS = 30000;
 
 const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
   'קל': { color: '#16a34a', bg: '#f0fdf4' },
@@ -22,16 +23,49 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
   'אקסטרים': { color: '#7c3aed', bg: '#faf5ff' },
 };
 
-function FilterPanel({ open, onClose, selectedRegions, setSelectedRegions, selectedCategories, setSelectedCategories, selectedDifficulties, setSelectedDifficulties, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible, dynamicRegions, dynamicCategories }: any) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function TagGrid({ items, selected, onToggle }: { items: string[]; selected: string[]; onToggle: (v: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {items.map((item: string) => {
+        const active = selected.includes(item);
+        return (
+          <button key={item} onClick={() => onToggle(item)}
+            style={{ padding: '6px 12px', borderRadius: 20, border: `2px solid ${active ? '#0d9e6e' : '#e2e8f0'}`, background: active ? '#0d9e6e' : '#fff', color: active ? '#fff' : '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+            {item}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FilterPanel({
+  open, onClose, selectedRegions, setSelectedRegions, selectedCategories, setSelectedCategories,
+  selectedDifficulties, setSelectedDifficulties, hasWater, setHasWater, hasShade, setHasShade,
+  accessible, setAccessible, dynamicRegions, dynamicCategories,
+}: any) {
   if (!open) return null;
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter((x: string) => x !== val) : [...arr, val]);
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'flex-start' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
       <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 300, background: '#fff', overflowY: 'auto', padding: '24px 20px', direction: 'rtl' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <button onClick={() => { setSelectedRegions([]); setSelectedCategories([]); setSelectedDifficulties([]); setHasWater(false); setHasShade(false); setAccessible(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif' }}>נקה הכל</button>
+          <button onClick={() => { setSelectedRegions([]); setSelectedCategories([]); setSelectedDifficulties([]); setHasWater(false); setHasShade(false); setAccessible(false); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif' }}>נקה הכל</button>
           <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>סינון</div>
           <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -55,29 +89,15 @@ function FilterPanel({ open, onClose, selectedRegions, setSelectedRegions, selec
   );
 }
 
-function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div style={{ marginBottom: 24 }}><div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>{title}</div>{children}</div>;
-}
-
-function TagGrid({ items, selected, onToggle }: { items: string[]; selected: string[]; onToggle: (v: string) => void }) {
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      {items.map((item: string) => {
-        const active = selected.includes(item);
-        return <button key={item} onClick={() => onToggle(item)} style={{ padding: '6px 12px', borderRadius: 20, border: `2px solid ${active ? '#0d9e6e' : '#e2e8f0'}`, background: active ? '#0d9e6e' : '#fff', color: active ? '#fff' : '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>{item}</button>;
-      })}
-    </div>
-  );
-}
-
 function formatDistance(m: number): string {
   if (m < 1000) return `${Math.round(m)} מ'`;
   if (m < 10000) return `${(m / 1000).toFixed(1)} ק"מ`;
   return `${Math.round(m / 1000)} ק"מ`;
 }
 
-/** POI Card — includes Quick Add to Trip Bucket button */
-function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
+// ── POICard — wrapped in React.memo to prevent re-renders on parent state changes ──
+
+const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
@@ -99,35 +119,21 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
   };
 
   return (
-    <div onClick={() => navigate(`/POIDetail?id=${poi.id}`)} style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease' }}>
+    <div onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
+      style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease' }}>
       <div style={{ position: 'relative', height: 160 }}>
         <img src={poi.main_image || RouterLogo} alt={poi.name} loading="lazy"
           onError={e => { e.currentTarget.src = RouterLogo; e.currentTarget.onerror = null; }}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
 
-        {/* Photo credit watermark */}
         {poi.photo_credit && (
-          <div style={{
-            position: 'absolute',
-            bottom: 8,
-            right: 8, // Changed from left: 8 to right: 8
-            background: 'rgba(255,255,255,0.92)',
-            borderRadius: 5,
-            padding: '2px 7px',
-            fontSize: 10,
-            fontWeight: 600,
-            color: '#374151',
-            fontFamily: 'Heebo, sans-serif',
-            direction: 'rtl',
-            pointerEvents: 'none',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-            lineHeight: 1.4,
-          }}>
+          <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', lineHeight: 1.4 }}>
             צילום: {poi.photo_credit}
           </div>
         )}
-        {/* Favourite button */}
-        <button onClick={handleFavToggle} aria-label={isFavorite(poi.id) ? 'הסר ממועדפים' : 'הוסף למועדפים'} style={{ position: 'absolute', top: 10, right: 10, background: isGuest ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
+        <button onClick={handleFavToggle} aria-label={isFavorite(poi.id) ? 'הסר ממועדפים' : 'הוסף למועדפים'}
+          style={{ position: 'absolute', top: 10, right: 10, background: isGuest ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {isGuest
             ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
             : <svg width="16" height="16" viewBox="0 0 24 24" fill={isFavorite(poi.id) ? '#ef4444' : 'none'} stroke={isFavorite(poi.id) ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
@@ -135,16 +141,10 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
         </button>
         {favLock.PromptComponent}
 
-        {/* Admin delete button */}
         {user?.is_admin && onDelete && (
-          <button
-            onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
-            title="מחק מקום"
-            style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
-            </svg>
+          <button onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }} title="מחק מקום"
+            style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
           </button>
         )}
 
@@ -170,29 +170,15 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
             </span>
           )}
         </div>
-        <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5, textAlign: 'right', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{poi.description}</p>
         <div style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
           {poi.duration_minutes && <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#94a3b8', fontSize: 11 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>{poi.duration_minutes} דק'</div>}
           {poi.has_water && <div style={{ color: '#0284c7', fontSize: 11, fontWeight: 600 }}>💧 מים</div>}
           {poi.has_shade && <div style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>🌿 צל</div>}
         </div>
 
-        {/* Quick Add text button at bottom of card */}
-        <button
-          onClick={handleBucketToggle}
+        <button onClick={handleBucketToggle}
           aria-label={isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול'}
-          style={{
-            marginTop: 10, width: '100%', padding: '7px',
-            border: `1.5px solid ${isGuest ? '#e2e8f0' : inBucket ? '#0d9e6e' : '#e2e8f0'}`,
-            borderRadius: 10,
-            background: isGuest ? '#f8fafc' : inBucket ? '#f0fdf8' : '#f8fafc',
-            color: isGuest ? '#94a3b8' : inBucket ? '#0d9e6e' : '#64748b',
-            fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            fontFamily: 'Heebo, sans-serif',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            transition: 'all 0.15s',
-          }}
-        >
+          style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${isGuest ? '#e2e8f0' : inBucket ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 10, background: isGuest ? '#f8fafc' : inBucket ? '#f0fdf8' : '#f8fafc', color: isGuest ? '#94a3b8' : inBucket ? '#0d9e6e' : '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
           {isGuest
             ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
             : inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>
@@ -202,7 +188,9 @@ function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void 
       </div>
     </div>
   );
-}
+});
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Explore() {
   const navigate = useNavigate();
@@ -210,93 +198,194 @@ export default function Explore() {
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
 
-  // Fetch in chunks equal to the backend's max limit
-  const FETCH_CHUNK_SIZE = 500;
-  // How many items to render in the DOM each time we scroll to the bottom
-  const RENDER_CHUNK_SIZE = 20;
-
-  const [allPois, setAllPois] = useState<POI[]>([]);
-  const [regions, setRegions] = useState<string[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  // ── Filter state ──────────────────────────────────────────────────────────
   const [search, setSearch] = useState(urlQuery);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // State for controlling how many items are currently rendered
-  const [visibleCount, setVisibleCount] = useState(RENDER_CHUNK_SIZE);
-
-  // Proximity state
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [sortByProximity, setSortByProximity] = useState(false);
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [geoError, setGeoError] = useState<string | null>(null);
-
   const [selRegions, setSelRegions] = useState<string[]>([]);
   const [selCats, setSelCats] = useState<string[]>(urlCategory ? [urlCategory] : []);
   const [selDiffs, setSelDiffs] = useState<string[]>([]);
   const [hasWater, setHasWater] = useState(false);
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
 
-  // City / locality search state
+  // ── Server-side pagination state ──────────────────────────────────────────
+  const [pois, setPois] = useState<POI[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const hasMore = totalCount !== null ? pois.length < totalCount : true;
+
+  // ── Filter dropdown data (from /api/locations/meta) ───────────────────────
+  const [regions, setRegions] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+
+  // ── Proximity state ───────────────────────────────────────────────────────
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [sortByProximity, setSortByProximity] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
+  // ── City geocoding state ──────────────────────────────────────────────────
   const [cityResult, setCityResult] = useState<GeocodedCity | null>(null);
   const [citySearching, setCitySearching] = useState(false);
-  const CITY_RADIUS_METERS = 30000; // 30 km radius around the geocoded city
-
-  // Debounced city geocoding: fires when search term changes and no POI text match found
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Helper: fetch all POIs (paginated), optionally passing user coords for DB-side proximity sort
-  const fetchAllData = useCallback(async (coords?: { lat: number; lng: number }) => {
+  // ── Fetch filter meta once on mount ──────────────────────────────────────
+  useEffect(() => {
+    api.regions.list()
+      .then(r => setRegions(r.map(reg => reg.name)))
+      .catch(console.error);
+
+    // Fetch meta for category/difficulty dropdowns
+    fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/locations/meta`)
+      .then(r => r.json())
+      .then(({ data }) => {
+        if (data?.categories) setCategories(data.categories);
+      })
+      .catch(console.error);
+  }, []);
+
+  // ── Core fetch function (server-side filtered, paginated) ─────────────────
+  const fetchPage = useCallback(async (pageNum: number, coords?: { lat: number; lng: number }) => {
     setLoading(true);
     setError(null);
     try {
-      let allFetchedPois: POI[] = [];
-      let offset = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const chunk = await api.locations.list({
-          limit: FETCH_CHUNK_SIZE,
-          offset,
-          // Pass coords to the DB so it orders by ST_Distance — no JS sort needed
-          ...(coords ? { user_lat: coords.lat, user_lng: coords.lng } : {}),
-        });
-        allFetchedPois = [...allFetchedPois, ...chunk];
-        if (chunk.length < FETCH_CHUNK_SIZE) hasMore = false;
-        else offset += FETCH_CHUNK_SIZE;
+      const qs = new URLSearchParams();
+      if (selRegions[0]) qs.set('region', selRegions[0]);
+      if (selCats[0]) qs.set('category', selCats[0]);
+      if (selDiffs[0]) qs.set('difficulty', selDiffs[0]);
+      if (search.trim()) qs.set('search', search.trim());
+      if (hasWater) qs.set('has_water', 'true');
+      if (hasShade) qs.set('has_shade', 'true');
+      if (accessible) qs.set('accessible', 'true');
+      qs.set('limit', String(PAGE_SIZE));
+      qs.set('offset', String(pageNum * PAGE_SIZE));
+      if (coords) {
+        qs.set('user_lat', String(coords.lat));
+        qs.set('user_lng', String(coords.lng));
       }
 
-      const regionsData = await api.regions.list();
-      setAllPois(allFetchedPois);
-      setRegions(regionsData.map(r => r.name));
-      setCategories([...new Set(allFetchedPois.map(p => p.category).filter(Boolean))].sort());
+      const token = localStorage.getItem('router_auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL ?? ''}/api/locations?${qs}`,
+        { headers }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      // Read total from header (set by the updated locations/route.ts)
+      const total = res.headers.get('X-Total-Count');
+      if (total) setTotalCount(parseInt(total));
+
+      const json = await res.json();
+      const newPois: POI[] = (json.data ?? []).map((raw: any) => ({
+        id: String(raw.id),
+        name: raw.name,
+        description: raw.description ?? '',
+        category: raw.category,
+        region: raw.region_name ?? raw.region ?? '',
+        region_id: raw.region_id,
+        latitude: raw.latitude,
+        longitude: raw.longitude,
+        images: raw.images ?? [],
+        main_image: raw.main_image ?? '',
+        difficulty: raw.difficulty ?? 'בינוני',
+        duration_minutes: raw.duration_minutes,
+        has_water: raw.has_water,
+        has_shade: raw.has_shade,
+        accessible: raw.accessible,
+        is_featured: raw.is_featured,
+        average_rating: raw.average_rating ?? 4.0,
+        photo_credit: raw.photo_credit,
+        uploaded_by: raw.uploaded_by,
+        distance_meters: raw.distance_meters,
+      }));
+
+      setPois(prev => pageNum === 0 ? newPois : [...prev, ...newPois]);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selRegions, selCats, selDiffs, search, hasWater, hasShade, accessible]);
 
-  // 1. Initial load — no proximity
-  useEffect(() => { fetchAllData(); }, [fetchAllData]);
+  // ── Reset + re-fetch when any filter changes ──────────────────────────────
+  useEffect(() => {
+    setPage(0);
+    setTotalCount(null);
+    fetchPage(0, userCoords ?? undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selRegions, selCats, selDiffs, hasWater, hasShade, accessible, search, userCoords]);
 
-  // When user toggles proximity sort, get location then re-fetch with coords
+  // ── URL category param sync ───────────────────────────────────────────────
+  useEffect(() => {
+    if (urlCategory && !selCats.includes(urlCategory)) setSelCats([urlCategory]);
+  }, [urlCategory]);
+
+  // ── IntersectionObserver for loading the next server page ─────────────────
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastPoiRef = useCallback((node: HTMLDivElement | null) => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !loading) {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        fetchPage(nextPage, userCoords ?? undefined);
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, hasMore, page, fetchPage, userCoords]);
+
+  // ── City geocoding (unchanged logic) ─────────────────────────────────────
+  useEffect(() => {
+    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    const term = search.trim();
+    if (!term) { setCityResult(null); return; }
+
+    const hasDirectMatch = pois.some(p =>
+      p.name.includes(term) || p.category.includes(term) || p.region.includes(term)
+    );
+    if (hasDirectMatch) { setCityResult(null); return; }
+
+    geocodeTimerRef.current = setTimeout(async () => {
+      setCitySearching(true);
+      const result = await geocodeCity(term);
+      setCityResult(result);
+      setCitySearching(false);
+    }, 500);
+
+    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
+  }, [search, pois]);
+
+  useEffect(() => { if (!search.trim()) setCityResult(null); }, [search]);
+
+  // ── City-proximity client-side filter (only when geocoded city found) ─────
+  // For regular filters, sorting is now done server-side.
+  // City search is the one remaining client-side filter (geocoding is external).
+  const displayedPois = useMemo(() => {
+    if (!cityResult || !search.trim()) return pois;
+    return pois
+      .flatMap(p => {
+        const dist = haversineDistance(cityResult.lat, cityResult.lng, p.latitude, p.longitude);
+        if (dist > CITY_RADIUS_METERS) return [];
+        return [{ ...p, distance_meters: dist }]; // new object — no mutation
+      })
+      .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0));
+  }, [pois, cityResult, search]);
+
+  // ── Proximity toggle ──────────────────────────────────────────────────────
   const handleProximityToggle = useCallback(async () => {
     if (sortByProximity) {
-      // Turn off — refetch without coords (rating sort)
       setSortByProximity(false);
       setUserCoords(null);
       setGeoError(null);
-      fetchAllData();
       return;
     }
-    // Turn on
-    if (!navigator.geolocation) {
-      setGeoError('הדפדפן שלך אינו תומך באיתור מיקום');
-      return;
-    }
+    if (!navigator.geolocation) { setGeoError('הדפדפן שלך אינו תומך באיתור מיקום'); return; }
     setGeoLoading(true);
     setGeoError(null);
     navigator.geolocation.getCurrentPosition(
@@ -305,7 +394,6 @@ export default function Explore() {
         setUserCoords(coords);
         setSortByProximity(true);
         setGeoLoading(false);
-        fetchAllData(coords);
       },
       err => {
         setGeoLoading(false);
@@ -313,117 +401,20 @@ export default function Explore() {
       },
       { timeout: 8000, maximumAge: 60000 }
     );
-  }, [sortByProximity, fetchAllData]);
-
-  // When search changes: try city geocoding if the term doesn't match any POIs directly
-  useEffect(() => {
-    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-
-    const term = search.trim();
-    if (!term) {
-      setCityResult(null);
-      return;
-    }
-
-    // Check if the term already matches some POI names/categories directly
-    const hasDirectMatch = allPois.some(p =>
-      p.name.includes(term) || p.category.includes(term) || p.region.includes(term)
-    );
-
-    if (hasDirectMatch) {
-      setCityResult(null);
-      return;
-    }
-
-    // No direct match → try geocoding as a city/locality after a short delay
-    geocodeTimerRef.current = setTimeout(async () => {
-      setCitySearching(true);
-      const result = await geocodeCity(term);
-      setCityResult(result);
-      setCitySearching(false);
-    }, 500);
-
-    return () => {
-      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-    };
-  }, [search, allPois]);
-
-  // Clear city result when search is cleared
-  useEffect(() => {
-    if (!search.trim()) setCityResult(null);
-  }, [search]);
-
-  useEffect(() => {
-    if (urlCategory && categories.includes(urlCategory)) setSelCats([urlCategory]);
-  }, [urlCategory, categories]);
+  }, [sortByProximity]);
 
   const handleDeletePoi = useCallback(async (id: string) => {
     await api.locations.delete(id);
-    setAllPois(prev => prev.filter(p => p.id !== id));
+    setPois(prev => prev.filter(p => p.id !== id));
+    setTotalCount(prev => (prev !== null ? prev - 1 : null));
   }, []);
 
-  const activeFilterCount = selRegions.length + selCats.length + selDiffs.length + (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
+  const activeFilterCount = selRegions.length + selCats.length + selDiffs.length +
+    (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
-  // 2. Apply filters and search to the ENTIRE list
-  const filteredPois = useMemo(() => {
-    return allPois.filter(p => {
-      // City/locality proximity search: if a city was geocoded, filter by radius
-      if (cityResult && search.trim()) {
-        const dist = haversineDistance(cityResult.lat, cityResult.lng, p.latitude, p.longitude);
-        if (dist > CITY_RADIUS_METERS) return false;
-        // Attach distance for display
-        (p as POI & { distance_meters?: number }).distance_meters = dist;
-      } else if (search && !p.name.includes(search) && !p.region.includes(search) && !p.category.includes(search)) {
-        return false;
-      }
-      if (selRegions.length && !selRegions.includes(p.region)) return false;
-      if (selCats.length && !selCats.includes(p.category)) return false;
-      if (selDiffs.length && !selDiffs.includes(p.difficulty)) return false;
-      if (hasWater && !p.has_water) return false;
-      if (hasShade && !p.has_shade) return false;
-      if (accessible && !p.accessible) return false;
-      return true;
-    }).sort((a, b) => {
-      // When city search active, sort by distance to city center
-      if (cityResult && search.trim()) {
-        const da = (a as any).distance_meters ?? Infinity;
-        const db = (b as any).distance_meters ?? Infinity;
-        return da - db;
-      }
-      return 0; // preserve existing DB sort order
-    });
-  }, [allPois, search, cityResult, CITY_RADIUS_METERS, selRegions, selCats, selDiffs, hasWater, hasShade, accessible]);
-
-  // 3. Reset the visible count whenever filters or search query change
-  useEffect(() => {
-    setVisibleCount(RENDER_CHUNK_SIZE);
-  }, [filteredPois]);
-
-  // 4. Set up the Intersection Observer for Infinite Scrolling
-  const observer = useRef<IntersectionObserver | null>(null);
-  const lastPoiElementRef = useCallback((node: HTMLDivElement | null) => {
-    if (loading) return;
-
-    // Disconnect the previous observer if it exists
-    if (observer.current) observer.current.disconnect();
-
-    observer.current = new IntersectionObserver(entries => {
-      // If the last element is visible and we have more items to show
-      if (entries[0].isIntersecting && visibleCount < filteredPois.length) {
-        setVisibleCount(prev => prev + RENDER_CHUNK_SIZE);
-      }
-    });
-
-    // Observe the new last element
-    if (node) observer.current.observe(node);
-  }, [loading, visibleCount, filteredPois.length]);
-
-  // 5. Slice the array to get only the items we want to render in the DOM
-  const displayedPois = filteredPois.slice(0, visibleCount);
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
-      {/* Active category banner */}
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
           <button onClick={() => { setSelCats([]); window.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
@@ -431,9 +422,9 @@ export default function Explore() {
         </div>
       )}
 
+      {/* Sticky search + filter bar */}
       <div style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', padding: '14px 16px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Filter Button */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setFilterOpen(true)} style={{ width: 44, height: 44, borderRadius: 14, border: '2px solid #e2e8f0', background: activeFilterCount > 0 ? '#0d9e6e' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={activeFilterCount > 0 ? '#fff' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></svg>
@@ -441,52 +432,30 @@ export default function Explore() {
             {activeFilterCount > 0 && <div style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</div>}
           </div>
 
-          {/* Proximity sort button */}
-          <button
-            onClick={handleProximityToggle}
-            disabled={geoLoading}
-            title={sortByProximity ? 'מיין לפי דירוג' : 'מיין לפי קרבה אליי'}
-            style={{ width: 44, height: 44, borderRadius: 14, border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`, background: sortByProximity ? '#0d9e6e' : '#fff', cursor: geoLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', position: 'relative' }}>
+          <button onClick={handleProximityToggle} disabled={geoLoading} title={sortByProximity ? 'מיין לפי דירוג' : 'מיין לפי קרבה אליי'}
+            style={{ width: 44, height: 44, borderRadius: 14, border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`, background: sortByProximity ? '#0d9e6e' : '#fff', cursor: geoLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
             {geoLoading
               ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : '#0d9e6e'} strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : geoError ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 1v4M12 19v4M1 12h4M19 12h4" />
-                <path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
-              </svg>
+              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : geoError ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 1v4M12 19v4M1 12h4M19 12h4" /><path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" /></svg>
             }
           </button>
 
-          {/* Search Input (Fixed for RTL) */}
           <div style={{ flex: 1, background: '#f8fafc', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '2px solid #e2e8f0' }}>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש אתרים, עיר או יישוב..." style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש אתרים, עיר או יישוב..."
+              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </div>
 
-          {/* Add POI Button */}
-          <button
-            onClick={() => navigate('/ContributePOI')}
-            style={{
-              width: 44, height: 44, borderRadius: 14, border: 'none',
-              background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-              color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 10px rgba(13,158,110,0.2)'
-            }}
-            title="הוסף אתר חדש"
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
+          <button onClick={() => navigate('/ContributePOI')}
+            style={{ width: 44, height: 44, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 10px rgba(13,158,110,0.2)' }} title="הוסף אתר חדש">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
         </div>
 
+        {/* Status badges */}
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* City search badge */}
           {citySearching && search.trim() && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fefce8', color: '#ca8a04', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #fde68a' }}>
-              🔍 מחפש יישוב...
-            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fefce8', color: '#ca8a04', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #fde68a' }}>🔍 מחפש יישוב...</span>
           )}
           {cityResult && search.trim() && !citySearching && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#2563eb', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #bfdbfe' }}>
@@ -496,12 +465,6 @@ export default function Explore() {
               </button>
             </span>
           )}
-          {!cityResult && !citySearching && search.trim() && allPois.length > 0 && !allPois.some(p => p.name.includes(search) || p.category.includes(search) || p.region.includes(search)) && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', color: '#dc2626', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #fca5a5' }}>
-              ⚠️ לא נמצא יישוב תואם
-            </span>
-          )}
-          {/* Active proximity badge */}
           {sortByProximity && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #0d9e6e' }}>
               📍 מיון לפי קרבה
@@ -510,12 +473,7 @@ export default function Explore() {
               </button>
             </span>
           )}
-          {/* Geo error */}
-          {geoError && (
-            <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, background: '#fef2f2', borderRadius: 20, padding: '4px 12px', border: '1.5px solid #fca5a5' }}>
-              ⚠️ {geoError}
-            </span>
-          )}
+          {geoError && <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, background: '#fef2f2', borderRadius: 20, padding: '4px 12px', border: '1.5px solid #fca5a5' }}>⚠️ {geoError}</span>}
           {selCats.map(c => (
             <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #0d9e6e' }}>
               {c}
@@ -527,41 +485,41 @@ export default function Explore() {
         </div>
       </div>
 
+      {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
-        {loading ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
-          : error ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
+        {loading && pois.length === 0
+          ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
+          : error
+            ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
             : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
-              {filteredPois.length} אתרים
-              {cityResult && search.trim()
-                ? ` · קרוב ל-${cityResult.name} (עד ${CITY_RADIUS_METERS / 1000} ק"מ)`
-                : sortByProximity ? ' · ממוינים לפי קרבה' : ' · ממוינים לפי דירוג'}
-            </span>}
+              {totalCount !== null ? totalCount : displayedPois.length} אתרים
+              {cityResult && search.trim() ? ` · קרוב ל-${cityResult.name}` : sortByProximity ? ' · ממוינים לפי קרבה' : ' · ממוינים לפי דירוג'}
+            </span>
+        }
       </div>
 
+      {/* Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: '0 16px 24px' }}>
         {displayedPois.map((poi: POI, index: number) => {
-          // Check if this is the last rendered element
           const isLast = index === displayedPois.length - 1;
           return (
-            <div key={poi.id} ref={isLast ? lastPoiElementRef : null}>
+            <div key={poi.id} ref={isLast ? lastPoiRef : null}>
               <POICard poi={poi} onDelete={handleDeletePoi} />
             </div>
           );
         })}
-        {!loading && filteredPois.length === 0 && (
+        {!loading && displayedPois.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
             <div style={{ fontWeight: 700 }}>
-              {cityResult
-                ? `לא נמצאו אתרים בקרבת ${cityResult.name} (ברדיוס ${CITY_RADIUS_METERS / 1000} ק"מ)`
-                : 'לא נמצאו אתרים תואמים לחיפוש שלך'}
+              {cityResult ? `לא נמצאו אתרים בקרבת ${cityResult.name}` : 'לא נמצאו אתרים תואמים לחיפוש שלך'}
             </div>
           </div>
         )}
       </div>
 
-      {/* Loading indicator at the bottom when more items are being rendered */}
-      {!loading && visibleCount < filteredPois.length && (
+      {/* Bottom loader */}
+      {loading && pois.length > 0 && (
         <div style={{ textAlign: 'center', padding: '10px 20px 30px', color: '#0d9e6e', fontWeight: 600 }}>
           טוען עוד אתרים...
         </div>
@@ -577,7 +535,6 @@ export default function Explore() {
         dynamicRegions={regions} dynamicCategories={categories}
       />
 
-      {/* Trip Bucket UI */}
       <TripBucketFab />
       <TripBucketSheet />
     </div>
