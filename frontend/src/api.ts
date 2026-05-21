@@ -27,6 +27,21 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// For multipart/form-data uploads — no Content-Type header so browser sets boundary automatically
+async function apiFetchForm<T>(path: string, formData: FormData): Promise<T> {
+  const token = _token ?? localStorage.getItem(TOKEN_KEY);
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    let code: string | undefined;
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
+    throw new ApiError(message, code);
+  }
+  return res.json();
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface Region {
@@ -402,11 +417,10 @@ export const api = {
         `/locations/${locationId}/media${approvedOnly ? '?approved=true' : ''}`
       )).data,
     uploadMedia: async (locationId: string | number, file: File, caption?: string): Promise<UploadMediaResponse> => {
-      const base64 = await fileToBase64(file);
-      return (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
-        method: 'POST',
-        body: JSON.stringify({ media_data: base64, mime_type: file.type, caption }),
-      })).data;
+      const form = new FormData();
+      form.append('file', file);
+      if (caption) form.append('caption', caption);
+      return (await apiFetchForm<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, form)).data;
     },
     uploadMediaUrl: async (locationId: string | number, url: string, mediaType: 'image' | 'video' = 'image', caption?: string): Promise<UploadMediaResponse> =>
       (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {

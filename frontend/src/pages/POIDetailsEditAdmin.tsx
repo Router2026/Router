@@ -14,8 +14,8 @@
  * Read-only display: id, created_at, updated_at
  */
 
-import { useState } from 'react';
-import { BASE_URL, type POI, type Region } from '../api';
+import { useState, useRef } from 'react';
+import { BASE_URL, api, type POI, type Region } from '../api';
 import { CATEGORIES } from '../utils/constants';
 import RouterLogo from '../assets/logo.jpeg';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
@@ -194,6 +194,9 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [newImageUrl, setNewImageUrl] = useState('');
     const [activeSection, setActiveSection] = useState('basic');
+    const [mainImageUploading, setMainImageUploading] = useState(false);
+    const [mainImageUploadError, setMainImageUploadError] = useState('');
+    const mainImageFileRef = useRef<HTMLInputElement>(null);
     const [mapsLink, setMapsLink] = useState('');
     const [geoQuery, setGeoQuery] = useState('');
     const [geoResults, setGeoResults] = useState<{ display_name: string; lat: string; lon: string }[]>([]);
@@ -277,6 +280,30 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
             setSaveError(e.message || 'שגיאה במחיקה');
             setDeleting(false);
             setConfirmDelete(false);
+        }
+    };
+
+    const handleMainImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setMainImageUploadError('יש לבחור קובץ תמונה (JPEG, PNG, WEBP)');
+            return;
+        }
+        if (file.size > 8 * 1024 * 1024) {
+            setMainImageUploadError('התמונה גדולה מדי — מקסימום 8MB');
+            return;
+        }
+        setMainImageUploading(true);
+        setMainImageUploadError('');
+        try {
+            const result = await api.locations.uploadMedia(Number(poi.id), file);
+            set('main_image', result.media.media_url);
+        } catch (err: any) {
+            setMainImageUploadError(err?.message || 'שגיאה בהעלאת התמונה');
+        } finally {
+            setMainImageUploading(false);
+            if (mainImageFileRef.current) mainImageFileRef.current.value = '';
         }
     };
 
@@ -557,7 +584,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                     {activeSection === 'images' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                             <div>
-                                <FieldLabel>תמונה ראשית (URL)</FieldLabel>
+                                <FieldLabel>תמונה ראשית</FieldLabel>
                                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                                     <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', flexShrink: 0 }}>
                                         <img src={edit.main_image || RouterLogo} alt=""
@@ -565,16 +592,37 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                             onError={e => { (e.target as HTMLImageElement).src = RouterLogo; }} />
                                     </div>
                                     <div style={{ flex: 1 }}>
+                                        {/* URL input */}
                                         <input value={edit.main_image} onChange={e => set('main_image', e.target.value)}
-                                            placeholder="https://..."
+                                            placeholder="https://... (URL תמונה)"
                                             style={{ width: '100%', border: '2px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box' }}
                                             onFocus={e => e.target.style.borderColor = '#0d9e6e'}
                                             onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-                                        {edit.main_image && (
-                                            <button onClick={() => set('main_image', '')}
-                                                style={{ marginTop: 6, padding: '4px 10px', border: '1px solid #fecaca', borderRadius: 8, background: 'transparent', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
-                                                🗑 מחק תמונה ראשית
+                                        {/* File upload button */}
+                                        <input
+                                            type="file"
+                                            ref={mainImageFileRef}
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                            onChange={handleMainImageFileUpload}
+                                        />
+                                        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                                            <button
+                                                onClick={() => mainImageFileRef.current?.click()}
+                                                disabled={mainImageUploading}
+                                                style={{ padding: '6px 12px', border: '1.5px solid #0d9e6e', borderRadius: 8, background: '#f0fdf8', color: '#0d9e6e', fontSize: 12, fontWeight: 700, cursor: mainImageUploading ? 'wait' : 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', gap: 5 }}
+                                            >
+                                                {mainImageUploading ? '⏳ מעלה...' : '📁 העלה קובץ'}
                                             </button>
+                                            {edit.main_image && (
+                                                <button onClick={() => set('main_image', '')}
+                                                    style={{ padding: '6px 10px', border: '1px solid #fecaca', borderRadius: 8, background: 'transparent', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+                                                    🗑 מחק
+                                                </button>
+                                            )}
+                                        </div>
+                                        {mainImageUploadError && (
+                                            <div style={{ marginTop: 4, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>⚠️ {mainImageUploadError}</div>
                                         )}
                                     </div>
                                 </div>

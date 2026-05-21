@@ -54,6 +54,7 @@ function FilterPanel({
   open, onClose, selectedRegions, setSelectedRegions, selectedCategories, setSelectedCategories,
   selectedDifficulties, setSelectedDifficulties, hasWater, setHasWater, hasShade, setHasShade,
   accessible, setAccessible, dynamicRegions, dynamicCategories,
+  sortByProximity, handleProximityToggle, geoLoading, geoError
 }: any) {
   if (!open) return null;
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
@@ -64,13 +65,53 @@ function FilterPanel({
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
       <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 300, background: '#fff', overflowY: 'auto', padding: '24px 20px', direction: 'rtl' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <button onClick={() => { setSelectedRegions([]); setSelectedCategories([]); setSelectedDifficulties([]); setHasWater(false); setHasShade(false); setAccessible(false); }}
+          <button onClick={() => { setSelectedRegions([]); setSelectedCategories([]); setSelectedDifficulties([]); setHasWater(false); setHasShade(false); setAccessible(false); if (sortByProximity) handleProximityToggle(); }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif' }}>נקה הכל</button>
-          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>סינון</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>סינון ומיון</div>
           <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           </button>
         </div>
+
+        {/* Sorting section (Proximity) */}
+        <FilterSection title="מיון">
+          <button
+            onClick={handleProximityToggle}
+            disabled={geoLoading}
+            style={{
+              width: '100%', padding: '10px 14px', borderRadius: 12,
+              border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`,
+              background: sortByProximity ? '#f0fdf8' : '#fff',
+              color: sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#64748b',
+              fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'wait' : 'pointer',
+              fontFamily: 'Heebo, sans-serif',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              transition: 'all 0.2s',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {geoLoading
+                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M12 1v4M12 19v4M1 12h4M19 12h4" />
+                  <path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+                </svg>
+              }
+              {geoLoading ? 'מאתר מיקום...' : sortByProximity ? 'מיין לפי קרבה אליי' : 'מיין לפי קרבה אליי'}
+            </div>
+            <div style={{
+              width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+              border: `2px solid ${sortByProximity ? '#0d9e6e' : '#cbd5e1'}`,
+              background: sortByProximity ? '#0d9e6e' : '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {sortByProximity && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+            </div>
+          </button>
+          {geoError && <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>⚠️ {geoError}</div>}
+        </FilterSection>
+
         <FilterSection title="אזור"><TagGrid items={dynamicRegions || []} selected={selectedRegions} onToggle={(v: string) => toggle(selectedRegions, setSelectedRegions, v)} /></FilterSection>
         <FilterSection title="סוג אתר"><TagGrid items={dynamicCategories || []} selected={selectedCategories} onToggle={(v: string) => toggle(selectedCategories, setSelectedCategories, v)} /></FilterSection>
         <FilterSection title="רמת קושי"><TagGrid items={DIFFICULTIES} selected={selectedDifficulties} onToggle={(v: string) => toggle(selectedDifficulties, setSelectedDifficulties, v)} /></FilterSection>
@@ -276,7 +317,7 @@ export default function Explore() {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Read total from header (set by the updated locations/route.ts)
+      // Read total from header
       const total = res.headers.get('X-Total-Count');
       if (total) setTotalCount(parseInt(total));
 
@@ -364,15 +405,13 @@ export default function Explore() {
   useEffect(() => { if (!search.trim()) setCityResult(null); }, [search]);
 
   // ── City-proximity client-side filter (only when geocoded city found) ─────
-  // For regular filters, sorting is now done server-side.
-  // City search is the one remaining client-side filter (geocoding is external).
   const displayedPois = useMemo(() => {
     if (!cityResult || !search.trim()) return pois;
     return pois
       .flatMap(p => {
         const dist = haversineDistance(cityResult.lat, cityResult.lng, p.latitude, p.longitude);
         if (dist > CITY_RADIUS_METERS) return [];
-        return [{ ...p, distance_meters: dist }]; // new object — no mutation
+        return [{ ...p, distance_meters: dist }];
       })
       .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0));
   }, [pois, cityResult, search]);
@@ -432,12 +471,10 @@ export default function Explore() {
             {activeFilterCount > 0 && <div style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</div>}
           </div>
 
-          <button onClick={handleProximityToggle} disabled={geoLoading} title={sortByProximity ? 'מיין לפי דירוג' : 'מיין לפי קרבה אליי'}
-            style={{ width: 44, height: 44, borderRadius: 14, border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`, background: sortByProximity ? '#0d9e6e' : '#fff', cursor: geoLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
-            {geoLoading
-              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : '#0d9e6e'} strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={sortByProximity ? '#fff' : geoError ? '#ef4444' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 1v4M12 19v4M1 12h4M19 12h4" /><path d="M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" /></svg>
-            }
+          {/* Add POI button now replaces the proximity button */}
+          <button onClick={() => navigate('/ContributePOI')}
+            style={{ width: 44, height: 44, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 10px rgba(13,158,110,0.2)' }} title="הוסף אתר חדש">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
 
           <div style={{ flex: 1, background: '#f8fafc', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '2px solid #e2e8f0' }}>
@@ -445,11 +482,6 @@ export default function Explore() {
               style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </div>
-
-          <button onClick={() => navigate('/ContributePOI')}
-            style={{ width: 44, height: 44, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 10px rgba(13,158,110,0.2)' }} title="הוסף אתר חדש">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          </button>
         </div>
 
         {/* Status badges */}
@@ -525,6 +557,7 @@ export default function Explore() {
         </div>
       )}
 
+      {/* Filter and Sorting Panel */}
       <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)}
         selectedRegions={selRegions} setSelectedRegions={setSelRegions}
         selectedCategories={selCats} setSelectedCategories={setSelCats}
@@ -533,6 +566,10 @@ export default function Explore() {
         hasShade={hasShade} setHasShade={setHasShade}
         accessible={accessible} setAccessible={setAccessible}
         dynamicRegions={regions} dynamicCategories={categories}
+        sortByProximity={sortByProximity}
+        handleProximityToggle={handleProximityToggle}
+        geoLoading={geoLoading}
+        geoError={geoError}
       />
 
       <TripBucketFab />
