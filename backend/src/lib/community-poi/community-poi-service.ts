@@ -2,6 +2,7 @@
 // Added: region auto-classification from coordinates via PostGIS / bounding-box lookup.
 
 import { rawDb } from "@/lib/db/raw-client";
+import { uploadToStorage } from "@/lib/location-images/location-media-service";
 import { sendPushToUser } from "@/lib/notifications/push-service";
 import { CommunityPoiRow, CommunityPoiStatus, CreateCommunityPoiInput } from "./types";
 
@@ -81,14 +82,13 @@ export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | nul
 export async function createCommunityPoi(
   input: CreateCommunityPoiInput
 ): Promise<CommunityPoiRow> {
-  // Auto-classify region from coordinates
-  const regionInfo = await classifyRegion(input.latitude, input.longitude).catch(() => null);
-
+  // INSERT immediately with null region so the HTTP response is not blocked
+  // by the PostGIS classifyRegion query. Region is backfilled asynchronously.
   const { rows } = await rawDb.query(
     `INSERT INTO community_pois
        (user_id, name, category, description, latitude, longitude, photos, status, region, region_id,
         difficulty, duration_minutes, has_water, has_shade, accessible, photo_credit)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NULL, NULL, $8, $9, $10, $11, $12, $13)
      RETURNING *`,
     [
       input.userId,
@@ -98,8 +98,6 @@ export async function createCommunityPoi(
       input.latitude,
       input.longitude,
       JSON.stringify(input.photos ?? []),
-      regionInfo?.region_name ?? null,
-      regionInfo?.region_id ?? null,
       input.difficulty ?? 'בינוני',
       input.duration_minutes ?? null,
       input.has_water ?? false,
@@ -108,7 +106,26 @@ export async function createCommunityPoi(
       input.photo_credit ?? null,
     ]
   );
-  return rows[0] as unknown as CommunityPoiRow;
+
+  const poi = rows[0] as unknown as CommunityPoiRow;
+
+  // Classify region in the background — non-blocking, best-effort
+  classifyRegion(input.latitude, input.longitude)
+    .then(regionInfo => {
+      if (!regionInfo) return;
+      return rawDb.query(
+        `UPDATE community_pois SET region = $1, region_id = $2 WHERE id = $3`,
+        [regionInfo.region_name, regionInfo.region_id, poi.id]
+      );
+    })
+    .catch(err => {
+      console.error(
+        `[createCommunityPoi] background region classification failed for POI ${poi.id}:`,
+        err
+      );
+    });
+
+  return poi;
 }
 
 // ── Admin: Approve ─────────────────────────────────────────────────────────────
@@ -219,6 +236,23 @@ export async function approveCommunityPoi(
         (poi as any).accessible ?? false,            // $18
       ]
     );
+
+    // 4. Migrate any pending media from community_pois.photos into location_media.
+    //    Photos are stored as JSON strings of https:// Storage URLs on community_pois.photos.
+    //    We insert them into location_media so they appear in the approved POI's gallery.
+    const pendingPhotos: string[] = Array.isArray(poi.photos) ? poi.photos : [];
+    for (const photoUrl of pendingPhotos) {
+      if (!photoUrl || !photoUrl.startsWith("http")) continue;
+      await client.query(
+        `INSERT INTO location_media
+           (user_id, location_id, media_type, media_url, is_approved, approved_at)
+         SELECT $1, loc.id, 'image', $2, TRUE, NOW()
+         FROM locations loc
+         WHERE loc.source = 'community' AND loc.source_id = $3
+         ON CONFLICT DO NOTHING`,
+        [poi.user_id, photoUrl, String(poi.id)]
+      );
+    }
 
     await client.query("COMMIT");
 

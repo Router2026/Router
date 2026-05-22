@@ -417,10 +417,26 @@ export const api = {
         `/locations/${locationId}/media${approvedOnly ? '?approved=true' : ''}`
       )).data,
     uploadMedia: async (locationId: string | number, file: File, caption?: string): Promise<UploadMediaResponse> => {
-      const form = new FormData();
-      form.append('file', file);
-      if (caption) form.append('caption', caption);
-      return (await apiFetchForm<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, form)).data;
+      const base64 = await fileToBase64(file);
+      return (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
+        method: 'POST',
+        body: JSON.stringify({
+          media_data: base64,
+          mime_type: file.type,
+          ...(caption ? { caption } : {}),
+        }),
+      })).data;
+    },
+    // Upload a file to Supabase Storage without attaching it to a location yet.
+    // Used by ContributePOI so photos are stored before the community_pois row exists.
+    // Returns the public https:// Storage URL to include in community_pois.photos.
+    uploadPendingMedia: async (file: File): Promise<string> => {
+      const base64 = await fileToBase64(file);
+      const res = await apiFetch<{ data: { url: string } }>('/media/upload', {
+        method: 'POST',
+        body: JSON.stringify({ media_data: base64, mime_type: file.type }),
+      });
+      return res.data.url;
     },
     uploadMediaUrl: async (locationId: string | number, url: string, mediaType: 'image' | 'video' = 'image', caption?: string): Promise<UploadMediaResponse> =>
       (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
@@ -537,9 +553,12 @@ export const api = {
 
   // ── Reports ──────────────────────────────────────────────────
   reports: {
-    list: async (locationId?: number): Promise<CommunityReport[]> => {
-      const qs = locationId ? `?location_id=${locationId}` : '';
-      return (await apiFetch<{ data: any[] }>(`/reports${qs}`)).data.map(mapReport);
+    list: async (opts?: { locationId?: number; type?: string }): Promise<CommunityReport[]> => {
+      const qs = new URLSearchParams();
+      if (opts?.locationId) qs.set("location_id", String(opts.locationId));
+      if (opts?.type) qs.set("type", opts.type);
+      const query = qs.toString() ? `?${qs}` : "";
+      return (await apiFetch<{ data: any[] }>(`/reports${query}`)).data.map(mapReport);
     },
     create: async (data: Partial<CommunityReport> & { location_id?: number }): Promise<CommunityReport> =>
       mapReport((await apiFetch<{ data: any }>('/reports', { method: 'POST', body: JSON.stringify(data) })).data),

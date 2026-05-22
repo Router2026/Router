@@ -30,9 +30,9 @@ describe('getReports', () => {
 
   it('filters by locationId when provided', async () => {
     mockDb.query.mockResolvedValue({ rows: [sampleReport] })
-    await getReports(7)
+    await getReports({ locationId: 7 })
     const [sql, params] = mockDb.query.mock.calls[0]
-    expect(sql).toContain('WHERE location_id = $1')
+    expect(sql).toContain('location_id = $1')
     expect(params).toContain(7)
   })
 })

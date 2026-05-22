@@ -1,16 +1,16 @@
 // src/app/api/locations/[id]/media/route.ts
-// GET  /locations/:id/media       — list all media (images + videos)
-// POST /locations/:id/media       — upload image or video (authenticated)
+// POST /locations/:id/media — receives base64 media_data, uploads to Supabase Storage,
+// then stores the resulting public URL in location_media.media_url.
 //
-// POST body options:
-//   { media_url: string, media_type?: "image"|"video" }
-//   { media_data: string (base64), mime_type: string, caption?: string }
+// Previously stored raw data URIs in the DB (broken: bloated rows, CSP issues,
+// no Supabase image transforms). Now stores proper https:// Storage URLs.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import {
   saveLocationMedia,
+  uploadToStorage,
   getLocationMedia,
   approveMedia,
   rejectMedia,
@@ -41,7 +41,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /locations/:id/media — upload image or video
+// POST /locations/:id/media
+// Body: { media_data: string (base64 data URI or raw base64), mime_type: string, caption?: string }
+//    OR { media_url: string (already-public https URL), media_type?: string }
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
@@ -61,13 +63,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     let thumbnailUrl: string | undefined;
 
     if (body.media_data && body.mime_type) {
-      // Base64 upload (images and small videos)
+      // ── Base64 upload path ────────────────────────────────────────────────
       try {
         mediaType = getMediaType(body.mime_type);
       } catch (err: any) {
         return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
       }
 
+      // Strip the data URI prefix if present (FileReader.readAsDataURL includes it)
       const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
 
       try {
@@ -76,10 +79,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
       }
 
-      mediaUrl = `data:${body.mime_type};base64,${base64Data}`;
+      // Upload to Supabase Storage — get back a proper public https:// URL
+      try {
+        mediaUrl = await uploadToStorage(
+          base64Data,
+          body.mime_type,
+          `locations/${locationId}`,
+        );
+      } catch (err: any) {
+        console.error("[POST /api/locations/:id/media] storage upload failed:", err);
+        return NextResponse.json(
+          errorResponse("Failed to upload file to storage", "STORAGE_ERROR"),
+          { status: 502 }
+        );
+      }
+
       thumbnailUrl = body.thumbnail_url || undefined;
 
     } else if (body.media_url) {
+      // ── Already-public URL path (e.g. from external CDN) ─────────────────
       mediaUrl = (body.media_url as string).trim();
       if (!mediaUrl.startsWith("http")) {
         return NextResponse.json(
@@ -87,7 +105,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           { status: 400 }
         );
       }
-      // Auto-detect media type from URL extension or explicit param
       if (body.media_type === "video" || /\.(mp4|webm|mov|avi)(\?|$)/i.test(mediaUrl)) {
         mediaType = "video";
       } else {

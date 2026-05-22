@@ -1,13 +1,18 @@
 // src/lib/location-images/location-media-service.ts
-// Unified service for both images and videos attached to a location.
-// Replaces/extends location-images-service.ts for new media functionality.
+// Stores media in Supabase Storage and saves the resulting public URL in the DB.
+// Previously this stored raw base64 data URIs directly in the media_url column,
+// which bloated the DB, broke Supabase image transforms, and caused CSP failures.
 
 import { rawDb } from "@/lib/db/raw-client";
+import { supabaseAdmin } from "@/lib/db/supabase";
 import { awardXp, XP_REWARDS, type XpResult } from "@/lib/xp/xp-service";
 
 export const MAX_MEDIA_PER_USER_PER_LOCATION = 10;
 export const MAX_MEDIA_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB for video
 export const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;  // 8 MB for images
+
+/** Supabase Storage bucket name. Must be created in the Supabase dashboard. */
+const MEDIA_BUCKET = process.env.SUPABASE_MEDIA_BUCKET ?? "location-media";
 
 export type MediaType = "image" | "video";
 
@@ -34,6 +39,11 @@ export interface SaveMediaResult {
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"];
 
+const MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+  "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-msvideo": "avi",
+};
+
 export function getMediaType(mimeType: string): MediaType {
   if (ALLOWED_IMAGE_TYPES.includes(mimeType)) return "image";
   if (ALLOWED_VIDEO_TYPES.includes(mimeType)) return "video";
@@ -58,7 +68,43 @@ export function validateMediaSize(base64Data: string, mimeType: string) {
 }
 
 /**
+ * Upload a base64-encoded file to Supabase Storage and return its public URL.
+ * Throws if the upload fails so the caller can surface the error properly.
+ */
+export async function uploadToStorage(
+  base64Data: string,
+  mimeType: string,
+  folder: string,
+): Promise<string> {
+  const ext = MIME_TO_EXT[mimeType] ?? "bin";
+  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const buffer = Buffer.from(base64Data, "base64");
+
+  const { error } = await supabaseAdmin.storage
+    .from(MEDIA_BUCKET)
+    .upload(fileName, buffer, {
+      contentType: mimeType,
+      upsert: false,
+      cacheControl: "31536000", // 1 year — files are immutable (content-addressed by timestamp)
+    });
+
+  if (error) {
+    throw Object.assign(
+      new Error(`Storage upload failed: ${error.message}`),
+      { code: "STORAGE_ERROR" }
+    );
+  }
+
+  const { data: { publicUrl } } = supabaseAdmin.storage
+    .from(MEDIA_BUCKET)
+    .getPublicUrl(fileName);
+
+  return publicUrl;
+}
+
+/**
  * Save a media item (image or video) for a location and award XP.
+ * mediaUrl must already be a Supabase Storage public URL (not a data URI).
  */
 export async function saveLocationMedia(
   userId: number,
