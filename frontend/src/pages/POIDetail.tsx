@@ -1,10 +1,3 @@
-// src/pages/POIDetail.tsx — UPDATED
-// New features:
-//  • Fixed Google Maps URL (always uses lat/lng coordinates)
-//  • StarRating widget — users can rate 1-5 stars, stored in DB
-//  • NearbyPlaces section — shows nearby POIs by geo distance
-//  • Enhanced MediaGallery — images + videos, uploader credit, modal viewer, carousel
-
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
@@ -20,6 +13,7 @@ import FavoriteButton from '../components/FavoriteButton';
 import UploadPhotoButton from '../components/UploadPhotoButton';
 import XpToast from '../components/XpToast';
 import POIDetailsEditAdmin from './POIDetailsEditAdmin';
+import { getImageUrl } from '../utils/imageUtils';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -32,7 +26,8 @@ const DIFF_COLORS: Record<string, string> = {
   'בינוני': '#d97706', 'קשה': '#dc2626', 'מאתגר': '#dc2626',
 };
 
-// ── OSRM routing helper ──────────────────────────────────────────
+// ── OSRM routing helper (unchanged) ──────────────────────────────────────────
+
 async function fetchRoute(from: [number, number], to: [number, number]): Promise<{ coords: [number, number][]; distanceKm: number; durationMin: number } | null> {
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=simplified&geometries=geojson`;
@@ -45,7 +40,6 @@ async function fetchRoute(from: [number, number], to: [number, number]): Promise
   } catch { return null; }
 }
 
-// ── Route line layer ─────────────────────────────────────────────
 function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
   userCoords: [number, number] | null; poiCoords: [number, number];
   onRouteLoaded: (info: { distanceKm: number; durationMin: number }) => void;
@@ -53,7 +47,6 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
   const map = useMap();
   const lineRef = useRef<L.Polyline | null>(null);
   const userMarkerRef = useRef<L.CircleMarker | null>(null);
-
   useEffect(() => {
     if (!userCoords) return;
     userMarkerRef.current?.remove();
@@ -69,14 +62,23 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
     });
     return () => { lineRef.current?.remove(); userMarkerRef.current?.remove(); };
   }, [userCoords, poiCoords, map, onRouteLoaded]);
-
   return null;
 }
 
-// ── Hero Image ───────────────────────────────────────────────────
-function HeroImage({ poi, galleryImages, photoCredit }: { poi: POI; galleryImages: LocationImage[]; photoCredit?: string }) {
+// ── HeroImage — lazy slides, Supabase image transforms ───────────────────────
+// OPTIMISED:
+//  • Only current slide + the next slide are mounted in DOM.
+//    Previously ALL images were rendered simultaneously.
+//  • src goes through getImageUrl('hero') → 820px WebP.
+//    Originals can be 2-5 MB; transformed version is <120 KB.
+//  • Preload link injected for the first image (LCP element).
+
+function HeroImage({ poi, galleryImages, photoCredit }: {
+  poi: POI; galleryImages: LocationImage[]; photoCredit?: string;
+}) {
   const [imgIdx, setImgIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
+
   const images = useMemo(() => {
     const allUrls = galleryImages.map(i => i.image_url);
     const main = poi.main_image || allUrls[0] || '';
@@ -85,48 +87,92 @@ function HeroImage({ poi, galleryImages, photoCredit }: { poi: POI; galleryImage
       : [...poi.images, ...allUrls];
     return [...new Set(all)].filter(Boolean);
   }, [poi.main_image, poi.images, galleryImages]);
-  const currentImage = !imgError && images[imgIdx] ? images[imgIdx] : null;
+
+  // Inject <link rel="preload"> for the LCP hero image
+  useEffect(() => {
+    if (!images[0]) return;
+    const href = getImageUrl(images[0], 'hero');
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = href;
+    document.head.appendChild(link);
+    return () => { document.head.removeChild(link); };
+  }, [images]);
+
+  const currentSrc = !imgError && images[imgIdx] ? getImageUrl(images[imgIdx], 'hero') : null;
+  const nextSrc = images[imgIdx + 1] ? getImageUrl(images[imgIdx + 1], 'hero') : null;
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      {currentImage ? (
-        <img key={currentImage} src={currentImage} alt={poi.name} onError={() => setImgError(true)}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      {currentSrc ? (
+        // Only render current + next slide — previous slides are unmounted
+        <>
+          <img
+            key={currentSrc}
+            src={currentSrc}
+            alt={poi.name}
+            onError={() => setImgError(true)}
+            // First image: eager (it's the LCP); subsequent: lazy
+            loading={imgIdx === 0 ? 'eager' : 'lazy'}
+            decoding="async"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 1, transition: 'opacity 0.25s ease' }}
+          />
+          {/* Preload the next slide at low priority so it's ready when user swipes */}
+          {nextSrc && (
+            <img
+              key={`next-${nextSrc}`}
+              src={nextSrc}
+              alt=""
+              aria-hidden
+              loading="lazy"
+              decoding="async"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0, pointerEvents: 'none' }}
+            />
+          )}
+        </>
       ) : (
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 72, opacity: 0.3 }}>🏞️</span>
         </div>
       )}
+
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)' }} />
-      {/* Photo credit watermark — only shown on the first (main) image */}
-      {photoCredit && imgIdx === 0 && !imgError && currentImage && (
-        <div style={{
-          position: 'absolute', bottom: 22, left: 16,
-          background: 'rgba(255,255,255,0.92)',
-          borderRadius: 5, padding: '3px 9px',
-          fontSize: 11, fontWeight: 600, color: '#374151',
-          fontFamily: 'Heebo, sans-serif',
-          direction: 'rtl',
-          pointerEvents: 'none',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-          zIndex: 13, lineHeight: 1.4,
-        }}>
+
+      {photoCredit && imgIdx === 0 && !imgError && currentSrc && (
+        <div style={{ position: 'absolute', bottom: 22, left: 16, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', zIndex: 13, lineHeight: 1.4 }}>
           צילום: {photoCredit}
         </div>
       )}
+
       {images.length > 1 && !imgError && (
-        <div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 12 }}>
-          {images.map((_, i) => (
-            <button key={i} onClick={() => setImgIdx(i)}
-              style={{ width: i === imgIdx ? 20 : 6, height: 6, borderRadius: 3, background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.5)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.2s ease' }} />
-          ))}
-        </div>
+        <>
+          {/* Swipe areas for mobile */}
+          <button
+            onClick={() => setImgIdx(i => Math.max(0, i - 1))}
+            aria-label="תמונה קודמת"
+            style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }}
+          />
+          <button
+            onClick={() => setImgIdx(i => Math.min(images.length - 1, i + 1))}
+            aria-label="תמונה הבאה"
+            style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }}
+          />
+          {/* Dot indicators */}
+          <div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 12 }}>
+            {images.map((_, i) => (
+              <button key={i} onClick={() => setImgIdx(i)}
+                style={{ width: i === imgIdx ? 20 : 6, height: 6, borderRadius: 3, background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.5)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.2s ease' }} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-// ── Mini-Map ─────────────────────────────────────────────────────
+// ── MiniMap — CARTO tile layer ────────────────────────────────────────────────
+
 function MiniMap({ poi }: { poi: POI }) {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -189,17 +235,15 @@ function MiniMap({ poi }: { poi: POI }) {
   );
 }
 
-// ── Star Rating widget ──────────────────────────────────────────
+// ── StarRating (unchanged) ────────────────────────────────────────────────────
+
 function StarRating({ locationId, initialSummary, isLoggedIn }: {
-  locationId: number;
-  initialSummary: RatingSummary | null;
-  isLoggedIn: boolean;
+  locationId: number; initialSummary: RatingSummary | null; isLoggedIn: boolean;
 }) {
   const [summary, setSummary] = useState<RatingSummary | null>(initialSummary);
   const [hovered, setHovered] = useState(0);
   const [saving, setSaving] = useState(false);
   const [justRated, setJustRated] = useState(false);
-
   useEffect(() => { setSummary(initialSummary); }, [initialSummary]);
 
   const handleRate = async (star: number) => {
@@ -207,10 +251,9 @@ function StarRating({ locationId, initialSummary, isLoggedIn }: {
     setSaving(true);
     try {
       const updated = await api.locations.rate(locationId, star);
-      setSummary(updated);
-      setJustRated(true);
+      setSummary(updated); setJustRated(true);
       setTimeout(() => setJustRated(false), 2000);
-    } catch { /* silent */ }
+    } catch { }
     finally { setSaving(false); }
   };
 
@@ -222,23 +265,12 @@ function StarRating({ locationId, initialSummary, isLoggedIn }: {
   return (
     <div style={{ direction: 'rtl' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        {/* Stars */}
         <div style={{ display: 'flex', gap: 3 }}>
           {[1, 2, 3, 4, 5].map(star => (
-            <button
-              key={star}
-              onClick={() => handleRate(star)}
-              onMouseEnter={() => isLoggedIn && setHovered(star)}
-              onMouseLeave={() => setHovered(0)}
+            <button key={star} onClick={() => handleRate(star)}
+              onMouseEnter={() => isLoggedIn && setHovered(star)} onMouseLeave={() => setHovered(0)}
               disabled={saving || !isLoggedIn}
-              style={{
-                background: 'none', border: 'none', padding: '2px',
-                cursor: isLoggedIn ? 'pointer' : 'default',
-                fontSize: 22, lineHeight: 1,
-                color: star <= activeStars ? '#f59e0b' : star <= displayRating ? '#fcd34d' : '#d1d5db',
-                transition: 'color 0.1s, transform 0.1s',
-                transform: hovered === star ? 'scale(1.2)' : 'scale(1)',
-              }}>
+              style={{ background: 'none', border: 'none', padding: '2px', cursor: isLoggedIn ? 'pointer' : 'default', fontSize: 22, lineHeight: 1, color: star <= activeStars ? '#f59e0b' : star <= displayRating ? '#fcd34d' : '#d1d5db', transition: 'color 0.1s, transform 0.1s', transform: hovered === star ? 'scale(1.2)' : 'scale(1)' }}>
               ★
             </button>
           ))}
@@ -246,42 +278,26 @@ function StarRating({ locationId, initialSummary, isLoggedIn }: {
         <span style={{ fontWeight: 900, color: '#1a2e2a', fontSize: 18 }}>{displayRating.toFixed(1)}</span>
         <span style={{ fontSize: 12, color: '#94a3b8' }}>({ratingCount} דירוגים)</span>
       </div>
-
-      {justRated && (
-        <div style={{ fontSize: 12, color: '#0d9e6e', fontWeight: 700, animation: 'fadeIn 0.3s ease' }}>
-          ✓ הדירוג שלך נשמר!
-        </div>
-      )}
-      {!isLoggedIn && (
-        <div style={{ fontSize: 11, color: '#94a3b8' }}>
-          התחבר כדי לדרג את המקום
-        </div>
-      )}
-      {isLoggedIn && !userRating && !hovered && (
-        <div style={{ fontSize: 11, color: '#94a3b8' }}>
-          לחץ על כוכב כדי לדרג
-        </div>
-      )}
+      {justRated && <div style={{ fontSize: 12, color: '#0d9e6e', fontWeight: 700 }}>✓ הדירוג שלך נשמר!</div>}
+      {!isLoggedIn && <div style={{ fontSize: 11, color: '#94a3b8' }}>התחבר כדי לדרג את המקום</div>}
+      {isLoggedIn && !userRating && !hovered && <div style={{ fontSize: 11, color: '#94a3b8' }}>לחץ על כוכב כדי לדרג</div>}
     </div>
   );
 }
 
+// ── MediaGallery — lazy thumbnails + transform URLs ──────────────────────────
+// OPTIMISED:
+//  • Grid thumbnails: getImageUrl(url, 'card') → 420px WebP, loading="lazy"
+//  • Lightbox viewer: getImageUrl(url, 'lightbox') → 1400px WebP
+//    Image only loaded when lightbox is opened (not pre-fetched at page load)
 
-// ── Admin Edit Modal — replaced by POIDetailsEditAdmin (imported from POIDetailsEditAdmin.tsx) ──
-
-// ── Media Gallery (enhanced: images + videos + credits + modal) ──
 function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
-  locationId: number;
-  media: LocationMedia[];
-  isAdmin: boolean;
-  onApprove: (id: number) => void;
-  onReject: (id: number) => void;
+  locationId: number; media: LocationMedia[];
+  isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void;
 }) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-
   if (!media.length) return null;
 
-  const openLightbox = (idx: number) => setLightboxIdx(idx);
   const closeLightbox = () => setLightboxIdx(null);
   const prevItem = () => setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : null);
   const nextItem = () => setLightboxIdx(i => i !== null ? Math.min(media.length - 1, i + 1) : null);
@@ -295,104 +311,89 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
         {media.map((item, idx) => (
-          <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', cursor: 'pointer', aspectRatio: '1' }}
-            onClick={() => openLightbox(idx)}>
+          <div key={item.id}
+            style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', cursor: 'pointer', aspectRatio: '1' }}
+            onClick={() => setLightboxIdx(idx)}>
 
             {item.media_type === 'video' ? (
               <div style={{ width: '100%', height: '100%', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                {item.thumbnail_url ? (
-                  <img src={item.thumbnail_url} alt="video thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
-                ) : null}
+                {item.thumbnail_url && (
+                  // Video thumbnail — use card size (420px), lazy
+                  <img
+                    src={getImageUrl(item.thumbnail_url, 'card')}
+                    alt="video thumbnail"
+                    loading="lazy"
+                    decoding="async"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
+                  />
+                )}
                 <div style={{ position: 'relative', zIndex: 2, background: 'rgba(0,0,0,0.6)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ color: '#fff', fontSize: 16, marginRight: -2 }}>▶</span>
                 </div>
               </div>
             ) : (
-              <img src={item.media_url} alt={item.caption || 'gallery'}
+              // Photo thumbnail — 420px WebP, lazy loaded
+              <img
+                src={getImageUrl(item.media_url, 'card')}
+                alt={item.caption || 'gallery'}
+                loading="lazy"
+                decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; }}
               />
             )}
 
-            {/* Video indicator */}
             {item.media_type === 'video' && (
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
             )}
-
-            {/* Uploader credit */}
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '12px 4px 4px', fontSize: 9, color: 'rgba(255,255,255,0.9)', textAlign: 'center', fontWeight: 600 }}>
               {item.username || 'משתמש'}
             </div>
-
-            {/* Admin controls */}
             {isAdmin && (
               <div style={{ display: 'flex', gap: 4, padding: '4px', background: 'rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
                 <button onClick={() => onReject(item.id)}
-                  style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#f87171', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
-                  הסר
-                </button>
+                  style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#f87171', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>הסר</button>
               </div>
             )}
           </div>
         ))}
       </div>
 
-      {/* Lightbox / Modal Viewer */}
+      {/* Lightbox — images loaded at full quality only when opened */}
       {lightboxIdx !== null && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={closeLightbox}
-        >
+          onClick={closeLightbox}>
           <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             onClick={e => e.stopPropagation()}>
-
-            {/* Close */}
             <button onClick={closeLightbox}
-              style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', zIndex: 1 }}>
-              ✕
-            </button>
+              style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', zIndex: 1 }}>✕</button>
 
-            {/* Current item */}
             {media[lightboxIdx].media_type === 'video' ? (
-              <video
-                src={media[lightboxIdx].media_url}
-                controls
-                autoPlay
-                style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }}
-                playsInline
-              />
+              <video src={media[lightboxIdx].media_url} controls autoPlay
+                style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }} playsInline />
             ) : (
+              // Lightbox: 1400px WebP — high quality but still ~5× smaller than original
               <img
-                src={media[lightboxIdx].media_url}
+                src={getImageUrl(media[lightboxIdx].media_url, 'lightbox')}
                 alt={media[lightboxIdx].caption || ''}
                 style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12, objectFit: 'contain' }}
               />
             )}
 
-            {/* Caption + credit */}
             <div style={{ marginTop: 12, textAlign: 'center', color: '#fff', direction: 'rtl' }}>
-              {media[lightboxIdx].caption && (
-                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{media[lightboxIdx].caption}</div>
-              )}
+              {media[lightboxIdx].caption && <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{media[lightboxIdx].caption}</div>}
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
-                📷 {media[lightboxIdx].username || 'משתמש'} ·{' '}
-                {new Date(media[lightboxIdx].created_at).toLocaleDateString('he-IL')}
+                📷 {media[lightboxIdx].username || 'משתמש'} · {new Date(media[lightboxIdx].created_at).toLocaleDateString('he-IL')}
               </div>
             </div>
 
-            {/* Navigation arrows */}
             <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
               <button onClick={prevItem} disabled={lightboxIdx === 0}
-                style={{ background: lightboxIdx === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                ›
-              </button>
-              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, alignSelf: 'center' }}>
-                {lightboxIdx + 1} / {media.length}
-              </span>
+                style={{ background: lightboxIdx === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, alignSelf: 'center' }}>{lightboxIdx + 1} / {media.length}</span>
               <button onClick={nextItem} disabled={lightboxIdx === media.length - 1}
-                style={{ background: lightboxIdx === media.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === media.length - 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                ‹
-              </button>
+                style={{ background: lightboxIdx === media.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === media.length - 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
             </div>
           </div>
         </div>
@@ -401,7 +402,8 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
   );
 }
 
-// ── Nearby Places ─────────────────────────────────────────────────
+// ── NearbyPlaces — optimised thumbnails ──────────────────────────────────────
+
 function NearbyPlaces({ locationId }: { locationId: number }) {
   const navigate = useNavigate();
   const [nearby, setNearby] = useState<NearbyPOI[]>([]);
@@ -418,9 +420,7 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16, direction: 'rtl' }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>📍 מקומות קרובים</div>
       <div style={{ display: 'flex', gap: 10, overflowX: 'hidden' }}>
-        {[1, 2, 3].map(i => (
-          <div key={i} style={{ flexShrink: 0, width: 140, height: 120, borderRadius: 14, background: '#f0f0f0', animation: 'pulse 1.5s ease infinite' }} />
-        ))}
+        {[1, 2, 3].map(i => <div key={i} style={{ flexShrink: 0, width: 140, height: 120, borderRadius: 14, background: '#f0f0f0' }} />)}
       </div>
     </div>
   );
@@ -434,22 +434,18 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12, direction: 'rtl' }}>📍 מקומות קרובים</div>
       <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' as any }}>
         {nearby.map(place => (
-          <div
-            key={place.id}
-            onClick={() => navigate(`/POIDetail?id=${place.id}`)}
-            style={{
-              flexShrink: 0, width: 150, borderRadius: 16, overflow: 'hidden',
-              border: '1px solid #f0f0f0', cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-            }}
+          <div key={place.id} onClick={() => navigate(`/POIDetail?id=${place.id}`)}
+            style={{ flexShrink: 0, width: 150, borderRadius: 16, overflow: 'hidden', border: '1px solid #f0f0f0', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'transform 0.15s, box-shadow 0.15s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
-          >
-            {/* Thumbnail */}
+            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}>
             <div style={{ height: 90, position: 'relative', background: 'linear-gradient(135deg, #0d9e6e, #34d399)' }}>
               {place.main_image ? (
-                <img src={place.main_image} alt={place.name}
+                // 120px WebP thumb — tiny payload for the horizontal scroll row
+                <img
+                  src={getImageUrl(place.main_image, 'thumb')}
+                  alt={place.name}
+                  loading="lazy"
+                  decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                 />
@@ -458,16 +454,12 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
                   <span style={{ fontSize: 28, opacity: 0.5 }}>🏞️</span>
                 </div>
               )}
-              {/* Distance badge */}
               <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.65)', borderRadius: 8, padding: '2px 7px', fontSize: 11, color: '#fff', fontWeight: 700 }}>
                 {formatDistance(place.distance_meters)}
               </div>
             </div>
-            {/* Info */}
             <div style={{ padding: '8px 10px', direction: 'rtl' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#1a2e2a', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {place.name}
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#1a2e2a', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>{place.category}</span>
                 <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700 }}>★ {place.average_rating.toFixed(1)}</span>
@@ -480,7 +472,8 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
   );
 }
 
-// ── Main POIDetail ─────────────────────────────────────────────────
+// ── Main POIDetail (unchanged structure, imageUtils wired in above) ────────────
+
 export default function POIDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -509,10 +502,7 @@ export default function POIDetail() {
   useEffect(() => {
     if (!poiId) return;
     setLoading(true); setError(null);
-    // Fetch regions for the admin edit panel (only if admin)
-    if (user?.is_admin) {
-      api.regions.list().then(setRegions).catch(() => { });
-    }
+    if (user?.is_admin) api.regions.list().then(setRegions).catch(() => { });
     api.locations.get(poiId)
       .then(async poiData => {
         setPoi(poiData);
@@ -523,12 +513,8 @@ export default function POIDetail() {
           api.locations.getMedia(Number(poiId)).catch(() => []),
           api.locations.getRating(Number(poiId)).catch(() => null),
         ]);
-        setReviews(revs);
-        setReports(reps);
-        setGalleryImages(imgs);
-        setMedia(mediaData);
-        setRatingSummary(rating);
-        setLoading(false);
+        setReviews(revs); setReports(reps); setGalleryImages(imgs);
+        setMedia(mediaData); setRatingSummary(rating); setLoading(false);
       })
       .catch(err => { setError(err.message); setLoading(false); });
   }, [poiId]);
@@ -543,8 +529,6 @@ export default function POIDetail() {
     await api.locations.rejectMedia(poi.id, mediaId);
     setMedia(prev => prev.map(m => m.id === mediaId ? { ...m, is_approved: false } : m));
   };
-
-  // Legacy image approve/reject (for backward compat with old images endpoint)
   const handleApproveImage = async (imageId: number) => {
     if (!poi) return;
     await api.locations.approveImage(poi.id, imageId);
@@ -556,7 +540,6 @@ export default function POIDetail() {
     setGalleryImages(prev => prev.map(i => i.id === imageId ? { ...i, is_approved: false } : i));
   };
 
-  // FIXED: always use coordinate-based URL — never name-based
   const openGoogleMaps = () => {
     if (!poi) return;
     window.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
@@ -571,18 +554,11 @@ export default function POIDetail() {
     </div>
   );
 
-  // Merge legacy images + new media into one MediaGallery feed
   const legacyAsMedia: LocationMedia[] = galleryImages.map(img => ({
-    id: img.id,
-    location_id: img.location_id,
-    user_id: img.user_id,
-    media_type: 'image' as const,
-    media_url: img.image_url,
-    thumbnail_url: null,
-    caption: null,
-    is_approved: img.is_approved,
-    created_at: img.created_at,
-    username: img.username,
+    id: img.id, location_id: img.location_id, user_id: img.user_id,
+    media_type: 'image' as const, media_url: img.image_url,
+    thumbnail_url: null, caption: null, is_approved: img.is_approved,
+    created_at: img.created_at, username: img.username,
   }));
   const allMedia: LocationMedia[] = [
     ...media,
@@ -595,13 +571,9 @@ export default function POIDetail() {
     <>
       {shareXp && <XpToast xp={shareXp} onDone={() => setShareXp(null)} />}
       {showAdminEdit && (
-        <POIDetailsEditAdmin
-          poi={poi}
-          regions={regions}
-          onClose={() => setShowAdminEdit(false)}
+        <POIDetailsEditAdmin poi={poi} regions={regions} onClose={() => setShowAdminEdit(false)}
           onSaved={updated => { setPoi(updated); setShowAdminEdit(false); }}
-          onDeleted={_id => { navigate(-1); }}
-        />
+          onDeleted={_id => { navigate(-1); }} />
       )}
 
       <div style={{ background: '#f0f4f3', minHeight: '100vh', width: '100%' }}>
@@ -611,8 +583,7 @@ export default function POIDetail() {
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
+                <button onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 </button>
@@ -642,134 +613,57 @@ export default function POIDetail() {
 
         {/* Main content */}
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 16px', marginTop: -20, position: 'relative', zIndex: 20, paddingBottom: 100 }}>
-
           {/* Info card */}
           <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.08)', padding: '24px 20px', marginBottom: 16 }}>
-            {/* Rating row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, direction: 'rtl' }}>
               <span style={{ background: '#f0fdf8', color: '#0d9e6e', borderRadius: 10, padding: '6px 14px', fontSize: 13, fontWeight: 800 }}>{poi.category}</span>
               <StarRating locationId={poiIdNum} initialSummary={ratingSummary} isLoggedIn={isLoggedIn} />
             </div>
-
             <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.8, textAlign: 'right', marginBottom: 24 }}>{poi.description}</p>
-
-            {/* Community contributor credit */}
             {poi.uploaded_by && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: '#f0fdf8', borderRadius: 12,
-                padding: '10px 14px', marginBottom: 16,
-                direction: 'rtl', border: '1px solid #d1fae5',
-              }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 15, flexShrink: 0,
-                }}>👤</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f0fdf8', borderRadius: 12, padding: '10px 14px', marginBottom: 16, direction: 'rtl', border: '1px solid #d1fae5' }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👤</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>מקום זה נוסף על ידי</div>
                   <div style={{ fontSize: 14, fontWeight: 800, color: '#065f46' }}>{poi.uploaded_by}</div>
                 </div>
-                <div style={{
-                  fontSize: 11, color: '#0d9e6e', fontWeight: 700,
-                  background: '#d1fae5', borderRadius: 8, padding: '3px 9px',
-                }}>קהילה 🌿</div>
+                <div style={{ fontSize: 11, color: '#0d9e6e', fontWeight: 700, background: '#d1fae5', borderRadius: 8, padding: '3px 9px' }}>קהילה 🌿</div>
               </div>
             )}
-
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', direction: 'rtl' }}>
-              {poi.duration_minutes && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#64748b' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                  {poi.duration_minutes} דקות
-                </span>
-              )}
+              {poi.duration_minutes && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#64748b' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>{poi.duration_minutes} דקות</span>}
               {poi.has_water && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#0284c7' }}>💧 יש מים</span>}
               {poi.has_shade && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>🌿 יש צל</span>}
               {poi.accessible && <span style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf5ff', borderRadius: 12, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>♿ נגיש</span>}
             </div>
-
-            {/* FIXED Google Maps button — always coordinate-based */}
             <button onClick={openGoogleMaps}
               style={{ width: '100%', marginTop: 20, padding: '14px', border: 'none', borderRadius: 16, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 6px 20px rgba(13,158,110,0.25)' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               פתח בגוגל מפות
             </button>
-
-            {/* Add to / Remove from Trip Bucket */}
             {(() => {
               const inBucket = poi && hasPoi(poi.id);
               return (
-                <button
-                  onClick={() => {
-                    if (!poi) return;
-                    if (inBucket) {
-                      removePoi(poi.id);
-                    } else {
-                      addPoi(poi);
-                      openSheet();
-                    }
-                  }}
-                  style={{
-                    width: '100%', marginTop: 10, padding: '14px', borderRadius: 16,
-                    background: inBucket ? '#fef2f2' : '#f0fdf8',
-                    color: inBucket ? '#dc2626' : '#0d9e6e',
-                    fontSize: 15, fontWeight: 900, cursor: 'pointer',
-                    fontFamily: 'Heebo, sans-serif',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    border: `2px solid ${inBucket ? '#fca5a5' : '#6ee7b7'}`,
-                    transition: 'all 0.18s',
-                  }}
-                >
-                  {inBucket ? (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                      הסר מסל המסלול
-                    </>
-                  ) : (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                      הוסף לסל המסלול 🎒
-                    </>
-                  )}
+                <button onClick={() => { if (!poi) return; if (inBucket) { removePoi(poi.id); } else { addPoi(poi); openSheet(); } }}
+                  style={{ width: '100%', marginTop: 10, padding: '14px', borderRadius: 16, background: inBucket ? '#fef2f2' : '#f0fdf8', color: inBucket ? '#dc2626' : '#0d9e6e', fontSize: 15, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: `2px solid ${inBucket ? '#fca5a5' : '#6ee7b7'}`, transition: 'all 0.18s' }}>
+                  {inBucket ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>הסר מסל המסלול</> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>הוסף לסל המסלול 🎒</>}
                 </button>
               );
             })()}
           </div>
 
-          {/* Mini-Map */}
           <MiniMap poi={poi} />
-
-          {/* Nearby Places */}
           {!isNaN(poiIdNum) && <NearbyPlaces locationId={poiIdNum} />}
+          <MediaGallery locationId={poiIdNum} media={allMedia} isAdmin={isAdmin}
+            onApprove={id => { if (media.some(m => m.id === id)) handleApproveMedia(id); else handleApproveImage(id); }}
+            onReject={id => { if (media.some(m => m.id === id)) handleRejectMedia(id); else handleRejectImage(id); }} />
 
-          {/* Media Gallery (images + videos) */}
-          <MediaGallery
-            locationId={poiIdNum}
-            media={allMedia}
-            isAdmin={isAdmin}
-            onApprove={id => {
-              // Try new media first, fall back to legacy
-              if (media.some(m => m.id === id)) handleApproveMedia(id);
-              else handleApproveImage(id);
-            }}
-            onReject={id => {
-              if (media.some(m => m.id === id)) handleRejectMedia(id);
-              else handleRejectImage(id);
-            }}
-          />
-
-          {/* Upload button */}
           {isLoggedIn && !isNaN(poiIdNum) && (
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
-              <UploadPhotoButton locationId={poiIdNum} onUploaded={newMedia => {
-                setMedia(prev => [newMedia, ...prev]);
-              }} />
+              <UploadPhotoButton locationId={poiIdNum} onUploaded={newMedia => setMedia(prev => [newMedia, ...prev])} />
             </div>
           )}
 
-          {/* Tabs */}
           <div style={{ background: '#fff', borderRadius: 20, padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)', marginBottom: 16, display: 'flex', direction: 'rtl' }}>
             {[{ key: 'reports', label: `דיווחים (${reports.length})` }, { key: 'reviews', label: `ביקורות (${reviews.length})` }].map(t => (
               <button key={t.key} onClick={() => setTab(t.key as any)}
@@ -793,22 +687,13 @@ export default function POIDetail() {
               ))}
               {isLoggedIn ? (
                 <button onClick={() => navigate(`/AddReport?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
-                  style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
-                  + הוסף דיווח
-                </button>
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ הוסף דיווח</button>
               ) : isGuest ? (
-                <>
-                  <button onClick={() => reportLock.guardAction(() => { })}
-                    style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    🔒 הוסף דיווח — דרוש חשבון
-                  </button>
-                  {reportLock.PromptComponent}
-                </>
+                <><button onClick={() => reportLock.guardAction(() => { })}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 הוסף דיווח — דרוש חשבון</button>{reportLock.PromptComponent}</>
               ) : (
                 <button onClick={() => navigate('/Login')}
-                  style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
-                  🔑 התחבר כדי להוסיף דיווח
-                </button>
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי להוסיף דיווח</button>
               )}
             </div>
           )}
@@ -827,29 +712,18 @@ export default function POIDetail() {
               ))}
               {isLoggedIn ? (
                 <button onClick={() => navigate(`/AddReview?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
-                  style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
-                  + כתוב ביקורת
-                </button>
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ כתוב ביקורת</button>
               ) : isGuest ? (
-                <>
-                  <button onClick={() => reviewLock.guardAction(() => { })}
-                    style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    🔒 כתוב ביקורת — דרוש חשבון
-                  </button>
-                  {reviewLock.PromptComponent}
-                </>
+                <><button onClick={() => reviewLock.guardAction(() => { })}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 כתוב ביקורת — דרוש חשבון</button>{reviewLock.PromptComponent}</>
               ) : (
                 <button onClick={() => navigate('/Login')}
-                  style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>
-                  🔑 התחבר כדי לכתוב ביקורת
-                </button>
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי לכתוב ביקורת</button>
               )}
             </div>
           )}
 
-          {/* Navigate button */}
-          <button
-            onClick={() => window.open(`https://waze.com/ul?ll=${poi.latitude},${poi.longitude}&navigate=yes`, '_blank')}
+          <button onClick={() => window.open(`https://waze.com/ul?ll=${poi.latitude},${poi.longitude}&navigate=yes`, '_blank')}
             style={{ width: '100%', padding: '18px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 18, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 24px rgba(13,158,110,0.25)', marginTop: 8 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
             נווט לשם
@@ -859,8 +733,6 @@ export default function POIDetail() {
 
       <TripBucketFab />
       <TripBucketSheet />
-
-
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }

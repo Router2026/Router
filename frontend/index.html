@@ -1,16 +1,38 @@
 <!doctype html>
-<html lang="en">
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Router — טיולים בטבע</title>
 
-<head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="./src/assets/icon.jpeg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Router</title>
-</head>
+    <!-- Supabase Storage CDN — hero image, gallery, markers -->
+    <link rel="preconnect" href="https://YOUR_PROJECT_ID.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://YOUR_PROJECT_ID.supabase.co" />
 
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-</body>
+    <!-- Supabase API / Auth -->
+    <link rel="preconnect" href="https://YOUR_PROJECT_ID.supabase.co" />
 
+    <!-- CARTO tile CDN — map tiles in MapView + POIDetail MiniMap -->
+    <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin />
+    <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin />
+    <link rel="dns-prefetch" href="https://basemaps.cartocdn.com" />
+
+    <!-- Google Fonts (Heebo) — if loaded from Google CDN -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- OSRM routing (used by MiniMap route feature) -->
+    <link rel="dns-prefetch" href="https://router.project-osrm.org" />
+
+    <!--
+      NOTE: Replace YOUR_PROJECT_ID with your actual Supabase project ID.
+      Find it in: Supabase Dashboard → Settings → API → Project URL
+      Example: abcdefghijklmnop.supabase.co
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
