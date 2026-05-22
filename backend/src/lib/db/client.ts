@@ -6,8 +6,12 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is not set");
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-pool.on("connect", (client) => {
-  client.query("SET search_path TO router, public");
-});
+const connectionString = (() => {
+  const url = new URL(process.env.DATABASE_URL!);
+  url.searchParams.set("options", "--search_path=router,public");
+  return url.toString();
+})();
+
+const pool = new Pool({ connectionString });
+
 export const db = drizzle(pool, { schema });
