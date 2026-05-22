@@ -87,7 +87,9 @@ export async function addRouteComment(routeId: number, userId: number, content: 
      WHERE rc.id = $1`,
     [rows[0].id]
   );
-  return full[0] as RouteComment;
+
+  // Cast through unknown to satisfy TypeScript strictness
+  return full[0] as unknown as RouteComment;
 }
 
 export async function getRouteComments(routeId: number): Promise<RouteComment[]> {
@@ -100,7 +102,9 @@ export async function getRouteComments(routeId: number): Promise<RouteComment[]>
      LIMIT 100`,
     [routeId]
   );
-  return rows as RouteComment[];
+
+  // Cast through unknown to satisfy TypeScript strictness
+  return rows as unknown as RouteComment[];
 }
 
 export async function deleteRouteComment(commentId: number, userId: number, isAdmin: boolean): Promise<void> {
@@ -140,15 +144,15 @@ export async function setRouteRating(routeId: number, userId: number, rating: nu
   const { rows } = await rawDb.query(`SELECT average_rating, ratings_count FROM routes WHERE id = $1`, [routeId]);
   return {
     average_rating: parseFloat(rows[0]?.average_rating as string) ?? 0,
-    ratings_count:  (rows[0]?.ratings_count as number) ?? 0,
-    user_rating:    rating,
+    ratings_count: (rows[0]?.ratings_count as number) ?? 0,
+    user_rating: rating,
   };
 }
 
 export async function getRouteRatingStatus(routeId: number, userId: number | null): Promise<{ average_rating: number; ratings_count: number; user_rating: number | null }> {
   const { rows } = await rawDb.query(`SELECT average_rating, ratings_count FROM routes WHERE id = $1`, [routeId]);
   const average_rating = parseFloat(rows[0]?.average_rating as string) ?? 0;
-  const ratings_count  = (rows[0]?.ratings_count as number) ?? 0;
+  const ratings_count = (rows[0]?.ratings_count as number) ?? 0;
 
   if (!userId) return { average_rating, ratings_count, user_rating: null };
 
@@ -156,7 +160,13 @@ export async function getRouteRatingStatus(routeId: number, userId: number | nul
     `SELECT rating FROM route_ratings WHERE route_id = $1 AND user_id = $2`,
     [routeId, userId]
   );
-  return { average_rating, ratings_count, user_rating: ratingRows[0]?.rating ?? null };
+
+  // Cast rating to number to satisfy TypeScript
+  return {
+    average_rating,
+    ratings_count,
+    user_rating: (ratingRows[0]?.rating as number) ?? null
+  };
 }
 
 // ── Route media (image / video) ───────────────────────────────────────────
@@ -301,12 +311,12 @@ export async function getSocialStatsForRoutes(
   for (const row of rows) {
     const id = row.id as number;
     statsMap.set(id, {
-      likes_count:    (row.likes_count as number) ?? 0,
+      likes_count: (row.likes_count as number) ?? 0,
       comments_count: (row.comments_count as number) ?? 0,
       average_rating: parseFloat(row.average_rating as string) ?? 0,
-      ratings_count:  (row.ratings_count as number) ?? 0,
-      user_liked:     likedSet.has(id),
-      user_rating:    userRatingMap.get(id) ?? null,
+      ratings_count: (row.ratings_count as number) ?? 0,
+      user_liked: likedSet.has(id),
+      user_rating: userRatingMap.get(id) ?? null,
     });
   }
   return statsMap;
