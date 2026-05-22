@@ -427,6 +427,17 @@ export const api = {
         }),
       })).data;
     },
+    // Upload a file to Supabase Storage without attaching it to a location yet.
+    // Used by ContributePOI so photos are stored before the community_pois row exists.
+    // Returns the public https:// Storage URL to include in community_pois.photos.
+    uploadPendingMedia: async (file: File): Promise<string> => {
+      const base64 = await fileToBase64(file);
+      const res = await apiFetch<{ data: { url: string } }>('/media/upload', {
+        method: 'POST',
+        body: JSON.stringify({ media_data: base64, mime_type: file.type }),
+      });
+      return res.data.url;
+    },
     uploadMediaUrl: async (locationId: string | number, url: string, mediaType: 'image' | 'video' = 'image', caption?: string): Promise<UploadMediaResponse> =>
       (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
         method: 'POST', body: JSON.stringify({ media_url: url, media_type: mediaType, caption }),

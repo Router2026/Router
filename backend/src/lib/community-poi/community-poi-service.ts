@@ -2,6 +2,7 @@
 // Added: region auto-classification from coordinates via PostGIS / bounding-box lookup.
 
 import { rawDb } from "@/lib/db/raw-client";
+import { uploadToStorage } from "@/lib/location-images/location-media-service";
 import { sendPushToUser } from "@/lib/notifications/push-service";
 import { CommunityPoiRow, CommunityPoiStatus, CreateCommunityPoiInput } from "./types";
 
@@ -235,6 +236,23 @@ export async function approveCommunityPoi(
         (poi as any).accessible ?? false,            // $18
       ]
     );
+
+    // 4. Migrate any pending media from community_pois.photos into location_media.
+    //    Photos are stored as JSON strings of https:// Storage URLs on community_pois.photos.
+    //    We insert them into location_media so they appear in the approved POI's gallery.
+    const pendingPhotos: string[] = Array.isArray(poi.photos) ? poi.photos : [];
+    for (const photoUrl of pendingPhotos) {
+      if (!photoUrl || !photoUrl.startsWith("http")) continue;
+      await client.query(
+        `INSERT INTO location_media
+           (user_id, location_id, media_type, media_url, is_approved, approved_at)
+         SELECT $1, loc.id, 'image', $2, TRUE, NOW()
+         FROM locations loc
+         WHERE loc.source = 'community' AND loc.source_id = $3
+         ON CONFLICT DO NOTHING`,
+        [poi.user_id, photoUrl, String(poi.id)]
+      );
+    }
 
     await client.query("COMMIT");
 

@@ -329,9 +329,23 @@ export default function ContributePOI() {
     setSubmitting(true);
 
     try {
-      const photos: string[] = mediaItems
-        .filter(m => m.url && m.type === 'image')
-        .map(m => m.url!);
+      // Upload any locally-selected image files to storage first,
+      // so we can include their public URLs in the community_pois.photos JSON.
+      // This avoids the ID-mismatch bug where we tried to attach media to a
+      // locations row that doesn't exist yet (POIs are only promoted to
+      // locations after admin approval).
+      const fileItems = mediaItems.filter(m => m.file && m.type === 'image');
+      const uploadedUrls = await Promise.allSettled(
+        fileItems.map(item => api.locations.uploadPendingMedia(item.file!))
+      );
+      const successfulUrls = uploadedUrls
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map(r => r.value);
+
+      const photos: string[] = [
+        ...mediaItems.filter(m => m.url && m.type === 'image').map(m => m.url!),
+        ...successfulUrls,
+      ];
 
       const token = localStorage.getItem('router_auth_token');
       const res = await fetch((import.meta.env.VITE_API_URL ?? '') + '/api/community-pois', {
@@ -364,18 +378,8 @@ export default function ContributePOI() {
       const poiData = await res.json();
       const locationId = poiData?.data?.id;
 
-      // Show success immediately — don't make the user wait for file uploads
+      // Files were already uploaded above; nothing left to do after POI is saved.
       setSubmitted(true);
-
-      if (locationId) {
-        const fileItems = mediaItems.filter(m => m.file);
-        if (fileItems.length > 0) {
-          // Upload all files in parallel, non-blocking (best-effort)
-          Promise.allSettled(
-            fileItems.map(item => api.locations.uploadMedia(locationId, item.file!))
-          ).catch(() => { });
-        }
-      }
     } catch (err: any) {
       setError(err.message ?? 'אירעה שגיאה בשמירה');
     } finally {
