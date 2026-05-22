@@ -7,13 +7,13 @@ import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
 
 const TYPES: Record<string, { label: string; color: string; bg: string }> = {
-  צפיפות:    { label: 'צפיפות',    color: '#dc2626', bg: '#fef2f2' },
-  'מצב מים': { label: 'מצב מים',  color: '#0284c7', bg: '#eff6ff' },
-  'מצב שביל':{ label: 'מצב שביל', color: '#d97706', bg: '#fffbeb' },
-  חניה:      { label: 'חניה',      color: '#7c3aed', bg: '#faf5ff' },
-  'מזג אוויר':{ label: 'מזג אוויר',color: '#0891b2', bg: '#ecfeff' },
-  סכנה:      { label: 'סכנה',      color: '#b91c1c', bg: '#fef2f2' },
-  המלצה:     { label: 'המלצה',     color: '#16a34a', bg: '#f0fdf4' },
+  צפיפות: { label: 'צפיפות', color: '#dc2626', bg: '#fef2f2' },
+  'מצב מים': { label: 'מצב מים', color: '#0284c7', bg: '#eff6ff' },
+  'מצב שביל': { label: 'מצב שביל', color: '#d97706', bg: '#fffbeb' },
+  חניה: { label: 'חניה', color: '#7c3aed', bg: '#faf5ff' },
+  'מזג אוויר': { label: 'מזג אוויר', color: '#0891b2', bg: '#ecfeff' },
+  סכנה: { label: 'סכנה', color: '#b91c1c', bg: '#fef2f2' },
+  המלצה: { label: 'המלצה', color: '#16a34a', bg: '#f0fdf4' },
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -34,7 +34,7 @@ export default function Reports() {
   const { isGuest } = useAuth();
   const reportLock = useGuestLock('דיווח');
   const [reports, setReports] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);  // FIX #10: start as true
+  const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState('הכל');
   const [votedIds, setVotedIds] = useState<Set<string>>(() => {
     try {
@@ -43,15 +43,19 @@ export default function Reports() {
     } catch { return new Set(); }
   });
 
+  // Re-fetch whenever the selected type changes — filtering is done server-side,
+  // so the browser only ever receives the rows it will actually display.
   useEffect(() => {
     setLoading(true);
-    api.reports.list()
+    const typeParam = selectedType === 'הכל' ? undefined : selectedType;
+    api.reports.list({ type: typeParam })
       .then(data => setReports(data))
       .catch(() => setReports([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedType]);
 
-  const filtered = selectedType === 'הכל' ? reports : reports.filter(r => r.report_type === selectedType);
+  // No client-side filter needed — the API already returns only the requested type.
+  const filtered = reports;
 
   const handleUpvote = async (id: string) => {
     const alreadyVoted = votedIds.has(id);
@@ -77,8 +81,8 @@ export default function Reports() {
             aria-label={isGuest ? 'דיווח חדש — דרוש חשבון' : 'דיווח חדש'}
             style={{ background: '#fff', border: 'none', borderRadius: 12, padding: '8px 16px', cursor: 'pointer', color: '#d97706', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', opacity: isGuest ? 0.75 : 1 }}>
             {isGuest
-              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             }
             {isGuest ? 'דיווח — דרוש חשבון' : 'דיווח חדש'}
           </button>

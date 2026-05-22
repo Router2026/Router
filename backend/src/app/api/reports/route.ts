@@ -1,5 +1,6 @@
 // src/app/api/reports/route.ts
 // Updated: extracts authenticated user_id and resolves location_id.
+// Performance: forwards report_type filter and pagination params to the service layer.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getReports, createReport } from "@/lib/reports/report-service";
@@ -10,9 +11,22 @@ import { supabase } from "@/lib/db/supabase";
 
 export async function GET(req: NextRequest) {
   try {
-    const locationId = req.nextUrl.searchParams.get("location_id");
-    const data = await getReports(locationId ? parseInt(locationId) : undefined);
-    return NextResponse.json(successResponse(data));
+    const sp = req.nextUrl.searchParams;
+
+    const locationId = sp.get("location_id") ? parseInt(sp.get("location_id")!) : undefined;
+    const reportType = sp.get("type") || undefined;
+    const limit = sp.get("limit") ? Math.min(parseInt(sp.get("limit")!), 100) : 50;
+    const offset = sp.get("offset") ? Math.max(parseInt(sp.get("offset")!), 0) : 0;
+
+    const data = await getReports({ locationId, reportType, limit, offset });
+
+    return NextResponse.json(successResponse(data), {
+      headers: {
+        // Reports change infrequently enough for a short shared cache.
+        // CDN / reverse-proxy serves stale for up to 60 s while revalidating.
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+      },
+    });
   } catch (err) {
     console.error("[GET /api/reports]", err);
     return NextResponse.json(
@@ -80,12 +94,12 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await createReport({
-      user_id:       resolvedUserId,
-      location_id:   resolvedLocationId,
-      poi_name:      body.poi_name     ?? null,
-      report_type:   body.report_type,
-      severity:      body.severity     ?? "בינונית",
-      content:       body.content,
+      user_id: resolvedUserId,
+      location_id: resolvedLocationId,
+      poi_name: body.poi_name ?? null,
+      report_type: body.report_type,
+      severity: body.severity ?? "בינונית",
+      content: body.content,
       reporter_name: resolvedReporterName,
     });
 

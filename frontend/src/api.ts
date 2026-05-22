@@ -537,9 +537,12 @@ export const api = {
 
   // ── Reports ──────────────────────────────────────────────────
   reports: {
-    list: async (locationId?: number): Promise<CommunityReport[]> => {
-      const qs = locationId ? `?location_id=${locationId}` : '';
-      return (await apiFetch<{ data: any[] }>(`/reports${qs}`)).data.map(mapReport);
+    list: async (opts?: { locationId?: number; type?: string }): Promise<CommunityReport[]> => {
+      const qs = new URLSearchParams();
+      if (opts?.locationId) qs.set("location_id", String(opts.locationId));
+      if (opts?.type) qs.set("type", opts.type);
+      const query = qs.toString() ? `?${qs}` : "";
+      return (await apiFetch<{ data: any[] }>(`/reports${query}`)).data.map(mapReport);
     },
     create: async (data: Partial<CommunityReport> & { location_id?: number }): Promise<CommunityReport> =>
       mapReport((await apiFetch<{ data: any }>('/reports', { method: 'POST', body: JSON.stringify(data) })).data),

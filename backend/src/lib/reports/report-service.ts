@@ -1,5 +1,6 @@
 // src/lib/reports/report-service.ts
 // Updated to include explicit user_id linkage (Feature 2).
+// Performance: getReports now accepts server-side type filter + pagination (limit/offset).
 
 import { rawDb } from "@/lib/db/raw-client";
 
@@ -16,13 +17,46 @@ export interface CommunityReport {
   created_at: Date;
 }
 
-export async function getReports(locationId?: number): Promise<CommunityReport[]> {
-  const { rows } = locationId
-    ? await rawDb.query(
-        `SELECT * FROM community_reports WHERE location_id = $1 ORDER BY created_at DESC`,
-        [locationId]
-      )
-    : await rawDb.query(`SELECT * FROM community_reports ORDER BY created_at DESC`);
+export interface GetReportsOptions {
+  locationId?: number;
+  reportType?: string;   // server-side filter — avoids loading all rows for one type
+  limit?: number;        // default 50, max 100
+  offset?: number;       // default 0
+}
+
+export async function getReports(opts: GetReportsOptions = {}): Promise<CommunityReport[]> {
+  const { locationId, reportType, limit = 50, offset = 0 } = opts;
+  const safeLimit = Math.min(limit, 100);
+  const safeOffset = Math.max(offset, 0);
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (locationId !== undefined) {
+    params.push(locationId);
+    conditions.push(`location_id = $${params.length}`);
+  }
+  if (reportType) {
+    params.push(reportType);
+    conditions.push(`report_type = $${params.length}`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  params.push(safeLimit, safeOffset);
+  const limitIdx = params.length - 1;
+  const offsetIdx = params.length;
+
+  // Explicit column list — avoids pulling large unused columns in list views
+  const { rows } = await rawDb.query(
+    `SELECT id, user_id, location_id, poi_name, report_type, severity,
+            content, reporter_name, upvotes, created_at
+     FROM community_reports
+     ${where}
+     ORDER BY created_at DESC
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    params
+  );
   return rows as unknown as CommunityReport[];
 }
 
@@ -46,11 +80,11 @@ export async function createReport(data: CreateReportInput): Promise<CommunityRe
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [
-      data.user_id      ?? null,
-      data.location_id  ?? null,
-      data.poi_name     ?? null,
+      data.user_id ?? null,
+      data.location_id ?? null,
+      data.poi_name ?? null,
       data.report_type,
-      data.severity     ?? "בינונית",
+      data.severity ?? "בינונית",
       data.content,
       data.reporter_name ?? "אנונימי",
     ]
