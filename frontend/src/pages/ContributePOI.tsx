@@ -364,18 +364,18 @@ export default function ContributePOI() {
       const poiData = await res.json();
       const locationId = poiData?.data?.id;
 
+      // Show success immediately — don't make the user wait for file uploads
+      setSubmitted(true);
+
       if (locationId) {
         const fileItems = mediaItems.filter(m => m.file);
-        for (const item of fileItems) {
-          try {
-            await api.locations.uploadMedia(locationId, item.file!);
-          } catch {
-            // Non-blocking
-          }
+        if (fileItems.length > 0) {
+          // Upload all files in parallel, non-blocking (best-effort)
+          Promise.allSettled(
+            fileItems.map(item => api.locations.uploadMedia(locationId, item.file!))
+          ).catch(() => { });
         }
       }
-
-      setSubmitted(true);
     } catch (err: any) {
       setError(err.message ?? 'אירעה שגיאה בשמירה');
     } finally {

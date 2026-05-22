@@ -417,10 +417,15 @@ export const api = {
         `/locations/${locationId}/media${approvedOnly ? '?approved=true' : ''}`
       )).data,
     uploadMedia: async (locationId: string | number, file: File, caption?: string): Promise<UploadMediaResponse> => {
-      const form = new FormData();
-      form.append('file', file);
-      if (caption) form.append('caption', caption);
-      return (await apiFetchForm<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, form)).data;
+      const base64 = await fileToBase64(file);
+      return (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
+        method: 'POST',
+        body: JSON.stringify({
+          media_data: base64,
+          mime_type: file.type,
+          ...(caption ? { caption } : {}),
+        }),
+      })).data;
     },
     uploadMediaUrl: async (locationId: string | number, url: string, mediaType: 'image' | 'video' = 'image', caption?: string): Promise<UploadMediaResponse> =>
       (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {

@@ -81,14 +81,13 @@ export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | nul
 export async function createCommunityPoi(
   input: CreateCommunityPoiInput
 ): Promise<CommunityPoiRow> {
-  // Auto-classify region from coordinates
-  const regionInfo = await classifyRegion(input.latitude, input.longitude).catch(() => null);
-
+  // INSERT immediately with null region so the HTTP response is not blocked
+  // by the PostGIS classifyRegion query. Region is backfilled asynchronously.
   const { rows } = await rawDb.query(
     `INSERT INTO community_pois
        (user_id, name, category, description, latitude, longitude, photos, status, region, region_id,
         difficulty, duration_minutes, has_water, has_shade, accessible, photo_credit)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NULL, NULL, $8, $9, $10, $11, $12, $13)
      RETURNING *`,
     [
       input.userId,
@@ -98,8 +97,6 @@ export async function createCommunityPoi(
       input.latitude,
       input.longitude,
       JSON.stringify(input.photos ?? []),
-      regionInfo?.region_name ?? null,
-      regionInfo?.region_id ?? null,
       input.difficulty ?? 'בינוני',
       input.duration_minutes ?? null,
       input.has_water ?? false,
@@ -108,7 +105,26 @@ export async function createCommunityPoi(
       input.photo_credit ?? null,
     ]
   );
-  return rows[0] as unknown as CommunityPoiRow;
+
+  const poi = rows[0] as unknown as CommunityPoiRow;
+
+  // Classify region in the background — non-blocking, best-effort
+  classifyRegion(input.latitude, input.longitude)
+    .then(regionInfo => {
+      if (!regionInfo) return;
+      return rawDb.query(
+        `UPDATE community_pois SET region = $1, region_id = $2 WHERE id = $3`,
+        [regionInfo.region_name, regionInfo.region_id, poi.id]
+      );
+    })
+    .catch(err => {
+      console.error(
+        `[createCommunityPoi] background region classification failed for POI ${poi.id}:`,
+        err
+      );
+    });
+
+  return poi;
 }
 
 // ── Admin: Approve ─────────────────────────────────────────────────────────────
