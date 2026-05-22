@@ -1,3 +1,4 @@
+import React from 'react';
 // src/hooks/useLocations.ts  ← NEW FILE
 // Centralised React Query hooks — all pages read from the same cache.
 // Home, Explore, MapView, POIDetail all share one copy of each query.
@@ -70,6 +71,44 @@ export function useFeaturedLocations(limit = 10) {
         queryFn: () => api.locations.getFeatured(limit),
         staleTime: 15 * 60 * 1000,
     });
+}
+
+// ── Nearby POIs by GPS coords (Home page "Near You" section) ──────────────────
+// Uses a two-step approach: first get the user's coordinates via the Geolocation
+// API (stored in React state), then enable the query once coords are available.
+// The query key includes rounded coords (0.01° ≈ 1 km) so nearby results are
+// shared between navigations that start from roughly the same spot.
+
+export function useNearbyUserLocations(limit = 10, radius = 30000) {
+    const [coords, setCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+    const [geoError, setGeoError] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (!navigator.geolocation) {
+            setGeoError('מיקום אינו נתמך בדפדפן זה');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            pos => setCoords({
+                // Round to 2 decimal places (~1 km) so the cache key is stable
+                // across minor GPS jitter between navigations.
+                lat: Math.round(pos.coords.latitude * 100) / 100,
+                lng: Math.round(pos.coords.longitude * 100) / 100,
+            }),
+            () => setGeoError('לא אושרה גישה למיקום'),
+            { timeout: 8000, maximumAge: 60_000 },
+        );
+    }, []); // runs once per mount — coords persist in React Query cache afterwards
+
+    const query = useQuery<NearbyPOI[]>({
+        queryKey: ['locations', 'nearbyUser', coords, limit, radius],
+        queryFn: () => api.locations.getNearbyUser(coords!.lat, coords!.lng, limit, radius),
+        enabled: !!coords,
+        staleTime: 5 * 60 * 1000,   // 5 min — user probably hasn't moved far
+        gcTime: 15 * 60 * 1000,
+    });
+
+    return { ...query, geoError };
 }
 
 // ── Filter meta: categories + difficulties for dropdowns ──────────────────────

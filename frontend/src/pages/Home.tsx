@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type Region, type POI, type NearbyPOI } from '../api';
+import { type POI } from '../api';
+import { useFeaturedLocations, useRegions, useNearbyUserLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock, LockBadge } from '../components/LockedFeature';
 
@@ -178,50 +179,16 @@ export default function Home() {
   const plannerLock = useGuestLock('יצירת מסלול AI');
 
   const [search, setSearch] = useState('');
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [featured, setFeatured] = useState<POI[]>([]);
-  const [nearby, setNearby] = useState<NearbyPOI[]>([]);
-  const [featuredLoading, setFeaturedLoading] = useState(true);
-  const [nearbyLoading, setNearbyLoading] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const geoAttempted = useRef(false);
 
-  useEffect(() => {
-    api.regions.list().then(setRegions).catch(() => { });
-  }, []);
+  // ── React Query hooks — data is cached across navigations ────────────────
+  // Navigating away and back will show cached data instantly;
+  // a background refetch only happens after staleTime (5 min for nearby,
+  // 15 min for featured, 60 min for regions — see useLocations.ts).
+  const { data: regions = [] } = useRegions();
+  const { data: featured = [], isLoading: featuredLoading } = useFeaturedLocations(10);
+  const { data: nearby = [], isLoading: nearbyLoading,
+    geoError: locationError } = useNearbyUserLocations(10, 30000);
 
-  useEffect(() => {
-    setFeaturedLoading(true);
-    api.locations.getFeatured(10)
-      .then(setFeatured)
-      .catch(() => { })
-      .finally(() => setFeaturedLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (geoAttempted.current) return;
-    geoAttempted.current = true;
-
-    if (!navigator.geolocation) {
-      setLocationError('מיקום אינו נתמך בדפדפן זה');
-      return;
-    }
-    setNearbyLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        api.locations
-          .getNearbyUser(pos.coords.latitude, pos.coords.longitude, 10, 30000)
-          .then(setNearby)
-          .catch(() => setLocationError('לא ניתן לטעון אתרים קרובים'))
-          .finally(() => setNearbyLoading(false));
-      },
-      () => {
-        setLocationError('לא אושרה גישה למיקום');
-        setNearbyLoading(false);
-      },
-      { timeout: 8000, maximumAge: 60000 }
-    );
-  }, []);
 
   const displayRegions = regions.slice(0, 6);
 
