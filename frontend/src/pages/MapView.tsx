@@ -372,7 +372,7 @@ export default function MapView() {
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         {/* CARTO Voyager — faster CDN, correct subdomains, crossOrigin for browser caching */}
         <TileLayer
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           subdomains="abcd"
           maxZoom={19}

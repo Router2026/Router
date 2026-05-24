@@ -54,7 +54,7 @@ export interface Region {
 export interface POI {
   id: string; name: string; description: string; category: string;
   region: string; region_id?: number; latitude: number; longitude: number;
-  images: string[]; main_image: string; difficulty: string;
+  images: string[]; main_image: string; thumbnail: string; difficulty: string;
   duration_minutes?: number; has_water?: boolean; has_shade?: boolean;
   accessible?: boolean; is_featured?: boolean; average_rating: number;
   /** Optional photographer credit shown as a watermark on the main image */
@@ -209,13 +209,14 @@ export interface ShareTripResult {
 // ── Mapper helpers ─────────────────────────────────────────────────────────
 
 function mapLocation(r: any): POI {
+  const mainImage: string = r.main_image || '';
   return {
     id: String(r.id), name: r.name, description: r.description || '',
     category: r.category, region: r.region_name || r.region || '',
     region_id: r.region_id, latitude: parseFloat(r.latitude),
     longitude: parseFloat(r.longitude),
     images: Array.isArray(r.images) ? r.images : (typeof r.images === 'string' ? JSON.parse(r.images) : []),
-    main_image: r.main_image || '', difficulty: r.difficulty || 'בינוני',
+    main_image: mainImage, thumbnail: transformSupabaseImage(mainImage, 400), difficulty: r.difficulty || 'בינוני',
     duration_minutes: r.duration_minutes, has_water: r.has_water,
     has_shade: r.has_shade, accessible: r.accessible,
     is_featured: r.is_featured ?? false,
@@ -614,6 +615,21 @@ export const api = {
       api.locations.rejectImage(locationId, imageId),
   },
 };
+
+// ── Helper: Supabase Storage image transform ───────────────────────────────────
+// Requires VITE_ENABLE_IMG_TRANSFORM=true + Supabase Pro plan.
+// On free tier the env var is absent so the original URL is returned unchanged.
+export function transformSupabaseImage(
+  url: string | null | undefined,
+  width: number,
+  quality = 75,
+): string {
+  if (!url) return '';
+  if (!import.meta.env.VITE_ENABLE_IMG_TRANSFORM) return url;
+  if (!url.includes('/storage/v1/object/public/')) return url;
+  const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
+  return `${base}?width=${width}&quality=${quality}&resize=cover`;
+}
 
 // ── Helper: geocode a city/locality name to coordinates (Israel-scoped) ──────
 export interface GeocodedCity {

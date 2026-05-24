@@ -173,7 +173,8 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
     <div onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
       style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease' }}>
       <div style={{ position: 'relative', height: 160 }}>
-        <img src={poi.main_image || RouterLogo} alt={poi.name} loading="lazy"
+        <img src={poi.thumbnail || poi.main_image || RouterLogo} alt={poi.name}
+          loading="lazy" decoding="async"
           onError={e => { e.currentTarget.src = RouterLogo; e.currentTarget.onerror = null; }}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
 
@@ -291,6 +292,8 @@ export default function Explore() {
   // ── Guards ────────────────────────────────────────────────────────────────
   // fetchingRef: prevents concurrent duplicate fetches from the IntersectionObserver.
   const fetchingRef = useRef(false);
+  // abortRef: cancels the in-flight request when filters change (page=0 reset).
+  const abortRef = useRef<AbortController | null>(null);
   // cityModeRef: true while a city search owns the current pois list.
   // Prevents the debouncedSearch reset-effect from racing the city fetch.
   const cityModeRef = useRef(false);
@@ -321,10 +324,14 @@ export default function Explore() {
     gpsCoords?: { lat: number; lng: number } | null,
     isCitySearch?: boolean,
   ) => {
-    if (fetchingRef.current) return;
+    if (pageNum > 0 && fetchingRef.current) return;
+    if (pageNum === 0) abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
+    let aborted = false;
     try {
       const qs = new URLSearchParams();
       if (selRegions[0]) qs.set('region', selRegions[0]);
@@ -350,7 +357,7 @@ export default function Explore() {
 
       const res = await fetch(
         `${import.meta.env.VITE_API_URL ?? ''}/api/locations?${qs}`,
-        { headers },
+        { headers, signal: controller.signal },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -383,10 +390,11 @@ export default function Explore() {
 
       setPois(prev => pageNum === 0 ? newPois : [...prev, ...newPois]);
     } catch (err: any) {
+      if (err.name === 'AbortError') { aborted = true; return; }
       setError(err.message);
     } finally {
       fetchingRef.current = false;
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
   }, [selRegions, selCats, selDiffs, debouncedSearch, hasWater, hasShade, accessible]);
 
