@@ -270,21 +270,35 @@ export default function Explore() {
   const [categories, setCategories] = useState<string[]>([]);
 
   // ── Proximity sort (GPS) ──────────────────────────────────────────────────
-  // userCoords drives server-side distance sort when set.
-  // It must NOT be set during a city-name search — they are separate modes.
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sortByProximity, setSortByProximity] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
 
-  // ── City geocoding (text search for a city name) ──────────────────────────
-  // cityResult is set when the user types a place name that isn't found in the
-  // POI list. It filters the already-loaded POIs client-side by distance.
-  // FIX: was conflicting with proximity sort because they shared the same
-  // fetch coords. Now completely separate: cityResult = client-side filter only.
+  // ── City geocoding state ──────────────────────────────────────────────────
   const [cityResult, setCityResult] = useState<GeocodedCity | null>(null);
   const [citySearching, setCitySearching] = useState(false);
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Debounced search ──────────────────────────────────────────────────────
+  // Server fetches use debouncedSearch so we don't hit the API on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // ── Guards ────────────────────────────────────────────────────────────────
+  // fetchingRef: prevents concurrent duplicate fetches from the IntersectionObserver.
+  const fetchingRef = useRef(false);
+  // cityModeRef: true while a city search owns the current pois list.
+  // Prevents the debouncedSearch reset-effect from racing the city fetch.
+  const cityModeRef = useRef(false);
+
+  // Ref snapshots of pois and loading — let the geocode effect read current
+  // values without subscribing to them as deps (which caused an infinite loop).
+  const poisRef = useRef<POI[]>([]);
+  useEffect(() => { poisRef.current = pois; }, [pois]);
 
   // ── Fetch filter meta once ────────────────────────────────────────────────
   useEffect(() => {
@@ -298,13 +312,17 @@ export default function Explore() {
       .catch(console.error);
   }, []);
 
-  // ── Core fetch (server-side filtered, paginated) ──────────────────────────
-  // NOTE: userCoords is only passed when GPS proximity sort is active.
-  // City search uses a separate local filter — does NOT change what is fetched.
+  // ── Core fetch ────────────────────────────────────────────────────────────
+  // isCitySearch=true  → omits search= param so the server returns all POIs,
+  //                      which the client-side proximity filter then narrows.
+  // isCitySearch=false → normal paginated fetch with optional search= param.
   const fetchPage = useCallback(async (
     pageNum: number,
     gpsCoords?: { lat: number; lng: number } | null,
+    isCitySearch?: boolean,
   ) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -315,15 +333,12 @@ export default function Explore() {
       if (hasWater) qs.set('has_water', 'true');
       if (hasShade) qs.set('has_shade', 'true');
       if (accessible) qs.set('accessible', 'true');
-      // FIX: Only send search term to the server when there is NO city result.
-      // When cityResult is set, the server has already loaded all relevant POIs
-      // (no search filter) and we filter them client-side. Sending the city name
-      // as a search term was causing the DB full-text search to return zero rows
-      // because the city name doesn't appear in any POI's name/category.
-      if (search.trim() && !cityResult) qs.set('search', search.trim());
-      qs.set('limit', String(PAGE_SIZE));
+      // Only send a text search param for regular (non-city) searches.
+      // City searches must return all POIs so the proximity filter has candidates.
+      if (!isCitySearch && debouncedSearch.trim()) qs.set('search', debouncedSearch.trim());
+      // Fetch a larger page for city searches so nearby POIs aren't cut off.
+      qs.set('limit', isCitySearch ? '200' : String(PAGE_SIZE));
       qs.set('offset', String(pageNum * PAGE_SIZE));
-      // GPS proximity: only when the user explicitly toggled "sort by proximity"
       if (gpsCoords) {
         qs.set('user_lat', String(gpsCoords.lat));
         qs.set('user_lng', String(gpsCoords.lng));
@@ -370,19 +385,21 @@ export default function Explore() {
     } catch (err: any) {
       setError(err.message);
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
     }
-    // cityResult intentionally omitted from deps — it drives client-side filter only,
-    // not a new server request.
-  }, [selRegions, selCats, selDiffs, search, hasWater, hasShade, accessible]);
+  }, [selRegions, selCats, selDiffs, debouncedSearch, hasWater, hasShade, accessible]);
 
-  // ── Reset + re-fetch when filters or GPS proximity change ─────────────────
+  // ── Reset + re-fetch when filters or debounced search change ──────────────
   useEffect(() => {
+    // When city mode is active, the geocode callback owns the fetch — skip here
+    // to avoid racing it.
+    if (cityModeRef.current) return;
     setPage(0);
     setTotalCount(null);
     fetchPage(0, userCoords);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selRegions, selCats, selDiffs, hasWater, hasShade, accessible, search, userCoords]);
+  }, [selRegions, selCats, selDiffs, hasWater, hasShade, accessible, debouncedSearch, userCoords]);
 
   // ── URL category param ────────────────────────────────────────────────────
   useEffect(() => {
@@ -392,65 +409,111 @@ export default function Explore() {
   // ── IntersectionObserver — load next page on scroll ───────────────────────
   const observer = useRef<IntersectionObserver | null>(null);
   const lastPoiRef = useCallback((node: HTMLDivElement | null) => {
-    if (loading) return;
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) {
-        const next = page + 1;
-        setPage(next);
-        fetchPage(next, userCoords);
+      if (entries[0].isIntersecting && hasMore && !fetchingRef.current) {
+        setPage(prev => {
+          const next = prev + 1;
+          // FIX: Pass cityModeRef.current to maintain city search behavior on pagination
+          fetchPage(next, userCoords, cityModeRef.current);
+          return next;
+        });
       }
     });
     if (node) observer.current.observe(node);
-  }, [loading, hasMore, page, fetchPage, userCoords]);
+  }, [hasMore, fetchPage, userCoords]);
 
   // ── City geocoding ────────────────────────────────────────────────────────
-  // Runs when the user types something that doesn't look like a POI name.
-  // FIX: the old `hasDirectMatch` check was too broad — it would fire when the
-  // typed text appeared anywhere in ANY loaded poi name/category/region, which
-  // blocked geocoding even when the user clearly meant a city (e.g. "תל אביב").
-  // New logic: only skip geocoding when there is a STRONG exact match
-  // (poi.name starts with the search term), giving geocoding a chance to run.
+  // Dep array is [search] ONLY.
+  //
+  // Why not [search, pois, loading]?
+  //   Adding pois caused an infinite loop: geocode → fetchPage → setPois →
+  //   effect re-runs → geocode → fetchPage → setPois → ...
+  //   pois is read via poisRef instead (a ref, updated by a sync effect).
+  //
+  // Why cityModeRef?
+  //   When the user clears the search box, cityModeRef tells the debouncedSearch
+  //   reset-effect to skip, so only this effect performs the refetch — no race.
   useEffect(() => {
+    // FIX: Flag to prevent race conditions on async geocoding
+    let isActive = true;
     if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
     const term = search.trim();
-    if (!term) { setCityResult(null); return; }
 
-    // FIX: only suppress geocoding when a POI name STARTS WITH the search term
-    // (strong signal the user is searching for a specific POI, not a city).
-    const hasStrongPoiMatch = pois.some(p =>
-      p.name.startsWith(term) || p.name === term,
-    );
-    if (hasStrongPoiMatch) { setCityResult(null); return; }
+    if (!term) {
+      // User cleared the search box.
+      if (cityModeRef.current) {
+        // We were in city mode — exit it and restore normal browse.
+        cityModeRef.current = false;
+        setCityResult(null);
+        setPois([]);
+        setPage(0);
+        setTotalCount(null);
+        fetchingRef.current = false;
+        fetchPage(0, userCoords, false);
+      } else {
+        setCityResult(null);
+      }
+      return;
+    }
 
     geocodeTimerRef.current = setTimeout(async () => {
-      setCitySearching(true);
+      // Check for a DB match INSIDE the timer, after the debounce delay.
+      // By the time 600 ms have elapsed, the debouncedSearch fetch has
+      // completed and poisRef.current holds the real results for this term.
+      // Checking here — not synchronously in the effect — prevents us from
+      // incorrectly geocoding when the pois list was still empty at effect-run time.
+      const hasStrongPoiMatch = poisRef.current.some(p =>
+        p.name === term || p.name.startsWith(term + ' '),
+      );
+      if (hasStrongPoiMatch) { 
+        if (isActive) setCityResult(null); 
+        return; 
+      }
+
+      if (isActive) setCitySearching(true);
       const result = await geocodeCity(term);
+      
+      // FIX: Check if effect is still active before updating states
+      if (!isActive) return;
+
+      if (!result) {
+        setCitySearching(false);
+        return;
+      }
+      // Enter city mode: set the flag BEFORE any state updates so the
+      // debouncedSearch reset-effect sees it and skips its own fetch.
+      cityModeRef.current = true;
       setCityResult(result);
+      setPois([]);
+      setPage(0);
+      setTotalCount(null);
+      fetchingRef.current = false;
+      await fetchPage(0, null, true);
       setCitySearching(false);
-    }, 600); // slightly longer debounce — avoids hammering Nominatim on each keystroke
+    }, 600);
 
-    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
-  }, [search, pois]);
-
-  useEffect(() => { if (!search.trim()) setCityResult(null); }, [search]);
+    // FIX: Cleanup function to abort state updates if component unmounts or search changes
+    return () => { 
+      isActive = false;
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); 
+    };
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Client-side city-radius filter ───────────────────────────────────────
-  // Applied on top of whatever the server returned when a city was geocoded.
-  // This is a pure display transform — it never triggers a new fetch.
+  // Pure display transform — never triggers a fetch.
   const displayedPois = useMemo(() => {
     if (!cityResult || !search.trim()) return pois;
     return pois
       .flatMap(p => {
         const dist = haversineDistance(cityResult.lat, cityResult.lng, p.latitude, p.longitude);
         if (dist > CITY_RADIUS_METERS) return [];
-        return [{ ...p, distance_meters: dist }]; // new object — no mutation
+        return [{ ...p, distance_meters: dist }];
       })
       .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0));
   }, [pois, cityResult, search]);
 
   // ── GPS proximity toggle ──────────────────────────────────────────────────
-  // FIX: when toggling OFF, also clear cityResult so the two modes don't clash.
   const handleProximityToggle = useCallback(async () => {
     if (sortByProximity) {
       setSortByProximity(false);
@@ -466,8 +529,8 @@ export default function Explore() {
     setGeoError(null);
     navigator.geolocation.getCurrentPosition(
       pos => {
-        // FIX: clear any active city search when GPS sort is activated
         setCityResult(null);
+        cityModeRef.current = false;
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserCoords(coords);
         setSortByProximity(true);
