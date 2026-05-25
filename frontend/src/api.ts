@@ -116,6 +116,14 @@ export interface CommunityPoiSubmission {
   photos: string[]; status: 'pending' | 'approved' | 'rejected';
   admin_note: string | null; reviewed_at: string | null; created_at: string;
   region?: string | null; region_id?: number | null;
+  // Optional detail fields
+  difficulty?: string | null;
+  duration_minutes?: number | null;
+  has_water?: boolean | null;
+  has_shade?: boolean | null;
+  accessible?: boolean | null;
+  photo_credit?: string | null;
+  submitter_username?: string;
 }
 
 export interface LocationImage {
@@ -536,8 +544,41 @@ export const api = {
   },
 
   userProfiles: {
-    get: async (userId: number): Promise<{ profile: any; trips: PublicTrip[] }> =>
+    get: async (userId: number): Promise<{ profile: any; trips: PublicTrip[]; community_pois: CommunityPoiSubmission[] }> =>
       (await apiFetch<{ data: any }>(`/users/${userId}`)).data,
+  },
+
+  // ── Community POIs (user-submitted places) ────────────────────
+  communityPois: {
+    /** All POIs submitted by the authenticated user (all statuses) */
+    myPlaces: async (): Promise<CommunityPoiSubmission[]> =>
+      (await apiFetch<{ data: CommunityPoiSubmission[] }>('/community-pois/my')).data,
+
+    /** Get a single community POI by id */
+    get: async (id: number): Promise<CommunityPoiSubmission> =>
+      (await apiFetch<{ data: CommunityPoiSubmission }>(`/community-pois/${id}`)).data,
+
+    /** Edit a community POI — owner only, only allowed on pending/rejected POIs */
+    update: async (
+      id: number,
+      data: Partial<Pick<CommunityPoiSubmission, 'name' | 'category' | 'description' | 'latitude' | 'longitude' | 'photos'>> & {
+        difficulty?: string;
+        duration_minutes?: number | null;
+        has_water?: boolean | null;
+        has_shade?: boolean | null;
+        accessible?: boolean | null;
+        photo_credit?: string | null;
+      }
+    ): Promise<CommunityPoiSubmission> =>
+      (await apiFetch<{ data: CommunityPoiSubmission }>(`/community-pois/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      })).data,
+
+    /** Delete a pending/rejected community POI — owner only */
+    delete: async (id: number): Promise<void> => {
+      await apiFetch(`/community-pois/${id}`, { method: 'DELETE' });
+    },
   },
 
   // ── Reviews ──────────────────────────────────────────────────

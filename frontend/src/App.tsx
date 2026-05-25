@@ -29,6 +29,8 @@ import PublicTrips from './pages/PublicTrips';
 import PublicTripDetail from './pages/PublicTripDetail';
 import Favorites from './pages/Favorites';
 import ProfileEdit from './pages/ProfileEdit';
+import MyPlaces from './pages/MyPlaces';
+import EditMyPlace from './pages/EditMyPlace';
 import AuthCallback from './pages/AuthCallback';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -109,6 +111,8 @@ function AppRoutes() {
         <Route path="/trips" element={<Wrap name="Trips"><PublicTrips /></Wrap>} />
         <Route path="/trips/:id" element={<Wrap name="TripDetail"><PublicTripDetail /></Wrap>} />
         <Route path="/profile/:id" element={<Wrap name="UserProfile"><PublicUserProfile /></Wrap>} />
+        <Route path="/my-places" element={<RequireAuth><Wrap name="MyPlaces"><MyPlaces /></Wrap></RequireAuth>} />
+        <Route path="/my-places/:id/edit" element={<RequireAuth><Wrap name="EditMyPlace"><EditMyPlace /></Wrap></RequireAuth>} />
 
         {/* ── Guest-accessible (read-only browsing) ─────────── */}
         <Route path="/" element={<RequireAuth allowGuest><Wrap name="Home"><Home /></Wrap></RequireAuth>} />
