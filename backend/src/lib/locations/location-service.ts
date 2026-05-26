@@ -613,8 +613,8 @@ export async function upsertLocation(
        images, main_image, source, source_id, difficulty, duration_minutes,
        has_water, has_shade, accessible, average_rating)
      VALUES ($1,$2,$3,$4,$5,$6,
-       ST_SetSRID(ST_MakePoint($7,$6), 4326)::geography,
-       $8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       ST_SetSRID(ST_MakePoint($6::float8,$5::float8), 4326)::geography,
+       $7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      ON CONFLICT (source, source_id) DO UPDATE SET
        name        = EXCLUDED.name,
        description = EXCLUDED.description,
@@ -627,7 +627,7 @@ export async function upsertLocation(
      RETURNING id`,
     [
       name, description, category, region_id || null,
-      latitude, longitude, longitude,
+      latitude, longitude,
       JSON.stringify(images), main_image || images[0] || null,
       source, source_id || null, difficulty, duration_minutes || null,
       has_water, has_shade, accessible, average_rating,

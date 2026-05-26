@@ -1,7 +1,7 @@
 // src/context/FavoritesContext.tsx
 // Single source of truth for favorites — fetched once on login, shared by all components.
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api, type FavoriteLocation } from '../api';
 import { useAuth } from './AuthContext';
 
@@ -19,6 +19,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [favorites, setFavorites] = useState<FavoriteLocation[]>([]);
   const [loading, setLoading]     = useState(false);
+  const pendingRef = useRef(new Set<number>());
 
   const fetchFavorites = useCallback(() => {
     setLoading(true);
@@ -42,6 +43,8 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 
   const toggleFavorite = useCallback(async (locationId: number) => {
     if (!user) return;
+    if (pendingRef.current.has(locationId)) return;
+    pendingRef.current.add(locationId);
     const already = isFavorite(locationId);
 
     if (already) {
@@ -50,11 +53,11 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
       try {
         await api.favorites.remove(locationId);
       } catch {
-        // Rollback on failure
         fetchFavorites();
+      } finally {
+        pendingRef.current.delete(locationId);
       }
     } else {
-      // Optimistic add (placeholder while waiting for server)
       const placeholder: FavoriteLocation = {
         id: -Date.now(), user_id: Number(user.id),
         location_id: locationId, created_at: new Date().toISOString(),
@@ -62,13 +65,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
       setFavorites(prev => [placeholder, ...prev]);
       try {
         const { favorite } = await api.favorites.add(locationId);
-        // Replace placeholder with real record
         setFavorites(prev =>
           prev.map(f => f.id === placeholder.id ? favorite : f)
         );
       } catch {
-        // Rollback
         setFavorites(prev => prev.filter(f => f.id !== placeholder.id));
+      } finally {
+        pendingRef.current.delete(locationId);
       }
     }
   }, [user, isFavorite, fetchFavorites]);
