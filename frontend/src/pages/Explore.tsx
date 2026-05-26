@@ -363,6 +363,7 @@ export default function Explore() {
     // Snapshot the mode at the moment this fetch was initiated.
     const isCityFetch = fetchModeRef.current === 'city';
     let aborted = false;
+
     try {
       const qs = new URLSearchParams();
       if (selRegions[0]) qs.set('region', selRegions[0]);
@@ -593,6 +594,7 @@ export default function Explore() {
   }, [hasMore, fetchPage, userCoords]);
 
   // ── Client-side city-radius filter ───────────────────────────────────────
+  // Pure display transform — never triggers a fetch.
   const displayedPois = useMemo(() => {
     if (!cityResult || !debouncedSearch.trim()) return pois;
     return pois
