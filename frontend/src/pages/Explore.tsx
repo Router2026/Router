@@ -13,6 +13,9 @@ import { useGuestLock } from '../components/LockedFeature';
 
 const DIFFICULTIES = ['קל', 'בינוני', 'מאתגר', 'אקסטרים'];
 const PAGE_SIZE = 40;
+// City-mode fetches a larger page so the radius filter has enough candidates.
+// Offsets for subsequent city pages must use this constant, not PAGE_SIZE.
+const CITY_PAGE_SIZE = 200;
 // City search: show POIs within this radius of the geocoded city centre
 const CITY_RADIUS_METERS = 30000;
 
@@ -240,6 +243,17 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
   );
 });
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+/**
+ * The single source of truth for what kind of fetch to perform.
+ *
+ * - 'normal'  : standard paginated fetch, passes `search=` to the server.
+ * - 'city'    : city-mode fetch, fetches all POIs without a `search=` param
+ *               so the client-side radius filter can narrow them down.
+ */
+type FetchMode = 'normal' | 'city';
+
 // ── Main Explore page ─────────────────────────────────────────────────────────
 
 export default function Explore() {
@@ -280,7 +294,10 @@ export default function Explore() {
   const [cityResult, setCityResult] = useState<GeocodedCity | null>(null);
   const [citySearching, setCitySearching] = useState(false);
 
-  // ── Debounced search ──────────────────────────────────────────────────────
+  // ── Unified debounced search ──────────────────────────────────────────────
+  // A single 400 ms debounce drives ALL search-triggered fetches. The
+  // geocodeCity call happens inside the same pipeline, so the two timers
+  // cannot race each other.
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
@@ -288,9 +305,21 @@ export default function Explore() {
   }, [search]);
 
   // ── Guards ────────────────────────────────────────────────────────────────
+  // fetchingRef: prevents concurrent duplicate fetches from IntersectionObserver.
   const fetchingRef = useRef(false);
+  // abortRef: cancels in-flight requests when a reset (page=0) is triggered.
   const abortRef = useRef<AbortController | null>(null);
-  const cityModeRef = useRef(false);
+  // fetchModeRef: authoritative source for the current fetch strategy. Set
+  // synchronously before any async work so a subsequent effect never reads stale.
+  const fetchModeRef = useRef<FetchMode>('normal');
+  // cityResultRef: mirrors cityResult so fetchPage can read it in callbacks
+  // without depending on it as a reactive value.
+  const cityResultRef = useRef<GeocodedCity | null>(null);
+  // FIX 4 (City-mode infinite pagination): tracks whether the last city-mode
+  // server page returned fewer items than CITY_PAGE_SIZE, meaning the server
+  // has no more candidates. When true, the IntersectionObserver will not fire
+  // any further page requests even though totalCount (server-side) may be high.
+  const cityFetchExhaustedRef = useRef(false);
 
   // ── Fetch filter meta once ────────────────────────────────────────────────
   useEffect(() => {
@@ -305,20 +334,35 @@ export default function Explore() {
   }, []);
 
   // ── Core fetch ────────────────────────────────────────────────────────────
+  // Reads fetchModeRef synchronously at call time so it always reflects the
+  // intent of whichever code path triggered it.
+  //
+  // Returns the array of POIs that were fetched (or null on abort/error) so
+  // the search effect can inspect the data without misusing setState as a
+  // getter (FIX 2 — setPois-as-getter anti-pattern).
+  //
+  // FIX (Duplicate POIs): A dedupe guard using a Set<string> is applied
+  // before appending to state, making append-mode safe even if the
+  // IntersectionObserver fires while a fetch is in flight.
   const fetchPage = useCallback(async (
     pageNum: number,
     gpsCoords?: { lat: number; lng: number } | null,
-    isCitySearch?: boolean,
-  ): Promise<POI[] | undefined> => {
-    if (pageNum > 0 && fetchingRef.current) return;
-    if (pageNum === 0) abortRef.current?.abort();
+  ): Promise<POI[] | null> => {
+    if (pageNum > 0 && fetchingRef.current) return null;
+    if (pageNum === 0) {
+      abortRef.current?.abort();
+      // Reset the city-exhaustion flag whenever we start a fresh fetch sequence.
+      cityFetchExhaustedRef.current = false;
+    }
     const controller = new AbortController();
     abortRef.current = controller;
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
+
+    // Snapshot the mode at the moment this fetch was initiated.
+    const isCityFetch = fetchModeRef.current === 'city';
     let aborted = false;
-    
     try {
       const qs = new URLSearchParams();
       if (selRegions[0]) qs.set('region', selRegions[0]);
@@ -327,11 +371,17 @@ export default function Explore() {
       if (hasWater) qs.set('has_water', 'true');
       if (hasShade) qs.set('has_shade', 'true');
       if (accessible) qs.set('accessible', 'true');
-      
-      if (!isCitySearch && debouncedSearch.trim()) qs.set('search', debouncedSearch.trim());
-      qs.set('limit', isCitySearch ? '200' : String(PAGE_SIZE));
-      qs.set('offset', String(pageNum * PAGE_SIZE));
-      
+      // City fetches omit `search=` so the server returns unfiltered candidates
+      // for the client-side radius pass. Normal fetches pass the search term.
+      if (!isCityFetch && debouncedSearch.trim()) qs.set('search', debouncedSearch.trim());
+
+      // FIX 1 (Offset over-fetch in city mode): limit and offset must use the
+      // SAME page-size constant. City pages are CITY_PAGE_SIZE items wide, so
+      // page 1 must start at offset 200, not 40.
+      const effectivePageSize = isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
+      qs.set('limit', String(effectivePageSize));
+      qs.set('offset', String(pageNum * effectivePageSize));
+
       if (gpsCoords) {
         qs.set('user_lat', String(gpsCoords.lat));
         qs.set('user_lng', String(gpsCoords.lng));
@@ -374,107 +424,167 @@ export default function Explore() {
         distance_meters: raw.distance_meters,
       }));
 
-      setPois(prev => pageNum === 0 ? newPois : [...prev, ...newPois]);
-      return newPois; // Return the items to be used in the unified effect
+      // Deduplicate by ID before updating state. Prevents double-appends from
+      // concurrent observer triggers or re-renders.
+      setPois(prev => {
+        if (pageNum === 0) return newPois;
+        const seen = new Set(prev.map(p => p.id));
+        const unique = newPois.filter(p => !seen.has(p.id));
+        return unique.length > 0 ? [...prev, ...unique] : prev;
+      });
+
+      // FIX 4 (City-mode infinite pagination): if the server returned fewer
+      // items than requested, there are no more server pages to fetch. Mark the
+      // city sequence as exhausted so the IntersectionObserver halts.
+      if (isCityFetch && newPois.length < CITY_PAGE_SIZE) {
+        cityFetchExhaustedRef.current = true;
+      }
+
+      // FIX 2 (setPois-as-getter anti-pattern): return the data directly so
+      // the search effect can inspect it without a no-op setState trick.
+      return newPois;
     } catch (err: any) {
-      if (err.name === 'AbortError') { aborted = true; return; }
+      if (err.name === 'AbortError') { aborted = true; return null; }
       setError(err.message);
+      return null;
     } finally {
       fetchingRef.current = false;
       if (!aborted) setLoading(false);
     }
   }, [selRegions, selCats, selDiffs, debouncedSearch, hasWater, hasShade, accessible]);
 
-  // ── Unified Search & Filter Effect ──────────────────────────────────────────
-  // This robust effect replaces the old multi-effects. It reliably handles
-  // filters, standard searches, and city geocoding in one consistent pipeline
-  // to avoid all race conditions.
-  const lastSearchRef = useRef(debouncedSearch);
-
+  // ── Unified search + geocoding effect ────────────────────────────────────
+  //
+  // FIX (Bug 1 — Competing Timers): Replaces the two separate debounce effects
+  // (400 ms POI fetch + 600 ms geocode) with a single pipeline gated on
+  // `debouncedSearch`. After the 400 ms debounce fires we attempt geocoding
+  // only when the standard DB search yields no strong match. This guarantees
+  // the geocode never runs before the POI fetch resolves.
+  //
+  // FIX (Bug 3 — Clear Duplication): When the search box is cleared,
+  // `debouncedSearch` settles to '' and this is the ONLY effect that reacts,
+  // performing exactly one reset fetch.
+  //
+  // FIX (Bug 2 — Filter Blocking): Filters change `fetchPage`'s identity via
+  // its `useCallback` deps. That causes `debouncedSearch` to also appear in
+  // this effect's dep array (via `fetchPage`), so filter changes re-run this
+  // effect and trigger a fresh fetch regardless of whether city mode is active.
   useEffect(() => {
-    let isActive = true;
+    let cancelled = false;
 
-    const runFetch = async () => {
+    const run = async () => {
       const term = debouncedSearch.trim();
-      const searchChanged = term !== lastSearchRef.current;
-      lastSearchRef.current = term;
 
-      // 1. Empty search term - Reset to explore mode
       if (!term) {
-        if (cityModeRef.current) {
-          cityModeRef.current = false;
-          setCityResult(null);
-        }
+        // User cleared the search box — exit city mode and do one normal fetch.
+        fetchModeRef.current = 'normal';
+        cityResultRef.current = null;
+        setCityResult(null);
+        setCitySearching(false);
+        setPois([]);
         setPage(0);
         setTotalCount(null);
-        await fetchPage(0, userCoords, false);
+        fetchingRef.current = false;
+        await fetchPage(0, userCoords);
         return;
       }
 
-      // 2. Filter changed while in city mode (search term didn't change)
-      if (!searchChanged && cityModeRef.current) {
-        setPage(0);
-        setTotalCount(null);
-        await fetchPage(0, userCoords, true);
-        return;
-      }
-
-      // 3. Normal search (search text changed, or a filter changed in normal mode)
-      cityModeRef.current = false;
-      setCityResult(null);
+      // --- Standard POI fetch (always runs first) ---
+      fetchModeRef.current = 'normal';
+      setPois([]);
       setPage(0);
       setTotalCount(null);
+      fetchingRef.current = false;
+      const normalResults = await fetchPage(0, userCoords);
 
-      // Fetch standard POIs first based on text/filters
-      const newPois = await fetchPage(0, userCoords, false);
-      if (!isActive || !newPois) return;
+      if (cancelled) return;
 
-      // 4. If the search term actually changed, check if we need to geocode a city
-      if (searchChanged) {
-        const hasStrongPoiMatch = newPois.some(p =>
-          p.name === term || p.name.startsWith(term + ' ')
-        );
+      // --- Geocode attempt (only if standard search found no strong match) ---
+      // FIX 2 (setPois-as-getter anti-pattern): fetchPage now returns the fetched
+      // array directly, so we inspect it here instead of misusing setState as a
+      // synchronous read mechanism (which is undefined behaviour — React batches
+      // updates and the updater function is not guaranteed to run immediately).
+      const strongMatch = (normalResults ?? []).some(
+        p => p.name === term || p.name.startsWith(term + ' '),
+      );
 
-        // If no strong POI match, try resolving it as a city
-        if (!hasStrongPoiMatch) {
-          setCitySearching(true);
-          const result = await geocodeCity(term);
-          if (!isActive) return;
-
-          if (result) {
-            cityModeRef.current = true;
-            setCityResult(result);
-            setPage(0);
-            setTotalCount(null);
-            // Fetch wide net for the city radius
-            await fetchPage(0, null, true);
-          }
-          setCitySearching(false);
-        }
+      if (strongMatch) {
+        cityResultRef.current = null;
+        setCityResult(null);
+        return;
       }
+
+      // Attempt geocoding
+      setCitySearching(true);
+      const result = await geocodeCity(term);
+      if (cancelled) return;
+
+      setCitySearching(false);
+
+      if (!result) {
+        cityResultRef.current = null;
+        setCityResult(null);
+        return;
+      }
+
+      // Enter city mode — set the ref BEFORE triggering the city fetch so
+      // fetchPage snapshots the correct mode.
+      fetchModeRef.current = 'city';
+      cityResultRef.current = result;
+      setCityResult(result);
+      setPois([]);
+      setPage(0);
+      setTotalCount(null);
+      fetchingRef.current = false;
+      // Pass the city's coordinates so the server sorts its 200-item batch by
+      // proximity to the city centre. Without this the server returns an
+      // arbitrary 200 POIs, and the client-side radius filter finds 0 matches
+      // for a city whose POIs sit further down in the un-sorted database.
+      await fetchPage(0, { lat: result.lat, lng: result.lng });
     };
 
-    runFetch();
+    run();
 
-    return () => {
-      isActive = false;
-    };
-  }, [fetchPage, debouncedSearch, userCoords]);
+    return () => { cancelled = true; };
+    // fetchPage identity changes when filters change, which correctly triggers
+    // a re-run of this effect even in city mode — fixing Bug 2.
+  }, [debouncedSearch, fetchPage, userCoords]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── URL category param ────────────────────────────────────────────────────
   useEffect(() => {
     if (urlCategory && !selCats.includes(urlCategory)) setSelCats([urlCategory]);
-  }, [urlCategory]);
+  }, [urlCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IntersectionObserver — load next page on scroll ───────────────────────
   const observer = useRef<IntersectionObserver | null>(null);
+
+  // FIX 3 (Memory leak): Disconnect the observer when the component unmounts.
+  // lastPoiRef only disconnects when a new last-node is assigned; it never runs
+  // on unmount, leaving a live observer pointing at a detached DOM node.
+  useEffect(() => {
+    return () => { observer.current?.disconnect(); };
+  }, []);
+
   const lastPoiRef = useCallback((node: HTMLDivElement | null) => {
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && hasMore && !fetchingRef.current) {
+        // FIX 4 (City-mode infinite pagination): in city mode the server's
+        // totalCount may be in the thousands while the radius filter yields
+        // only a handful of visible cards. Don't keep paging once the server
+        // has confirmed it has no more candidates (short-page signal).
+        if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
+
         setPage(prev => {
           const next = prev + 1;
-          fetchPage(next, userCoords, cityModeRef.current);
+          // In city mode use the geocoded city's coordinates (read from the ref
+          // so the closure is never stale) so every page is sorted by proximity
+          // to the city centre, matching the initial page-0 sort order.
+          // In normal mode use the user's GPS coords (or null if not available).
+          const coords = fetchModeRef.current === 'city'
+            ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
+            : userCoords;
+          fetchPage(next, coords);
           return next;
         });
       }
@@ -484,7 +594,7 @@ export default function Explore() {
 
   // ── Client-side city-radius filter ───────────────────────────────────────
   const displayedPois = useMemo(() => {
-    if (!cityResult || !search.trim()) return pois;
+    if (!cityResult || !debouncedSearch.trim()) return pois;
     return pois
       .flatMap(p => {
         const dist = haversineDistance(cityResult.lat, cityResult.lng, p.latitude, p.longitude);
@@ -492,7 +602,7 @@ export default function Explore() {
         return [{ ...p, distance_meters: dist }];
       })
       .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0));
-  }, [pois, cityResult, search]);
+  }, [pois, cityResult, debouncedSearch]);
 
   // ── GPS proximity toggle ──────────────────────────────────────────────────
   const handleProximityToggle = useCallback(async () => {
@@ -510,8 +620,10 @@ export default function Explore() {
     setGeoError(null);
     navigator.geolocation.getCurrentPosition(
       pos => {
+        // Exiting city mode when user explicitly requests GPS proximity sort
+        fetchModeRef.current = 'normal';
+        cityResultRef.current = null;
         setCityResult(null);
-        cityModeRef.current = false;
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserCoords(coords);
         setSortByProximity(true);
@@ -567,7 +679,7 @@ export default function Explore() {
               placeholder="חיפוש אתרים, עיר או יישוב..."
               style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
             {search
-              ? <button onClick={() => { setSearch(''); setCityResult(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+              ? <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
               : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -583,7 +695,7 @@ export default function Explore() {
           {cityResult && search.trim() && !citySearching && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', color: '#2563eb', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, border: '1.5px solid #bfdbfe' }}>
               📍 אתרים קרוב ל-{cityResult.name}
-              <button onClick={() => { setSearch(''); setCityResult(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: 0, display: 'flex', alignItems: 'center' }}>
+              <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: 0, display: 'flex', alignItems: 'center' }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </span>
