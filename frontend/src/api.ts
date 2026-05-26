@@ -63,6 +63,10 @@ export interface POI {
   uploaded_by?: string;
   /** Distance from user in meters — present only when user_lat/user_lng passed to list() */
   distance_meters?: number;
+  /** DB user id of the person who originally submitted this community POI (null for official POIs) */
+  owner_user_id?: number | null;
+  /** The community_pois.id this location was created from (null for official POIs) */
+  community_poi_id?: number | null;
 }
 
 export interface NearbyPOI extends POI {
@@ -579,6 +583,30 @@ export const api = {
     delete: async (id: number): Promise<void> => {
       await apiFetch(`/community-pois/${id}`, { method: 'DELETE' });
     },
+
+    /**
+     * Owner edit for an APPROVED community POI.
+     * Text/image changes are applied immediately (no re-approval).
+     * Coordinate changes trigger a pending review but keep the place visible.
+     * Returns { poi, location_changed, pending_review }.
+     */
+    ownerEdit: async (
+      id: number,
+      data: Partial<Pick<CommunityPoiSubmission, 'name' | 'category' | 'description' | 'photos'>> & {
+        latitude?: number;
+        longitude?: number;
+        difficulty?: string;
+        duration_minutes?: number | null;
+        has_water?: boolean | null;
+        has_shade?: boolean | null;
+        accessible?: boolean | null;
+        photo_credit?: string | null;
+      }
+    ): Promise<{ poi: CommunityPoiSubmission; location_changed: boolean; pending_review: boolean }> =>
+      (await apiFetch<{ data: any }>(`/community-pois/${id}/owner-edit`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      })).data,
   },
 
   // ── Reviews ──────────────────────────────────────────────────
