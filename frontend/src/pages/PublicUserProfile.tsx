@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type PublicTrip } from '../api';
+import { api, type PublicTrip, type CommunityPoiSubmission } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 function computeLevel(xp: number) { return Math.floor(Math.sqrt(Math.max(0, xp) / 50)); }
@@ -85,6 +85,7 @@ export default function PublicUserProfile() {
 
   const [profile, setProfile] = useState<any>(null);
   const [trips, setTrips] = useState<PublicTrip[]>([]);
+  const [communityPois, setCommunityPois] = useState<CommunityPoiSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +96,7 @@ export default function PublicUserProfile() {
     if (!userId || isNaN(userId)) { setError('מזהה משתמש לא תקין'); setLoading(false); return; }
     setLoading(true);
     api.userProfiles.get(userId)
-      .then(({ profile: p, trips: t }) => { setProfile(p); setTrips(t); })
+      .then(({ profile: p, trips: t, community_pois: cp }) => { setProfile(p); setTrips(t); setCommunityPois(cp ?? []); })
       .catch(() => setError('לא נמצא פרופיל'))
       .finally(() => setLoading(false));
   }, [userId]);
@@ -224,6 +225,39 @@ export default function PublicUserProfile() {
             ))}
           </div>
         </div>
+
+
+
+        {/* ── Community Places ── */}
+        {communityPois.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#0f172a', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              📍 מיקומים שהוסיף לקהילה
+              <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>({communityPois.length})</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {communityPois.map(poi => {
+                const mainPhoto = poi.photos?.[0] ?? null;
+                return (
+                  <div key={poi.id} style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid #f1f5f9', display: 'flex', alignItems: 'stretch' }}>
+                    <div style={{ width: 72, flexShrink: 0, background: mainPhoto ? 'none' : 'linear-gradient(135deg,#0d9e6e,#34d399)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                      {mainPhoto
+                        ? <img src={mainPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        : '📍'}
+                    </div>
+                    <div style={{ flex: 1, padding: '12px 14px' }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', marginBottom: 4 }}>{poi.name}</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, color: '#64748b', background: '#f8fafc', borderRadius: 8, padding: '2px 8px', border: '1px solid #e2e8f0' }}>{poi.category}</span>
+                        {poi.region && <span style={{ fontSize: 11, color: '#64748b', background: '#f8fafc', borderRadius: 8, padding: '2px 8px', border: '1px solid #e2e8f0' }}>📍 {poi.region}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Favorite regions */}
         {profile.favorite_regions?.length > 0 && (

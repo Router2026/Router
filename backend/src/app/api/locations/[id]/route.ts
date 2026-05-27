@@ -1,13 +1,18 @@
 // src/app/api/locations/[id]/route.ts — UPDATED
-// GET   /locations/:id — public, get a single location (with approved image fallback)
+// GET   /locations/:id — public; enriches community-sourced POIs with owner_user_id
+//                        so the frontend can decide whether to show the owner edit button.
 // PATCH /locations/:id — admin only, edit location details incl. image
+// DELETE /locations/:id — admin only
 
 import { NextRequest, NextResponse } from "next/server";
 import { getLocationById, updateLocation, deleteLocation } from "@/lib/locations/location-service";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
+import { rawDb } from "@/lib/db/raw-client";
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+// ── GET ────────────────────────────────────────────────────────────────────────
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
@@ -20,14 +25,31 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     if (!location) {
       return NextResponse.json(errorResponse("Location not found", "NOT_FOUND"), { status: 404 });
     }
-    return NextResponse.json(successResponse(location));
+
+    // For community-submitted POIs, look up the original submitter's user_id so
+    // the client can show an owner-edit button when the viewing user owns this place.
+    let owner_user_id: number | null = null;
+    let community_poi_id: number | null = null;
+    if (location.source === "community" && location.source_id) {
+      const { rows } = await rawDb.query(
+        `SELECT id, user_id FROM community_pois WHERE id = $1 LIMIT 1`,
+        [parseInt(location.source_id, 10)]
+      );
+      if (rows.length) {
+        owner_user_id = (rows[0].user_id as number) ?? null;
+        community_poi_id = rows[0].id as number;
+      }
+    }
+
+    return NextResponse.json(successResponse({ ...location, owner_user_id, community_poi_id }));
   } catch (err) {
     console.error("[GET /api/locations/[id]]", err);
     return NextResponse.json(errorResponse("Failed to fetch location", "DB_ERROR"), { status: 500 });
   }
 }
 
-// PATCH — admin edit of a location
+// ── PATCH — admin edit ─────────────────────────────────────────────────────────
+
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
@@ -53,7 +75,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE — admin delete of a location
+// ── DELETE — admin delete ──────────────────────────────────────────────────────
+
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);

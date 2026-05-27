@@ -138,6 +138,7 @@ export default function Profile() {
             {[
               { label: 'דיווחים', value: profile?.reports_count ?? recentReports.length, emoji: '📊' },
               { label: 'ביקורות', value: profile?.reviews_count ?? recentReviews.length, emoji: '⭐' },
+              { label: 'מיקומים', value: profile?.places_count ?? 0, emoji: '📍' },
               { label: 'מסלולים', value: profile?.trips_count ?? 0, emoji: '🗺️' },
             ].map(stat => (
               <div key={stat.label}>
@@ -171,6 +172,7 @@ export default function Profile() {
           )}
           {/* Feature 8: My Trips added */}
           {[
+            { label: '📍 המיקומים שלי', path: '/my-places' },
             { label: '❤️ המועדפים שלי', path: '/favorites' },
             { label: '🗺️ המסלולים שלי', path: '/MyTrips' },
             { label: '🌍 מסלולים ציבוריים', path: '/trips' },

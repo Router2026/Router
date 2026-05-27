@@ -13,6 +13,7 @@ import FavoriteButton from '../components/FavoriteButton';
 import UploadPhotoButton from '../components/UploadPhotoButton';
 import XpToast from '../components/XpToast';
 import POIDetailsEditAdmin from './POIDetailsEditAdmin';
+import OwnerPlaceEditModal from '../components/OwnerPlaceEditModal';
 import { getImageUrl } from '../utils/imageUtils';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -493,11 +494,13 @@ export default function POIDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAdminEdit, setShowAdminEdit] = useState(false);
+  const [showOwnerEdit, setShowOwnerEdit] = useState(false);
   const [shareXp, setShareXp] = useState<any>(null);
   const [regions, setRegions] = useState<Region[]>([]);
 
   const poiIdNum = Number(poiId);
   const isAdmin = user?.is_admin ?? false;
+  const isOwner = !!(user && poi?.owner_user_id && String(poi.owner_user_id) === String(user.id));
 
   useEffect(() => {
     if (!poiId) return;
@@ -575,6 +578,21 @@ export default function POIDetail() {
           onSaved={updated => { setPoi(updated); setShowAdminEdit(false); }}
           onDeleted={_id => { navigate(-1); }} />
       )}
+      {showOwnerEdit && poi?.community_poi_id != null && (
+        <OwnerPlaceEditModal
+          poi={poi}
+          communityPoiId={poi.community_poi_id}
+          onClose={() => setShowOwnerEdit(false)}
+          onSaved={(updated, pendingReview) => {
+            setPoi(updated);
+            setShowOwnerEdit(false);
+            if (pendingReview) {
+              setError('המיקום עודכן ונשלח לבדיקה. המקום ממשיך להיות מוצג.');
+              setTimeout(() => setError(null), 6000);
+            }
+          }}
+        />
+      )}
 
       <div style={{ background: '#f0f4f3', minHeight: '100vh', width: '100%' }}>
         {/* Hero Banner */}
@@ -591,6 +609,13 @@ export default function POIDetail() {
                 {isAdmin && (
                   <button onClick={() => setShowAdminEdit(true)}
                     style={{ background: 'rgba(124,58,237,0.9)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                  </button>
+                )}
+                {isOwner && !isAdmin && poi?.community_poi_id != null && (
+                  <button onClick={() => setShowOwnerEdit(true)}
+                    title="ערוך את המקום שלי"
+                    style={{ background: 'rgba(13,158,110,0.92)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                   </button>
                 )}
