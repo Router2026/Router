@@ -15,6 +15,7 @@ import { supabase } from "@/lib/db/supabase";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { getCommunityPoi, editCommunityPoi } from "@/lib/community-poi/community-poi-service";
+import { CommunityPoiRow } from "@/lib/community-poi/types";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

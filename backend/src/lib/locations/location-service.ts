@@ -21,7 +21,7 @@ export interface Location {
   longitude: number;
   images: string[];
   main_image?: string;
-  source: "kkl" | "inpa" | "osm" | "manual" | "seed";
+  source: "kkl" | "inpa" | "osm" | "manual" | "seed" | "community";
   source_id?: string;
   difficulty?: string;
   duration_minutes?: number;
