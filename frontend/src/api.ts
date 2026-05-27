@@ -63,7 +63,7 @@ export interface POI {
   uploaded_by?: string;
   /** Distance from user in meters — present only when user_lat/user_lng passed to list() */
   distance_meters?: number;
-  /** DB user id of the person who originally submitted this community POI (null for official POIs) */
+  /** DB user id of the original community POI submitter (null for official POIs) */
   owner_user_id?: number | null;
   /** The community_pois.id this location was created from (null for official POIs) */
   community_poi_id?: number | null;
@@ -237,6 +237,8 @@ function mapLocation(r: any): POI {
     uploaded_by: r.uploaded_by || undefined,
     distance_meters: r.distance_meters !== undefined && r.distance_meters !== null
       ? parseFloat(r.distance_meters) : undefined,
+    owner_user_id: r.owner_user_id ?? null,
+    community_poi_id: r.community_poi_id ?? null,
   };
 }
 

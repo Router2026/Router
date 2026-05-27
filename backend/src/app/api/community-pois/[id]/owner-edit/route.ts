@@ -33,7 +33,9 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
-async function resolveUserId(req: NextRequest): Promise<number | null> {
+interface AuthUser { id: number; username: string; }
+
+async function resolveAuthUser(req: NextRequest): Promise<AuthUser | null> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.slice(7);
@@ -41,22 +43,33 @@ async function resolveUserId(req: NextRequest): Promise<number | null> {
   const { data: { user: sbUser } } = await supabase.auth.getUser(token);
   if (sbUser?.email) {
     const { rows } = await rawDb.query(
-      `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+      `SELECT id, username FROM users WHERE email = $1 LIMIT 1`,
       [sbUser.email]
     );
-    return rows.length ? (rows[0].id as number) : null;
+    return rows.length ? { id: rows[0].id as number, username: rows[0].username as string } : null;
   }
 
   const auth = await getUserFromRequest(req);
-  return auth?.id ? (auth.id as number) : null;
+  return auth?.id ? { id: auth.id as number, username: (auth as any).username as string ?? "" } : null;
+}
+
+async function checkOwnership(poi: any, auth: AuthUser): Promise<boolean> {
+  if (poi.user_id != null) return poi.user_id === auth.id;
+  // Admin-submitted-on-behalf: match via uploaded_by on the locations row
+  const { rows } = await rawDb.query(
+    `SELECT uploaded_by FROM locations WHERE source = 'community' AND source_id = $1 LIMIT 1`,
+    [String(poi.id)]
+  );
+  if (!rows.length) return false;
+  return (rows[0].uploaded_by as string | null) === auth.username;
 }
 
 // ── PATCH ──────────────────────────────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    const userId = await resolveUserId(req);
-    if (!userId) {
+    const auth = await resolveAuthUser(req);
+    if (!auth) {
       return NextResponse.json(
         errorResponse("Authentication required", "AUTH_ERROR"),
         { status: 401 }
@@ -81,8 +94,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Ownership
-    if (existing.user_id !== userId) {
+    // Ownership — handles normal (user_id) and admin-submitted-on-behalf (uploaded_by)
+    if (!(await checkOwnership(existing, auth))) {
       return NextResponse.json(
         errorResponse("You can only edit your own places", "FORBIDDEN"),
         { status: 403 }

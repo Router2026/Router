@@ -20,25 +20,42 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
-async function resolveUserId(req: NextRequest): Promise<number | null> {
+interface AuthUser { id: number; username: string; }
+
+async function resolveAuthUser(req: NextRequest): Promise<AuthUser | null> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.slice(7);
 
-  const {
-    data: { user: sbUser },
-  } = await supabase.auth.getUser(token);
-
+  const { data: { user: sbUser } } = await supabase.auth.getUser(token);
   if (sbUser?.email) {
     const { rows } = await rawDb.query(
-      `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+      `SELECT id, username FROM users WHERE email = $1 LIMIT 1`,
       [sbUser.email]
     );
-    return rows.length ? (rows[0].id as number) : null;
+    return rows.length ? { id: rows[0].id as number, username: rows[0].username as string } : null;
   }
 
   const auth = await getUserFromRequest(req);
-  return auth?.id ? (auth.id as number) : null;
+  return auth?.id ? { id: auth.id as number, username: (auth as any).username as string ?? "" } : null;
+}
+
+/**
+ * Returns true when the authenticated user owns this community POI.
+ * Handles two cases:
+ *  1. Normal: community_pois.user_id matches the caller's DB user id.
+ *  2. Admin-submitted-on-behalf: user_id is null but the corresponding
+ *     locations row has uploaded_by matching the caller's username.
+ */
+async function isOwner(poi: CommunityPoiRow, auth: AuthUser): Promise<boolean> {
+  if (poi.user_id != null) return poi.user_id === auth.id;
+  // Fallback: check uploaded_by on the locations row
+  const { rows } = await rawDb.query(
+    `SELECT uploaded_by FROM locations WHERE source = 'community' AND source_id = $1 LIMIT 1`,
+    [String(poi.id)]
+  );
+  if (!rows.length) return false;
+  return (rows[0].uploaded_by as string | null) === auth.username;
 }
 
 // ── GET ────────────────────────────────────────────────────────────────────────
@@ -78,8 +95,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    const userId = await resolveUserId(req);
-    if (!userId) {
+    const auth = await resolveAuthUser(req);
+    if (!auth) {
       return NextResponse.json(
         errorResponse("Authentication required", "AUTH_ERROR"),
         { status: 401 }
@@ -104,8 +121,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Ownership check — only the submitter may edit
-    if (existing.user_id !== userId) {
+    // Ownership check — handles normal (user_id match) and admin-submitted-on-behalf (uploaded_by match)
+    if (!(await isOwner(existing, auth))) {
       return NextResponse.json(
         errorResponse("You can only edit your own places", "FORBIDDEN"),
         { status: 403 }
@@ -190,8 +207,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const userId = await resolveUserId(req);
-    if (!userId) {
+    const auth = await resolveAuthUser(req);
+    if (!auth) {
       return NextResponse.json(
         errorResponse("Authentication required", "AUTH_ERROR"),
         { status: 401 }
@@ -215,7 +232,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (existing.user_id !== userId) {
+    if (!(await isOwner(existing, auth))) {
       return NextResponse.json(
         errorResponse("You can only delete your own places", "FORBIDDEN"),
         { status: 403 }

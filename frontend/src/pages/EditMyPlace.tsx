@@ -1,6 +1,6 @@
 // src/pages/EditMyPlace.tsx
 // Allows the authenticated owner of a community POI to edit its details and photos.
-// Only pending/rejected POIs can be edited — approved ones are locked.
+// Approved POIs use ownerEdit (immediate save). Pending/rejected use update (re-submitted for review).
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -125,7 +125,7 @@ export default function EditMyPlace() {
     setSaving(true);
     setError(null);
     try {
-      await api.communityPois.update(parseInt(id), {
+      const payload = {
         name: name.trim(),
         category,
         description: description.trim() || null,
@@ -136,7 +136,14 @@ export default function EditMyPlace() {
         has_shade: hasShade,
         accessible,
         photo_credit: photoCredit.trim() || null,
-      });
+      };
+      // Approved POIs: use ownerEdit so changes go live immediately on the map.
+      // Pending/rejected: use update (stays in review flow).
+      if (poi.status === 'approved') {
+        await api.communityPois.ownerEdit(parseInt(id), payload);
+      } else {
+        await api.communityPois.update(parseInt(id), payload);
+      }
       setSuccess(true);
       setTimeout(() => navigate('/my-places'), 1200);
     } catch (err: any) {
@@ -172,7 +179,6 @@ export default function EditMyPlace() {
 
   if (!poi) return null;
 
-  const isLocked = poi.status === 'approved';
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl', fontFamily: 'Heebo, sans-serif', paddingBottom: 80 }}>
@@ -190,12 +196,6 @@ export default function EditMyPlace() {
 
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 16px' }}>
 
-        {/* Approved lock notice */}
-        {isLocked && (
-          <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '14px 18px', marginBottom: 18, color: '#92400e', fontSize: 14, fontWeight: 600 }}>
-            🔒 מיקום זה אושר ופורסם במפה. לעריכה יש לפנות אל הצוות שלנו.
-          </div>
-        )}
 
         {/* Admin note */}
         {poi.admin_note && (
@@ -224,9 +224,8 @@ export default function EditMyPlace() {
           <Label>שם המיקום *</Label>
           <input
             value={name} onChange={e => setName(e.target.value)}
-            disabled={isLocked}
             placeholder="שם המיקום"
-            style={input(isLocked)}
+            style={input(false)}
           />
 
           <Label>קטגוריה</Label>
@@ -234,15 +233,14 @@ export default function EditMyPlace() {
             {CATEGORIES.map(c => (
               <button
                 key={c.id}
-                onClick={() => !isLocked && setCategory(c.id)}
-                disabled={isLocked}
-                style={{
+                onClick={() => setCategory(c.id)}
+                    style={{
                   padding: '7px 14px', borderRadius: 20, border: '1.5px solid',
                   borderColor: category === c.id ? '#0d9e6e' : '#e2e8f0',
                   background: category === c.id ? '#f0fdf4' : '#fff',
                   color: category === c.id ? '#0d9e6e' : '#475569',
                   fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13,
-                  cursor: isLocked ? 'default' : 'pointer', opacity: isLocked ? 0.65 : 1,
+                  cursor: 'pointer',
                 }}>
                 {c.icon} {c.label}
               </button>
@@ -252,17 +250,15 @@ export default function EditMyPlace() {
           <Label>תיאור</Label>
           <textarea
             value={description} onChange={e => setDescription(e.target.value)}
-            disabled={isLocked}
             placeholder="תאר את המיקום..."
             rows={4}
-            style={{ ...input(isLocked), resize: 'vertical', minHeight: 90 }}
+            style={{ ...input(false), resize: 'vertical', minHeight: 90 }}
           />
 
           <Label>רמת קושי</Label>
           <select
             value={difficulty} onChange={e => setDifficulty(e.target.value)}
-            disabled={isLocked}
-            style={input(isLocked)}>
+            style={input(false)}>
             <option value="">— לא נבחר —</option>
             {DIFFICULTIES.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -271,9 +267,8 @@ export default function EditMyPlace() {
           <input
             type="number" min="0" max="999"
             value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)}
-            disabled={isLocked}
             placeholder="למשל: 45"
-            style={input(isLocked)}
+            style={input(false)}
           />
 
           {/* Toggles */}
@@ -286,16 +281,15 @@ export default function EditMyPlace() {
             ] as const).map(({ key, label, val, set }) => (
               <button
                 key={key}
-                onClick={() => !isLocked && set(val === true ? null : val === false ? true : false)}
-                disabled={isLocked}
-                title={val === null ? 'לא ידוע' : val ? 'כן' : 'לא'}
+                onClick={() => set(val === true ? null : val === false ? true : false)}
+                    title={val === null ? 'לא ידוע' : val ? 'כן' : 'לא'}
                 style={{
                   padding: '8px 14px', borderRadius: 20, border: '1.5px solid',
                   borderColor: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#e2e8f0',
                   background: val === true ? '#f0fdf4' : val === false ? '#fef2f2' : '#fff',
                   color: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#94a3b8',
                   fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13,
-                  cursor: isLocked ? 'default' : 'pointer', opacity: isLocked ? 0.65 : 1,
+                  cursor: 'pointer',
                 }}>
                 {label} {val === true ? '✓' : val === false ? '✗' : '?'}
               </button>
@@ -305,9 +299,8 @@ export default function EditMyPlace() {
           <Label>קרדיט לצלם</Label>
           <input
             value={photoCredit} onChange={e => setPhotoCredit(e.target.value)}
-            disabled={isLocked}
             placeholder="שם הצלם (אופציונלי)"
-            style={input(isLocked)}
+            style={input(false)}
           />
         </div>
 
@@ -315,8 +308,7 @@ export default function EditMyPlace() {
         <div style={card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: '#1a2e2a' }}>📸 תמונות ({photos.length}/5)</div>
-            {!isLocked && (
-              <button
+            <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingPhoto || photos.length >= 5}
                 style={{
@@ -327,7 +319,6 @@ export default function EditMyPlace() {
                 }}>
                 {uploadingPhoto ? '⏳ מעלה...' : '+ הוסף תמונה'}
               </button>
-            )}
           </div>
           <input
             ref={fileInputRef}
@@ -347,8 +338,7 @@ export default function EditMyPlace() {
               {photos.map((url, i) => (
                 <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
                   <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  {!isLocked && (
-                    <button
+                  <button
                       onClick={() => removePhoto(i)}
                       style={{
                         position: 'absolute', top: 4, left: 4, width: 24, height: 24,
@@ -358,7 +348,6 @@ export default function EditMyPlace() {
                       }}>
                       ×
                     </button>
-                  )}
                   {i === 0 && (
                     <div style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(13,158,110,0.85)', color: '#fff', fontSize: 10, fontWeight: 800, borderRadius: 6, padding: '2px 6px' }}>
                       ראשי
@@ -371,8 +360,7 @@ export default function EditMyPlace() {
         </div>
 
         {/* ── Actions ── */}
-        {!isLocked && (
-          <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
             <button
               onClick={handleSave}
               disabled={saving || success}
@@ -385,7 +373,6 @@ export default function EditMyPlace() {
               {saving ? '⏳ שומר...' : success ? '✅ נשמר!' : '💾 שמור שינויים'}
             </button>
           </div>
-        )}
       </div>
     </div>
   );
