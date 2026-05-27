@@ -511,7 +511,7 @@ export default function POIDetail() {
         setPoi(poiData);
         const [revs, reps, imgs, mediaData, rating] = await Promise.all([
           api.reviews.list(Number(poiId)),
-          api.reports.list(Number(poiId)),
+          api.reports.list({ locationId: Number(poiId) }),
           api.locations.getImages(Number(poiId)).catch(() => []),
           api.locations.getMedia(Number(poiId)).catch(() => []),
           api.locations.getRating(Number(poiId)).catch(() => null),
