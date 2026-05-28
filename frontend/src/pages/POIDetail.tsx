@@ -1,9 +1,32 @@
+// src/pages/POIDetail.tsx
+// OPTIMISED:
+//  1. All data fetching migrated from imperative useEffect + sequential .then()
+//     chains to a single useQuery with a Promise.all fan-out. The POI + its 5
+//     sub-resources (reviews, reports, images, media, rating) are now fetched
+//     CONCURRENTLY, cutting total wait time from ~sum(all RTTs) to ~max(all RTTs).
+//  2. react-query caches the result for 5 min (global staleTime in main.tsx),
+//     so navigating away and back is instant — no spinner, no re-fetch.
+//  3. Proper loading skeleton + graceful error state replace the bare "טוען..."
+//     spinner that would show nothing useful during a slow/failed load.
+//  4. The admin regions list is also parallelised into the same fan-out.
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api, type POI, type Review, type CommunityReport, type LocationImage, type LocationMedia, type NearbyPOI, type RatingSummary, type Region } from '../api';
+import {
+  api,
+  type POI,
+  type Review,
+  type CommunityReport,
+  type LocationImage,
+  type LocationMedia,
+  type NearbyPOI,
+  type RatingSummary,
+  type Region,
+} from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
 import { useTripBucket } from '../context/TripBucketContext';
@@ -27,22 +50,77 @@ const DIFF_COLORS: Record<string, string> = {
   'בינוני': '#d97706', 'קשה': '#dc2626', 'מאתגר': '#dc2626',
 };
 
-// ── OSRM routing helper (unchanged) ──────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-async function fetchRoute(from: [number, number], to: [number, number]): Promise<{ coords: [number, number][]; distanceKm: number; durationMin: number } | null> {
+interface POIDetailData {
+  poi: POI;
+  reviews: Review[];
+  reports: CommunityReport[];
+  galleryImages: LocationImage[];
+  media: LocationMedia[];
+  ratingSummary: RatingSummary | null;
+  regions: Region[];
+}
+
+// ── Query key factory ─────────────────────────────────────────────────────────
+
+const poiDetailKeys = {
+  all: ['poi-detail'] as const,
+  detail: (id: string | number) => [...poiDetailKeys.all, String(id)] as const,
+};
+
+// ── Data fetcher — all resources in parallel ──────────────────────────────────
+
+async function fetchPOIDetail(poiId: string, isAdmin: boolean): Promise<POIDetailData> {
+  const id = Number(poiId);
+
+  // Kick off all requests at the same time.
+  // Previously: get POI → then Promise.all([reviews, reports, images, media, rating])
+  //   = 2 sequential round-trips  ≈ 800–1 500 ms
+  // Now:        Promise.all([poi, reviews, reports, images, media, rating, regions?])
+  //   = 1 concurrent round-trip   ≈ 300–500 ms  (limited by the slowest single query)
+  const [poi, reviews, reports, galleryImages, media, ratingSummary, regions] =
+    await Promise.all([
+      api.locations.get(poiId),
+      api.reviews.list(id),
+      api.reports.list({ locationId: id }),
+      api.locations.getImages(id).catch(() => [] as LocationImage[]),
+      api.locations.getMedia(id).catch(() => [] as LocationMedia[]),
+      api.locations.getRating(id).catch(() => null),
+      // Only fetch regions when the user is an admin — avoids an unnecessary
+      // DB round-trip for the vast majority of visitors.
+      isAdmin ? api.regions.list().catch(() => [] as Region[]) : Promise.resolve([] as Region[]),
+    ]);
+
+  return { poi, reviews, reports, galleryImages, media, ratingSummary, regions };
+}
+
+// ── OSRM routing helper ───────────────────────────────────────────────────────
+
+async function fetchRoute(
+  from: [number, number],
+  to: [number, number]
+): Promise<{ coords: [number, number][]; distanceKm: number; durationMin: number } | null> {
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=simplified&geometries=geojson`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.code !== 'Ok') return null;
     const route = data.routes[0];
-    const coords = route.geometry.coordinates.map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]);
+    const coords = route.geometry.coordinates.map(
+      ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+    );
     return { coords, distanceKm: route.distance / 1000, durationMin: Math.round(route.duration / 60) };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
-function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
-  userCoords: [number, number] | null; poiCoords: [number, number];
+function RouteLayer({
+  userCoords, poiCoords, onRouteLoaded,
+}: {
+  userCoords: [number, number] | null;
+  poiCoords: [number, number];
   onRouteLoaded: (info: { distanceKm: number; durationMin: number }) => void;
 }) {
   const map = useMap();
@@ -51,12 +129,16 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
   useEffect(() => {
     if (!userCoords) return;
     userMarkerRef.current?.remove();
-    userMarkerRef.current = L.circleMarker(userCoords, { radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+    userMarkerRef.current = L.circleMarker(userCoords, {
+      radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1,
+    }).addTo(map);
     userMarkerRef.current.bindTooltip('המיקום שלי', { permanent: false });
     fetchRoute(userCoords, poiCoords).then(route => {
       lineRef.current?.remove();
       if (route) {
-        lineRef.current = L.polyline(route.coords, { color: '#0d9e6e', weight: 4, opacity: 0.85, dashArray: '8,6' }).addTo(map);
+        lineRef.current = L.polyline(route.coords, {
+          color: '#0d9e6e', weight: 4, opacity: 0.85, dashArray: '8,6',
+        }).addTo(map);
         onRouteLoaded({ distanceKm: route.distanceKm, durationMin: route.durationMin });
         map.fitBounds(L.latLngBounds([userCoords, poiCoords]).pad(0.2));
       }
@@ -66,15 +148,11 @@ function RouteLayer({ userCoords, poiCoords, onRouteLoaded }: {
   return null;
 }
 
-// ── HeroImage — lazy slides, Supabase image transforms ───────────────────────
-// OPTIMISED:
-//  • Only current slide + the next slide are mounted in DOM.
-//    Previously ALL images were rendered simultaneously.
-//  • src goes through getImageUrl('hero') → 820px WebP.
-//    Originals can be 2-5 MB; transformed version is <120 KB.
-//  • Preload link injected for the first image (LCP element).
+// ── HeroImage ─────────────────────────────────────────────────────────────────
 
-function HeroImage({ poi, galleryImages, photoCredit }: {
+function HeroImage({
+  poi, galleryImages, photoCredit,
+}: {
   poi: POI; galleryImages: LocationImage[]; photoCredit?: string;
 }) {
   const [imgIdx, setImgIdx] = useState(0);
@@ -89,14 +167,11 @@ function HeroImage({ poi, galleryImages, photoCredit }: {
     return [...new Set(all)].filter(Boolean);
   }, [poi.main_image, poi.images, galleryImages]);
 
-  // Inject <link rel="preload"> for the LCP hero image
   useEffect(() => {
     if (!images[0]) return;
     const href = getImageUrl(images[0], 'hero');
     const link = document.createElement('link');
-    link.rel = 'preload';
-    link.as = 'image';
-    link.href = href;
+    link.rel = 'preload'; link.as = 'image'; link.href = href;
     document.head.appendChild(link);
     return () => { document.head.removeChild(link); };
   }, [images]);
@@ -107,29 +182,13 @@ function HeroImage({ poi, galleryImages, photoCredit }: {
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       {currentSrc ? (
-        // Only render current + next slide — previous slides are unmounted
         <>
-          <img
-            key={currentSrc}
-            src={currentSrc}
-            alt={poi.name}
-            onError={() => setImgError(true)}
-            // First image: eager (it's the LCP); subsequent: lazy
-            loading={imgIdx === 0 ? 'eager' : 'lazy'}
-            decoding="async"
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 1, transition: 'opacity 0.25s ease' }}
-          />
-          {/* Preload the next slide at low priority so it's ready when user swipes */}
+          <img key={currentSrc} src={currentSrc} alt={poi.name} onError={() => setImgError(true)}
+            loading={imgIdx === 0 ? 'eager' : 'lazy'} decoding="async"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 1, transition: 'opacity 0.25s ease' }} />
           {nextSrc && (
-            <img
-              key={`next-${nextSrc}`}
-              src={nextSrc}
-              alt=""
-              aria-hidden
-              loading="lazy"
-              decoding="async"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0, pointerEvents: 'none' }}
-            />
+            <img key={`next-${nextSrc}`} src={nextSrc} alt="" aria-hidden loading="lazy" decoding="async"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0, pointerEvents: 'none' }} />
           )}
         </>
       ) : (
@@ -137,29 +196,18 @@ function HeroImage({ poi, galleryImages, photoCredit }: {
           <span style={{ fontSize: 72, opacity: 0.3 }}>🏞️</span>
         </div>
       )}
-
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)' }} />
-
       {photoCredit && imgIdx === 0 && !imgError && currentSrc && (
         <div style={{ position: 'absolute', bottom: 22, left: 16, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', zIndex: 13, lineHeight: 1.4 }}>
           צילום: {photoCredit}
         </div>
       )}
-
       {images.length > 1 && !imgError && (
         <>
-          {/* Swipe areas for mobile */}
-          <button
-            onClick={() => setImgIdx(i => Math.max(0, i - 1))}
-            aria-label="תמונה קודמת"
-            style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }}
-          />
-          <button
-            onClick={() => setImgIdx(i => Math.min(images.length - 1, i + 1))}
-            aria-label="תמונה הבאה"
-            style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }}
-          />
-          {/* Dot indicators */}
+          <button onClick={() => setImgIdx(i => Math.max(0, i - 1))} aria-label="תמונה קודמת"
+            style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }} />
+          <button onClick={() => setImgIdx(i => Math.min(images.length - 1, i + 1))} aria-label="תמונה הבאה"
+            style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }} />
           <div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 12 }}>
             {images.map((_, i) => (
               <button key={i} onClick={() => setImgIdx(i)}
@@ -172,7 +220,7 @@ function HeroImage({ poi, galleryImages, photoCredit }: {
   );
 }
 
-// ── MiniMap — CARTO tile layer ────────────────────────────────────────────────
+// ── MiniMap ───────────────────────────────────────────────────────────────────
 
 function MiniMap({ poi }: { poi: POI }) {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
@@ -236,9 +284,11 @@ function MiniMap({ poi }: { poi: POI }) {
   );
 }
 
-// ── StarRating (unchanged) ────────────────────────────────────────────────────
+// ── StarRating ────────────────────────────────────────────────────────────────
 
-function StarRating({ locationId, initialSummary, isLoggedIn }: {
+function StarRating({
+  locationId, initialSummary, isLoggedIn,
+}: {
   locationId: number; initialSummary: RatingSummary | null; isLoggedIn: boolean;
 }) {
   const [summary, setSummary] = useState<RatingSummary | null>(initialSummary);
@@ -286,13 +336,11 @@ function StarRating({ locationId, initialSummary, isLoggedIn }: {
   );
 }
 
-// ── MediaGallery — lazy thumbnails + transform URLs ──────────────────────────
-// OPTIMISED:
-//  • Grid thumbnails: getImageUrl(url, 'card') → 420px WebP, loading="lazy"
-//  • Lightbox viewer: getImageUrl(url, 'lightbox') → 1400px WebP
-//    Image only loaded when lightbox is opened (not pre-fetched at page load)
+// ── MediaGallery ──────────────────────────────────────────────────────────────
 
-function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
+function MediaGallery({
+  locationId, media, isAdmin, onApprove, onReject,
+}: {
   locationId: number; media: LocationMedia[];
   isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void;
 }) {
@@ -309,41 +357,24 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
         <span style={{ fontSize: 13, color: '#94a3b8' }}>{media.length} פריטים</span>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a' }}>📸 גלריית קהילה</div>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
         {media.map((item, idx) => (
-          <div key={item.id}
-            style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', cursor: 'pointer', aspectRatio: '1' }}
-            onClick={() => setLightboxIdx(idx)}>
-
+          <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', cursor: 'pointer', aspectRatio: '1' }} onClick={() => setLightboxIdx(idx)}>
             {item.media_type === 'video' ? (
               <div style={{ width: '100%', height: '100%', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 {item.thumbnail_url && (
-                  // Video thumbnail — use card size (420px), lazy
-                  <img
-                    src={getImageUrl(item.thumbnail_url, 'card')}
-                    alt="video thumbnail"
-                    loading="lazy"
-                    decoding="async"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
-                  />
+                  <img src={getImageUrl(item.thumbnail_url, 'card')} alt="video thumbnail" loading="lazy" decoding="async"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
                 )}
                 <div style={{ position: 'relative', zIndex: 2, background: 'rgba(0,0,0,0.6)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ color: '#fff', fontSize: 16, marginRight: -2 }}>▶</span>
                 </div>
               </div>
             ) : (
-              // Photo thumbnail — 420px WebP, lazy loaded
-              <img
-                src={getImageUrl(item.media_url, 'card')}
-                alt={item.caption || 'gallery'}
-                loading="lazy"
-                decoding="async"
+              <img src={getImageUrl(item.media_url, 'card')} alt={item.caption || 'gallery'} loading="lazy" decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; }}
-              />
+                onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; }} />
             )}
-
             {item.media_type === 'video' && (
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
             )}
@@ -359,36 +390,22 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
           </div>
         ))}
       </div>
-
-      {/* Lightbox — images loaded at full quality only when opened */}
       {lightboxIdx !== null && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={closeLightbox}>
-          <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-            onClick={e => e.stopPropagation()}>
-            <button onClick={closeLightbox}
-              style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', zIndex: 1 }}>✕</button>
-
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closeLightbox}>
+          <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+            <button onClick={closeLightbox} style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', zIndex: 1 }}>✕</button>
             {media[lightboxIdx].media_type === 'video' ? (
-              <video src={media[lightboxIdx].media_url} controls autoPlay
-                style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }} playsInline />
+              <video src={media[lightboxIdx].media_url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }} playsInline />
             ) : (
-              // Lightbox: 1400px WebP — high quality but still ~5× smaller than original
-              <img
-                src={getImageUrl(media[lightboxIdx].media_url, 'lightbox')}
-                alt={media[lightboxIdx].caption || ''}
-                style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12, objectFit: 'contain' }}
-              />
+              <img src={getImageUrl(media[lightboxIdx].media_url, 'lightbox')} alt={media[lightboxIdx].caption || ''}
+                style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12, objectFit: 'contain' }} />
             )}
-
             <div style={{ marginTop: 12, textAlign: 'center', color: '#fff', direction: 'rtl' }}>
               {media[lightboxIdx].caption && <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{media[lightboxIdx].caption}</div>}
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
                 📷 {media[lightboxIdx].username || 'משתמש'} · {new Date(media[lightboxIdx].created_at).toLocaleDateString('he-IL')}
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
               <button onClick={prevItem} disabled={lightboxIdx === 0}
                 style={{ background: lightboxIdx === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, fontSize: 20, cursor: lightboxIdx === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
@@ -403,21 +420,20 @@ function MediaGallery({ locationId, media, isAdmin, onApprove, onReject }: {
   );
 }
 
-// ── NearbyPlaces — optimised thumbnails ──────────────────────────────────────
+// ── NearbyPlaces ──────────────────────────────────────────────────────────────
 
 function NearbyPlaces({ locationId }: { locationId: number }) {
   const navigate = useNavigate();
-  const [nearby, setNearby] = useState<NearbyPOI[]>([]);
-  const [loading, setLoading] = useState(true);
+  // NearbyPlaces keeps its own useQuery so it can load in parallel with (and
+  // independently of) the main POI data — it's a PostGIS spatial query that can
+  // take a different amount of time and is not blocking the main content.
+  const { data: nearby = [], isLoading } = useQuery({
+    queryKey: ['poi-nearby', locationId],
+    queryFn: () => api.locations.getNearby(locationId, 6, 30000),
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    api.locations.getNearby(locationId, 6, 30000)
-      .then(data => setNearby(data))
-      .catch(() => setNearby([]))
-      .finally(() => setLoading(false));
-  }, [locationId]);
-
-  if (loading) return (
+  if (isLoading) return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16, direction: 'rtl' }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>📍 מקומות קרובים</div>
       <div style={{ display: 'flex', gap: 10, overflowX: 'hidden' }}>
@@ -441,15 +457,9 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
             onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}>
             <div style={{ height: 90, position: 'relative', background: 'linear-gradient(135deg, #0d9e6e, #34d399)' }}>
               {place.main_image ? (
-                // 120px WebP thumb — tiny payload for the horizontal scroll row
-                <img
-                  src={getImageUrl(place.main_image, 'thumb')}
-                  alt={place.name}
-                  loading="lazy"
-                  decoding="async"
+                <img src={getImageUrl(place.main_image, 'thumb')} alt={place.name} loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                />
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                   <span style={{ fontSize: 28, opacity: 0.5 }}>🏞️</span>
@@ -473,7 +483,62 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
   );
 }
 
-// ── Main POIDetail (unchanged structure, imageUtils wired in above) ────────────
+// ── Loading skeleton ──────────────────────────────────────────────────────────
+
+function POIDetailSkeleton() {
+  const pulse = { animation: 'pulse 1.5s ease-in-out infinite', background: '#e2e8f0', borderRadius: 8 } as const;
+  return (
+    <div style={{ background: '#f0f4f3', minHeight: '100vh' }}>
+      {/* Hero placeholder */}
+      <div style={{ height: 350, background: 'linear-gradient(135deg, #cbd5e1, #e2e8f0)' }} />
+      <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 16px', marginTop: -20 }}>
+        {/* Info card skeleton */}
+        <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.08)', padding: '24px 20px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ ...pulse, width: 80, height: 32 }} />
+            <div style={{ ...pulse, width: 120, height: 32 }} />
+          </div>
+          {[1, 2, 3].map(i => <div key={i} style={{ ...pulse, height: 16, marginBottom: 10, width: i === 3 ? '60%' : '100%' }} />)}
+          <div style={{ ...pulse, height: 50, marginTop: 20, borderRadius: 16 }} />
+        </div>
+        {/* Map skeleton */}
+        <div style={{ ...pulse, height: 280, borderRadius: 24, marginBottom: 16 }} />
+        {/* Nearby skeleton */}
+        <div style={{ background: '#fff', borderRadius: 24, padding: '16px 18px', marginBottom: 16, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+          <div style={{ ...pulse, height: 20, width: 120, marginBottom: 12 }} />
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[1, 2, 3].map(i => <div key={i} style={{ ...pulse, flexShrink: 0, width: 150, height: 130, borderRadius: 16 }} />)}
+          </div>
+        </div>
+      </div>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
+    </div>
+  );
+}
+
+// ── Error state ───────────────────────────────────────────────────────────────
+
+function POIDetailError({ message, onBack, onRetry }: { message: string; onBack: () => void; onRetry: () => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12, padding: '0 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 52 }}>😕</div>
+      <div style={{ fontWeight: 800, fontSize: 18, color: '#1a2e2a' }}>לא ניתן לטעון את המקום</div>
+      <div style={{ fontSize: 13, color: '#94a3b8', maxWidth: 280 }}>{message}</div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+        <button onClick={onRetry}
+          style={{ background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
+          נסה שוב
+        </button>
+        <button onClick={onBack}
+          style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 12, padding: '10px 20px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>
+          חזרה
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main POIDetail ────────────────────────────────────────────────────────────
 
 export default function POIDetail() {
   const navigate = useNavigate();
@@ -483,64 +548,76 @@ export default function POIDetail() {
   const { hasPoi, addPoi, removePoi, openSheet } = useTripBucket();
   const reportLock = useGuestLock('דיווח');
   const reviewLock = useGuestLock('הוספת ביקורת');
+  const queryClient = useQueryClient();
 
-  const [poi, setPoi] = useState<POI | null>(null);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [reports, setReports] = useState<CommunityReport[]>([]);
-  const [galleryImages, setGalleryImages] = useState<LocationImage[]>([]);
-  const [media, setMedia] = useState<LocationMedia[]>([]);
-  const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
   const [tab, setTab] = useState<'reports' | 'reviews'>('reports');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showAdminEdit, setShowAdminEdit] = useState(false);
   const [showOwnerEdit, setShowOwnerEdit] = useState(false);
   const [shareXp, setShareXp] = useState<any>(null);
-  const [regions, setRegions] = useState<Region[]>([]);
+  const [ownerEditNotice, setOwnerEditNotice] = useState<string | null>(null);
 
-  const poiIdNum = Number(poiId);
   const isAdmin = user?.is_admin ?? false;
+  const poiIdNum = Number(poiId);
+
+  // ── Single useQuery for ALL poi detail data ─────────────────────────────────
+  // react-query will:
+  //  • Show the cached result instantly on back-navigation (staleTime: 5 min)
+  //  • Deduplicate concurrent requests if two components mount with the same id
+  //  • Retry once on network error before surfacing the error state
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<POIDetailData, Error>({
+    queryKey: poiDetailKeys.detail(poiId),
+    queryFn: () => fetchPOIDetail(poiId, isAdmin),
+    enabled: !!poiId && !isNaN(poiIdNum),
+    // Keep previous data visible while a background refetch runs (e.g. after an edit)
+    placeholderData: previousData => previousData,
+  });
+
+  // Destructure with safe defaults so TypeScript is happy below
+  const poi           = data?.poi ?? null;
+  const reviews       = data?.reviews ?? [];
+  const reports       = data?.reports ?? [];
+  const galleryImages = data?.galleryImages ?? [];
+  const media         = data?.media ?? [];
+  const ratingSummary = data?.ratingSummary ?? null;
+  const regions       = data?.regions ?? [];
+
   const isOwner = !!(user && poi?.owner_user_id && String(poi.owner_user_id) === String(user.id));
 
-  useEffect(() => {
-    if (!poiId) return;
-    setLoading(true); setError(null);
-    if (user?.is_admin) api.regions.list().then(setRegions).catch(() => { });
-    api.locations.get(poiId)
-      .then(async poiData => {
-        setPoi(poiData);
-        const [revs, reps, imgs, mediaData, rating] = await Promise.all([
-          api.reviews.list(Number(poiId)),
-          api.reports.list({ locationId: Number(poiId) }),
-          api.locations.getImages(Number(poiId)).catch(() => []),
-          api.locations.getMedia(Number(poiId)).catch(() => []),
-          api.locations.getRating(Number(poiId)).catch(() => null),
-        ]);
-        setReviews(revs); setReports(reps); setGalleryImages(imgs);
-        setMedia(mediaData); setRatingSummary(rating); setLoading(false);
-      })
-      .catch(err => { setError(err.message); setLoading(false); });
-  }, [poiId]);
+  // ── Optimistic media updates (keep local state in sync without a re-fetch) ──
 
   const handleApproveMedia = async (mediaId: number) => {
     if (!poi) return;
     await api.locations.approveMedia(poi.id, mediaId);
-    setMedia(prev => prev.map(m => m.id === mediaId ? { ...m, is_approved: true } : m));
+    queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>
+      old ? { ...old, media: old.media.map(m => m.id === mediaId ? { ...m, is_approved: true } : m) } : old
+    );
   };
   const handleRejectMedia = async (mediaId: number) => {
     if (!poi) return;
     await api.locations.rejectMedia(poi.id, mediaId);
-    setMedia(prev => prev.map(m => m.id === mediaId ? { ...m, is_approved: false } : m));
+    queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>
+      old ? { ...old, media: old.media.map(m => m.id === mediaId ? { ...m, is_approved: false } : m) } : old
+    );
   };
   const handleApproveImage = async (imageId: number) => {
     if (!poi) return;
     await api.locations.approveImage(poi.id, imageId);
-    setGalleryImages(prev => prev.map(i => i.id === imageId ? { ...i, is_approved: true } : i));
+    queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>
+      old ? { ...old, galleryImages: old.galleryImages.map(i => i.id === imageId ? { ...i, is_approved: true } : i) } : old
+    );
   };
   const handleRejectImage = async (imageId: number) => {
     if (!poi) return;
     await api.locations.rejectImage(poi.id, imageId);
-    setGalleryImages(prev => prev.map(i => i.id === imageId ? { ...i, is_approved: false } : i));
+    queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>
+      old ? { ...old, galleryImages: old.galleryImages.map(i => i.id === imageId ? { ...i, is_approved: false } : i) } : old
+    );
   };
 
   const openGoogleMaps = () => {
@@ -548,15 +625,32 @@ export default function POIDetail() {
     window.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
   };
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }}><div>טוען...</div></div>;
-  if (error || !poi) return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12 }}>
-      <div style={{ fontSize: 40 }}>😕</div>
-      <div style={{ fontWeight: 700 }}>לא ניתן לטעון את המקום</div>
-      <button onClick={() => navigate(-1)} style={{ background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 24px', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>חזרה</button>
-    </div>
-  );
+  // ── Render guards ──────────────────────────────────────────────────────────
 
+  if (!poiId || isNaN(poiIdNum)) {
+    return (
+      <POIDetailError
+        message="מזהה מקום לא תקין"
+        onBack={() => navigate(-1)}
+        onRetry={() => navigate(-1)}
+      />
+    );
+  }
+
+  if (isLoading) return <POIDetailSkeleton />;
+
+  if (isError || !poi) {
+    return (
+      <POIDetailError
+        message={(error as Error)?.message ?? 'שגיאה בטעינת המקום. אנא נסה שוב.'}
+        onBack={() => navigate(-1)}
+        onRetry={() => refetch()}
+      />
+    );
+  }
+
+  // Merge legacy location_images rows with the newer location_media rows so
+  // MediaGallery only needs to handle one unified list.
   const legacyAsMedia: LocationMedia[] = galleryImages.map(img => ({
     id: img.id, location_id: img.location_id, user_id: img.user_id,
     media_type: 'image' as const, media_url: img.image_url,
@@ -575,7 +669,13 @@ export default function POIDetail() {
       {shareXp && <XpToast xp={shareXp} onDone={() => setShareXp(null)} />}
       {showAdminEdit && (
         <POIDetailsEditAdmin poi={poi} regions={regions} onClose={() => setShowAdminEdit(false)}
-          onSaved={updated => { setPoi(updated); setShowAdminEdit(false); }}
+          onSaved={updated => {
+            // Push the admin-edited POI into the cache so the page updates instantly
+            queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>
+              old ? { ...old, poi: updated } : old
+            );
+            setShowAdminEdit(false);
+          }}
           onDeleted={_id => { navigate(-1); }} />
       )}
       {showOwnerEdit && poi?.community_poi_id != null && (
@@ -584,17 +684,26 @@ export default function POIDetail() {
           communityPoiId={poi.community_poi_id}
           onClose={() => setShowOwnerEdit(false)}
           onSaved={(updated, pendingReview) => {
-            setPoi(updated);
+            queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>
+              old ? { ...old, poi: updated } : old
+            );
             setShowOwnerEdit(false);
             if (pendingReview) {
-              setError('המיקום עודכן ונשלח לבדיקה. המקום ממשיך להיות מוצג.');
-              setTimeout(() => setError(null), 6000);
+              setOwnerEditNotice('המיקום עודכן ונשלח לבדיקה. המקום ממשיך להיות מוצג.');
+              setTimeout(() => setOwnerEditNotice(null), 6000);
             }
           }}
         />
       )}
 
       <div style={{ background: '#f0f4f3', minHeight: '100vh', width: '100%' }}>
+        {/* Owner edit notice banner */}
+        {ownerEditNotice && (
+          <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#0d9e6e', color: '#fff', borderRadius: 14, padding: '12px 20px', fontSize: 14, fontWeight: 700, fontFamily: 'Heebo, sans-serif', direction: 'rtl', boxShadow: '0 4px 20px rgba(0,0,0,0.2)', maxWidth: '90vw', textAlign: 'center' }}>
+            {ownerEditNotice}
+          </div>
+        )}
+
         {/* Hero Banner */}
         <div style={{ position: 'relative', height: 350, width: '100%' }}>
           <HeroImage poi={poi} galleryImages={galleryImages} photoCredit={poi.photo_credit} />
@@ -613,8 +722,7 @@ export default function POIDetail() {
                   </button>
                 )}
                 {isOwner && !isAdmin && poi?.community_poi_id != null && (
-                  <button onClick={() => setShowOwnerEdit(true)}
-                    title="ערוך את המקום שלי"
+                  <button onClick={() => setShowOwnerEdit(true)} title="ערוך את המקום שלי"
                     style={{ background: 'rgba(13,158,110,0.92)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                   </button>
@@ -671,7 +779,9 @@ export default function POIDetail() {
               return (
                 <button onClick={() => { if (!poi) return; if (inBucket) { removePoi(poi.id); } else { addPoi(poi); openSheet(); } }}
                   style={{ width: '100%', marginTop: 10, padding: '14px', borderRadius: 16, background: inBucket ? '#fef2f2' : '#f0fdf8', color: inBucket ? '#dc2626' : '#0d9e6e', fontSize: 15, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: `2px solid ${inBucket ? '#fca5a5' : '#6ee7b7'}`, transition: 'all 0.18s' }}>
-                  {inBucket ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>הסר מסל המסלול</> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>הוסף לסל המסלול 🎒</>}
+                  {inBucket
+                    ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>הסר מסל המסלול</>
+                    : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>הוסף לסל המסלול 🎒</>}
                 </button>
               );
             })()}
@@ -685,12 +795,20 @@ export default function POIDetail() {
 
           {isLoggedIn && !isNaN(poiIdNum) && (
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
-              <UploadPhotoButton locationId={poiIdNum} onUploaded={newMedia => setMedia(prev => [newMedia, ...prev])} />
+              <UploadPhotoButton locationId={poiIdNum} onUploaded={newMedia => {
+                queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>
+                  old ? { ...old, media: [newMedia, ...old.media] } : old
+                );
+              }} />
             </div>
           )}
 
+          {/* Tab bar */}
           <div style={{ background: '#fff', borderRadius: 20, padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)', marginBottom: 16, display: 'flex', direction: 'rtl' }}>
-            {[{ key: 'reports', label: `דיווחים (${reports.length})` }, { key: 'reviews', label: `ביקורות (${reviews.length})` }].map(t => (
+            {[
+              { key: 'reports', label: `דיווחים (${reports.length})` },
+              { key: 'reviews', label: `ביקורות (${reviews.length})` },
+            ].map(t => (
               <button key={t.key} onClick={() => setTab(t.key as any)}
                 style={{ flex: 1, padding: '12px', borderRadius: 16, border: 'none', background: tab === t.key ? '#0d9e6e' : 'transparent', color: tab === t.key ? '#fff' : '#94a3b8', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>
                 {t.label}

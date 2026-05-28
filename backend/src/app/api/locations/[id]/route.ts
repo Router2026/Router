@@ -1,7 +1,7 @@
-// src/app/api/locations/[id]/route.ts — UPDATED
-// GET   /locations/:id — public; enriches community-sourced POIs with owner_user_id
-//                        so the frontend can decide whether to show the owner edit button.
-// PATCH /locations/:id — admin only, edit location details incl. image
+// src/app/api/locations/[id]/route.ts
+// GET   /locations/:id — public; enriches community-sourced POIs with owner_user_id.
+//                        Now fetches location row + community_pois lookup CONCURRENTLY.
+// PATCH /locations/:id — admin only
 // DELETE /locations/:id — admin only
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,24 +21,47 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     if (isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
-    const location = await getLocationById(locationId);
+
+    // FIX: Previously this was sequential — first await getLocationById(), then
+    // await rawDb.query() for community ownership. We now fire both queries
+    // concurrently with Promise.all so the total wait time is max(t1, t2)
+    // instead of t1 + t2.
+    //
+    // The community_pois lookup is fire-and-forget until we know the source, but
+    // since getLocationById() checks its own in-memory cache we get near-zero
+    // overhead on the common case where it's already cached. On a cold call both
+    // round-trips to Postgres happen in parallel.
+
+    const [location, communityRow] = await Promise.all([
+      getLocationById(locationId),
+      // Pre-fetch community ownership speculatively; we'll discard it below if
+      // source !== "community". One extra DB query wasted on the rare non-community
+      // POI, but that query is a tiny indexed PK lookup and the parallelism wins
+      // every time for community POIs (which are the slow path that was timing out).
+      rawDb
+        .query(
+          `SELECT cp.id, cp.user_id
+           FROM   community_pois cp
+           JOIN   locations      l  ON l.source = 'community'
+                                   AND l.source_id = cp.id::text
+           WHERE  l.id = $1
+           LIMIT  1`,
+          [locationId]
+        )
+        .catch(() => ({ rows: [] as any[] })), // never let a missing community row break the response
+    ]);
+
     if (!location) {
       return NextResponse.json(errorResponse("Location not found", "NOT_FOUND"), { status: 404 });
     }
 
-    // For community-submitted POIs, look up the original submitter's user_id so
-    // the client can show an owner-edit button when the viewing user owns this place.
+    // Resolve community ownership from the speculatively-fetched row
     let owner_user_id: number | null = null;
     let community_poi_id: number | null = null;
-    if (location.source === "community" && location.source_id) {
-      const { rows } = await rawDb.query(
-        `SELECT id, user_id FROM community_pois WHERE id = $1 LIMIT 1`,
-        [parseInt(location.source_id, 10)]
-      );
-      if (rows.length) {
-        owner_user_id = (rows[0].user_id as number) ?? null;
-        community_poi_id = rows[0].id as number;
-      }
+
+    if (location.source === "community" && communityRow.rows.length) {
+      owner_user_id  = (communityRow.rows[0].user_id as number) ?? null;
+      community_poi_id = communityRow.rows[0].id as number;
     }
 
     return NextResponse.json(successResponse({ ...location, owner_user_id, community_poi_id }));
