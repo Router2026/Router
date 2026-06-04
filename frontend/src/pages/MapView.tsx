@@ -1,4 +1,4 @@
-// src/pages/MapView.tsx  ← REPLACE existing file
+// src/pages/MapView.tsx
 //
 // React Performance changes vs original:
 //  1. makePhotoIcon / makeClusterIcon — module-level Map cache keyed by
@@ -133,10 +133,7 @@ interface MarkersLayerProps {
 
 function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerProps) {
   const map = useMap();
-  // Stable map: group-key → leaflet marker. Persists between renders.
   const markerMapRef = useRef<Map<string, L.Marker>>(new Map());
-  // Stable ref so click closures always call the latest handler
-  // without needing to recreate markers.
   const onClickRef = useRef(onMarkerClick);
   useEffect(() => { onClickRef.current = onMarkerClick; }, [onMarkerClick]);
 
@@ -148,7 +145,7 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
     for (const g of groups) {
       const key = g.pois.map(p => p.id).sort().join(',');
       nextKeys.add(key);
-      if (markerMapRef.current.has(key)) continue; // already rendered — skip
+      if (markerMapRef.current.has(key)) continue;
 
       let marker: L.Marker;
       if (g.pois.length === 1) {
@@ -167,7 +164,6 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
       markerMapRef.current.set(key, marker);
     }
 
-    // Remove markers whose groups are no longer visible
     for (const [key, marker] of markerMapRef.current) {
       if (!nextKeys.has(key)) {
         marker.remove();
@@ -176,7 +172,6 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
     }
   }, [groups, map, zoom]);
 
-  // Full cleanup only on unmount
   useEffect(() => () => {
     markerMapRef.current.forEach(m => m.remove());
     markerMapRef.current.clear();
@@ -186,16 +181,21 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
   return null;
 }
 
-// ── Helper components (unchanged) ─────────────────────────────────────────────
+// ── Helper components ─────────────────────────────────────────────
 
-function PanController({ target }: { target: { center: [number, number]; zoom: number } | null }) {
+interface ViewTarget {
+  center: [number, number];
+  zoom: number;
+  id: number;
+}
+
+function PanController({ target }: { target: ViewTarget | null }) {
   const map = useMap();
-  const prev = useRef('');
+  const prev = useRef<number>(0);
   useEffect(() => {
-    if (!target) { prev.current = ''; return; }
-    const key = `${target.center[0]},${target.center[1]},${target.zoom}`;
-    if (key === prev.current) return;
-    prev.current = key;
+    if (!target) return;
+    if (target.id === prev.current) return;
+    prev.current = target.id;
     map.flyTo(target.center, target.zoom, { duration: 1.2 });
     const t = setTimeout(() => map.invalidateSize(), 500);
     return () => clearTimeout(t);
@@ -286,7 +286,7 @@ export default function MapView() {
   const urlZoom = parseInt(searchParams.get('zoom') || '7');
 
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
-  const [panTargetRegion, setPanTargetRegion] = useState<Region | null>(null);
+  const [panTarget, setPanTarget] = useState<ViewTarget | null>(null);
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
   const [mapZoom, setMapZoom] = useState(urlZoom || 7);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -296,7 +296,6 @@ export default function MapView() {
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
 
-  // Tracks current map center without causing re-renders on every pan
   const mapCenterRef = useRef<[number, number]>(
     urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0],
   );
@@ -312,11 +311,9 @@ export default function MapView() {
     }, 400);
   }, [setSearchParams]);
 
-  // ── React Query — shared cache with Explore ───────────────────────────────
   const { data: regions = [], isError } = useRegions();
   const { data: allPois = [], isLoading } = useLocationsByRegion(selectedRegion?.name ?? null);
 
-  // Restore region from URL on mount — does NOT trigger a pan (panTargetRegion stays null)
   useEffect(() => {
     if (urlRegion && regions.length) {
       const found = regions.find(r => r.name === urlRegion);
@@ -324,7 +321,6 @@ export default function MapView() {
     }
   }, [urlRegion, regions]);
 
-  // Write region changes to URL (position comes from mapCenterRef, already current)
   useEffect(() => {
     const [lat, lng] = mapCenterRef.current;
     writeUrl(lat, lng, mapZoom, selectedRegion?.name ?? '');
@@ -336,7 +332,6 @@ export default function MapView() {
     writeUrl(lat, lng, zoom, selectedRegion?.name ?? '');
   }, [writeUrl, selectedRegion?.name]);
 
-  // Client-side filter (fast — no network)
   const pois = useMemo(() => allPois.filter(p => {
     if (selCats.length && !selCats.includes(p.category)) return false;
     if (selDiffs.length && !selDiffs.includes(p.difficulty ?? '')) return false;
@@ -354,22 +349,23 @@ export default function MapView() {
   const activeFilterCount = selCats.length + selDiffs.length +
     (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
+  // פונקציה מסודרת לאיפוס התצוגה במפה
+  const resetView = useCallback(() => {
+    setSelectedRegion(null);
+    setMapZoom(7);
+    setPanTarget({ center: [31.5, 35.0], zoom: 7, id: Date.now() });
+  }, []);
+
   const handleRegionClick = useCallback((region: Region) => {
     setSelectedPOI(null);
     setFilterOpen(false);
     if (selectedRegion?.id === region.id) {
-      setSelectedRegion(null);
-      setPanTargetRegion(null);
+      resetView();
     } else {
       setSelectedRegion(region);
-      setPanTargetRegion(region);
+      setPanTarget({ center: [region.center_lat, region.center_lng] as [number, number], zoom: region.zoom, id: Date.now() });
     }
-  }, [selectedRegion]);
-
-  // Only pan when user explicitly selects a region — not on URL restoration (back-nav)
-  const panTarget = panTargetRegion
-    ? { center: [panTargetRegion.center_lat, panTargetRegion.center_lng] as [number, number], zoom: panTargetRegion.zoom }
-    : null;
+  }, [selectedRegion, resetView]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 72px)', overflow: 'hidden', direction: 'rtl' }}>
@@ -390,7 +386,7 @@ export default function MapView() {
               {activeFilterCount > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>}
               סינון
             </button>
-            <button onClick={() => { setSelectedRegion(null); setPanTargetRegion(null); }} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
+            <button onClick={resetView} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
               ← כל האזורים
             </button>
           </>
@@ -410,10 +406,9 @@ export default function MapView() {
       <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
         maxBounds={[[29.0, 34.0], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
-        {/* CARTO Voyager — faster CDN, correct subdomains, crossOrigin for browser caching */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+          attribution='© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           subdomains="abcd"
           maxZoom={19}
           crossOrigin="anonymous"
@@ -507,7 +502,7 @@ export default function MapView() {
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1100, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(12px)', padding: '10px 16px 12px', boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', alignItems: 'center' }}>
           {selectedRegion && (
-            <button onClick={() => { setSelectedRegion(null); setPanTargetRegion(null); }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '2px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap' }}>כל האזורים</button>
+            <button onClick={resetView} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '2px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap' }}>כל האזורים</button>
           )}
           {regions.map(region => {
             const active = selectedRegion?.id === region.id;
