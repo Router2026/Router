@@ -191,20 +191,25 @@ function PanController({ target }: { target: { center: [number, number]; zoom: n
   const map = useMap();
   const prev = useRef('');
   useEffect(() => {
-    const key = target ? `${target.center[0]},${target.center[1]},${target.zoom}` : 'reset';
+    if (!target) { prev.current = ''; return; }
+    const key = `${target.center[0]},${target.center[1]},${target.zoom}`;
     if (key === prev.current) return;
     prev.current = key;
-    if (target) map.flyTo(target.center, target.zoom, { duration: 1.2 });
-    else map.flyTo([31.5, 35.0], 7, { duration: 1.0 });
+    map.flyTo(target.center, target.zoom, { duration: 1.2 });
     const t = setTimeout(() => map.invalidateSize(), 500);
     return () => clearTimeout(t);
   }, [target, map]);
   return null;
 }
 
-function ZoomTracker({ onZoom }: { onZoom: (z: number) => void }) {
+function MapStateTracker({ onChange }: { onChange: (lat: number, lng: number, zoom: number) => void }) {
   const map = useMap();
-  useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  const cbRef = useRef(onChange);
+  useEffect(() => { cbRef.current = onChange; }, [onChange]);
+  useMapEvents({
+    moveend() { const c = map.getCenter(); cbRef.current(c.lat, c.lng, map.getZoom()); },
+    zoomend() { const c = map.getCenter(); cbRef.current(c.lat, c.lng, map.getZoom()); },
+  });
   return null;
 }
 
@@ -271,17 +276,18 @@ function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiff
 
 export default function MapView() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
 
   const urlRegion = searchParams.get('region') || '';
   const urlLat = parseFloat(searchParams.get('lat') || '0');
   const urlLng = parseFloat(searchParams.get('lng') || '0');
-  const urlZoom = parseInt(searchParams.get('zoom') || '11');
+  const urlZoom = parseInt(searchParams.get('zoom') || '7');
 
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
+  const [panTargetRegion, setPanTargetRegion] = useState<Region | null>(null);
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
-  const [mapZoom, setMapZoom] = useState(7);
+  const [mapZoom, setMapZoom] = useState(urlZoom || 7);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selCats, setSelCats] = useState<string[]>([]);
   const [selDiffs, setSelDiffs] = useState<string[]>([]);
@@ -289,17 +295,45 @@ export default function MapView() {
   const [hasShade, setHasShade] = useState(false);
   const [accessible, setAccessible] = useState(false);
 
+  // Tracks current map center without causing re-renders on every pan
+  const mapCenterRef = useRef<[number, number]>(
+    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0],
+  );
+  const urlWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (urlWriteTimerRef.current) clearTimeout(urlWriteTimerRef.current); }, []);
+
+  const writeUrl = useCallback((lat: number, lng: number, zoom: number, regionName: string) => {
+    if (urlWriteTimerRef.current) clearTimeout(urlWriteTimerRef.current);
+    urlWriteTimerRef.current = setTimeout(() => {
+      const p: Record<string, string> = { lat: lat.toFixed(5), lng: lng.toFixed(5), zoom: String(zoom) };
+      if (regionName) p.region = regionName;
+      setSearchParams(p, { replace: true });
+    }, 400);
+  }, [setSearchParams]);
+
   // ── React Query — shared cache with Explore ───────────────────────────────
   const { data: regions = [], isError } = useRegions();
   const { data: allPois = [], isLoading } = useLocationsByRegion(selectedRegion?.name ?? null);
 
-  // Sync URL region on mount (once regions load)
+  // Restore region from URL on mount — does NOT trigger a pan (panTargetRegion stays null)
   useEffect(() => {
     if (urlRegion && regions.length) {
       const found = regions.find(r => r.name === urlRegion);
       if (found) setSelectedRegion(found);
     }
   }, [urlRegion, regions]);
+
+  // Write region changes to URL (position comes from mapCenterRef, already current)
+  useEffect(() => {
+    const [lat, lng] = mapCenterRef.current;
+    writeUrl(lat, lng, mapZoom, selectedRegion?.name ?? '');
+  }, [selectedRegion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleMapState = useCallback((lat: number, lng: number, zoom: number) => {
+    mapCenterRef.current = [lat, lng];
+    setMapZoom(zoom);
+    writeUrl(lat, lng, zoom, selectedRegion?.name ?? '');
+  }, [writeUrl, selectedRegion?.name]);
 
   // Client-side filter (fast — no network)
   const pois = useMemo(() => allPois.filter(p => {
@@ -322,14 +356,19 @@ export default function MapView() {
   const handleRegionClick = useCallback((region: Region) => {
     setSelectedPOI(null);
     setFilterOpen(false);
-    setSelectedRegion(prev => prev?.id === region.id ? null : region);
-  }, []);
+    if (selectedRegion?.id === region.id) {
+      setSelectedRegion(null);
+      setPanTargetRegion(null);
+    } else {
+      setSelectedRegion(region);
+      setPanTargetRegion(region);
+    }
+  }, [selectedRegion]);
 
-  const panTarget = urlRegion && urlLat && urlLng
-    ? { center: [urlLat, urlLng] as [number, number], zoom: urlZoom }
-    : selectedRegion
-      ? { center: [selectedRegion.center_lat, selectedRegion.center_lng] as [number, number], zoom: selectedRegion.zoom }
-      : null;
+  // Only pan when user explicitly selects a region — not on URL restoration (back-nav)
+  const panTarget = panTargetRegion
+    ? { center: [panTargetRegion.center_lat, panTargetRegion.center_lng] as [number, number], zoom: panTargetRegion.zoom }
+    : null;
 
   return (
     <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 72px)', overflow: 'hidden', direction: 'rtl' }}>
@@ -350,7 +389,7 @@ export default function MapView() {
               {activeFilterCount > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>}
               סינון
             </button>
-            <button onClick={() => setSelectedRegion(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
+            <button onClick={() => { setSelectedRegion(null); setPanTargetRegion(null); }} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
               ← כל האזורים
             </button>
           </>
@@ -367,7 +406,7 @@ export default function MapView() {
         hasWater={hasWater} setHasWater={setHasWater} hasShade={hasShade} setHasShade={setHasShade}
         accessible={accessible} setAccessible={setAccessible} />
 
-      <MapContainer center={[31.5, 35.0]} zoom={7} minZoom={7} maxZoom={18}
+      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
         maxBounds={[[29.0, 34.0], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         {/* CARTO Voyager — faster CDN, correct subdomains, crossOrigin for browser caching */}
@@ -379,7 +418,7 @@ export default function MapView() {
           crossOrigin="anonymous"
         />
         <PanController target={panTarget} />
-        <ZoomTracker onZoom={setMapZoom} />
+        <MapStateTracker onChange={handleMapState} />
 
         {!selectedRegion && regions.map(region => {
           if (!region.polygon_coords) return null;
@@ -464,7 +503,7 @@ export default function MapView() {
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1100, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(12px)', padding: '10px 16px 12px', boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', alignItems: 'center' }}>
           {selectedRegion && (
-            <button onClick={() => setSelectedRegion(null)} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '2px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap' }}>כל האזורים</button>
+            <button onClick={() => { setSelectedRegion(null); setPanTargetRegion(null); }} style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: '2px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap' }}>כל האזורים</button>
           )}
           {regions.map(region => {
             const active = selectedRegion?.id === region.id;
