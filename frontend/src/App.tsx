@@ -38,6 +38,7 @@ import { TripBucketProvider } from './context/TripBucketContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import GuestBanner from './components/GuestBanner';
 import OnboardingTour, { useShouldShowTour } from './components/OnboardingTour';
+import InstallPrompt from './components/InstallPrompt';
 import { setAuthToken } from './api';
 import './index.css';
 
@@ -95,6 +96,7 @@ function AppRoutes() {
     <>
       <TokenSync />
       <GuestBanner />
+      <InstallPrompt />
       {(!!user || isGuest) && showTour && <OnboardingTour onComplete={markDone} />}
 
       <Routes>

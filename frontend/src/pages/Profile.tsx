@@ -3,8 +3,8 @@
 // Feature 8: "My Trips" link added to actions.
 // Added loading state matching PublicTrips.tsx
 
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { api, type UserProfile, type CommunityReport, type Review } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -29,28 +29,33 @@ function LevelBar({ xp }: { xp: number }) {
 export default function Profile() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true); // Start with loading true
-  const [recentReports, setRecentReports] = useState<CommunityReport[]>([]);
-  const [recentReviews, setRecentReviews] = useState<Review[]>([]);
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    // Feature 5: load all data from DB
-    Promise.all([
-      api.users.me(),
-      api.reports.myReports().catch(() => [] as CommunityReport[]),
-      api.reviews.myReviews().catch(() => [] as Review[]),
-    ]).then(([p, reports, reviews]) => {
-      setProfile(p);
-      setRecentReports(reports.slice(0, 3));
-      setRecentReviews(reviews.slice(0, 3));
-    }).catch(() => { }).finally(() => setLoading(false));
-  }, [user]);
+  // Keyed by user.id — a new user login is a cache miss; re-logins with the
+  // same account are instant (staleTime allows 5-min background trips).
+  const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
+    queryKey: ['users', 'me', user?.id],
+    queryFn: () => api.users.me(),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: recentReports = [], isLoading: reportsLoading } = useQuery<CommunityReport[]>({
+    queryKey: ['reports', 'mine', user?.id],
+    queryFn: () => api.reports.myReports(),
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+    select: (data) => data.slice(0, 3),
+  });
+
+  const { data: recentReviews = [], isLoading: reviewsLoading } = useQuery<Review[]>({
+    queryKey: ['reviews', 'mine', user?.id],
+    queryFn: () => api.reviews.myReviews(),
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+    select: (data) => data.slice(0, 3),
+  });
+
+  const loading = profileLoading || reportsLoading || reviewsLoading;
 
   const handleLogout = async () => { await logout(); navigate('/Login'); };
 

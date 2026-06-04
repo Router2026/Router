@@ -2,12 +2,14 @@
 // Feature 1: Injects user location (or selected location) as the starting point
 // into routeGenerate, and displays a visual start-point marker on the map.
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type POI, type Region } from '../api';
+import { useRegions } from '../hooks/useLocations';
+import Disclaimer from '../components/Disclaimer';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -21,41 +23,25 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+// Static icon — created once for the entire session
+const _startIcon = L.divIcon({
+  html: `<div style="width:36px;height:36px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;box-shadow:0 3px 10px rgba(37,99,235,0.45);transform:rotate(-45deg);"><span style="transform:rotate(45deg)">📍</span></div>`,
+  className: '',
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+});
+
 function StartMarker({ position }: { position: LatLng }) {
-  const icon = L.divIcon({
-    html: `
-      <div style="
-        width:36px;height:36px;border-radius:50% 50% 50% 0;
-        background:linear-gradient(135deg,#3b82f6,#2563eb);
-        border:3px solid #fff;
-        display:flex;align-items:center;justify-content:center;
-        color:#fff;font-size:16px;
-        box-shadow:0 3px 10px rgba(37,99,235,0.45);
-        transform:rotate(-45deg);
-      ">
-        <span style="transform:rotate(45deg)">📍</span>
-      </div>`,
-    className: '',
-    iconSize: [36, 36],
-    iconAnchor: [18, 36],
-  });
-  return <Marker position={[position.lat, position.lng]} icon={icon} />;
+  return <Marker position={[position.lat, position.lng]} icon={_startIcon} />;
 }
 
 function NumberedMarker({ poi, index }: { poi: POI; index: number }) {
-  const icon = L.divIcon({
-    html: `<div style="
-      width:32px;height:32px;border-radius:50%;
-      background:#0d9e6e;border:3px solid #fff;
-      display:flex;align-items:center;justify-content:center;
-      color:#fff;font-weight:900;font-size:14px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.3);
-      font-family:Heebo,Arial
-    ">${index + 1}</div>`,
+  const icon = useMemo(() => L.divIcon({
+    html: `<div style="width:32px;height:32px;border-radius:50%;background:#0d9e6e;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-family:Heebo,Arial">${index + 1}</div>`,
     className: '',
     iconSize: [32, 32],
     iconAnchor: [16, 16],
-  });
+  }), [index]);
   return <Marker position={[poi.latitude, poi.longitude]} icon={icon} />;
 }
 
@@ -91,7 +77,7 @@ function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng
 function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; selected: boolean }) {
   const map = useMap();
 
-  const icon = L.divIcon({
+  const icon = useMemo(() => L.divIcon({
     html: poi.main_image
       ? `<div style="
           position:relative;
@@ -126,7 +112,8 @@ function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; select
     className: '',
     iconSize: [selected ? 52 : 44, selected ? 52 : 44],
     iconAnchor: [selected ? 26 : 22, selected ? 26 : 22],
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [poi.main_image, index, selected]);
 
   return (
     <Marker
@@ -261,7 +248,7 @@ export default function RouteGenerator() {
   const routerLocation = useLocation();
 
   const [step, setStep] = useState<Step>('region');
-  const [regions, setRegions] = useState<Region[]>([]);
+  const { data: regions = [] } = useRegions();
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [pois, setPois] = useState<POI[]>([]);
   const [selectedPois, setSelectedPois] = useState<POI[]>([]);
@@ -285,10 +272,6 @@ export default function RouteGenerator() {
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState('');
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
-
-  useEffect(() => {
-    api.regions.list().then(setRegions).catch(() => { });
-  }, []);
 
   useEffect(() => {
     const state = routerLocation.state as {
@@ -360,29 +343,29 @@ export default function RouteGenerator() {
     setGeoError('');
   };
 
-  const selectRegion = async (region: Region) => {
+  const selectRegion = useCallback(async (region: Region) => {
     setSelectedRegion(region);
     setLoadingPois(true);
     const data = await api.locations.list({ region: region.name, limit: 100 }).catch(() => []);
     setPois(data);
     setLoadingPois(false);
     setStep('pois');
-  };
+  }, []);
 
-  const togglePOI = (poi: POI) => {
+  const togglePOI = useCallback((poi: POI) => {
     setSelectedPois(prev =>
       prev.find(p => p.id === poi.id)
         ? prev.filter(p => p.id !== poi.id)
         : [...prev, poi]
     );
-  };
+  }, []);
 
-  const handleOptimize = () => {
+  const handleOptimize = useCallback(() => {
     const opt = optimizeRoute([...selectedPois], startPoint);
     setOptimized(opt);
     setRouteName(`מסלול ב${selectedRegion?.name || ''} — ${new Date().toLocaleDateString('he-IL')}`);
     setStep('route');
-  };
+  }, [selectedPois, startPoint, selectedRegion?.name]);
 
   const handleSave = async () => {
     if (!optimized.length) return;
@@ -452,10 +435,14 @@ export default function RouteGenerator() {
     }
   };
 
-  const dist = totalDistance(optimized);
-  const totalMin = optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0);
-  const filteredPois = pois.filter(
-    p => !search || p.name.includes(search) || p.category.includes(search)
+  const dist = useMemo(() => totalDistance(optimized), [optimized]);
+  const totalMin = useMemo(
+    () => optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0),
+    [optimized],
+  );
+  const filteredPois = useMemo(
+    () => pois.filter(p => !search || p.name.includes(search) || p.category.includes(search)),
+    [pois, search],
   );
 
   return (
@@ -701,7 +688,7 @@ export default function RouteGenerator() {
                     dragging={false}
                     doubleClickZoom={false}
                   >
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" subdomains="abcd" />
                     {startPoint && <StartMarker position={startPoint} />}
                     {selectedPois.map((poi, i) => (
                       <PhotoMarker key={poi.id} poi={poi} index={i} selected={true} />
@@ -879,7 +866,7 @@ export default function RouteGenerator() {
                     zoomControl={false}
                     scrollWheelZoom={false}
                   >
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" subdomains="abcd" />
                     {startPoint && <StartMarker position={startPoint} />}
                     {optimized.map((poi, i) => (
                       <PhotoMarker key={poi.id} poi={poi} index={i} selected={true} />
@@ -1012,6 +999,7 @@ export default function RouteGenerator() {
               </div>
             </div>
 
+            <Disclaimer />
             {/* Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button onClick={handleSave} disabled={saving}

@@ -6,6 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia, fileToBase64 } from '../api';
 import { useAuth } from '../context/AuthContext';
+import Disclaimer from '../components/Disclaimer';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -996,6 +997,7 @@ export default function PublicTripDetail() {
             ))}
           </div>
         </div>
+        <Disclaimer />
       </div>
     </div>
   );

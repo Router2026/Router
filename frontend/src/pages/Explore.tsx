@@ -7,6 +7,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useAuth } from '../context/AuthContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
+import Disclaimer from '../components/Disclaimer';
 import { useGuestLock } from '../components/LockedFeature';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -722,6 +723,7 @@ export default function Explore() {
         </div>
       </div>
 
+      <Disclaimer />
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
         {loading && pois.length === 0

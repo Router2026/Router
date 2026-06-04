@@ -2,9 +2,26 @@
 <html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Router</title>
+    <link rel="icon" type="image/jpeg" href="/pwa-icon.jpg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>ראוטר</title>
+
+    <!-- PWA / Home Screen -->
+    <meta name="application-name" content="ראוטר" />
+    <meta name="theme-color" content="#0d9e6e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS Safari specific -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ראוטר" />
+    <link rel="apple-touch-icon" href="/pwa-icon.jpg" />
+
+    <!-- Open Graph / sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ראוטר — טיולים בטבע ישראל" />
+    <meta property="og:description" content="גלה אתרי טבע, צור מסלולים ושתף חוויות בטבע הישראלי" />
+    <meta property="og:image" content="/pwa-icon.jpg" />
 
     <!-- Supabase Storage CDN — hero image, gallery, markers -->
     <link rel="preconnect" href="https://YOUR_PROJECT_ID.supabase.co" crossorigin />

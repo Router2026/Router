@@ -9,6 +9,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../api";
 import XpToast from "../components/XpToast";
+import Disclaimer from "../components/Disclaimer";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -253,6 +254,7 @@ export default function TripDetail() {
             ))}
           </div>
 
+          <Disclaimer />
           {/* Action Buttons */}
           <div style={{ display: "flex", gap: 12 }}>
             <button onClick={handleShare} disabled={sharing}

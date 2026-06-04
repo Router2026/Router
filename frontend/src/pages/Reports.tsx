@@ -1,7 +1,9 @@
 // src/pages/Reports.tsx — UPDATED
 
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Disclaimer from '../components/Disclaimer';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
@@ -33,8 +35,6 @@ export default function Reports() {
   const navigate = useNavigate();
   const { isGuest } = useAuth();
   const reportLock = useGuestLock('דיווח');
-  const [reports, setReports] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState('הכל');
   const [votedIds, setVotedIds] = useState<Set<string>>(() => {
     try {
@@ -43,33 +43,50 @@ export default function Reports() {
     } catch { return new Set(); }
   });
 
-  // Re-fetch whenever the selected type changes — filtering is done server-side,
-  // so the browser only ever receives the rows it will actually display.
-  useEffect(() => {
-    setLoading(true);
-    const typeParam = selectedType === 'הכל' ? undefined : selectedType;
-    api.reports.list({ type: typeParam })
-      .then(data => setReports(data))
-      .catch(() => setReports([]))
-      .finally(() => setLoading(false));
-  }, [selectedType]);
+  const queryClient = useQueryClient();
+  const pendingRef = useRef(new Set<string>());
+  const queryKey = ['reports', 'list', selectedType] as const;
 
-  // No client-side filter needed — the API already returns only the requested type.
-  const filtered = reports;
+  // Per-type cache — switching back to a previously-viewed type is instant.
+  const { data: filtered = [], isLoading: loading } = useQuery({
+    queryKey,
+    queryFn: () => api.reports.list({ type: selectedType === 'הכל' ? undefined : selectedType }),
+    staleTime: 2 * 60 * 1000,
+  });
 
   const handleUpvote = async (id: string) => {
+    if (pendingRef.current.has(id)) return;
+    pendingRef.current.add(id);
     const alreadyVoted = votedIds.has(id);
-    const action = alreadyVoted ? 'remove' : 'add';
     const delta = alreadyVoted ? -1 : 1;
 
-    await api.reports.upvote(id, action);
-    setReports(prev => prev.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes + delta) } : r));
+    // Optimistic cache update
+    queryClient.setQueryData<any[]>(queryKey, prev =>
+      prev?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes + delta) } : r) ?? [],
+    );
     setVotedIds(prev => {
       const next = new Set(prev);
       alreadyVoted ? next.delete(id) : next.add(id);
       localStorage.setItem('report_votes', JSON.stringify([...next]));
       return next;
     });
+
+    try {
+      await api.reports.upvote(id, alreadyVoted ? 'remove' : 'add');
+    } catch {
+      // Roll back optimistic changes on error
+      queryClient.setQueryData<any[]>(queryKey, prev =>
+        prev?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes - delta) } : r) ?? [],
+      );
+      setVotedIds(prev => {
+        const next = new Set(prev);
+        alreadyVoted ? next.add(id) : next.delete(id);
+        localStorage.setItem('report_votes', JSON.stringify([...next]));
+        return next;
+      });
+    } finally {
+      pendingRef.current.delete(id);
+    }
   };
 
   return (
@@ -95,6 +112,7 @@ export default function Reports() {
       </div>
 
       <div style={{ maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+        <Disclaimer />
         {/* Filter chips */}
         <div style={{ padding: '16px 16px 8px', overflowX: 'auto' }}>
           <div style={{ display: 'flex', gap: 8, paddingBottom: 4, scrollbarWidth: 'none', direction: 'rtl' }}>
