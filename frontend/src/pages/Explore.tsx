@@ -722,8 +722,6 @@ export default function Explore() {
           ))}
         </div>
       </div>
-
-      <Disclaimer />
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
         {loading && pois.length === 0
