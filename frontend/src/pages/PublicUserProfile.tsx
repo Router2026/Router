@@ -46,7 +46,7 @@ function TripMiniCard({ trip, onClick }: { trip: PublicTrip; onClick: () => void
 
       {/* Cover */}
       {trip.image_url
-        ? <img src={trip.image_url} alt="" style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }} />
+        ? <img src={trip.image_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }} />
         : <div style={{ height: 130, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🗺️</div>
       }
 

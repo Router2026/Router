@@ -374,7 +374,7 @@ function MediaGallery({
             ) : (
               <img src={getImageUrl(item.media_url, 'card')} alt={item.caption || 'gallery'} loading="lazy" decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; }} />
+                onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
             )}
             {item.media_type === 'video' && (
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
@@ -460,7 +460,7 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
               {place.main_image ? (
                 <img src={getImageUrl(place.main_image, 'thumb')} alt={place.name} loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                   <span style={{ fontSize: 28, opacity: 0.5 }}>🏞️</span>

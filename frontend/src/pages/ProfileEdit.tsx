@@ -145,7 +145,7 @@ export default function ProfileEdit() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', flexShrink: 0, background: form.avatar_url ? 'none' : 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#fff', fontWeight: 800, border: '3px solid #e2e8f0' }}>
               {form.avatar_url
-                ? <img src={form.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="avatar" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                ? <img src={form.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="avatar" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
                 : (form.full_name || form.username || '?').charAt(0).toUpperCase()}
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -229,7 +229,7 @@ export default function ProfileEdit() {
             placeholder="https://example.com/cover.jpg" style={{ ...inputStyle, direction: 'ltr' }} />
           {form.cover_image && (
             <img src={form.cover_image} alt="cover preview"
-              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }}
               style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 10, marginTop: 10 }} />
           )}
         </div>

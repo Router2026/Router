@@ -17,6 +17,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { type POI, type Region } from '../api';
+import { getImageUrl } from '../utils/imageUtils';
 import { useRegions, useLocationsByRegion } from '../hooks/useLocations';
 import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketFab from '../components/TripBucketFab';
@@ -465,7 +466,10 @@ export default function MapView() {
             </button>
             {selectedPOI.main_image && (
               <div style={{ height: 140, position: 'relative' }}>
-                <div style={{ height: '100%', backgroundImage: `url(${selectedPOI.main_image})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                <img src={getImageUrl(selectedPOI.main_image, 'card')} alt={selectedPOI.name}
+                  loading="lazy" decoding="async"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
                 {selectedPOI.photo_credit && (
                   <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', lineHeight: 1.4 }}>
                     צילום: {selectedPOI.photo_credit}

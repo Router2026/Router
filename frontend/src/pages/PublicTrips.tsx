@@ -474,7 +474,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
           <div onClick={() => navigate(`/profile/${trip.user_id}`)}
             style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#fff', fontWeight: 800, cursor: 'pointer', border: '2px solid #e2e8f0' }}>
             {trip.creator_avatar
-              ? <img src={trip.creator_avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+              ? <img src={trip.creator_avatar} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
               : trip.creator_username.charAt(0).toUpperCase()}
           </div>
 
@@ -535,7 +535,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
           {(!hasMedia || mediaTab === 'map') && <RouteMapCard trip={trip} />}
           {hasImage && mediaTab === 'image' && (
             <div style={{ height: 260, overflow: 'hidden', position: 'relative' }}>
-              <img src={trip.image_url!} alt={trip.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src={trip.image_url!} alt={trip.title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.3))' }} />
             </div>
           )}

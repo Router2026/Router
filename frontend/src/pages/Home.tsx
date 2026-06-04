@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type POI } from '../api';
+import { getImageUrl } from '../utils/imageUtils';
 import { useFeaturedLocations, useRegions, useNearbyUserLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock, LockBadge } from '../components/LockedFeature';
@@ -62,14 +63,21 @@ function PlaceCard({ poi, badge, onClick }: PlaceCardProps) {
     >
       <div style={{
         height: 100, position: 'relative', overflow: 'hidden',
-        background: img ? `url(${img}) center/cover no-repeat` : `linear-gradient(135deg, ${color}dd, ${color}66)`,
+        background: img ? '#e2e8f0' : `linear-gradient(135deg, ${color}dd, ${color}66)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
+        {img && (
+          <img src={getImageUrl(img, 'card')} alt={poi.name}
+            loading="lazy" decoding="async"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }}
+          />
+        )}
         {!img && <span style={{ fontSize: 36 }}>{categoryEmoji}</span>}
-        {badge && <div style={{ position: 'absolute', top: 8, right: 8 }}>{badge}</div>}
+        {badge && <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>{badge}</div>}
         {poi.average_rating > 0 && (
           <div style={{
-            position: 'absolute', bottom: 8, left: 8,
+            position: 'absolute', bottom: 8, left: 8, zIndex: 1,
             background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '2px 8px',
             fontSize: 11, color: '#fff', fontWeight: 700,
             display: 'flex', alignItems: 'center', gap: 3,

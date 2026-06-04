@@ -91,11 +91,14 @@ export default function CommunityVideos() {
               boxShadow: '0 2px 12px rgba(0,0,0,0.05)', marginBottom: 16, overflow: 'hidden',
             }}>
               {/* Thumbnail */}
-              <div style={{
-                height: 200, position: 'relative',
-                backgroundImage: `url(${video.thumbnail_url})`,
-                backgroundSize: 'cover', backgroundPosition: 'center',
-              }}>
+              <div style={{ height: 200, position: 'relative', background: '#e2e8f0' }}>
+                {video.thumbnail_url && (
+                  <img src={video.thumbnail_url} alt={video.uploader_name || ''}
+                    loading="lazy" decoding="async"
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }}
+                  />
+                )}
                 <div style={{
                   position: 'absolute', inset: 0,
                   background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.5) 100%)',

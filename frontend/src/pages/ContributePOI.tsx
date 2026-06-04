@@ -695,7 +695,7 @@ export default function ContributePOI() {
                   ) : (
                     <img src={item.previewUrl} alt="preview"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; (e.target as HTMLImageElement).onerror = null; }}
                     />
                   )}
                   <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>
