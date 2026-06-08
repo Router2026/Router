@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Fire-and-forget: update progress in sync_jobs table
-    void runOsmIngestion(jobId).catch(console.error);
+    runOsmIngestion(jobId).catch(console.error);
 
     return NextResponse.json(successResponse({ jobId, message: "OSM sync started" }), { status: 202 });
   } catch (err) {

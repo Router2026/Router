@@ -62,7 +62,7 @@ function osmElementToRaw(element: OsmElement) {
     longitude: lon,
     has_water:
       tags.drinking_water === "yes" || tags.natural === "spring" || tags.amenity === "drinking_water",
-    accessible: tags.wheelchair === "yes" ? true : tags.wheelchair === "no" ? false : false,
+    accessible: tags.wheelchair === "yes",
     has_shade: false,
     images: tags.image ? [tags.image] : [],
     main_image: tags.image || null,

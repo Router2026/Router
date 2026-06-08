@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     // 3 reset requests per email per hour — prevents email flooding
     const ip = clientIp(req);
-    if (!checkRateLimit(`forgot:${ip}`, 3, 60 * 60 * 1000)) {
+    if (!await checkRateLimit(`forgot:${ip}`, 3, 60 * 60 * 1000)) {
       // Always return success shape to avoid leaking rate-limit info to an attacker
       return NextResponse.json(successResponse({ sent: true }));
     }

@@ -18,12 +18,15 @@ export function extractJson(raw: string): unknown {
   // 2. jsonrepair on full string — handles surrounding text and Hebrew quote drops
   try { return JSON.parse(jsonrepair(cleaned)); } catch { /* fall through */ }
 
-  // 3. Extract first plausible JSON object, direct parse
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (match) {
-    try { return JSON.parse(match[0]); } catch { /* fall through */ }
+  // 3. Extract first plausible JSON object via index scan (no regex — avoids ReDoS on
+  //    crafted inputs with many unmatched braces and no closing brace).
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start !== -1 && end > start) {
+    const block = cleaned.slice(start, end + 1);
+    try { return JSON.parse(block); } catch { /* fall through */ }
     // 4. jsonrepair on extracted block
-    try { return JSON.parse(jsonrepair(match[0])); } catch { /* fall through */ }
+    try { return JSON.parse(jsonrepair(block)); } catch { /* fall through */ }
   }
 
   throw new LLMOutputError(`Could not parse JSON from response: ${raw.slice(0, 200)}`);

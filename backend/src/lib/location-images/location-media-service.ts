@@ -3,6 +3,7 @@
 // Previously this stored raw base64 data URIs directly in the media_url column,
 // which bloated the DB, broke Supabase image transforms, and caused CSP failures.
 
+import { randomBytes } from "node:crypto";
 import { rawDb } from "@/lib/db/raw-client";
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { awardXp, XP_REWARDS, type XpResult } from "@/lib/xp/xp-service";
@@ -77,7 +78,7 @@ export async function uploadToStorage(
   folder: string,
 ): Promise<string> {
   const ext = MIME_TO_EXT[mimeType] ?? "bin";
-  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const fileName = `${folder}/${Date.now()}-${randomBytes(8).toString("hex")}.${ext}`;
   const buffer = Buffer.from(base64Data, "base64");
 
   const { error } = await supabaseAdmin.storage

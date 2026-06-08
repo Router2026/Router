@@ -258,7 +258,7 @@ export default function PublicTripDetail() {
     setEditStops(prev => {
       const arr = [...prev];
       const newIdx = idx + dir;
-      if (newIdx < 0 || newIdx >= arr.length) return arr;
+      if (newIdx < 0 || newIdx >= arr.length) return prev;
       [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
       return arr;
     });
@@ -906,7 +906,7 @@ export default function PublicTripDetail() {
                     {loc.region_name && <span style={{ fontSize: 12, color: '#94a3b8' }}>{loc.region_name}</span>}
                   </div>
                 </div>
-                {loc.location_id && <div style={{ fontSize: 20, color: '#cbd5e1', alignSelf: 'center' }}>›</div>}
+                {!!loc.location_id && <div style={{ fontSize: 20, color: '#cbd5e1', alignSelf: 'center' }}>›</div>}
               </div>
             ))}
           </div>

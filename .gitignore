@@ -1,6 +1,9 @@
 # Created by https://www.toptal.com/developers/gitignore/api/node
 # Edit at https://www.toptal.com/developers/gitignore?templates=node
 
+# VSCode
+.vscode/
+
 ### Node ###
 # Logs
 logs
@@ -143,3 +146,10 @@ dist
 
 # End of https://www.toptal.com/developers/gitignore/api/node
 .claude
+
+# SonarQube
+.sonar
+sonar-project.properties
+.scannerwork
+tsconfig.sonar.json
+sonar-scan.sh

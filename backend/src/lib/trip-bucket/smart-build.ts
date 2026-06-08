@@ -85,8 +85,8 @@ function extractJsonFromLlmResponse(raw: string): unknown {
   } catch {
     // Strip markdown fences and retry
     const stripped = raw
-      .replace(/^```(?:json)?\s*/m, '')
-      .replace(/\s*```$/m, '')
+      .replace(/^```(?:json)?[ \t]*/m, '')   // explicit chars — no backtracking surface
+      .replace(/[ \t]*```$/m, '')             // ditto
       .trim();
     try {
       return JSON.parse(stripped);

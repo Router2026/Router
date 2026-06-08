@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     // 5 registrations per IP per hour — prevents spam account creation
     const ip = clientIp(req);
-    if (!checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000)) {
+    if (!await checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000)) {
       return NextResponse.json(
         errorResponse("Too many registration attempts. Please try again later.", "RATE_LIMITED"),
         { status: 429 }

@@ -57,7 +57,7 @@ export default function Profile() {
 
   const loading = profileLoading || reportsLoading || reviewsLoading;
 
-  const handleLogout = async () => { await logout(); navigate('/Login'); };
+  const handleLogout = () => { logout(); navigate('/Login'); };
 
   // Handle case where user is not logged in
   if (!user && !loading) {

@@ -286,7 +286,7 @@ export default function ContributePOI() {
 
       const previewUrl = URL.createObjectURL(file);
       newItems.push({
-        id: `${Date.now()}-${Math.random()}`,
+        id: crypto.randomUUID(),
         file,
         previewUrl,
         type: isVideoFile(file) ? 'video' : 'image',

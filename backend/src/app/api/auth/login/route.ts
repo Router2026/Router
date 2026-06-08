@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     // 10 attempts per IP per 15 minutes — blocks credential stuffing while allowing
     // a legitimate user who keeps mistyping their password
     const ip = clientIp(req);
-    if (!checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000)) {
+    if (!await checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000)) {
       return NextResponse.json(
         errorResponse("Too many login attempts. Please try again later.", "RATE_LIMITED"),
         { status: 429 }

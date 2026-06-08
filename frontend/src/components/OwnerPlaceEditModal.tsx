@@ -55,7 +55,7 @@ function MapPicker({ lat, lng, onChange }: { lat: number; lng: number; onChange:
     <div style={{ height: 200, borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', marginBottom: 8 }}>
       <MapContainer center={[lat || 31.5, lng || 35.0]} zoom={12} style={{ height: '100%', width: '100%' }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {lat && lng && <Marker position={[lat, lng]} />}
+        {!!(lat && lng) && <Marker position={[lat, lng]} />}
         <Events />
       </MapContainer>
     </div>

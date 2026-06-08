@@ -6,7 +6,7 @@ import { checkRateLimit, clientIp } from "@/lib/auth/rate-limit";
 export async function GET(req: NextRequest) {
   // 30 checks per IP per minute — still comfortable for normal registration flows
   const ip = clientIp(req);
-  if (!checkRateLimit(`check-username:${ip}`, 30, 60 * 1000)) {
+  if (!await checkRateLimit(`check-username:${ip}`, 30, 60 * 1000)) {
     return NextResponse.json(errorResponse("Too many requests", "RATE_LIMITED"), { status: 429 });
   }
 
