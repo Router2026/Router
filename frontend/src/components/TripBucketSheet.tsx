@@ -9,9 +9,7 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  useTripBucket,
-} from '../context/TripBucketContext';
+import { useTripBucket } from '../context/TripBucketContext';
 import RouterLogo from '../assets/logo.jpeg';
 import type { GeoState, UserLocation, BuildMode } from '../utils/types';
 
@@ -28,25 +26,54 @@ function formatDuration(minutes: number): string {
 
 function useDragReorder(onReorder: (from: number, to: number) => void) {
   const dragIndex = useRef<number | null>(null);
+  const dragOverIndex = useRef<number | null>(null); // Track the current hover target
 
-  const handleDragStart = (index: number) => (e: React.DragEvent) => {
-    dragIndex.current = index;
-    e.dataTransfer.effectAllowed = 'move';
-  };
+  const handleDragStart = useCallback(
+    (index: number) => (e: React.DragEvent) => {
+      dragIndex.current = index;
+      e.dataTransfer.effectAllowed = 'move';
+    },
+    []
+  );
 
-  const handleDrop = (targetIndex: number) => (e: React.DragEvent) => {
-    e.preventDefault();
-    if (dragIndex.current === null || dragIndex.current === targetIndex) return;
-    onReorder(dragIndex.current, targetIndex);
-    dragIndex.current = null;
-  };
+  const handleDragEnter = useCallback(
+    (index: number) => (e: React.DragEvent) => {
+      e.preventDefault();
+      dragOverIndex.current = index;
+    },
+    []
+  );
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  };
+  }, []);
 
-  return { handleDragStart, handleDrop, handleDragOver };
+  const handleDrop = useCallback(
+    (targetIndex: number) => (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (dragIndex.current === null || dragIndex.current === targetIndex) {
+        dragIndex.current = null;
+        dragOverIndex.current = null;
+        return;
+      }
+
+      onReorder(dragIndex.current, targetIndex);
+      dragIndex.current = null;
+      dragOverIndex.current = null;
+    },
+    [onReorder]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    // Always clean up refs if the drop lands outside a valid drop zone
+    dragIndex.current = null;
+    dragOverIndex.current = null;
+  }, []);
+
+  return { handleDragStart, handleDragEnter, handleDragOver, handleDrop, handleDragEnd };
 }
 
 // ── Step indicator ────────────────────────────────────────────────────────────
@@ -107,8 +134,10 @@ function BucketListItem({
     <div
       draggable
       onDragStart={dragHandlers.handleDragStart(index)}
-      onDrop={dragHandlers.handleDrop(index)}
+      onDragEnter={dragHandlers.handleDragEnter(index)} // Listen when dragged item enters this zone
       onDragOver={dragHandlers.handleDragOver}
+      onDrop={dragHandlers.handleDrop(index)}
+      onDragEnd={dragHandlers.handleDragEnd} // Safe cleanup if drag fails or ends outside
       style={{
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '10px 14px', background: '#fff', borderRadius: 16,
@@ -415,7 +444,7 @@ function LocationStartPoint({
 
       {/* GPS error */}
       {mode === 'gps' && geoState === 'error' && (
-        <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: '#fef2f2', fontSize: 12, color: '#dc2626' }}>
+        <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: '#fef2f2', fontSize: 12, color: '#doc2626' }}>
           ⚠️ {errorMsg}
         </div>
       )}
@@ -538,7 +567,7 @@ function StrategyCards({
     label: string;
     description: string;
     detail: string;
-    comingSoon?: boolean; // הגדרת פיצ'ר עתידי
+    comingSoon?: boolean;
   }> = [
       {
         id: 'smart',
@@ -546,7 +575,7 @@ function StrategyCards({
         label: 'בנייה חכמה',
         description: 'סידור זמנים חכם מבוסס AI',
         detail: 'מערכת ה-AI מנתחת את אופי המקום ומסדרת הגיונית - הליכות בבוקר, בתי קפה בצהריים ותצפיות בשקיעה.',
-        comingSoon: true, // מוגדר כבקרוב
+        comingSoon: true,
       },
       {
         id: 'proximity',
@@ -572,16 +601,15 @@ function StrategyCards({
               disabled={s.comingSoon}
               style={{
                 flex: 1, padding: '14px 12px', borderRadius: 18,
-                cursor: s.comingSoon ? 'not-allowed' : 'pointer', // חיווי על כפתור מושבת
+                cursor: s.comingSoon ? 'not-allowed' : 'pointer',
                 border: `2px solid ${active ? '#0d9e6e' : '#e2e8f0'}`,
                 background: active ? '#f0fdf8' : '#fff',
                 textAlign: 'right', transition: 'all 0.18s',
                 boxShadow: active ? '0 4px 16px rgba(13,158,110,0.15)' : 'none',
-                position: 'relative', overflow: 'hidden', // נדרש בשביל חיתוך הסרט
-                opacity: s.comingSoon ? 0.75 : 1, // טיפה שקיפות
+                position: 'relative', overflow: 'hidden',
+                opacity: s.comingSoon ? 0.75 : 1,
               }}
             >
-              {/* סרט ה"בקרוב" */}
               {s.comingSoon && (
                 <div style={{
                   position: 'absolute', top: 12, left: -26, background: '#ef4444', color: '#fff',
@@ -633,6 +661,8 @@ export default function TripBucketSheet() {
   } = useTripBucket();
 
   const navigate = useNavigate();
+
+  // Initialize the drag hook with the stable context reorder function
   const dragHandlers = useDragReorder(reorderItems);
 
   // Wizard step — resets to 1 whenever the sheet is closed
