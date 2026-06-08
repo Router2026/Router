@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow admin and API paths from indexing
+Disallow: /Admin
+Disallow: /Admin/
+Disallow: /api/
+
+Sitemap: https://router-16iu.vercel.app/sitemap.xml

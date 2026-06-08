@@ -1,6 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
 
 :root {
+  /* iOS safe-area insets — updated automatically by the browser */
+  --safe-top:    env(safe-area-inset-top,    0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left,   0px);
+  --safe-right:  env(safe-area-inset-right,  0px);
+
   --primary: #0d9e6e;
   --primary-light: #10b981;
   --primary-dark: #065f46;

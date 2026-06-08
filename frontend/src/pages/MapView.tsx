@@ -368,9 +368,9 @@ export default function MapView() {
   }, [selectedRegion, resetView]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 72px)', overflow: 'hidden', direction: 'rtl' }}>
+    <div style={{ position: 'relative', width: '100%', height: 'calc(100dvh - 72px - var(--safe-top))', overflow: 'hidden', direction: 'rtl' }}>
       {/* Top bar */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1100, background: '#fff', padding: '12px 20px 10px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', direction: 'rtl', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1100, background: '#fff', padding: 'calc(var(--safe-top) + 12px) 20px 10px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', direction: 'rtl', display: 'flex', alignItems: 'center', gap: 12 }}>
         {isError && <div style={{ width: '100%', textAlign: 'center', color: '#dc2626', fontSize: 13, fontWeight: 700 }}>שגיאה בטעינת אזורים</div>}
         {!isError && selectedRegion ? (
           <>

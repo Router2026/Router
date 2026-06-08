@@ -8,6 +8,21 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { CommunityPoiAdmin, EditModalProps, PoiStatus, Tab } from '../utils/types';
 
+// Mask email so it's identifiable but not fully readable in screenshots.
+// e.g. "omrihalifa0106@gmail.com" → "om***@gm***.com"
+function maskEmail(email: string): string {
+  const at = email.indexOf('@');
+  if (at < 0) return email;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  const domainName = dot > 0 ? domain.slice(0, dot) : domain;
+  const tld = dot > 0 ? domain.slice(dot) : '';
+  const maskedLocal = local.slice(0, Math.min(2, local.length)) + '***';
+  const maskedDomain = domainName.slice(0, Math.min(2, domainName.length)) + '***' + tld;
+  return `${maskedLocal}@${maskedDomain}`;
+}
+
 // ── API helpers (community POIs admin endpoints) ──────────────────────────────
 
 async function fetchAdminPois(status?: PoiStatus): Promise<CommunityPoiAdmin[]> {
@@ -271,7 +286,7 @@ function CommunityPoisTab() {
               {poi.submitter_username && (
                 <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', marginBottom: 6 }}>
                   👤 הועלה על ידי: <strong>{poi.submitter_username}</strong>
-                  {poi.submitter_email && ` (${poi.submitter_email})`}
+                  {poi.submitter_email && ` (${maskEmail(poi.submitter_email)})`}
                 </div>
               )}
               {poi.description && (
@@ -597,7 +612,7 @@ export default function AdminPanel() {
                       }}>Admin</span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{u.email}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{maskEmail(u.email)}</div>
                   <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 1 }}>
                     {u.xp_points} XP · {u.level}
                   </div>

@@ -51,7 +51,14 @@ export async function verifyJWT(
 ): Promise<Record<string, unknown>> {
   const parts = token.split(".");
   if (parts.length !== 3) throw new Error("Invalid token format");
-  const [header, body, sig] = parts;
+  const [headerB64, body, sig] = parts;
+
+  // Reject tokens with anything other than HS256 — prevents alg:none attacks
+  const headerObj = JSON.parse(Buffer.from(headerB64, "base64url").toString("utf-8"));
+  if (headerObj.alg !== "HS256") throw new Error("Unsupported token algorithm");
+  if (headerObj.typ !== "JWT") throw new Error("Invalid token type");
+
+  const header = headerB64;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(getSecret()),
@@ -120,7 +127,9 @@ export async function verifyPassword(
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
     diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
-  return diff === 0 && a.length === b.length;
+  // Both hashes are the same length (SHA-256 hex = 64 chars) so checking
+  // length separately leaks no timing information; we check it anyway for safety.
+  return diff === 0 && a.length === b.length && a.length === 64;
 }
 
 // ── Extract user from Bearer token ───────────────────────────────────────

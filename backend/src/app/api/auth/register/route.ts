@@ -2,16 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
 import { supabase } from "@/lib/db/supabase";
 import { successResponse, errorResponse } from "@/lib/api/response";
+import { checkRateLimit, clientIp } from "@/lib/auth/rate-limit";
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+// Minimum 8 characters with at least one letter and one number/symbol
+const PASSWORD_RE = /^(?=.*[a-zA-Z])(?=.*[\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
 export async function POST(req: NextRequest) {
   try {
+    // 5 registrations per IP per hour — prevents spam account creation
+    const ip = clientIp(req);
+    if (!checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000)) {
+      return NextResponse.json(
+        errorResponse("Too many registration attempts. Please try again later.", "RATE_LIMITED"),
+        { status: 429 }
+      );
+    }
+
     const { email, password, full_name, username } = await req.json();
     if (!email || !password || !full_name || !username)
       return NextResponse.json(errorResponse("Email, password, full name, and username are required", "VALIDATION_ERROR"), { status: 400 });
-    if (password.length < 6)
-      return NextResponse.json(errorResponse("Password must be at least 6 characters", "VALIDATION_ERROR"), { status: 400 });
+    if (!PASSWORD_RE.test(password))
+      return NextResponse.json(errorResponse("Password must be at least 8 characters and include a letter plus a number or symbol", "VALIDATION_ERROR"), { status: 400 });
     if (!USERNAME_RE.test(username))
       return NextResponse.json(errorResponse("Username must be 3-20 characters: letters, numbers, underscores only", "VALIDATION_ERROR"), { status: 400 });
 

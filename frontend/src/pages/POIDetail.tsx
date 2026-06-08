@@ -705,11 +705,13 @@ export default function POIDetail() {
           </div>
         )}
 
-        {/* Hero Banner */}
-        <div style={{ position: 'relative', height: 350, width: '100%' }}>
+        {/* Hero Banner — negative marginTop pulls the hero behind the status bar so the
+            image fills edge-to-edge; the overlay buttons are pushed back down with
+            calc(var(--safe-top) + 12px) padding applied to their container. */}
+        <div style={{ position: 'relative', height: 'calc(350px + var(--safe-top))', width: '100%', marginTop: 'calc(-1 * var(--safe-top))' }}>
           <HeroImage poi={poi} galleryImages={galleryImages} photoCredit={poi.photo_credit} />
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 16, left: 16, right: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 'calc(var(--safe-top) + 12px) 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

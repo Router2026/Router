@@ -41,7 +41,7 @@ export default function Layout({ children, currentPageName }: { children: React.
         דלג לתוכן הראשי
       </a>
 
-      <main id="main-content" tabIndex={-1} style={{ flex: 1, paddingBottom: showNav ? 72 : 0, width: '100%', overflowX: 'hidden', outline: 'none' }}>
+      <main id="main-content" tabIndex={-1} style={{ flex: 1, paddingBottom: showNav ? 72 : 0, paddingTop: 'var(--safe-top)', width: '100%', overflowX: 'hidden', outline: 'none' }}>
         {children}
       </main>
 

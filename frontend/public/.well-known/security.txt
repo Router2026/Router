@@ -1,0 +1,4 @@
+Contact: mailto:o2002mm@gmail.com
+Preferred-Languages: he, en
+Scope: https://router-16iu.vercel.app/
+Policy: https://router-16iu.vercel.app/privacy.html

@@ -9,7 +9,10 @@ export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const { loginWithToken } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const from = searchParams.get('from') || '/';
+  // Only allow same-origin relative paths — reject absolute URLs and protocol-relative
+  // URLs (e.g. //evil.com) to prevent open-redirect phishing attacks.
+  const rawFrom = searchParams.get('from') || '/';
+  const from = rawFrom.startsWith('/') && !rawFrom.startsWith('//') ? rawFrom : '/';
 
   useEffect(() => {
     // Supabase puts the token in the URL hash after OAuth redirect

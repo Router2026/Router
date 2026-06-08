@@ -3,9 +3,20 @@ import { rawDb } from "@/lib/db/raw-client";
 import { supabase } from "@/lib/db/supabase";
 import { verifyPassword } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
+import { checkRateLimit, clientIp } from "@/lib/auth/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // 10 attempts per IP per 15 minutes — blocks credential stuffing while allowing
+    // a legitimate user who keeps mistyping their password
+    const ip = clientIp(req);
+    if (!checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000)) {
+      return NextResponse.json(
+        errorResponse("Too many login attempts. Please try again later.", "RATE_LIMITED"),
+        { status: 429 }
+      );
+    }
+
     const { email, password } = await req.json();
     if (!email || !password)
       return NextResponse.json(errorResponse("Email and password are required", "VALIDATION_ERROR"), { status: 400 });
