@@ -329,26 +329,53 @@ export default function ContributePOI() {
     setSubmitting(true);
 
     try {
-      // Upload any locally-selected image files to storage first,
-      // so we can include their public URLs in the community_pois.photos JSON.
-      // This avoids the ID-mismatch bug where we tried to attach media to a
-      // locations row that doesn't exist yet (POIs are only promoted to
-      // locations after admin approval).
       const fileItems = mediaItems.filter(m => m.file && m.type === 'image');
-      const uploadedUrls = await Promise.allSettled(
-        fileItems.map(item => api.locations.uploadPendingMedia(item.file!))
+      const urlItems = mediaItems.filter(m => m.url && m.type === 'image').map(m => m.url!);
+
+      const token = localStorage.getItem('router_auth_token');
+      const apiBase = (import.meta.env.VITE_API_URL ?? '');
+
+      // Upload files to Supabase Storage
+      const uploadResults = await Promise.allSettled(
+        fileItems.map(async (item) => {
+          const base64 = await fileToBase64(item.file!);
+
+          const res = await fetch(`${apiBase}/api/media/upload`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              media_data: base64,
+              mime_type: item.file!.type,
+            }),
+          });
+
+          if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            throw new Error(json?.error?.message ?? `Upload error ${res.status}`);
+          }
+
+          const json = await res.json();
+          const publicUrl: string = json?.data?.url;
+          if (!publicUrl) throw new Error('No URL returned from upload API');
+          return publicUrl;
+        })
       );
-      const successfulUrls = uploadedUrls
+
+      const uploadedUrls = uploadResults
         .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
         .map(r => r.value);
 
+      // Combine all URLs into a proper JSON array structure
       const photos: string[] = [
-        ...mediaItems.filter(m => m.url && m.type === 'image').map(m => m.url!),
-        ...successfulUrls,
+        ...urlItems,
+        ...uploadedUrls,
       ];
 
-      const token = localStorage.getItem('router_auth_token');
-      const res = await fetch((import.meta.env.VITE_API_URL ?? '') + '/api/community-pois', {
+      // Post to community POI endpoint
+      const res = await fetch(`${apiBase}/api/community-pois`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -360,9 +387,9 @@ export default function ContributePOI() {
           description: description.trim() || undefined,
           latitude: pickedPoint.lat,
           longitude: pickedPoint.lng,
-          photos,
+          photos, // Valid JSON string array for jsonb column
           difficulty,
-          duration_minutes: durationMinutes ? parseInt(durationMinutes) : undefined,
+          duration_minutes: durationMinutes ? parseInt(durationMinutes, 10) : undefined,
           has_water: hasWater,
           has_shade: hasShade,
           accessible,
@@ -375,11 +402,8 @@ export default function ContributePOI() {
         throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
       }
 
-      const poiData = await res.json();
-      const locationId = poiData?.data?.id;
-
-      // Files were already uploaded above; nothing left to do after POI is saved.
       setSubmitted(true);
+
     } catch (err: any) {
       setError(err.message ?? 'אירעה שגיאה בשמירה');
     } finally {
