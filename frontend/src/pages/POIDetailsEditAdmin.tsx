@@ -1,22 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/**
- * POIDetailsEditAdmin.tsx
- * Full admin editor for a POI/Location — dialog modal.
- * Used in:
- *   • AdminPlaces — opens inline when a place card is clicked
- *   • POIDetail — opens when the admin edit button (🛡️) is clicked
- *
- * Editable fields (all DB columns):
- *   name, description, category, difficulty, duration_minutes,
- *   has_water, has_shade, accessible, is_featured, photo_credit,
- *   main_image, images (gallery), region_id, average_rating,
- *   latitude, longitude, source, source_id, uploaded_by
- *
- * Read-only display: id, created_at, updated_at
- */
-
 import { useState, useRef } from 'react';
-import { BASE_URL, api, type POI, type Region } from '../api';
+import { BASE_URL, api, fileToBase64, type POI, type Region } from '../api';
 import { CATEGORIES } from '../utils/constants';
 import RouterLogo from '../assets/logo.jpeg';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
@@ -28,8 +12,6 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
-
-// ── helpers ──────────────────────────────────────────────────────────────────
 
 const TOKEN_KEY = 'router_auth_token';
 const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -49,8 +31,6 @@ async function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
     }
     return res.json();
 }
-
-// ── types ────────────────────────────────────────────────────────────────────
 
 interface EditState {
     name: string;
@@ -74,15 +54,11 @@ interface EditState {
     uploaded_by: string;
 }
 
-// ── constants ─────────────────────────────────────────────────────────────────
-
 const DIFFICULTIES = ['קל - משפחות', 'קל', 'בינוני', 'מאתגר', 'קשה', 'אקסטרים'];
 const DIFF_COLOR: Record<string, string> = {
     'קל - משפחות': '#16a34a', 'קל': '#16a34a',
     'בינוני': '#d97706', 'מאתגר': '#dc2626', 'קשה': '#dc2626', 'אקסטרים': '#7c3aed',
 };
-
-// ── sub-components ────────────────────────────────────────────────────────────
 
 function LocationPickerMap({ lat, lng, onChange }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
     const MapEvents = () => {
@@ -155,8 +131,6 @@ function InputField({ label, value, onChange, type = 'text', placeholder = '', s
     );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
-
 export interface POIDetailsEditAdminProps {
     poi: POI;
     regions: Region[];
@@ -195,9 +169,16 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [newImageUrl, setNewImageUrl] = useState('');
     const [activeSection, setActiveSection] = useState('basic');
+    
+    // Media State
     const [mainImageUploading, setMainImageUploading] = useState(false);
     const [mainImageUploadError, setMainImageUploadError] = useState('');
     const mainImageFileRef = useRef<HTMLInputElement>(null);
+    const galleryFileRef = useRef<HTMLInputElement>(null);
+    const [galleryUploading, setGalleryUploading] = useState(false);
+    const [galleryUploadError, setGalleryUploadError] = useState('');
+    const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
+
     const [mapsLink, setMapsLink] = useState('');
     const [geoQuery, setGeoQuery] = useState('');
     const [geoResults, setGeoResults] = useState<{ display_name: string; lat: string; lon: string }[]>([]);
@@ -287,6 +268,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
     const handleMainImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
         if (!file.type.startsWith('image/')) {
             setMainImageUploadError('יש לבחור קובץ תמונה (JPEG, PNG, WEBP)');
             return;
@@ -295,20 +277,111 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
             setMainImageUploadError('התמונה גדולה מדי — מקסימום 8MB');
             return;
         }
+
         setMainImageUploading(true);
         setMainImageUploadError('');
+
         try {
-            const result = await api.locations.uploadMedia(Number(poi.id), file);
-            set('main_image', result.media.media_url);
-        } catch (err: any) {
-            setMainImageUploadError(err?.message || 'שגיאה בהעלאת התמונה');
+            const base64 = await fileToBase64(file);
+            const token = localStorage.getItem('router_auth_token');
+            const apiBase = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+
+            const res = await fetch(`${apiBase}/api/media/upload`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ media_data: base64, mime_type: file.type }),
+            });
+
+            if (!res.ok) {
+                const json = await res.json().catch(() => ({}));
+                throw new Error((json as any)?.error?.message ?? `Upload error: HTTP ${res.status}`);
+            }
+
+            const json = await res.json();
+            const publicUrl: string | undefined = (json as any)?.data?.url;
+            if (!publicUrl) throw new Error('No URL returned from upload API');
+
+            set('main_image', publicUrl);
+        } catch (err: unknown) {
+            setMainImageUploadError(err instanceof Error ? err.message : 'שגיאה בהעלאת התמונה');
         } finally {
             setMainImageUploading(false);
             if (mainImageFileRef.current) mainImageFileRef.current.value = '';
         }
     };
 
-    const addImage = () => {
+    const handleGalleryFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? []);
+        if (files.length === 0) return;
+
+        for (const f of files) {
+            if (!f.type.startsWith('image/')) {
+                setGalleryUploadError(`"${f.name}" — נא לבחור קבצי תמונה בלבד`);
+                return;
+            }
+            if (f.size > 8 * 1024 * 1024) {
+                setGalleryUploadError(`"${f.name}" — גדול מ-8MB`);
+                return;
+            }
+        }
+
+        const previews = files.map(f => URL.createObjectURL(f));
+        setGalleryPreviews(previews);
+        setGalleryUploading(true);
+        setGalleryUploadError('');
+
+        try {
+            const token = localStorage.getItem('router_auth_token');
+            const apiBase = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+
+            const results = await Promise.allSettled(
+                files.map(async (file) => {
+                    const base64 = await fileToBase64(file);
+                    const res = await fetch(`${apiBase}/api/media/upload`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                        body: JSON.stringify({ media_data: base64, mime_type: file.type }),
+                    });
+                    if (!res.ok) {
+                        const json = await res.json().catch(() => ({}));
+                        throw new Error((json as any)?.error?.message ?? `HTTP ${res.status}`);
+                    }
+                    const json = await res.json();
+                    const url: string | undefined = (json as any)?.data?.url;
+                    if (!url) throw new Error(`No URL for ${file.name}`);
+                    return url;
+                }),
+            );
+
+            const newUrls = results
+                .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+                .map(r => r.value);
+
+            const failCount = results.filter(r => r.status === 'rejected').length;
+            if (failCount > 0) {
+                setGalleryUploadError(`${failCount} קבצים לא הועלו`);
+            }
+
+            if (newUrls.length > 0) {
+                set('images', [...edit.images, ...newUrls]);
+            }
+        } catch (err: unknown) {
+            setGalleryUploadError(err instanceof Error ? err.message : 'שגיאה בהעלאת התמונות');
+        } finally {
+            previews.forEach(url => URL.revokeObjectURL(url));
+            setGalleryPreviews([]);
+            setGalleryUploading(false);
+            if (galleryFileRef.current) galleryFileRef.current.value = '';
+        }
+    };
+
+    const addImageUrl = () => {
         const url = newImageUrl.trim();
         if (!url || edit.images.includes(url)) return;
         set('images', [...edit.images, url]);
@@ -354,10 +427,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* Backdrop */}
             <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', border: 'none', cursor: 'default', padding: 0 }} />
 
-            {/* Modal */}
             <div style={{
                 position: 'relative', width: '100%', maxWidth: 620,
                 maxHeight: '94dvh', margin: '0 16px',
@@ -366,7 +437,6 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
                 direction: 'rtl', overflow: 'hidden',
             }}>
-                {/* Header */}
                 <div style={{ padding: '18px 20px 12px', background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                     <div style={{ width: 56, height: 56, borderRadius: 14, overflow: 'hidden', flexShrink: 0, border: '2px solid #e2e8f0' }}>
                         <img src={edit.main_image || RouterLogo} alt=""
@@ -387,7 +457,6 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                     </button>
                 </div>
 
-                {/* Tabs */}
                 <div style={{ display: 'flex', gap: 4, padding: '8px 12px', background: '#fff', borderBottom: '1px solid #f1f5f9', overflowX: 'auto', flexShrink: 0 }}>
                     {SECTIONS.map(s => {
                         let tabBg: string;
@@ -407,7 +476,6 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                     })}
                 </div>
 
-                {/* Content */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '18px 20px' }}>
 
                     {/* BASIC */}
@@ -421,7 +489,6 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                     onFocus={e => e.target.style.borderColor = '#0d9e6e'}
                                     onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
                             </div>
-                            {/* Category selector — preset tiles + custom fallback */}
                             <div>
                                 <FieldLabel>קטגוריה</FieldLabel>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 8 }}>
@@ -438,7 +505,6 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                         </button>
                                     ))}
                                 </div>
-                                {/* Custom / free-text — pre-filled if current category not in preset list */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <input
                                         value={CATEGORIES.some(c => c.id === edit.category) ? '' : edit.category}
@@ -495,8 +561,6 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                     {/* LOCATION */}
                     {activeSection === 'location' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-                            {/* ── Geocode search by name ── */}
                             <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 12, padding: 12 }}>
                                 <FieldLabel>חיפוש לפי שם מקום</FieldLabel>
                                 <div style={{ display: 'flex', gap: 8 }}>
@@ -590,22 +654,34 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                     {/* IMAGES */}
                     {activeSection === 'images' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* ── Main image ─────────────────────────────────────────── */}
                             <div>
-                                <FieldLabel>תמונה ראשית</FieldLabel>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>
+                                    תמונה ראשית
+                                </div>
                                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                                     <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', flexShrink: 0 }}>
-                                        <img src={edit.main_image || RouterLogo} alt=""
+                                        <img
+                                            src={edit.main_image || RouterLogo}
+                                            alt=""
                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                            onError={e => { (e.target as HTMLImageElement).src = RouterLogo; }} />
+                                            onError={e => { (e.target as HTMLImageElement).src = RouterLogo; }}
+                                        />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        {/* URL input */}
-                                        <input value={edit.main_image} onChange={e => set('main_image', e.target.value)}
+                                        <input
+                                            value={edit.main_image}
+                                            onChange={e => set('main_image', e.target.value)}
                                             placeholder="https://... (URL תמונה)"
-                                            style={{ width: '100%', border: '2px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box' }}
-                                            onFocus={e => e.target.style.borderColor = '#0d9e6e'}
-                                            onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-                                        {/* File upload button */}
+                                            style={{
+                                                width: '100%', border: '2px solid #e2e8f0', borderRadius: 10,
+                                                padding: '10px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif',
+                                                outline: 'none', boxSizing: 'border-box',
+                                            }}
+                                            onFocus={e => (e.target.style.borderColor = '#0d9e6e')}
+                                            onBlur={e => (e.target.style.borderColor = '#e2e8f0')}
+                                        />
+
                                         <input
                                             type="file"
                                             ref={mainImageFileRef}
@@ -613,64 +689,160 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                             style={{ display: 'none' }}
                                             onChange={handleMainImageFileUpload}
                                         />
+
                                         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                                             <button
                                                 onClick={() => mainImageFileRef.current?.click()}
                                                 disabled={mainImageUploading}
-                                                style={{ padding: '6px 12px', border: '1.5px solid #0d9e6e', borderRadius: 8, background: '#f0fdf8', color: '#0d9e6e', fontSize: 12, fontWeight: 700, cursor: mainImageUploading ? 'wait' : 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', gap: 5 }}
-                                            >
+                                                style={{
+                                                    padding: '6px 12px', border: '1.5px solid #0d9e6e',
+                                                    borderRadius: 8, background: '#f0fdf8', color: '#0d9e6e',
+                                                    fontSize: 12, fontWeight: 700,
+                                                    cursor: mainImageUploading ? 'wait' : 'pointer',
+                                                    fontFamily: 'Heebo, sans-serif',
+                                                    display: 'flex', alignItems: 'center', gap: 5,
+                                                }}>
                                                 {mainImageUploading ? '⏳ מעלה...' : '📁 העלה קובץ'}
                                             </button>
                                             {edit.main_image && (
-                                                <button onClick={() => set('main_image', '')}
-                                                    style={{ padding: '6px 10px', border: '1px solid #fecaca', borderRadius: 8, background: 'transparent', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+                                                <button
+                                                    onClick={() => set('main_image', '')}
+                                                    style={{
+                                                        padding: '6px 10px', border: '1px solid #fecaca',
+                                                        borderRadius: 8, background: 'transparent',
+                                                        color: '#ef4444', fontSize: 12, fontWeight: 700,
+                                                        cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
+                                                    }}>
                                                     🗑 מחק
                                                 </button>
                                             )}
                                         </div>
                                         {mainImageUploadError && (
-                                            <div style={{ marginTop: 4, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>⚠️ {mainImageUploadError}</div>
+                                            <div style={{ marginTop: 4, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+                                                ⚠️ {mainImageUploadError}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
                             </div>
-                            <InputField label="קרדיט לצלם (photo_credit)" value={edit.photo_credit} onChange={v => set('photo_credit', v)} placeholder="שם הצלם..." />
+
+                            {/* Photo credit */}
                             <div>
-                                <FieldLabel>גלריית תמונות ({edit.images.length})</FieldLabel>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>
+                                    קרדיט לצלם (photo_credit)
+                                </div>
+                                <input
+                                    value={edit.photo_credit}
+                                    onChange={e => set('photo_credit', e.target.value)}
+                                    placeholder="שם הצלם..."
+                                    style={{
+                                        width: '100%', border: '2px solid #e2e8f0', borderRadius: 10,
+                                        padding: '10px 12px', fontSize: 14, fontFamily: 'Heebo, sans-serif',
+                                        textAlign: 'right', outline: 'none', boxSizing: 'border-box',
+                                    }}
+                                    onFocus={e => (e.target.style.borderColor = '#0d9e6e')}
+                                    onBlur={e => (e.target.style.borderColor = '#e2e8f0')}
+                                />
+                            </div>
+
+                            {/* ── Gallery ──────────────────────────────────────────────── */}
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>
+                                    גלריית תמונות ({edit.images.length})
+                                </div>
+
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                     {edit.images.length === 0 && (
-                                        <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>אין תמונות בגלריה</div>
+                                        <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+                                            אין תמונות בגלריה
+                                        </div>
                                     )}
-                                    {edit.images.map(url => (
+                                    {edit.images.map((url: string) => (
                                         <div key={url} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 12, padding: '8px 12px', border: url === edit.main_image ? '2px solid #0d9e6e' : '1px solid #e2e8f0' }}>
                                             <div style={{ width: 52, height: 52, borderRadius: 10, overflow: 'hidden', flexShrink: 0 }}>
                                                 <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                     onError={e => { (e.target as HTMLImageElement).src = RouterLogo; }} />
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: 11, color: '#64748b', wordBreak: 'break-all' }}>{url.length > 55 ? url.slice(0, 55) + '…' : url}</div>
-                                                {url === edit.main_image && <div style={{ fontSize: 10, color: '#0d9e6e', fontWeight: 800, marginTop: 2 }}>✓ תמונה ראשית</div>}
+                                                <div style={{ fontSize: 11, color: '#64748b', wordBreak: 'break-all' }}>
+                                                    {url.length > 55 ? url.slice(0, 55) + '…' : url}
+                                                </div>
+                                                {url === edit.main_image && (
+                                                    <div style={{ fontSize: 10, color: '#0d9e6e', fontWeight: 800, marginTop: 2 }}>
+                                                        ✓ תמונה ראשית
+                                                    </div>
+                                                )}
                                             </div>
                                             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                                                 {url !== edit.main_image && (
                                                     <button onClick={() => set('main_image', url)}
-                                                        style={{ padding: '4px 8px', border: '1px solid #bbf7d0', borderRadius: 8, background: 'transparent', color: '#0d9e6e', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>ראשית</button>
+                                                        style={{ padding: '4px 8px', border: '1px solid #bbf7d0', borderRadius: 8, background: 'transparent', color: '#0d9e6e', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+                                                        ראשית
+                                                    </button>
                                                 )}
                                                 <button onClick={() => removeImage(url)}
-                                                    style={{ padding: '4px 8px', border: '1px solid #fecaca', borderRadius: 8, background: 'transparent', color: '#ef4444', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>🗑</button>
+                                                    style={{ padding: '4px 8px', border: '1px solid #fecaca', borderRadius: 8, background: 'transparent', color: '#ef4444', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+                                                    🗑
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
+
+                                    {galleryPreviews.length > 0 && (
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '8px 0' }}>
+                                            {galleryPreviews.map(p => (
+                                                <div key={p} style={{ position: 'relative', width: 52, height: 52 }}>
+                                                    <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10, opacity: 0.6 }} />
+                                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <span style={{ fontSize: 16 }}>⏳</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {galleryUploadError && (
+                                        <div style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+                                            ⚠️ {galleryUploadError}
+                                        </div>
+                                    )}
+
                                     <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                                        <input value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && addImage()}
+                                        <input
+                                            value={newImageUrl}
+                                            onChange={e => setNewImageUrl(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && addImageUrl()}
                                             placeholder="הוסף URL תמונה..."
                                             style={{ flex: 1, border: '2px dashed #cbd5e1', borderRadius: 10, padding: '10px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', background: '#f8fafc' }}
-                                            onFocus={e => e.target.style.borderColor = '#0d9e6e'}
-                                            onBlur={e => e.target.style.borderColor = '#cbd5e1'} />
-                                        <button onClick={addImage}
-                                            style={{ padding: '10px 14px', background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 13 }}>+ הוסף</button>
+                                            onFocus={e => (e.target.style.borderColor = '#0d9e6e')}
+                                            onBlur={e => (e.target.style.borderColor = '#cbd5e1')}
+                                        />
+                                        <button onClick={addImageUrl}
+                                            style={{ padding: '10px 14px', background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 13 }}>
+                                            + הוסף URL
+                                        </button>
                                     </div>
+
+                                    <input
+                                        type="file"
+                                        ref={galleryFileRef}
+                                        accept="image/*"
+                                        multiple
+                                        style={{ display: 'none' }}
+                                        onChange={handleGalleryFilesUpload}
+                                    />
+                                    <button
+                                        onClick={() => galleryFileRef.current?.click()}
+                                        disabled={galleryUploading}
+                                        style={{
+                                            width: '100%', padding: '10px', border: '2px dashed #0d9e6e',
+                                            borderRadius: 10, background: '#f0fdf8', color: '#0d9e6e',
+                                            fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13,
+                                            cursor: galleryUploading ? 'wait' : 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                        }}>
+                                        {galleryUploading ? '⏳ מעלה תמונות...' : '📁 העלה מספר תמונות לגלריה'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -731,7 +903,6 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                     )}
                 </div>
 
-                {/* Footer */}
                 <div style={{ padding: '14px 20px 18px', background: '#fff', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, flexShrink: 0, position: 'relative' }}>
                     {saveError && (
                         <div style={{ position: 'absolute', bottom: '100%', right: 20, left: 20, marginBottom: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '8px 12px', fontSize: 12, color: '#dc2626' }}>

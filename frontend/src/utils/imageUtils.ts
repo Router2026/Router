@@ -9,8 +9,8 @@ export type ImageSize = 'marker' | 'card' | 'hero' | 'lightbox' | 'thumb';
 const SIZE_MAP: Record<ImageSize, { width: number; quality: number }> = {
     marker: { width: 80, quality: 60 },  // Leaflet photo markers
     thumb: { width: 120, quality: 65 },  // NearbyPlaces row thumbnails
-    card: { width: 420, quality: 75 },  // Explore grid cards (~160px tall)
-    hero: { width: 820, quality: 82 },  // POIDetail hero banner
+    card: { width: 420, quality: 75 },   // Explore grid cards (~160px tall)
+    hero: { width: 820, quality: 82 },   // POIDetail hero banner
     lightbox: { width: 1400, quality: 88 },  // Full-screen lightbox viewer
 };
 
@@ -60,9 +60,9 @@ export function getImageUrl(src: string | null | undefined, size: ImageSize): st
  *
  * @example
  * <img
- *   src={getImageUrl(src, 'card')}
- *   srcSet={getSrcSet(src, 'card')}
- *   sizes="(max-width: 640px) 100vw, 420px"
+ * src={getImageUrl(src, 'card')}
+ * srcSet={getSrcSet(src, 'card')}
+ * sizes="(max-width: 640px) 100vw, 420px"
  * />
  */
 export function getSrcSet(src: string | null | undefined, size: ImageSize): string {
@@ -73,4 +73,47 @@ export function getSrcSet(src: string | null | undefined, size: ImageSize): stri
         `${getImageUrl(src, size)} ${base}w`,
         `${getImageUrl(src, size === 'card' ? 'hero' : 'lightbox')} ${retina}w`,
     ].join(', ');
+}
+
+// ── Fallback Logic (Req 3) ────────────────────────────────────────────────────
+
+/**
+ * Any object that can have a main image and a gallery array.
+ * Covers both router.locations (images: string[]) and
+ * router.community_pois (photos: string[]).
+ */
+export interface ImageSource {
+  main_image?: string | null;
+  images?: string[];    // locations table
+  photos?: string[];    // community_pois table
+}
+
+/**
+ * Returns the best available image URL for a place, in priority order:
+ *
+ * 1. main_image  (if the column has a non-empty string)
+ * 2. images[0]   (first item in the gallery, for router.locations)
+ * 3. photos[0]   (first item in the community gallery, for community_pois)
+ * 4. ''          (empty string — callers should fall back to a logo/placeholder)
+ *
+ * @example
+ * // In a card component:
+ * <img src={resolveMainImage(poi) || RouterLogo} />
+ */
+export function resolveMainImage(source: ImageSource): string {
+  // Priority 1: explicit main_image that is a non-empty string
+  if (source.main_image && source.main_image.trim() !== '') {
+    return source.main_image.trim();
+  }
+
+  // Priority 2: first item in the locations gallery array
+  const firstGallery = source.images?.find(u => u && u.trim() !== '');
+  if (firstGallery) return firstGallery.trim();
+
+  // Priority 3: first item in the community photos array
+  const firstPhoto = source.photos?.find(u => u && u.trim() !== '');
+  if (firstPhoto) return firstPhoto.trim();
+
+  // No image available
+  return '';
 }
