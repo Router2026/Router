@@ -224,24 +224,24 @@ export default function MyTrips() {
             </div>
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>📝 תיאור המסלול</label>
-                <textarea value={publishDesc} onChange={e => setPublishDesc(e.target.value)} rows={3}
+                <label htmlFor="mytrips-pub-desc" style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>📝 תיאור המסלול</label>
+                <textarea id="mytrips-pub-desc" value={publishDesc} onChange={e => setPublishDesc(e.target.value)} rows={3}
                   placeholder="מה מיוחד במסלול? למי הוא מתאים? מה הייתם ממליצים?"
                   style={{ width: '100%', padding: '11px 13px', border: '1.5px solid #e2e8f0', borderRadius: 13, fontSize: 13, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
                   onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
                   onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'} />
               </div>
               <div>
-                <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>✨ נקודות עניין</label>
-                <textarea value={publishPOI} onChange={e => setPublishPOI(e.target.value)} rows={2}
+                <label htmlFor="mytrips-pub-poi" style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>✨ נקודות עניין</label>
+                <textarea id="mytrips-pub-poi" value={publishPOI} onChange={e => setPublishPOI(e.target.value)} rows={2}
                   placeholder="מפל, תצפית, עץ עתיק — מה כדאי לשים לב?"
                   style={{ width: '100%', padding: '11px 13px', border: '1.5px solid #e2e8f0', borderRadius: 13, fontSize: 13, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
                   onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}
                   onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'} />
               </div>
               <div>
-                <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>🛑 עצירות מומלצות</label>
-                <textarea value={publishStops} onChange={e => setPublishStops(e.target.value)} rows={2}
+                <label htmlFor="mytrips-pub-stops" style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>🛑 עצירות מומלצות</label>
+                <textarea id="mytrips-pub-stops" value={publishStops} onChange={e => setPublishStops(e.target.value)} rows={2}
                   placeholder="היכן מומלץ לעצור ולהתעכב?"
                   style={{ width: '100%', padding: '11px 13px', border: '1.5px solid #e2e8f0', borderRadius: 13, fontSize: 13, fontFamily: 'Heebo, sans-serif', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
                   onFocus={e => e.currentTarget.style.borderColor = '#7c3aed'}

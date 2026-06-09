@@ -1054,10 +1054,11 @@ export default function RouteGenerator() {
 
               {/* Description */}
               <div>
-                <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
+                <label htmlFor="rg-pub-desc" style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
                   📝 תיאור המסלול <span style={{ fontWeight: 400, color: '#94a3b8' }}>(מה מיוחד? למי מתאים?)</span>
                 </label>
                 <textarea
+                  id="rg-pub-desc"
                   value={publishDesc}
                   onChange={e => setPublishDesc(e.target.value)}
                   rows={3}
@@ -1070,10 +1071,11 @@ export default function RouteGenerator() {
 
               {/* Points of interest */}
               <div>
-                <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
+                <label htmlFor="rg-pub-poi" style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
                   ✨ נקודות עניין מיוחדות <span style={{ fontWeight: 400, color: '#94a3b8' }}>(אטרקציות שכדאי לשים לב)</span>
                 </label>
                 <textarea
+                  id="rg-pub-poi"
                   value={publishPOI}
                   onChange={e => setPublishPOI(e.target.value)}
                   rows={3}
@@ -1086,10 +1088,11 @@ export default function RouteGenerator() {
 
               {/* Recommended stops */}
               <div>
-                <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
+                <label htmlFor="rg-pub-stops" style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
                   🛑 עצירות מומלצות <span style={{ fontWeight: 400, color: '#94a3b8' }}>(היכן כדאי להתעכב?)</span>
                 </label>
                 <textarea
+                  id="rg-pub-stops"
                   value={publishStops}
                   onChange={e => setPublishStops(e.target.value)}
                   rows={3}

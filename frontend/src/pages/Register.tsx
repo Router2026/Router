@@ -164,9 +164,10 @@ export default function Register() {
 
           {/* Username */}
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>שם משתמש *</label>
+            <label htmlFor="register-username" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>שם משתמש *</label>
             <div style={{ position: 'relative' }}>
               <input
+                id="register-username"
                 value={username}
                 onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                 placeholder="israel_123"
@@ -183,24 +184,24 @@ export default function Register() {
 
           {/* Full name */}
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>שם מלא *</label>
-            <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="ישראל ישראלי" style={inputBase}
+            <label htmlFor="register-fullname" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>שם מלא *</label>
+            <input id="register-fullname" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="ישראל ישראלי" style={inputBase}
               onFocus={e => (e.target.style.borderColor = '#0d9e6e')} onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
           </div>
 
           {/* Email */}
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימייל *</label>
-            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" type="email"
+            <label htmlFor="register-email" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימייל *</label>
+            <input id="register-email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" type="email"
               style={{ ...inputBase, direction: 'ltr', textAlign: 'left' }}
               onFocus={e => (e.target.style.borderColor = '#0d9e6e')} onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
           </div>
 
           {/* Password */}
           <div style={{ marginBottom: 4 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>סיסמה *</label>
+            <label htmlFor="register-password" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>סיסמה *</label>
             <div style={{ position: 'relative' }}>
-              <input value={password} onChange={e => setPassword(e.target.value)} placeholder="לפחות 6 תווים"
+              <input id="register-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="לפחות 6 תווים"
                 type={showPass ? 'text' : 'password'} style={{ ...inputBase, paddingLeft: 44, direction: 'ltr', textAlign: 'left' }}
                 onFocus={e => (e.target.style.borderColor = '#0d9e6e')} onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
               <button onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}>
@@ -216,9 +217,9 @@ export default function Register() {
 
           {/* Confirm */}
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימות סיסמה *</label>
+            <label htmlFor="register-confirm" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימות סיסמה *</label>
             <div style={{ position: 'relative' }}>
-              <input value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
+              <input id="register-confirm" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
                 type={showPass ? 'text' : 'password'}
                 style={{ ...inputBase, paddingRight: 44, borderColor: confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0' }}
                 onFocus={e => { if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e'; }}

@@ -104,19 +104,20 @@ const DIFF_COLOR: Record<string, string> = {
 function PlaceCard({ poi, onEdit }: { poi: POI; onEdit: (poi: POI) => void }) {
     const diff = DIFF_COLOR[poi.difficulty] || '#64748b';
     return (
-        <div onClick={() => onEdit(poi)} style={{
+        <button type="button" onClick={() => onEdit(poi)} style={{
             background: '#fff', borderRadius: 20, overflow: 'hidden',
             boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer',
             transition: 'transform 0.15s, box-shadow 0.15s',
             border: `1px solid ${poi.is_featured ? '#bbf7d0' : 'transparent'}`,
+            padding: 0, width: '100%', textAlign: 'right', fontFamily: 'Heebo, sans-serif',
         }}
             onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 24px rgba(0,0,0,0.12)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.12)';
             }}
             onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 16px rgba(0,0,0,0.07)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 16px rgba(0,0,0,0.07)';
             }}>
             <div style={{ position: 'relative', height: 160 }}>
                 <img src={poi.main_image || RouterLogo} alt={poi.name} loading="lazy"
@@ -170,7 +171,7 @@ function PlaceCard({ poi, onEdit }: { poi: POI; onEdit: (poi: POI) => void }) {
                     {poi.images?.length > 0 && <span style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', borderRadius: 5, padding: '1px 6px' }}>🖼 {poi.images.length}</span>}
                 </div>
             </div>
-        </div>
+        </button>
     );
 }
 

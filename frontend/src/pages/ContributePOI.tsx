@@ -556,10 +556,11 @@ export default function ContributePOI() {
 
         {/* ── Name ───────────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 10, textAlign: 'right' }}>
+          <label htmlFor="cpoi-name" style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 10, textAlign: 'right' }}>
             2. שם המיקום
           </label>
           <input
+            id="cpoi-name"
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="לדוגמה: מפל נסתר בגליל..."
@@ -570,9 +571,9 @@ export default function ContributePOI() {
 
         {/* ── Category ───────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 12, textAlign: 'right' }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 12, textAlign: 'right' }}>
             3. קטגוריה
-          </label>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {CATEGORIES.map(cat => (
               <button key={cat.id} onClick={() => setCategory(cat.id)}
@@ -586,10 +587,11 @@ export default function ContributePOI() {
 
         {/* ── Description ─────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 10, textAlign: 'right' }}>
+          <label htmlFor="cpoi-description" style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 10, textAlign: 'right' }}>
             4. תיאור (אופציונלי)
           </label>
           <textarea
+            id="cpoi-description"
             value={description}
             onChange={e => setDescription(e.target.value)}
             placeholder="ספר למטיילים על המיקום — איך מגיעים? מה מיוחד בו?"
@@ -601,9 +603,9 @@ export default function ContributePOI() {
 
         {/* ── Details ─────────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 12, textAlign: 'right' }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 12, textAlign: 'right' }}>
             5. פרטים נוספים
-          </label>
+          </div>
 
           {/* Difficulty */}
           <div style={{ marginBottom: 14 }}>
@@ -715,7 +717,9 @@ export default function ContributePOI() {
               {mediaItems.map(item => (
                 <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', aspectRatio: '1' }}>
                   {item.type === 'video' ? (
-                    <video src={item.previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+                    <video src={item.previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline>
+                      <track kind="captions" />
+                    </video>
                   ) : (
                     <img src={item.previewUrl} alt="preview"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}

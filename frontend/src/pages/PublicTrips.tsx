@@ -327,10 +327,11 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: {
 
           {/* Description */}
           <div>
-            <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
+            <label htmlFor="pt-edit-desc" style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
               📝 תיאור אישי <span style={{ fontWeight: 400, color: '#94a3b8' }}>(מה היה מיוחד? מה כדאי לדעת?)</span>
             </label>
             <textarea
+              id="pt-edit-desc"
               value={desc}
               onChange={e => setDesc(e.target.value)}
               rows={4}
@@ -344,7 +345,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: {
 
           {/* Image upload */}
           <div>
-            <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🖼️ תמונה ראשית</label>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🖼️ תמונה ראשית</div>
             <input ref={imageRef} type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleImage(f); }} style={{ display: 'none' }} />
             {imagePreview ? (
               <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden' }}>
@@ -371,11 +372,13 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: {
 
           {/* Video upload */}
           <div>
-            <label style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🎥 סרטון מסלול</label>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🎥 סרטון מסלול</div>
             <input ref={videoRef} type="file" accept="video/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleVideo(f); }} style={{ display: 'none' }} />
             {videoPreview ? (
               <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: '#000' }}>
-                <video src={videoPreview} controls style={{ width: '100%', maxHeight: 200, display: 'block' }} />
+                <video src={videoPreview} controls style={{ width: '100%', maxHeight: 200, display: 'block' }}>
+                  <track kind="captions" />
+                </video>
                 <button onClick={() => videoRef.current?.click()}
                   style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: 10, padding: '5px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}>
                   🔄 החלף
@@ -544,7 +547,9 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
           )}
           {hasVideo && mediaTab === 'video' && (
             <div style={{ background: '#0f172a' }}>
-              <video src={trip.video_url!} controls style={{ width: '100%', maxHeight: 300, display: 'block' }} />
+              <video src={trip.video_url!} controls style={{ width: '100%', maxHeight: 300, display: 'block' }}>
+                <track kind="captions" />
+              </video>
             </div>
           )}
           {/* View full trip overlay hint */}

@@ -396,7 +396,9 @@ function MediaGallery({
           <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
             <button onClick={closeLightbox} style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', zIndex: 1 }}>✕</button>
             {media[lightboxIdx].media_type === 'video' ? (
-              <video src={media[lightboxIdx].media_url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }} playsInline />
+              <video src={media[lightboxIdx].media_url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }} playsInline>
+                <track kind="captions" />
+              </video>
             ) : (
               <img src={getImageUrl(media[lightboxIdx].media_url, 'lightbox')} alt={media[lightboxIdx].caption || ''}
                 style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12, objectFit: 'contain' }} />

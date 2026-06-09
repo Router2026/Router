@@ -296,18 +296,18 @@ export default function TripPlanner() {
               <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', marginBottom: 4, textAlign: 'center' }}>פרטים אחרונים</h2>
               <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, textAlign: 'center' }}>כמעט סיימנו!</p>
 
-              <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 8, textAlign: 'right' }}>
+              <label htmlFor="tp-date" style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 8, textAlign: 'right' }}>
                 תאריך הטיול (אופציונלי)
               </label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{
+              <input id="tp-date" type="date" value={date} onChange={e => setDate(e.target.value)} style={{
                 width: '100%', padding: '14px 16px', border: '2px solid #e2e8f0', boxSizing: 'border-box',
                 borderRadius: 14, fontSize: 15, marginBottom: 24, fontFamily: 'Heebo, sans-serif',
                 textAlign: 'right', outline: 'none', background: '#f8fafc', color: '#334155'
               }} />
 
-              <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
                 שעות הטיול
-              </label>
+              </div>
               <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, textAlign: 'center', marginBottom: 4 }}>סיום</div>
@@ -343,9 +343,9 @@ export default function TripPlanner() {
                 <span style={{ fontSize: 18 }}>{userLocation ? '📍' : '🔍'}</span>
               </div>
 
-              <label style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
                 מספר עצירות מקסימלי
-              </label>
+              </div>
               <div style={{ display: 'flex', gap: 10, marginBottom: 32, justifyContent: 'flex-end', flexDirection: 'row-reverse' }}>
                 {STOP_COUNTS.map(c => (
                   <button key={c} onClick={() => setStops(c)} style={{

@@ -90,9 +90,9 @@ export default function ResetPassword() {
         <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.1)', padding: '28px 24px 24px' }}>
 
           <div style={{ marginBottom: 4 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>סיסמה חדשה *</label>
+            <label htmlFor="rp-new-password" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>סיסמה חדשה *</label>
             <div style={{ position: 'relative' }}>
-              <input value={password} onChange={e => setPassword(e.target.value)} placeholder="לפחות 6 תווים"
+              <input id="rp-new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="לפחות 6 תווים"
                 type={showPass ? 'text' : 'password'} style={{ ...inputBase, paddingLeft: 44 }}
                 onFocus={e => (e.target.style.borderColor = '#0d9e6e')} onBlur={e => (e.target.style.borderColor = '#e2e8f0')} />
               <button onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}>
@@ -107,9 +107,9 @@ export default function ResetPassword() {
           <StrengthBar password={password} />
 
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימות סיסמה *</label>
+            <label htmlFor="rp-confirm-password" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימות סיסמה *</label>
             <div style={{ position: 'relative' }}>
-              <input value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
+              <input id="rp-confirm-password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
                 type={showPass ? 'text' : 'password'}
                 style={{ ...inputBase, paddingRight: 44, borderColor: confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0' }}
               />

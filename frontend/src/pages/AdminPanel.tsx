@@ -89,15 +89,15 @@ function EditModal({ poi, onClose, onSaved }: EditModalProps) {
         </h3>
 
         {[
-          { label: 'שם', value: name, set: setName, multi: false },
-          { label: 'קטגוריה', value: category, set: setCategory, multi: false },
+          { label: 'שם', value: name, set: setName, id: 'edit-modal-name' },
+          { label: 'קטגוריה', value: category, set: setCategory, id: 'edit-modal-category' },
         ].map(f => (
           <div key={f.label} style={{ marginBottom: 12 }}>
-            <label style={{
+            <label htmlFor={f.id} style={{
               fontSize: 12, fontWeight: 700, color: '#64748b',
               display: 'block', marginBottom: 4
             }}>{f.label}</label>
-            <input value={f.value} onChange={e => f.set(e.target.value)}
+            <input id={f.id} value={f.value} onChange={e => f.set(e.target.value)}
               style={{
                 width: '100%', border: '2px solid #e2e8f0', borderRadius: 10,
                 padding: '10px 12px', fontSize: 14, fontFamily: 'Heebo, sans-serif',
@@ -107,11 +107,11 @@ function EditModal({ poi, onClose, onSaved }: EditModalProps) {
         ))}
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{
+          <label htmlFor="edit-modal-description" style={{
             fontSize: 12, fontWeight: 700, color: '#64748b',
             display: 'block', marginBottom: 4
           }}>תיאור</label>
-          <textarea value={description} onChange={e => setDescription(e.target.value)}
+          <textarea id="edit-modal-description" value={description} onChange={e => setDescription(e.target.value)}
             rows={3}
             style={{
               width: '100%', border: '2px solid #e2e8f0', borderRadius: 10,
@@ -388,10 +388,11 @@ function CommunityPoisTab() {
             <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a', marginBottom: 12 }}>
               דחיית מיקום
             </h3>
-            <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 8 }}>
+            <label htmlFor="ap-reject-note" style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 8 }}>
               הערה למשתמש (אופציונלי)
             </label>
             <textarea
+              id="ap-reject-note"
               value={rejectNote.note}
               onChange={e => setRejectNote({ ...rejectNote, note: e.target.value })}
               placeholder="לדוגמה: המיקום כבר קיים במפה..."

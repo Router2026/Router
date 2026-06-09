@@ -64,7 +64,9 @@ export default function UploadVideo() {
             padding: '40px 20px', textAlign: 'center',
           }}>
             {preview ? (
-              <video src={preview} controls style={{ maxHeight: 200, width: '100%', borderRadius: 12 }} />
+              <video src={preview} controls style={{ maxHeight: 200, width: '100%', borderRadius: 12 }}>
+                <track kind="captions" />
+              </video>
             ) : (
               <>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>🎥</div>
@@ -81,8 +83,9 @@ export default function UploadVideo() {
         <div style={{ background: '#fff', borderRadius: 20, padding: '20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 16, textAlign: 'right', margin: '0 0 16px 0' }}>פרטי הסרטון</h3>
 
-          <label style={{ fontSize: 13, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6, textAlign: 'right' }}>כותרת</label>
+          <label htmlFor="uv-title" style={{ fontSize: 13, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6, textAlign: 'right' }}>כותרת</label>
           <input
+            id="uv-title"
             value={formData.title}
             onChange={e => setFormData(p => ({ ...p, title: e.target.value }))}
             placeholder="כותרת הסרטון..."
@@ -93,7 +96,7 @@ export default function UploadVideo() {
             }}
           />
 
-          <label style={{ fontSize: 13, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 10, textAlign: 'right' }}>אזור</label>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 10, textAlign: 'right' }}>אזור</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16, direction: 'rtl' }}>
             {REGIONS.map(r => (
               <button
@@ -111,8 +114,9 @@ export default function UploadVideo() {
             ))}
           </div>
 
-          <label style={{ fontSize: 13, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6, textAlign: 'right' }}>תיאור</label>
+          <label htmlFor="uv-description" style={{ fontSize: 13, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6, textAlign: 'right' }}>תיאור</label>
           <textarea
+            id="uv-description"
             value={formData.description}
             onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
             placeholder="תאר את הסרטון..."

@@ -510,7 +510,9 @@ export default function PublicTripDetail() {
             )}
             {hasVideo && (!hasImage || activeMediaTab === 'video') && (
               <div style={{ background: '#0f172a' }}>
-                <video controls style={{ width: '100%', maxHeight: 300, display: 'block' }} src={trip.video_url!} />
+                <video controls style={{ width: '100%', maxHeight: 300, display: 'block' }} src={trip.video_url!}>
+                  <track kind="captions" />
+                </video>
               </div>
             )}
           </div>
@@ -622,7 +624,9 @@ export default function PublicTripDetail() {
                         onChange={e => { const f = e.target.files?.[0]; if (f) handleVideoUpload(f); }} />
                       {trip.video_url ? (
                         <div style={{ borderRadius: 13, overflow: 'hidden', background: '#0f172a' }}>
-                          <video controls style={{ width: '100%', maxHeight: 180, display: 'block' }} src={trip.video_url} />
+                          <video controls style={{ width: '100%', maxHeight: 180, display: 'block' }} src={trip.video_url}>
+                            <track kind="captions" />
+                          </video>
                           <button onClick={() => videoInputRef.current?.click()}
                             style={{ width: '100%', padding: '9px', border: 'none', background: '#1e293b', color: '#94a3b8', fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 13 }}>
                             🔄 החלף סרטון
@@ -869,7 +873,9 @@ export default function PublicTripDetail() {
                       <img src={m.url} alt={m.caption || ''}
                         style={{ width: '100%', maxHeight: 280, objectFit: 'cover', display: 'block' }} />
                     </button>
-                  : <video src={m.url} controls style={{ width: '100%', maxHeight: 280, display: 'block', background: '#000' }} />
+                  : <video src={m.url} controls style={{ width: '100%', maxHeight: 280, display: 'block', background: '#000' }}>
+                      <track kind="captions" />
+                    </video>
                 }
               </div>
             ))}

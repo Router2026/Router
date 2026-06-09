@@ -157,8 +157,8 @@ export default function ProfileEdit() {
                 style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px solid #0d9e6e', background: '#f0fdf8', color: '#0d9e6e', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 {avatarUploading ? '⏳ טוען...' : '📁 העלה מהמחשב'}
               </button>
-              <label style={{ ...labelStyle, marginBottom: 0 }}>או קישור (URL)</label>
-              <input type="url" value={form.avatar_url.startsWith('data:') ? '' : form.avatar_url}
+              <label htmlFor="pe-avatar-url" style={{ ...labelStyle, marginBottom: 0 }}>או קישור (URL)</label>
+              <input id="pe-avatar-url" type="url" value={form.avatar_url.startsWith('data:') ? '' : form.avatar_url}
                 onChange={e => set('avatar_url', e.target.value)}
                 placeholder="https://i.imgur.com/example.jpg"
                 style={{ ...inputStyle, direction: 'ltr' }} />
@@ -170,16 +170,16 @@ export default function ProfileEdit() {
         <div style={cardStyle}>
           <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a', marginBottom: 16 }}>מידע אישי</div>
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>שם מלא</label>
-            <input value={form.full_name} onChange={e => set('full_name', e.target.value)} style={inputStyle} placeholder="השם שלך" />
+            <label htmlFor="pe-full-name" style={labelStyle}>שם מלא</label>
+            <input id="pe-full-name" value={form.full_name} onChange={e => set('full_name', e.target.value)} style={inputStyle} placeholder="השם שלך" />
           </div>
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>שם משתמש</label>
-            <input value={form.username} onChange={e => set('username', e.target.value)} style={{ ...inputStyle, direction: 'ltr' }} placeholder="username" />
+            <label htmlFor="pe-username" style={labelStyle}>שם משתמש</label>
+            <input id="pe-username" value={form.username} onChange={e => set('username', e.target.value)} style={{ ...inputStyle, direction: 'ltr' }} placeholder="username" />
           </div>
           <div>
-            <label style={labelStyle}>ביוגרפיה קצרה</label>
-            <textarea value={form.bio} onChange={e => set('bio', e.target.value)} rows={3}
+            <label htmlFor="pe-bio" style={labelStyle}>ביוגרפיה קצרה</label>
+            <textarea id="pe-bio" value={form.bio} onChange={e => set('bio', e.target.value)} rows={3}
               placeholder="ספר על עצמך, האזורים האהובים עליך..."
               style={{ ...inputStyle, resize: 'vertical' } as any} />
           </div>
@@ -207,12 +207,12 @@ export default function ProfileEdit() {
         <div style={cardStyle}>
           <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a', marginBottom: 16 }}>קישורים חברתיים</div>
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>📸 Instagram</label>
-            <input value={form.instagram} onChange={e => set('instagram', e.target.value)} placeholder="@username" style={{ ...inputStyle, direction: 'ltr' }} />
+            <label htmlFor="pe-instagram" style={labelStyle}>📸 Instagram</label>
+            <input id="pe-instagram" value={form.instagram} onChange={e => set('instagram', e.target.value)} placeholder="@username" style={{ ...inputStyle, direction: 'ltr' }} />
           </div>
           <div>
-            <label style={labelStyle}>🌐 אתר אישי</label>
-            <input value={form.website} onChange={e => set('website', e.target.value)} placeholder="https://mysite.com" style={{ ...inputStyle, direction: 'ltr' }} />
+            <label htmlFor="pe-website" style={labelStyle}>🌐 אתר אישי</label>
+            <input id="pe-website" value={form.website} onChange={e => set('website', e.target.value)} placeholder="https://mysite.com" style={{ ...inputStyle, direction: 'ltr' }} />
           </div>
         </div>
 
@@ -252,10 +252,11 @@ export default function ProfileEdit() {
           <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
             פעולה זו תמחק לצמיתות את החשבון שלך ואת כל הנתונים המשויכים אליו. לא ניתן לבטל פעולה זו.
           </p>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+          <label htmlFor="pe-delete-confirm" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
             הקלד <strong>מחק את החשבון שלי</strong> לאישור:
           </label>
           <input
+            id="pe-delete-confirm"
             value={deleteConfirmText}
             onChange={e => setDeleteConfirmText(e.target.value)}
             placeholder="מחק את החשבון שלי"

@@ -175,7 +175,9 @@ export default function UploadPhotoButton({ locationId, onUploaded }: Props) {
                         controls
                         style={{ width: '100%', maxHeight: 200, borderRadius: 12, border: '2px solid #e2e8f0', background: '#000' }}
                         playsInline
-                      />
+                      >
+                        <track kind="captions" />
+                      </video>
                     ) : (
                       <img src={preview} alt="preview"
                         style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 12, border: '2px solid #e2e8f0' }}
@@ -210,10 +212,11 @@ export default function UploadPhotoButton({ locationId, onUploaded }: Props) {
                     </button>
                   ))}
                 </div>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+                <label htmlFor="upload-url-input" style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
                   קישור ל{urlMediaType === 'video' ? 'סרטון' : 'תמונה'} (https://)
                 </label>
                 <input
+                  id="upload-url-input"
                   type="url"
                   value={urlInput}
                   onChange={e => setUrlInput(e.target.value)}
@@ -230,10 +233,11 @@ export default function UploadPhotoButton({ locationId, onUploaded }: Props) {
 
             {/* Caption */}
             <div style={{ marginBottom: 8 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+              <label htmlFor="upload-caption" style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
                 כיתוב (אופציונלי)
               </label>
               <input
+                id="upload-caption"
                 type="text"
                 value={caption}
                 onChange={e => setCaption(e.target.value)}
