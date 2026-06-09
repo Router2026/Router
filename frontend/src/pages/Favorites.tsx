@@ -87,18 +87,19 @@ export default function Favorites() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {favorites.map(fav => (
-            <div
+            <button
               key={fav.id}
+              type="button"
               onClick={() => navigate(`/POIDetail?id=${fav.location_id}`)}
               style={{
                 background: '#fff', borderRadius: 16,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                 display: 'flex', gap: 12, alignItems: 'center',
                 padding: '12px 14px', cursor: 'pointer',
-                transition: 'transform 0.15s',
+                transition: 'transform 0.15s', border: 'none', width: '100%', textAlign: 'right',
               }}
-              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.transform = 'translateX(-2px)'}
-              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.transform = ''}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ''; }}
             >
               {/* Thumbnail */}
               <div style={{
@@ -135,7 +136,7 @@ export default function Favorites() {
 
               {/* Heart button */}
               <FavoriteButton locationId={fav.location_id} size={22} />
-            </div>
+            </button>
           ))}
         </div>
       </div>

@@ -654,7 +654,7 @@ export default function ContributePOI() {
 
         {/* ── Media (images + videos) ─────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-          <label style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+          <label htmlFor="cpoi-media-input" style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', display: 'block', marginBottom: 4, textAlign: 'right' }}>
             6. תמונות וסרטונים (אופציונלי)
           </label>
           <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10, textAlign: 'right' }}>
@@ -663,6 +663,7 @@ export default function ContributePOI() {
 
           {/* Hidden file input */}
           <input
+            id="cpoi-media-input"
             ref={fileInputRef}
             type="file"
             accept="image/*,video/*"
