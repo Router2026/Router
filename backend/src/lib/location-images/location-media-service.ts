@@ -134,7 +134,7 @@ export async function saveLocationMedia(
   }
 
   const xpResult = await awardXp(userId, XP_REWARDS.PHOTO_UPLOAD);
-  return { media: rows[0] as LocationMedia, xp: xpResult };
+  return { media: rows[0]  as unknown as LocationMedia, xp: xpResult };
 }
 
 /**
@@ -158,7 +158,7 @@ export async function getLocationMedia(
      ORDER BY m.created_at DESC`,
     [locationId]
   );
-  return rows as LocationMedia[];
+  return rows  as unknown as LocationMedia[];
 }
 
 export async function approveMedia(mediaId: number, adminId: number): Promise<LocationMedia> {
@@ -170,7 +170,7 @@ export async function approveMedia(mediaId: number, adminId: number): Promise<Lo
     [mediaId, adminId]
   );
   if (!rows.length) throw Object.assign(new Error("Media not found"), { code: "NOT_FOUND" });
-  return rows[0] as LocationMedia;
+  return rows[0]  as unknown as LocationMedia;
 }
 
 export async function rejectMedia(mediaId: number): Promise<void> {

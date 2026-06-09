@@ -57,7 +57,7 @@ export async function getReports(opts: GetReportsOptions = {}): Promise<Communit
      LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
     params
   );
-  return rows as CommunityReport[];
+  return rows  as unknown as CommunityReport[];
 }
 
 export interface CreateReportInput {
@@ -101,7 +101,7 @@ export async function createReport(data: CreateReportInput): Promise<CommunityRe
     );
   }
 
-  return rows[0] as CommunityReport;
+  return rows[0]  as unknown as CommunityReport;
 }
 
 export async function upvoteReport(id: number, delta: 1 | -1): Promise<CommunityReport | null> {
@@ -111,5 +111,5 @@ export async function upvoteReport(id: number, delta: 1 | -1): Promise<Community
      WHERE id = $1 RETURNING *`,
     [id, delta]
   );
-  return (rows[0] as CommunityReport) ?? null;
+  return (rows[0]  as unknown as CommunityReport) ?? null;
 }

@@ -32,9 +32,9 @@ export async function addFavorite(userId: number, locationId: number): Promise<F
       `SELECT * FROM favorites WHERE user_id = $1 AND location_id = $2`,
       [userId, locationId]
     );
-    return existing.rows[0] as FavoriteLocation;
+    return existing.rows[0]  as unknown as FavoriteLocation;
   }
-  return rows[0] as FavoriteLocation;
+  return rows[0]  as unknown as FavoriteLocation;
 }
 
 export async function removeFavorite(userId: number, locationId: number): Promise<void> {
@@ -55,7 +55,7 @@ export async function getUserFavorites(userId: number): Promise<FavoriteLocation
      ORDER BY f.created_at DESC`,
     [userId]
   );
-  return rows as FavoriteLocation[];
+  return rows  as unknown as FavoriteLocation[];
 }
 
 export async function isFavorite(userId: number, locationId: number): Promise<boolean> {

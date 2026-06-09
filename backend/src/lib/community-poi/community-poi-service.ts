@@ -61,7 +61,7 @@ export async function listAllCommunityPois(
      ORDER BY cp.created_at DESC`,
     params
   );
-  return rows as CommunityPoiRow[];
+  return rows as unknown as CommunityPoiRow[];
 }
 
 export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | null> {
@@ -74,7 +74,7 @@ export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | nul
      WHERE  cp.id = $1`,
     [id]
   );
-  return (rows[0] as CommunityPoiRow) ?? null;
+  return (rows[0] as unknown as CommunityPoiRow) ?? null;
 }
 
 // ── Create ─────────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ export async function approveCommunityPoi(
       throw Object.assign(new Error("Community POI not found"), { code: "NOT_FOUND" });
     }
 
-    const poi = updatedRows[0] as CommunityPoiRow;
+    const poi = updatedRows[0] as unknown as CommunityPoiRow;
 
     // 2. Fetch submitter username for credit fields
     let submitterUsername: string | null = null;
@@ -350,5 +350,5 @@ export async function editCommunityPoi(
       updates.photos ? JSON.stringify(updates.photos) : null,
     ]
   );
-  return rows[0] as CommunityPoiRow;
+  return rows[0] as unknown as CommunityPoiRow;
 }

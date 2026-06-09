@@ -89,7 +89,7 @@ export async function addRouteComment(routeId: number, userId: number, content: 
   );
 
   // Cast through unknown to satisfy TypeScript strictness
-  return full[0] as RouteComment;
+  return full[0] as unknown as RouteComment;
 }
 
 export async function getRouteComments(routeId: number): Promise<RouteComment[]> {
@@ -104,7 +104,7 @@ export async function getRouteComments(routeId: number): Promise<RouteComment[]>
   );
 
   // Cast through unknown to satisfy TypeScript strictness
-  return rows as RouteComment[];
+  return rows  as unknown as RouteComment[];
 }
 
 export async function deleteRouteComment(commentId: number, userId: number, isAdmin: boolean): Promise<void> {
