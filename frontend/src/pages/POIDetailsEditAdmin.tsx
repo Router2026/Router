@@ -84,14 +84,14 @@ const DIFF_COLOR: Record<string, string> = {
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
-function LocationPickerMap({ lat, lng, onChange }: Readonly<{ lat: number; lng: number; onChange: (lat: number, lng: number) => void }>) {
+function LocationPickerMap({ lat, lng, onChange }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
     const MapEvents = () => {
         useMapEvents({ click(e) { onChange(e.latlng.lat, e.latlng.lng); } });
         return null;
     };
     return (
         <div style={{ height: 220, width: '100%', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0' }}>
-            <MapContainer center={[lat || 31.5, lng || 35]} zoom={11} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={[lat || 31.5, lng || 35.0]} zoom={11} style={{ height: '100%', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 {!!(lat && lng) && <Marker position={[lat, lng]} />}
                 <MapEvents />
@@ -100,7 +100,7 @@ function LocationPickerMap({ lat, lng, onChange }: Readonly<{ lat: number; lng: 
     );
 }
 
-function StarRating({ value, onChange }: Readonly<{ value: number; onChange: (v: number) => void }>) {
+function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
     const [hover, setHover] = useState(0);
     return (
         <div style={{ display: 'flex', gap: 4, direction: 'ltr', alignItems: 'center' }}>
@@ -114,7 +114,7 @@ function StarRating({ value, onChange }: Readonly<{ value: number; onChange: (v:
     );
 }
 
-function Toggle({ label, checked, onChange }: Readonly<{ label: string; checked: boolean; onChange: (v: boolean) => void }>) {
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
     return (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
@@ -126,14 +126,14 @@ function Toggle({ label, checked, onChange }: Readonly<{ label: string; checked:
     );
 }
 
-function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
+function FieldLabel({ children }: { children: React.ReactNode }) {
     return <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>{children}</div>;
 }
 
-function InputField({ label, value, onChange, type = 'text', placeholder = '', step, readOnly }: Readonly<{
+function InputField({ label, value, onChange, type = 'text', placeholder = '', step, readOnly }: {
     label: string; value: string; onChange?: (v: string) => void;
     type?: string; placeholder?: string; step?: string; readOnly?: boolean;
-}>) {
+}) {
     return (
         <div>
             <FieldLabel>{label}</FieldLabel>
@@ -155,66 +155,6 @@ function InputField({ label, value, onChange, type = 'text', placeholder = '', s
     );
 }
 
-// ── module-level helpers (reduce cognitive complexity of the main component) ───
-
-function buildSavePayload(edit: EditState): Record<string, unknown> {
-    const payload: Record<string, unknown> = {
-        name: edit.name,
-        description: edit.description,
-        category: edit.category,
-        difficulty: edit.difficulty,
-        has_water: edit.has_water,
-        has_shade: edit.has_shade,
-        accessible: edit.accessible,
-        is_featured: edit.is_featured,
-        photo_credit: edit.photo_credit || null,
-        main_image: edit.main_image || null,
-        images: edit.images,
-        average_rating: Number.parseFloat(edit.average_rating) || 4,
-        latitude: Number.parseFloat(edit.latitude),
-        longitude: Number.parseFloat(edit.longitude),
-        source: edit.source || undefined,
-        source_id: edit.source_id || undefined,
-        uploaded_by: edit.uploaded_by || null,
-    };
-    if (edit.duration_minutes) payload.duration_minutes = Number.parseInt(edit.duration_minutes);
-    if (edit.region_id) payload.region_id = Number.parseInt(edit.region_id);
-    return payload;
-}
-
-function buildUpdatedPOI(
-    poi: POI,
-    edit: EditState,
-    regions: Region[],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resData: any,
-): POI {
-    return {
-        ...poi,
-        name: edit.name,
-        description: edit.description,
-        category: edit.category,
-        difficulty: edit.difficulty,
-        duration_minutes: edit.duration_minutes ? Number.parseInt(edit.duration_minutes) : undefined,
-        has_water: edit.has_water,
-        has_shade: edit.has_shade,
-        accessible: edit.accessible,
-        photo_credit: edit.photo_credit || undefined,
-        main_image: edit.main_image,
-        images: edit.images,
-        latitude: Number.parseFloat(edit.latitude),
-        longitude: Number.parseFloat(edit.longitude),
-        average_rating: Number.parseFloat(edit.average_rating) || 4,
-        region_id: edit.region_id ? Number.parseInt(edit.region_id) : poi.region_id,
-        region: regions.find(r => String(r.id) === edit.region_id)?.name || poi.region,
-        uploaded_by: edit.uploaded_by || undefined,
-        ...resData,
-        is_featured: edit.is_featured,
-        // source/source_id are backend-only fields not in the POI type
-        ...({ source: edit.source, source_id: edit.source_id } as Record<string, unknown>),
-    } as POI;
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export interface POIDetailsEditAdminProps {
@@ -225,7 +165,7 @@ export interface POIDetailsEditAdminProps {
     onDeleted: (id: string) => void;
 }
 
-export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, onDeleted }: Readonly<POIDetailsEditAdminProps>) {
+export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, onDeleted }: POIDetailsEditAdminProps) {
     const [edit, setEdit] = useState<EditState>({
         name: poi.name,
         description: poi.description || '',
@@ -269,12 +209,58 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
     const handleSave = async () => {
         setSaving(true); setSaveError(''); setSaveSuccess(false);
         try {
-            const payload = buildSavePayload(edit);
+            const payload: Record<string, unknown> = {
+                name: edit.name,
+                description: edit.description,
+                category: edit.category,
+                difficulty: edit.difficulty,
+                has_water: edit.has_water,
+                has_shade: edit.has_shade,
+                accessible: edit.accessible,
+                is_featured: edit.is_featured,
+                photo_credit: edit.photo_credit || null,
+                main_image: edit.main_image || null,
+                images: edit.images,
+                average_rating: Number.parseFloat(edit.average_rating) || 4.0,
+                latitude: Number.parseFloat(edit.latitude),
+                longitude: Number.parseFloat(edit.longitude),
+                source: edit.source || undefined,
+                source_id: edit.source_id || undefined,
+                uploaded_by: edit.uploaded_by || null,
+            };
+            if (edit.duration_minutes) payload.duration_minutes = Number.parseInt(edit.duration_minutes);
+            if (edit.region_id) payload.region_id = Number.parseInt(edit.region_id);
+
             const res = await adminFetch<{ data: any }>(`/locations/${poi.id}`, {
                 method: 'PATCH',
                 body: JSON.stringify(payload),
             });
-            const updated = buildUpdatedPOI(poi, edit, regions, res?.data);
+
+            const updated: POI = {
+                ...poi,
+                name: edit.name,
+                description: edit.description,
+                category: edit.category,
+                difficulty: edit.difficulty,
+                duration_minutes: edit.duration_minutes ? Number.parseInt(edit.duration_minutes) : undefined,
+                has_water: edit.has_water,
+                has_shade: edit.has_shade,
+                accessible: edit.accessible,
+                photo_credit: edit.photo_credit || undefined,
+                main_image: edit.main_image,
+                images: edit.images,
+                latitude: Number.parseFloat(edit.latitude),
+                longitude: Number.parseFloat(edit.longitude),
+                average_rating: Number.parseFloat(edit.average_rating) || 4.0,
+                region_id: edit.region_id ? Number.parseInt(edit.region_id) : poi.region_id,
+                region: regions.find(r => String(r.id) === edit.region_id)?.name || poi.region,
+                uploaded_by: edit.uploaded_by || undefined,
+                ...(res as any)?.data,
+                is_featured: edit.is_featured,
+                source: edit.source,
+                source_id: edit.source_id,
+            } as any;
+
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2000);
             onSaved(updated);
@@ -336,7 +322,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
 
     const handleMapsLinkChange = (val: string) => {
         setMapsLink(val);
-        const match = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(val);
+        const match = val.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (match) { set('latitude', match[1]); set('longitude', match[2]); }
     };
 
@@ -404,10 +390,18 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: 4, padding: '8px 12px', background: '#fff', borderBottom: '1px solid #f1f5f9', overflowX: 'auto', flexShrink: 0 }}>
                     {SECTIONS.map(s => {
-                        const isDanger = s.id === 'danger';
-                        const isActive = activeSection === s.id;
-                        const tabBg = isActive ? (isDanger ? '#dc2626' : '#0d9e6e') : 'transparent';
-                        const tabColor = isActive ? '#fff' : (isDanger ? '#dc2626' : '#64748b');
+                        let tabBg: string;
+                        if (activeSection === s.id) {
+                            tabBg = s.id === 'danger' ? '#dc2626' : '#0d9e6e';
+                        } else {
+                            tabBg = 'transparent';
+                        }
+                        let tabColor: string;
+                        if (activeSection === s.id) {
+                            tabColor = '#fff';
+                        } else {
+                            tabColor = s.id === 'danger' ? '#dc2626' : '#64748b';
+                        }
                         return (
                             <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
                                 padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
@@ -531,8 +525,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{geoError}</div>}
                                 {geoResults.length > 0 && (
                                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        {geoResults.map((r) => (
-                                            <button key={r.display_name} onClick={() => {
+                                        {geoResults.map((r, i) => (
+                                            <button key={i} onClick={() => {
                                                 set('latitude', Number.parseFloat(r.lat).toFixed(6));
                                                 set('longitude', Number.parseFloat(r.lon).toFixed(6));
                                                 setGeoResults([]);
@@ -579,7 +573,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 <FieldLabel>בחר מיקום על המפה (לחץ לעדכון)</FieldLabel>
                                 <LocationPickerMap
                                     lat={Number.parseFloat(edit.latitude) || 31.5}
-                                    lng={Number.parseFloat(edit.longitude) || 35}
+                                    lng={Number.parseFloat(edit.longitude) || 35.0}
                                     onChange={(lat, lng) => { set('latitude', lat.toFixed(6)); set('longitude', lng.toFixed(6)); }}
                                 />
                             </div>
@@ -727,10 +721,17 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                     מחיקת <strong>{poi.name}</strong> תמחק את כל הנתונים הקשורים אליו לצמיתות. פעולה זו אינה ניתנת לביטול.
                                 </p>
                                 {(() => {
-                                    const deleteLabel = deleting ? '⏳ מוחק...' : confirmDelete ? '⚠️ לחץ שוב לאישור סופי' : '🗑 מחק מקום לצמיתות';
+                                    let deleteLabel: string;
+                                    if (deleting) {
+                                        deleteLabel = '⏳ מוחק...';
+                                    } else if (confirmDelete) {
+                                        deleteLabel = '⚠️ לחץ שוב לאישור סופי';
+                                    } else {
+                                        deleteLabel = '🗑 מחק מקום לצמיתות';
+                                    }
                                     return (
                                         <button onClick={handleDelete} disabled={deleting} style={{
-                                            width: '100%', padding: '14px', border: `2px solid ${confirmDelete ? '#dc2626' : '#fecaca'}` as any,
+                                            width: '100%', padding: '14px', border: `2px solid ${confirmDelete ? '#dc2626' : '#fecaca'}`,
                                             borderRadius: 12, background: confirmDelete ? '#dc2626' : '#fff',
                                             color: confirmDelete ? '#fff' : '#dc2626',
                                             fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s',

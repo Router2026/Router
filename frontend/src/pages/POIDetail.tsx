@@ -10,7 +10,7 @@
 //     spinner that would show nothing useful during a slow/failed load.
 //  4. The admin regions list is also parallelised into the same fan-out.
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
@@ -118,11 +118,11 @@ async function fetchRoute(
 
 function RouteLayer({
   userCoords, poiCoords, onRouteLoaded,
-}: Readonly<{
+}: {
   userCoords: [number, number] | null;
   poiCoords: [number, number];
   onRouteLoaded: (info: { distanceKm: number; durationMin: number }) => void;
-}>) {
+}) {
   const map = useMap();
   const lineRef = useRef<L.Polyline | null>(null);
   const userMarkerRef = useRef<L.CircleMarker | null>(null);
@@ -152,9 +152,9 @@ function RouteLayer({
 
 function HeroImage({
   poi, galleryImages, photoCredit,
-}: Readonly<{
+}: {
   poi: POI; galleryImages: LocationImage[]; photoCredit?: string;
-}>) {
+}) {
   const [imgIdx, setImgIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
 
@@ -173,7 +173,7 @@ function HeroImage({
     const link = document.createElement('link');
     link.rel = 'preload'; link.as = 'image'; link.href = href;
     document.head.appendChild(link);
-    return () => { link.remove(); };
+    return () => { document.head.removeChild(link); };
   }, [images]);
 
   const currentSrc = !imgError && images[imgIdx] ? getImageUrl(images[imgIdx], 'hero') : null;
@@ -209,8 +209,8 @@ function HeroImage({
           <button onClick={() => setImgIdx(i => Math.min(images.length - 1, i + 1))} aria-label="תמונה הבאה"
             style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }} />
           <div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 12 }}>
-            {images.map((img, i) => (
-              <button key={img} onClick={() => setImgIdx(i)}
+            {images.map((_, i) => (
+              <button key={i} onClick={() => setImgIdx(i)}
                 style={{ width: i === imgIdx ? 20 : 6, height: 6, borderRadius: 3, background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.5)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.2s ease' }} />
             ))}
           </div>
@@ -222,7 +222,7 @@ function HeroImage({
 
 // ── MiniMap ───────────────────────────────────────────────────────────────────
 
-function MiniMap({ poi }: Readonly<{ poi: POI }>) {
+function MiniMap({ poi }: { poi: POI }) {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMin: number } | null>(null);
@@ -268,15 +268,15 @@ function MiniMap({ poi }: Readonly<{ poi: POI }>) {
       </div>
       <div style={{ padding: '12px 16px', direction: 'rtl' }}>
         {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8, textAlign: 'center' }}>{geoError}</div>}
-        {!userCoords ? (
-          <button onClick={handleGetLocation} disabled={geoLoading}
-            style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 14, background: geoLoading ? '#e2e8f0' : 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: geoLoading ? '#94a3b8' : '#fff', fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif' }}>
-            {geoLoading ? '⏳ מאתר מיקום...' : '📍 הצג מסלול מהמיקום שלי'}
-          </button>
-        ) : (
+        {userCoords ? (
           <button onClick={() => window.open(`https://waze.com/ul?q=${poi.latitude},${poi.longitude}`, '_blank')}
             style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             פתח ב-Waze
+          </button>
+        ) : (
+          <button onClick={handleGetLocation} disabled={geoLoading}
+            style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 14, background: geoLoading ? '#e2e8f0' : 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: geoLoading ? '#94a3b8' : '#fff', fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+            {geoLoading ? '⏳ מאתר מיקום...' : '📍 הצג מסלול מהמיקום שלי'}
           </button>
         )}
       </div>
@@ -288,9 +288,9 @@ function MiniMap({ poi }: Readonly<{ poi: POI }>) {
 
 function StarRating({
   locationId, initialSummary, isLoggedIn,
-}: Readonly<{
+}: {
   locationId: number; initialSummary: RatingSummary | null; isLoggedIn: boolean;
-}>) {
+}) {
   const [summary, setSummary] = useState<RatingSummary | null>(initialSummary);
   const [hovered, setHovered] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -318,7 +318,14 @@ function StarRating({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <div style={{ display: 'flex', gap: 3 }}>
           {[1, 2, 3, 4, 5].map(star => {
-            const starColor = star <= activeStars ? '#f59e0b' : star <= displayRating ? '#fcd34d' : '#d1d5db';
+            let starColor: string;
+            if (star <= activeStars) {
+              starColor = '#f59e0b';
+            } else if (star <= displayRating) {
+              starColor = '#fcd34d';
+            } else {
+              starColor = '#d1d5db';
+            }
             return (
               <button key={star} onClick={() => handleRate(star)}
                 onMouseEnter={() => isLoggedIn && setHovered(star)} onMouseLeave={() => setHovered(0)}
@@ -343,16 +350,16 @@ function StarRating({
 
 function MediaGallery({
   locationId: _locationId, media, isAdmin, onApprove: _onApprove, onReject,
-}: Readonly<{
+}: {
   locationId: number; media: LocationMedia[];
   isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void;
-}>) {
+}) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   if (!media.length) return null;
 
   const closeLightbox = () => setLightboxIdx(null);
-  const prevItem = () => setLightboxIdx(i => i === null ? null : Math.max(0, i - 1));
-  const nextItem = () => setLightboxIdx(i => i === null ? null : Math.min(media.length - 1, i + 1));
+  const prevItem = () => setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : null);
+  const nextItem = () => setLightboxIdx(i => i !== null ? Math.min(media.length - 1, i + 1) : null);
 
   return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16 }}>
@@ -376,7 +383,7 @@ function MediaGallery({
             ) : (
               <img src={getImageUrl(item.media_url, 'card')} alt={item.caption || 'gallery'} loading="lazy" decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { const img = e.currentTarget as HTMLImageElement; img.style.opacity = '0.3'; img.onerror = null; }} />
+                onError={e => { e.currentTarget.style.opacity = '0.3'; e.currentTarget.onerror = null; }} />
             )}
             {item.media_type === 'video' && (
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
@@ -428,7 +435,7 @@ function MediaGallery({
 
 // ── NearbyPlaces ──────────────────────────────────────────────────────────────
 
-function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
+function NearbyPlaces({ locationId }: { locationId: number }) {
   const navigate = useNavigate();
   // NearbyPlaces keeps its own useQuery so it can load in parallel with (and
   // independently of) the main POI data — it's a PostGIS spatial query that can
@@ -439,16 +446,14 @@ function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
     staleTime: 5 * 60 * 1000,
   });
 
-  if (isLoading) {
-    return (
-      <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16, direction: 'rtl' }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>📍 מקומות קרובים</div>
-        <div style={{ display: 'flex', gap: 10, overflowX: 'hidden' }}>
-          {[1, 2, 3].map(i => <div key={i} style={{ flexShrink: 0, width: 140, height: 120, borderRadius: 14, background: '#f0f0f0' }} />)}
-        </div>
+  if (isLoading) return (
+    <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16, direction: 'rtl' }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>📍 מקומות קרובים</div>
+      <div style={{ display: 'flex', gap: 10, overflowX: 'hidden' }}>
+        {[1, 2, 3].map(i => <div key={i} style={{ flexShrink: 0, width: 140, height: 120, borderRadius: 14, background: '#f0f0f0' }} />)}
       </div>
-    );
-  }
+    </div>
+  );
 
   if (!nearby.length) return null;
 
@@ -467,7 +472,7 @@ function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
               {place.main_image ? (
                 <img src={getImageUrl(place.main_image, 'thumb')} alt={place.name} loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={e => { const img = e.currentTarget as HTMLImageElement; img.style.display = 'none'; img.onerror = null; }} />
+                  onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                   <span style={{ fontSize: 28, opacity: 0.5 }}>🏞️</span>
@@ -526,7 +531,7 @@ function POIDetailSkeleton() {
 
 // ── Error state ───────────────────────────────────────────────────────────────
 
-function POIDetailError({ message, onBack, onRetry }: Readonly<{ message: string; onBack: () => void; onRetry: () => void }>) {
+function POIDetailError({ message, onBack, onRetry }: { message: string; onBack: () => void; onRetry: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12, padding: '0 24px', textAlign: 'center' }}>
       <div style={{ fontSize: 52 }}>😕</div>
@@ -650,7 +655,7 @@ export default function POIDetail() {
   if (isError || !poi) {
     return (
       <POIDetailError
-        message={error?.message ?? 'שגיאה בטעינת המקום. אנא נסה שוב.'}
+        message={(error as Error)?.message ?? 'שגיאה בטעינת המקום. אנא נסה שוב.'}
         onBack={() => navigate(-1)}
         onRetry={() => refetch()}
       />
@@ -720,7 +725,7 @@ export default function POIDetail() {
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 'calc(var(--safe-top) + 12px) 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => navigator.share?.({ title: poi.name, url: globalThis.location.href })}
+                <button onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 </button>
@@ -800,8 +805,12 @@ export default function POIDetail() {
           <MiniMap poi={poi} />
           {!Number.isNaN(poiIdNum) && <NearbyPlaces locationId={poiIdNum} />}
           <MediaGallery locationId={poiIdNum} media={allMedia} isAdmin={isAdmin}
-            onApprove={id => { if (media.some(m => m.id === id)) handleApproveMedia(id); else handleApproveImage(id); }}
-            onReject={id => { if (media.some(m => m.id === id)) handleRejectMedia(id); else handleRejectImage(id); }} />
+            onApprove={id => {
+              if (media.some(m => m.id === id)) { handleApproveMedia(id); } else { handleApproveImage(id); }
+            }}
+            onReject={id => {
+              if (media.some(m => m.id === id)) { handleRejectMedia(id); } else { handleRejectImage(id); }
+            }} />
 
           {isLoggedIn && !Number.isNaN(poiIdNum) && (
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
@@ -827,16 +836,23 @@ export default function POIDetail() {
           </div>
 
           {tab === 'reports' && (() => {
-            const reportAction = isLoggedIn ? (
-              <button onClick={() => navigate(`/AddReport?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
-                style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ הוסף דיווח</button>
-            ) : isGuest ? (
-              <><button onClick={() => reportLock.guardAction(() => { })}
-                style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 הוסף דיווח — דרוש חשבון</button>{reportLock.PromptComponent}</>
-            ) : (
-              <button onClick={() => navigate('/Login')}
-                style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי להוסיף דיווח</button>
-            );
+            let reportAction: React.ReactNode;
+            if (isLoggedIn) {
+              reportAction = (
+                <button onClick={() => navigate(`/AddReport?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ הוסף דיווח</button>
+              );
+            } else if (isGuest) {
+              reportAction = (
+                <><button onClick={() => reportLock.guardAction(() => { })}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 הוסף דיווח — דרוש חשבון</button>{reportLock.PromptComponent}</>
+              );
+            } else {
+              reportAction = (
+                <button onClick={() => navigate('/Login')}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי להוסיף דיווח</button>
+              );
+            }
             return (
               <div style={{ direction: 'rtl' }}>
                 {reports.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין דיווחים עדיין לאתר זה</div>}
@@ -855,16 +871,23 @@ export default function POIDetail() {
           })()}
 
           {tab === 'reviews' && (() => {
-            const reviewAction = isLoggedIn ? (
-              <button onClick={() => navigate(`/AddReview?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
-                style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ כתוב ביקורת</button>
-            ) : isGuest ? (
-              <><button onClick={() => reviewLock.guardAction(() => { })}
-                style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 כתוב ביקורת — דרוש חשבון</button>{reviewLock.PromptComponent}</>
-            ) : (
-              <button onClick={() => navigate('/Login')}
-                style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי לכתוב ביקורת</button>
-            );
+            let reviewAction: React.ReactNode;
+            if (isLoggedIn) {
+              reviewAction = (
+                <button onClick={() => navigate(`/AddReview?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ כתוב ביקורת</button>
+              );
+            } else if (isGuest) {
+              reviewAction = (
+                <><button onClick={() => reviewLock.guardAction(() => { })}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 כתוב ביקורת — דרוש חשבון</button>{reviewLock.PromptComponent}</>
+              );
+            } else {
+              reviewAction = (
+                <button onClick={() => navigate('/Login')}
+                  style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי לכתוב ביקורת</button>
+              );
+            }
             return (
               <div style={{ direction: 'rtl' }}>
                 {reviews.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין ביקורות עדיין</div>}

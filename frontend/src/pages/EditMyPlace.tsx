@@ -12,7 +12,7 @@ const DIFFICULTIES = ['קל - משפחות', 'קל', 'בינוני', 'קשה', '
 
 // ── Status badge helper ──────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status }: Readonly<{ status: string }>) {
   const cfg: Record<string, { bg: string; color: string; label: string }> = {
     pending:  { bg: '#fef3c7', color: '#d97706', label: '⏳ ממתין לאישור' },
     approved: { bg: '#dcfce7', color: '#16a34a', label: '✅ מאושר' },
@@ -27,6 +27,37 @@ function StatusBadge({ status }: { status: string }) {
       {c.label}
     </span>
   );
+}
+
+// ── Toggle button helpers ─────────────────────────────────────────────────────
+
+function triStateNext(val: boolean | null): boolean | null {
+  if (val === true) return null;
+  return val !== false;
+}
+
+function triStateBorderColor(val: boolean | null): string {
+  if (val === true) return '#0d9e6e';
+  if (val === false) return '#ef4444';
+  return '#e2e8f0';
+}
+
+function triStateBg(val: boolean | null): string {
+  if (val === true) return '#f0fdf4';
+  if (val === false) return '#fef2f2';
+  return '#fff';
+}
+
+function triStateColor(val: boolean | null): string {
+  if (val === true) return '#0d9e6e';
+  if (val === false) return '#ef4444';
+  return '#94a3b8';
+}
+
+function triStateSuffix(val: boolean | null): string {
+  if (val === true) return '✓';
+  if (val === false) return '✗';
+  return '?';
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -179,6 +210,10 @@ export default function EditMyPlace() {
 
   if (!poi) return null;
 
+  let saveLabel: string;
+  if (saving) { saveLabel = '⏳ שומר...'; }
+  else if (success) { saveLabel = '✅ נשמר!'; }
+  else { saveLabel = '💾 שמור שינויים'; }
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl', fontFamily: 'Heebo, sans-serif', paddingBottom: 80 }}>
@@ -281,17 +316,17 @@ export default function EditMyPlace() {
             ] as const).map(({ key, label, val, set }) => (
               <button
                 key={key}
-                onClick={() => set(val === true ? null : val === false ? true : false)}
+                onClick={() => set(triStateNext(val))}
                     title={val === null ? 'לא ידוע' : val ? 'כן' : 'לא'}
                 style={{
                   padding: '8px 14px', borderRadius: 20, border: '1.5px solid',
-                  borderColor: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#e2e8f0',
-                  background: val === true ? '#f0fdf4' : val === false ? '#fef2f2' : '#fff',
-                  color: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#94a3b8',
+                  borderColor: triStateBorderColor(val),
+                  background: triStateBg(val),
+                  color: triStateColor(val),
                   fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13,
                   cursor: 'pointer',
                 }}>
-                {label} {val === true ? '✓' : val === false ? '✗' : '?'}
+                {label} {triStateSuffix(val)}
               </button>
             ))}
           </div>
@@ -336,7 +371,7 @@ export default function EditMyPlace() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {photos.map((url, i) => (
-                <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
+                <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
                   <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <button
                       onClick={() => removePhoto(i)}
@@ -361,23 +396,18 @@ export default function EditMyPlace() {
 
         {/* ── Actions ── */}
         <div style={{ display: 'flex', gap: 10 }}>
-            {(() => {
-              const saveLabel = saving ? '⏳ שומר...' : success ? '✅ נשמר!' : '💾 שמור שינויים';
-              return (
-                <button
-                  onClick={handleSave}
-                  disabled={saving || success}
-                  style={{
-                    flex: 1, padding: '15px 0', border: 'none', borderRadius: 16,
-                    background: saving || success ? '#a7f3d0' : 'linear-gradient(135deg,#0d9e6e,#0bba7e)',
-                    color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer',
-                    fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
-                  }}>
-                  {saveLabel}
-                </button>
-              );
-            })()}
-          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving || success}
+            style={{
+              flex: 1, padding: '15px 0', border: 'none', borderRadius: 16,
+              background: saving || success ? '#a7f3d0' : 'linear-gradient(135deg,#0d9e6e,#0bba7e)',
+              color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer',
+              fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
+            }}>
+            {saveLabel}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -412,7 +442,7 @@ function input(disabled: boolean): React.CSSProperties {
   };
 }
 
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
       {children}
@@ -420,7 +450,7 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Spinner({ label }: { label: string }) {
+function Spinner({ label }: Readonly<{ label: string }>) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', fontFamily: 'Heebo, sans-serif' }}>
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>

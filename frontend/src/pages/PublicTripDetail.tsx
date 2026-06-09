@@ -30,20 +30,15 @@ const GROUP_ICON: Record<string, string> = {
   יחיד: '🚶', זוג: '👫', משפחה: '👨‍👩‍👧‍👦', חברים: '👥',
 };
 
-function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
+function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
-    // S2681: add curly braces to multi-line if/else if block
-    if (points.length > 1) {
-      map.fitBounds(L.latLngBounds(points).pad(0.2));
-    } else if (points.length === 1) {
-      map.setView(points[0], 13);
-    }
+    if (points.length > 1) { map.fitBounds(L.latLngBounds(points).pad(0.2)); }
+    else if (points.length === 1) { map.setView(points[0], 13); }
   }, [points, map]);
   return null;
 }
 
-// S7780: String.raw avoids the need for escaped backslashes in the onerror handler
 function buildStopMarkerHtml(loc: any, index: number): string {
   if (loc.main_image) {
     const fallbackStyle = String.raw`width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:900`;
@@ -55,10 +50,8 @@ function buildStopMarkerHtml(loc: any, index: number): string {
   return `<div style="width:36px;height:36px;border-radius:12px;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 3px 10px rgba(0,0,0,0.3);font-family:Heebo,Arial;">${index + 1}</div>`;
 }
 
-// S6759: wrap props with Readonly<{...}>
-function StopMarker({ loc, index }: Readonly<{ loc: any; index: number }>) {
+function StopMarker({ loc, index }: { loc: any; index: number }) {
   const map = useMap();
-  // S3358: extract nested ternary values into named variables
   const iconSize: [number, number] = loc.main_image ? [48, 48] : [36, 36];
   const iconAnchor: [number, number] = loc.main_image ? [24, 24] : [18, 18];
   const icon = L.divIcon({
@@ -73,7 +66,7 @@ function StopMarker({ loc, index }: Readonly<{ loc: any; index: number }>) {
   );
 }
 
-function StarRating({ value, onChange, readonly, size = 26 }: Readonly<{ value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }>) {
+function StarRating({ value, onChange, readonly, size = 26 }: { value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }) {
   const [hover, setHover] = useState(0);
   return (
     <div style={{ display: 'flex', gap: 3 }}>
@@ -97,7 +90,7 @@ function StarRating({ value, onChange, readonly, size = 26 }: Readonly<{ value: 
 function toBase64(file: File): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
-    r.onload = () => res(r.result as string);
+    r.onload = () => res(String(r.result));
     r.onerror = rej;
     r.readAsDataURL(file);
   });
@@ -124,7 +117,6 @@ async function doToggleLike(
   } catch { /* intentional */ } finally { setLikeLoading(false); }
 }
 
-// S107: consolidate 8 params into an options object
 interface SetRatingOpts {
   tripId: number;
   r: number;
@@ -247,7 +239,7 @@ export default function PublicTripDetail() {
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tripId = Number.parseInt(id ?? '', 10);
-  const isOwner = user && trip && Number(user.id) === trip.user_id;
+  const isOwner = !!user && Number(user.id) === trip?.user_id;
 
   useEffect(() => {
     if (!id) return;
@@ -299,8 +291,7 @@ export default function PublicTripDetail() {
     stopSearchTimeout.current = setTimeout(async () => {
       try {
         const results = await api.locations.list({ search: q, limit: 8 });
-        // S7754: use .some() instead of .find() as boolean
-        setStopSearchResults(results.filter(r => !editStops.some(s => s.id === Number.parseInt(r.id))));
+        setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
       } catch { /* intentional */ } finally { setSearchingStops(false); }
     }, 300);
   };
@@ -417,8 +408,8 @@ export default function PublicTripDetail() {
       {/* ── Sticky top bar ─────────────────────────────────────────────── */}
       <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#64748b', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 10, transition: 'background 0.15s' }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f1f5f9'}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>
+          onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
           ← חזור
         </button>
 
@@ -454,8 +445,7 @@ export default function PublicTripDetail() {
             {pts.length > 1 && (
               <Polyline positions={pts} pathOptions={{ color: '#0d9e6e', weight: 3.5, opacity: 0.9, dashArray: '10,6' }} />
             )}
-            {/* S6479: use stable id-based key instead of array index */}
-            {validStops.map((loc, i) => <StopMarker key={loc.location_id ?? loc.name ?? i} loc={loc} index={i} />)}
+            {validStops.map((loc, i) => <StopMarker key={i} loc={loc} index={i} />)}
             <FitBounds points={pts} />
           </MapContainer>
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
@@ -727,8 +717,8 @@ export default function PublicTripDetail() {
                           {stopSearchResults.map(poi => (
                             <button type="button" key={poi.id} onClick={() => addStop(poi)}
                               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: '#fff', transition: 'background 0.15s', width: '100%', border: 'none', textAlign: 'right' }}
-                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0fdf4'}
-                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff'}>
+                              onMouseEnter={e => { e.currentTarget.style.background = '#f0fdf4'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}>
                               {poi.main_image ? (
                                 <img src={getImageUrl(poi.main_image, 'thumb')} alt="" loading="lazy" decoding="async" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                               ) : (
@@ -748,8 +738,7 @@ export default function PublicTripDetail() {
                     {/* Current stops list (draggable order) */}
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
-                        {/* S6772: wrap raw text adjacent to JSX elements in <span> */}
-                        <span>📍 עצירות נוכחיות</span>
+                        📍 עצירות נוכחיות
                         <span style={{ fontWeight: 400, color: '#94a3b8', marginRight: 6 }}>({editStops.length})</span>
                       </div>
                       {editStops.length === 0 && (
@@ -887,22 +876,15 @@ export default function PublicTripDetail() {
                 placeholder="כיתוב אופציונלי..."
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
               <input ref={communityImageRef} type="file" accept="image/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'image'); e.target.value = ''; }} />
+                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'image'); } e.target.value = ''; }} />
               <input ref={communityVideoRef} type="file" accept="video/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'video'); e.target.value = ''; }} />
-              {/* S3358: extract nested ternary into named variable */}
-              {(() => {
-                const mediaTypeLabel = communityMediaTab === 'image' ? 'תמונה' : 'סרטון';
-                const uploadLabel = addingMedia ? '⏳ מעלה...' : `📤 העלה ${mediaTypeLabel} (+10 XP)`;
-                return (
-                  <button
-                    onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
-                    disabled={addingMedia}
-                    style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
-                    {uploadLabel}
-                  </button>
-                );
-              })()}
+                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'video'); } e.target.value = ''; }} />
+              <button
+                onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
+                disabled={addingMedia}
+                style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
+                {addingMedia ? '⏳ מעלה...' : `📤 העלה ${communityMediaTab === 'image' ? 'תמונה' : 'סרטון'} (+10 XP)`}
+              </button>
             </div>
           )}
 
@@ -993,8 +975,8 @@ export default function PublicTripDetail() {
             <button
               onClick={() => window.open(`https://waze.com/ul?ll=${validStops[0].latitude},${validStops[0].longitude}&navigate=yes`, '_blank')}
               style={{ width: '100%', marginTop: 18, padding: '14px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg,#0d9e6e,#059669)', color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(13,158,110,0.25)', transition: 'opacity 0.2s' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.9'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+              onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
               נווט לנקודת ההתחלה
             </button>

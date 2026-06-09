@@ -30,18 +30,40 @@ const DIFFICULTIES = ['קל - משפחות', 'קל', 'בינוני', 'קשה', '
 function Toggle({ label, value, onChange }: Readonly<{ label: string; value: boolean | null; onChange: (v: boolean | null) => void }>) {
   // Cycles: null → true → false → null
   let next: boolean | null;
-  if (value === null) next = true;
-  else if (value === true) next = false;
-  else next = null;
-  const bgFallback = value === false ? '#ef4444' : '#d1d5db';
-  const bg = value === true ? '#0d9e6e' : bgFallback;
-  const knobLeftFallback = value === null ? 12 : 2;
-  const knobLeft = value === true ? 22 : knobLeftFallback;
+  if (value === null) {
+    next = true;
+  } else if (value === true) {
+    next = false;
+  } else {
+    next = null;
+  }
+
+  let bg: string;
+  if (value === true) {
+    bg = '#0d9e6e';
+  } else if (value === false) {
+    bg = '#ef4444';
+  } else {
+    bg = '#d1d5db';
+  }
+
+  let knobLeft: number;
+  if (value === true) {
+    knobLeft = 22;
+  } else if (value === null) {
+    knobLeft = 12;
+  } else {
+    knobLeft = 2;
+  }
+  let toggleLabel: string;
+  if (value === null) { toggleLabel = 'לא ידוע'; }
+  else if (value) { toggleLabel = 'כן'; }
+  else { toggleLabel = 'לא'; }
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f4f3' }}>
       <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 12, color: '#94a3b8' }}>{value === null ? 'לא ידוע' : value ? 'כן' : 'לא'}</span>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>{toggleLabel}</span>
         <button type="button" onClick={() => onChange(next)} aria-label={label}
           style={{ width: 44, height: 24, borderRadius: 12, background: bg, position: 'relative', cursor: 'pointer', transition: 'background 0.18s', flexShrink: 0, border: 'none', padding: 0 }}>
           <div style={{ position: 'absolute', top: 2, left: knobLeft, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.18s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
@@ -89,7 +111,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
   const [category, setCategory] = useState(poi.category);
   const [description, setDescription] = useState(poi.description ?? '');
   const [difficulty, setDifficulty] = useState(poi.difficulty ?? '');
-  const [durationMinutes, setDurationMinutes] = useState(poi.duration_minutes != null ? String(poi.duration_minutes) : '');
+  const [durationMinutes, setDurationMinutes] = useState(poi.duration_minutes === null || poi.duration_minutes === undefined ? '' : String(poi.duration_minutes));
   const [hasWater, setHasWater] = useState<boolean | null>(poi.has_water ?? null);
   const [hasShade, setHasShade] = useState<boolean | null>(poi.has_shade ?? null);
   const [accessible, setAccessible] = useState<boolean | null>(poi.accessible ?? null);
@@ -130,9 +152,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
 
   const handleSave = async () => {
     if (!name.trim()) { setError('יש להזין שם'); return; }
-    if (!locationChanged || locationWarningAccepted) {
-      // location is unchanged or warning accepted — proceed
-    } else {
+    if (locationChanged && !locationWarningAccepted) {
       setError('יש לאשר את אזהרת שינוי המיקום לפני השמירה');
       setSection('location');
       return;
@@ -182,17 +202,20 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
     }
   };
 
+  const removePhoto = (index: number) => setPhotos(prev => prev.filter((_, j) => j !== index));
+
   // ── render ──────────────────────────────────────────────────────────────────
+
+  let saveButtonLabel: string;
+  if (saving) { saveButtonLabel = '⏳ שומר...'; }
+  else if (success) { saveButtonLabel = '✅ נשמר!'; }
+  else { saveButtonLabel = '💾 שמור שינויים'; }
 
   const tabs: { key: Section; label: string }[] = [
     { key: 'details', label: '📝 פרטים' },
     { key: 'photos',  label: `📸 תמונות (${photos.length})` },
     { key: 'location', label: '📍 מיקום' },
   ];
-
-  let saveLabel = '💾 שמור שינויים';
-  if (saving) saveLabel = '⏳ שומר...';
-  else if (success) saveLabel = '✅ נשמר!';
 
   return (
     <>
@@ -327,7 +350,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
                   {photos.map((url, i) => (
                     <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
                       <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <button onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
+                      <button onClick={() => removePhoto(i)}
                         style={{ position: 'absolute', top: 4, left: 4, width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         ×
                       </button>
@@ -415,7 +438,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
             cursor: saving || success ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif',
             boxShadow: '0 4px 14px rgba(13,158,110,0.28)',
           }}>
-            {saveLabel}
+            {saveButtonLabel}
           </button>
         </div>
       </div>
@@ -432,6 +455,6 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children }: Readonly<{ children: React.ReactNode }>) {
   return <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 5 }}>{children}</div>;
 }

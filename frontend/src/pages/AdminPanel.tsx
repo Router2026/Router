@@ -6,7 +6,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
-import type { CommunityPoiAdmin, EditModalProps, PoiStatus, Tab } from '../utils/types';
+import type { CommunityPoiAdmin, EditModalProps, PoiStatus } from '../utils/types';
+
+enum Tab {
+  CommunityPois = 'community_pois',
+  Places = 'places',
+  Users = 'users',
+  Routes = 'routes',
+}
 
 // Mask email so it's identifiable but not fully readable in screenshots.
 // e.g. "omrihalifa0106@gmail.com" → "om***@gm***.com"
@@ -56,7 +63,7 @@ async function patchAdminPoi(
 
 
 
-function EditModal({ poi, onClose, onSaved }: EditModalProps) {
+function EditModal({ poi, onClose, onSaved }: Readonly<EditModalProps>) {
   const [name, setName] = useState(poi.name);
   const [category, setCategory] = useState(poi.category);
   const [description, setDescription] = useState(poi.description ?? '');
@@ -160,7 +167,7 @@ function CommunityPoisTab() {
     setBusy(poi.id);
     try {
       const updated = await patchAdminPoi(poi.id, { action: 'approve' });
-      if (updated?.status) {
+      if (updated && updated.status) {
         setPois(prev => prev.map(p => p.id === poi.id ? updated : p));
       } else {
         // Refetch to get latest state if response was malformed
@@ -178,7 +185,7 @@ function CommunityPoisTab() {
     setBusy(id);
     try {
       const updated = await patchAdminPoi(id, { action: 'reject', admin_note: note || undefined });
-      if (updated?.status) {
+      if (updated && updated.status) {
         setPois(prev => prev.map(p => p.id === id ? updated : p));
       } else {
         const fresh = await fetchAdminPois(filter === 'all' ? undefined : filter);
@@ -243,13 +250,15 @@ function CommunityPoisTab() {
         })}
       </div>
 
-      {loading ? (
+      {loading && (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>טוען...</div>
-      ) : pois.length === 0 ? (
+      )}
+      {!loading && pois.length === 0 && (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
           אין מיקומים להצגה
         </div>
-      ) : (
+      )}
+      {!loading && pois.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {pois.map(poi => (
             <div key={poi.id} style={{
@@ -439,7 +448,7 @@ function CommunityPoisTab() {
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
-  const [tab, setTab] = useState<Tab>('community_pois');
+  const [tab, setTab] = useState<Tab>(Tab.CommunityPois);
   const [users, setUsers] = useState<unknown[]>([]);
   const [routes, setRoutes] = useState<unknown[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -500,7 +509,7 @@ export default function AdminPanel() {
   }
 
   const TAB_BTN = (t: Tab, label: string, urgent?: boolean) => (
-    <button onClick={() => { if (t === 'places') { navigate('/Admin/places'); return; } setTab(t); }}
+    <button onClick={() => { if (t === Tab.Places) { navigate('/Admin/places'); return; } setTab(t); }}
       style={{
         flex: 1, padding: '12px 6px', border: 'none', borderRadius: 12,
         background: tab === t ? '#0d9e6e' : 'transparent',
@@ -583,30 +592,36 @@ export default function AdminPanel() {
           display: 'flex', gap: 4, marginBottom: 20,
           boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
         }}>
-          {TAB_BTN('community_pois', '📍 מיקומי קהילה', true)}
-          {TAB_BTN('places', '🗺️ כל המקומות')}
-          {TAB_BTN('users', `👥 משתמשים (${users.length})`)}
-          {TAB_BTN('routes', `🗺️ מסלולים (${routes.length})`)}
+          {TAB_BTN(Tab.CommunityPois, '📍 מיקומי קהילה', true)}
+          {TAB_BTN(Tab.Places, '🗺️ כל המקומות')}
+          {TAB_BTN(Tab.Users, `👥 משתמשים (${users.length})`)}
+          {TAB_BTN(Tab.Routes, `🗺️ מסלולים (${routes.length})`)}
         </div>
 
         {/* Community POIs tab */}
-        {tab === 'community_pois' && <CommunityPoisTab />}
+        {tab === Tab.CommunityPois && <CommunityPoisTab />}
 
         {/* Users tab */}
-        {tab === 'users' && (
+        {tab === Tab.Users && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {users.map(u => {
               const uIdStr = String(u.id);
               const uIsBusy = busy === uIdStr;
               const uIsConfirm = confirmDelete === uIdStr;
-              const adminBtnLabel = uIsBusy ? '...' : u.is_admin ? 'הסר Admin' : 'הפוך Admin';
-              const deleteBtnLabel = uIsBusy ? '...' : uIsConfirm ? 'מחק?' : '🗑';
+              let adminBtnLabel: string;
+              if (uIsBusy) adminBtnLabel = '...';
+              else if (u.is_admin) adminBtnLabel = 'הסר Admin';
+              else adminBtnLabel = 'הפוך Admin';
+              let deleteBtnLabel: string;
+              if (uIsBusy) deleteBtnLabel = '...';
+              else if (uIsConfirm) deleteBtnLabel = 'מחק?';
+              else deleteBtnLabel = '🗑';
               return (
               <div key={u.id} style={{
                 background: '#fff', borderRadius: 16, padding: '16px 18px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                 display: 'flex', alignItems: 'center', gap: 14,
-                border: `1px solid ${confirmDelete === String(u.id) ? '#fecaca' : '#f1f5f9'}`,
+                border: `1px solid ${uIsConfirm ? '#fecaca' : '#f1f5f9'}`,
                 transition: 'border 0.2s',
               }}>
                 <div style={{
@@ -663,13 +678,16 @@ export default function AdminPanel() {
         )}
 
         {/* Routes tab */}
-        {tab === 'routes' && (
+        {tab === Tab.Routes && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {routes.map(r => {
               const rIdStr = String(r.id);
               const rIsBusy = busy === rIdStr;
               const rIsConfirm = confirmDelete === rIdStr;
-              const routeDeleteLabel = rIsBusy ? '...' : rIsConfirm ? 'מחק?' : '🗑';
+              let routeDeleteLabel: string;
+              if (rIsBusy) routeDeleteLabel = '...';
+              else if (rIsConfirm) routeDeleteLabel = 'מחק?';
+              else routeDeleteLabel = '🗑';
               return (
               <div key={r.id} style={{
                 background: '#fff', borderRadius: 16, padding: '16px 18px',

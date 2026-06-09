@@ -23,6 +23,11 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+function makeFallbackIconHtml(num: number): string {
+  const style = String.raw`width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900`;
+  return `<div style='${style}'>${num}</div>`;
+}
+
 // Static icon — created once for the entire session
 const _startIcon = L.divIcon({
   html: `<div style="width:36px;height:36px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;box-shadow:0 3px 10px rgba(37,99,235,0.45);transform:rotate(-45deg);"><span style="transform:rotate(45deg)">📍</span></div>`,
@@ -31,13 +36,12 @@ const _startIcon = L.divIcon({
   iconAnchor: [18, 36],
 });
 
-// S6759: wrap props with Readonly<{...}>
-function StartMarker({ position }: Readonly<{ position: LatLng }>) {
+function StartMarker({ position }: { position: LatLng }) {
   return <Marker position={[position.lat, position.lng]} icon={_startIcon} />;
 }
 
 
-function RoutePolyline({ stops, startPoint }: Readonly<{ stops: POI[]; startPoint: LatLng | null }>) {
+function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng | null }) {
   const map = useMap();
   const lineRef = useRef<L.Polyline | null>(null);
 
@@ -66,63 +70,46 @@ function RoutePolyline({ stops, startPoint }: Readonly<{ stops: POI[]; startPoin
   return null;
 }
 
-// S3358: extract nested ternary dimensions into named variables before the template literal
-// S7780: use String.raw for the onerror attribute that contains escaped backslashes
-function buildPhotoMarkerHtml(poi: POI, index: number, selected: boolean): string {
-  if (poi.main_image) {
-    const size = selected ? 52 : 44;
-    const borderColor = selected ? '#0d9e6e' : '#fff';
-    // S7780: String.raw avoids the need for escaped backslashes in the onerror handler
-    const fallbackStyle = String.raw`width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900`;
-    return `<div style="
-        position:relative;
-        width:${size}px;
-        height:${size}px;
-        border-radius:12px;
-        overflow:hidden;
-        border:3px solid ${borderColor};
-        box-shadow:0 3px 12px rgba(0,0,0,0.35);
-        cursor:pointer;
-      ">
-        <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'${fallbackStyle}\\'>${index + 1}</div>'"/>
-        <div style="
-          position:absolute;bottom:0;left:0;right:0;
-          background:linear-gradient(transparent,rgba(0,0,0,0.6));
-          color:#fff;font-size:9px;font-weight:700;
-          padding:4px 4px 3px;text-align:center;
-          font-family:Heebo,Arial;
-        ">${index + 1}</div>
-      </div>`;
-  }
-  const size = selected ? 44 : 36;
-  const borderColor = selected ? '#fff' : '#e2e8f0';
-  return `<div style="
-      width:${size}px;
-      height:${size}px;
-      border-radius:12px;
-      background:linear-gradient(135deg,#0d9e6e,#0bba7e);
-      border:3px solid ${borderColor};
-      display:flex;align-items:center;justify-content:center;
-      color:#fff;font-size:14px;font-weight:900;
-      box-shadow:0 3px 10px rgba(13,158,110,0.4);
-      font-family:Heebo,Arial;
-    ">${index + 1}</div>`;
-}
-
-// S6759: wrap props with Readonly<{...}>
-function PhotoMarker({ poi, index, selected }: Readonly<{ poi: POI; index: number; selected: boolean }>) {
+function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; selected: boolean }) {
   const map = useMap();
 
-  // S3358: all ternaries are now in the helper function — no nested ternaries here
-  const iconSize = selected ? 52 : 44;
-  const iconAnchor = selected ? 26 : 22;
-
   const icon = useMemo(() => L.divIcon({
-    html: buildPhotoMarkerHtml(poi, index, selected),
+    html: poi.main_image
+      ? `<div style="
+          position:relative;
+          width:${selected ? 52 : 44}px;
+          height:${selected ? 52 : 44}px;
+          border-radius:12px;
+          overflow:hidden;
+          border:3px solid ${selected ? '#0d9e6e' : '#fff'};
+          box-shadow:0 3px 12px rgba(0,0,0,0.35);
+          cursor:pointer;
+        ">
+          <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML=${JSON.stringify(makeFallbackIconHtml(index + 1))}"/>
+          <div style="
+            position:absolute;bottom:0;left:0;right:0;
+            background:linear-gradient(transparent,rgba(0,0,0,0.6));
+            color:#fff;font-size:9px;font-weight:700;
+            padding:4px 4px 3px;text-align:center;
+            font-family:Heebo,Arial;
+          ">${index + 1}</div>
+        </div>`
+      : `<div style="
+          width:${selected ? 44 : 36}px;
+          height:${selected ? 44 : 36}px;
+          border-radius:12px;
+          background:linear-gradient(135deg,#0d9e6e,#0bba7e);
+          border:3px solid ${selected ? '#fff' : '#e2e8f0'};
+          display:flex;align-items:center;justify-content:center;
+          color:#fff;font-size:14px;font-weight:900;
+          box-shadow:0 3px 10px rgba(13,158,110,0.4);
+          font-family:Heebo,Arial;
+        ">${index + 1}</div>`,
     className: '',
-    iconSize: [iconSize, iconSize],
-    iconAnchor: [iconAnchor, iconAnchor],
-  }), [poi, index, selected, iconSize, iconAnchor]);
+    iconSize: [selected ? 52 : 44, selected ? 52 : 44],
+    iconAnchor: [selected ? 26 : 22, selected ? 26 : 22],
+   
+  }), [poi.main_image, index, selected]);
 
   return (
     <Marker
@@ -137,11 +124,11 @@ function PhotoMarker({ poi, index, selected }: Readonly<{ poi: POI; index: numbe
   );
 }
 
-function FitBoundsToSelection({ pois, startPoint, region }: Readonly<{
+function FitBoundsToSelection({ pois, startPoint, region }: {
   pois: POI[];
   startPoint: LatLng | null;
   region: Region | null;
-}>) {
+}) {
   const map = useMap();
   useEffect(() => {
     if (pois.length > 0) {
@@ -157,8 +144,7 @@ function FitBoundsToSelection({ pois, startPoint, region }: Readonly<{
   return null;
 }
 
-// S6759: wrap props with Readonly<{...}>
-function RegionLabel({ region, count }: Readonly<{ region: Region | null; count: number }>) {
+function RegionLabel({ region, count }: { region: Region | null; count: number }) {
   if (!region) return null;
   return (
     <div style={{
@@ -253,49 +239,30 @@ const REGION_ICONS: Record<string, string> = {
 
 type Step = 'region' | 'pois' | 'route';
 
-// ── Bucket state initializer (module-level to keep component S3776 compliant) ──
-
-interface BucketState {
-  bucketPois?: POI[];
-  userLocation?: { lat: number; lng: number } | null;
-  alreadyOrdered?: boolean;
-}
-
-function initFromBucket(
-  state: BucketState,
-  setSelectedPois: (v: POI[]) => void,
-  setRouteName: (v: string) => void,
-  setStartPoint: (v: LatLng | null) => void,
-  setUseCurrentLocation: (v: boolean) => void,
-  setOptimized: (v: POI[]) => void,
-  setStep: (v: Step) => void,
-): void {
-  const incoming = state.bucketPois!;
-  setSelectedPois(incoming);
-  setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
-
-  if (state.userLocation) {
-    const sp: LatLng = { lat: state.userLocation.lat, lng: state.userLocation.lng };
-    setStartPoint(sp);
-    setUseCurrentLocation(true);
-    setOptimized(state.alreadyOrdered ? [...incoming] : optimizeRoute([...incoming], sp));
-  } else if (navigator.geolocation) {
+function resolveInitialOptimized(
+  incoming: POI[],
+  userLocation: { lat: number; lng: number } | null | undefined,
+  alreadyOrdered: boolean | undefined,
+  onResolved: (sp: LatLng | null, optimized: POI[]) => void,
+) {
+  if (userLocation) {
+    const sp: LatLng = { lat: userLocation.lat, lng: userLocation.lng };
+    const order = alreadyOrdered ? [...incoming] : optimizeRoute([...incoming], sp);
+    onResolved(sp, order);
+    return;
+  }
+  if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       pos => {
         const sp = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setStartPoint(sp);
-        setOptimized(optimizeRoute([...incoming], sp));
+        onResolved(sp, optimizeRoute([...incoming], sp));
       },
-      () => { setOptimized(optimizeRoute([...incoming], null)); },
-      { timeout: 5000, enableHighAccuracy: false }
+      () => onResolved(null, optimizeRoute([...incoming], null)),
+      { timeout: 5000, enableHighAccuracy: false },
     );
   } else {
-    setOptimized(optimizeRoute([...incoming], null));
+    onResolved(null, optimizeRoute([...incoming], null));
   }
-
-  setStep('route');
-  // S7764: use globalThis instead of window
-  globalThis.history.replaceState({}, '');
 }
 
 export default function RouteGenerator() {
@@ -329,10 +296,28 @@ export default function RouteGenerator() {
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
 
   useEffect(() => {
-    const state = routerLocation.state as BucketState | null;
-    if (state?.bucketPois && state.bucketPois.length >= 2) {
-      initFromBucket(state, setSelectedPois, setRouteName, setStartPoint, setUseCurrentLocation, setOptimized, setStep);
-    }
+    const state = routerLocation.state as {
+      bucketPois?: POI[];
+      userLocation?: { lat: number; lng: number } | null;
+      alreadyOrdered?: boolean;
+    } | null;
+    if (!state?.bucketPois || state.bucketPois.length < 2) return;
+
+    const incoming = state.bucketPois;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedPois(incoming);
+    setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
+
+    resolveInitialOptimized(incoming, state.userLocation, state.alreadyOrdered, (sp, order) => {
+      if (sp) {
+        setStartPoint(sp);
+        setUseCurrentLocation(true);
+      }
+      setOptimized(order);
+    });
+
+    setStep('route');
+    window.history.replaceState({}, '');
   }, [routerLocation.state]);
 
   const requestGeolocation = useCallback(() => {
@@ -373,8 +358,7 @@ export default function RouteGenerator() {
 
   const togglePOI = useCallback((poi: POI) => {
     setSelectedPois(prev =>
-      // S7754: use .some() instead of .find() as boolean
-      prev.some(p => p.id === poi.id)
+      prev.find(p => p.id === poi.id)
         ? prev.filter(p => p.id !== poi.id)
         : [...prev, poi]
     );
@@ -748,8 +732,7 @@ export default function RouteGenerator() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {filteredPois.map(poi => {
-                  // S7754: use .some() instead of .find() as boolean
-                  const sel = selectedPois.some(p => p.id === poi.id);
+                  const sel = !!selectedPois.find(p => p.id === poi.id);
                   return (
                     <button key={poi.id} onClick={() => togglePOI(poi)}
                       style={{
@@ -1035,8 +1018,7 @@ export default function RouteGenerator() {
                   lat: optimized[0].latitude,
                   lng: optimized[0].longitude,
                 };
-                // S7764: use globalThis instead of window
-                globalThis.open(`https://waze.com/ul?q=${target.lat},${target.lng}`, '_blank');
+                window.open(`https://waze.com/ul?q=${target.lat},${target.lng}`, '_blank');
               }}
                 style={{
                   width: '100%', padding: '14px',
@@ -1137,9 +1119,8 @@ export default function RouteGenerator() {
               <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 16px' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 10 }}>📍 עצירות במסלול</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* S6479: use poi.id as key instead of array index */}
                   {optimized.map((p, i) => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0d9e6e', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
                       <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>{p.name}</div>
                       <div style={{ fontSize: 11, color: '#94a3b8', marginRight: 'auto' }}>{p.category}</div>

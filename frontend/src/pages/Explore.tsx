@@ -74,8 +74,15 @@ function FilterPanel({
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
 
-  const proximityBorderColor = sortByProximity ? '#0d9e6e' : (geoError ? '#ef4444' : '#e2e8f0');
-  const proximityTextColor = sortByProximity ? '#0d9e6e' : (geoError ? '#ef4444' : '#64748b');
+  let proximityBorderColor: string;
+  if (sortByProximity) { proximityBorderColor = '#0d9e6e'; }
+  else if (geoError) { proximityBorderColor = '#ef4444'; }
+  else { proximityBorderColor = '#e2e8f0'; }
+
+  let proximityTextColor: string;
+  if (sortByProximity) { proximityTextColor = '#0d9e6e'; }
+  else if (geoError) { proximityTextColor = '#ef4444'; }
+  else { proximityTextColor = '#64748b'; }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'flex-start' }}>
@@ -154,9 +161,43 @@ function formatDistance(m: number): string {
   return `${Math.round(m / 1000)} ק"מ`;
 }
 
+// ── Module-level fetch helpers (reduce fetchPage cognitive complexity) ─────────
+
+function mapRawToPoi(raw: Record<string, unknown>): POI {
+  return {
+    id: String(raw.id),
+    name: raw.name,
+    description: raw.description ?? '',
+    category: raw.category,
+    region: (raw.region_name ?? raw.region ?? '') as string,
+    region_id: raw.region_id,
+    latitude: raw.latitude,
+    longitude: raw.longitude,
+    images: raw.images ?? [],
+    main_image: raw.main_image ?? '',
+    difficulty: raw.difficulty ?? 'בינוני',
+    duration_minutes: raw.duration_minutes,
+    has_water: raw.has_water,
+    has_shade: raw.has_shade,
+    accessible: raw.accessible,
+    is_featured: raw.is_featured,
+    average_rating: raw.average_rating ?? 4,
+    photo_credit: raw.photo_credit,
+    uploaded_by: raw.uploaded_by,
+    distance_meters: raw.distance_meters,
+  } as POI;
+}
+
+function appendPoisDedup(prev: POI[], newPois: POI[], pageNum: number): POI[] {
+  if (pageNum === 0) return newPois;
+  const seen = new Set(prev.map(p => p.id));
+  const unique = newPois.filter(p => !seen.has(p.id));
+  return unique.length > 0 ? [...prev, ...unique] : prev;
+}
+
 // ── POICard ───────────────────────────────────────────────────────────────────
 
-const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
+const POICard = React.memo(function POICard({ poi, onDelete }: Readonly<{ poi: POI; onDelete?: (id: string) => void }>) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
@@ -175,11 +216,30 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
     favLock.guardAction(() => toggleFavorite(Number(poi.id)));
   };
 
-  const bucketAriaLabel = isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : (inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול');
-  const bucketBorderColor = isGuest ? '#e2e8f0' : (inBucket ? '#0d9e6e' : '#e2e8f0');
-  const bucketBg = isGuest ? '#f8fafc' : (inBucket ? '#f0fdf8' : '#f8fafc');
-  const bucketColor = isGuest ? '#94a3b8' : (inBucket ? '#0d9e6e' : '#64748b');
-  const bucketLabel = inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>;
+  let bucketAriaLabel: string;
+  let bucketBorderColor: string;
+  let bucketBg: string;
+  let bucketColor: string;
+  let bucketLabel: React.ReactNode;
+  if (isGuest) {
+    bucketAriaLabel = 'הוספה לסל המסלול — דרוש חשבון';
+    bucketBorderColor = '#e2e8f0';
+    bucketBg = '#f8fafc';
+    bucketColor = '#94a3b8';
+    bucketLabel = <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>;
+  } else if (inBucket) {
+    bucketAriaLabel = 'הסר מסל המסלול';
+    bucketBorderColor = '#0d9e6e';
+    bucketBg = '#f0fdf8';
+    bucketColor = '#0d9e6e';
+    bucketLabel = <>✓ נוסף לסל המסלול</>;
+  } else {
+    bucketAriaLabel = 'הוסף לסל המסלול';
+    bucketBorderColor = '#e2e8f0';
+    bucketBg = '#f8fafc';
+    bucketColor = '#64748b';
+    bucketLabel = <>+ הוספה מהירה למסלול</>;
+  }
 
   return (
     <button type="button" onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
@@ -206,7 +266,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
         {favLock.PromptComponent}
 
         {user?.is_admin && onDelete && (
-          <button onClick={e => { e.stopPropagation(); if (globalThis.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
+          <button onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
             style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
           </button>
@@ -241,10 +301,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
         <button onClick={handleBucketToggle}
           aria-label={bucketAriaLabel}
           style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${bucketBorderColor}`, borderRadius: 10, background: bucketBg, color: bucketColor, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
-          {isGuest
-            ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
-            : bucketLabel
-          }
+          {bucketLabel}
         </button>
         {bucketLock.PromptComponent}
       </div>
@@ -262,74 +319,6 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
  *               so the client-side radius filter can narrow them down.
  */
 type FetchMode = 'normal' | 'city';
-
-// ── Module-level helpers (reduce Explore cognitive complexity) ────────────────
-
-interface FetchFilters {
-  selRegions: string[];
-  selCats: string[];
-  selDiffs: string[];
-  hasWater: boolean;
-  hasShade: boolean;
-  accessible: boolean;
-  debouncedSearch: string;
-}
-
-function buildLocationQueryString(
-  pageNum: number,
-  isCityFetch: boolean,
-  filters: FetchFilters,
-  gpsCoords?: { lat: number; lng: number } | null,
-): URLSearchParams {
-  const qs = new URLSearchParams();
-  if (filters.selRegions[0]) qs.set('region', filters.selRegions[0]);
-  if (filters.selCats[0]) qs.set('category', filters.selCats[0]);
-  if (filters.selDiffs[0]) qs.set('difficulty', filters.selDiffs[0]);
-  if (filters.hasWater) qs.set('has_water', 'true');
-  if (filters.hasShade) qs.set('has_shade', 'true');
-  if (filters.accessible) qs.set('accessible', 'true');
-  if (!isCityFetch && filters.debouncedSearch.trim()) qs.set('search', filters.debouncedSearch.trim());
-  const effectivePageSize = isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
-  qs.set('limit', String(effectivePageSize));
-  qs.set('offset', String(pageNum * effectivePageSize));
-  if (gpsCoords) {
-    qs.set('user_lat', String(gpsCoords.lat));
-    qs.set('user_lng', String(gpsCoords.lng));
-  }
-  return qs;
-}
-
-function mapRawToPoi(raw: Record<string, unknown>): POI {
-  return {
-    id: String(raw.id),
-    name: raw.name,
-    description: raw.description ?? '',
-    category: raw.category,
-    region: (raw.region_name ?? raw.region ?? '') as string,
-    region_id: raw.region_id,
-    latitude: raw.latitude,
-    longitude: raw.longitude,
-    images: raw.images ?? [],
-    main_image: raw.main_image ?? '',
-    difficulty: raw.difficulty ?? 'בינוני',
-    duration_minutes: raw.duration_minutes,
-    has_water: raw.has_water,
-    has_shade: raw.has_shade,
-    accessible: raw.accessible,
-    is_featured: raw.is_featured,
-    average_rating: raw.average_rating ?? 4,
-    photo_credit: raw.photo_credit,
-    uploaded_by: raw.uploaded_by,
-    distance_meters: raw.distance_meters,
-  } as POI;
-}
-
-function appendPoisDedup(prev: POI[], newPois: POI[], pageNum: number): POI[] {
-  if (pageNum === 0) return newPois;
-  const seen = new Set(prev.map(p => p.id));
-  const unique = newPois.filter(p => !seen.has(p.id));
-  return unique.length > 0 ? [...prev, ...unique] : prev;
-}
 
 // ── Main Explore page ─────────────────────────────────────────────────────────
 
@@ -442,11 +431,28 @@ export default function Explore() {
     let aborted = false;
 
     try {
-      const qs = buildLocationQueryString(
-        pageNum, isCityFetch,
-        { selRegions, selCats, selDiffs, hasWater, hasShade, accessible, debouncedSearch },
-        gpsCoords,
-      );
+      const qs = new URLSearchParams();
+      if (selRegions[0]) qs.set('region', selRegions[0]);
+      if (selCats[0]) qs.set('category', selCats[0]);
+      if (selDiffs[0]) qs.set('difficulty', selDiffs[0]);
+      if (hasWater) qs.set('has_water', 'true');
+      if (hasShade) qs.set('has_shade', 'true');
+      if (accessible) qs.set('accessible', 'true');
+      // City fetches omit `search=` so the server returns unfiltered candidates
+      // for the client-side radius pass. Normal fetches pass the search term.
+      if (!isCityFetch && debouncedSearch.trim()) qs.set('search', debouncedSearch.trim());
+
+      // FIX 1 (Offset over-fetch in city mode): limit and offset must use the
+      // SAME page-size constant. City pages are CITY_PAGE_SIZE items wide, so
+      // page 1 must start at offset 200, not 40.
+      const effectivePageSize = isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
+      qs.set('limit', String(effectivePageSize));
+      qs.set('offset', String(pageNum * effectivePageSize));
+
+      if (gpsCoords) {
+        qs.set('user_lat', String(gpsCoords.lat));
+        qs.set('user_lng', String(gpsCoords.lng));
+      }
 
       const token = localStorage.getItem('router_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -464,6 +470,8 @@ export default function Explore() {
       const json = await res.json();
       const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => mapRawToPoi(raw));
 
+      // Deduplicate by ID before updating state. Prevents double-appends from
+      // concurrent observer triggers or re-renders.
       setPois(prev => appendPoisDedup(prev, newPois, pageNum));
 
       // FIX 4 (City-mode infinite pagination): if the server returned fewer
@@ -525,7 +533,7 @@ export default function Explore() {
       // --- Standard POI fetch (always runs first) ---
       fetchModeRef.current = 'normal';
       setPois([]);
-      setPage(0);
+      pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
       const normalResults = await fetchPage(0, userCoords);
@@ -566,7 +574,7 @@ export default function Explore() {
       cityResultRef.current = result;
       setCityResult(result);
       setPois([]);
-      setPage(0);
+      pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
       // Pass the city's coordinates so the server sorts its 200-item batch by
@@ -609,9 +617,12 @@ export default function Explore() {
         if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
 
         pageRef.current += 1;
-        const coords = fetchModeRef.current === 'city'
-          ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
-          : userCoords;
+        let coords: { lat: number; lng: number } | null;
+        if (fetchModeRef.current === 'city') {
+          coords = cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null;
+        } else {
+          coords = userCoords;
+        }
         fetchPage(pageRef.current, coords);
       }
     });
@@ -676,18 +687,35 @@ export default function Explore() {
     selRegions.length + selCats.length + selDiffs.length +
     (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  const countBarText = cityResult
-    ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
-    : (sortByProximity
-      ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
-      : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`);
+  // ── Count bar text ────────────────────────────────────────────────────────
+  let countBarNode: React.ReactNode;
+  if (loading && pois.length === 0) {
+    countBarNode = <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>;
+  } else if (error) {
+    countBarNode = <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>;
+  } else {
+    let countBarText: string;
+    if (cityResult) {
+      countBarText = `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`;
+    } else if (sortByProximity) {
+      countBarText = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`;
+    } else {
+      countBarText = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`;
+    }
+    countBarNode = <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countBarText}</span>;
+  }
 
+  // ── Empty grid message ────────────────────────────────────────────────────
+  const emptyMessage = cityResult
+    ? `לא נמצאו אתרים בקרבת ${cityResult.name}`
+    : 'לא נמצאו אתרים תואמים לחיפוש שלך';
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
-          <button onClick={() => { setSelCats([]); globalThis.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
+          <button onClick={() => { setSelCats([]); window.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
           <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>קטגוריה: {urlCategory}</span>
         </div>
       )}
@@ -754,12 +782,7 @@ export default function Explore() {
       </div>
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
-        {loading && pois.length === 0
-          ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
-          : error
-            ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
-            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countBarText}</span>
-        }
+        {countBarNode}
       </div>
 
       {/* Grid */}
@@ -772,12 +795,10 @@ export default function Explore() {
             </div>
           );
         })}
-        {!loading && displayedPois.length === 0 && (
+        {loading || displayedPois.length > 0 ? null : (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontWeight: 700 }}>
-              {cityResult ? `לא נמצאו אתרים בקרבת ${cityResult.name}` : 'לא נמצאו אתרים תואמים לחיפוש שלך'}
-            </div>
+            <div style={{ fontWeight: 700 }}>{emptyMessage}</div>
           </div>
         )}
       </div>
