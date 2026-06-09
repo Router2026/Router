@@ -57,7 +57,7 @@ export async function getRoutes(userId?: number): Promise<Route[]> {
 
   return routeRows.map(route => ({
     ...route,
-    total_duration_hours: parseFloat(route.total_duration_hours as string) || 0,
+    total_duration_hours: Number.parseFloat(route.total_duration_hours as string) || 0,
     stops: stopRows
       .filter(s => s.route_id === route.id)
       .map(s => ({ ...s, poi_name: (s.poi_name || s.location_name || "") as string })),
@@ -89,7 +89,7 @@ export async function getRouteById(id: number): Promise<Route | null> {
 
   return {
     ...route,
-    total_duration_hours: parseFloat(route.total_duration_hours as string) || 0,
+    total_duration_hours: Number.parseFloat(route.total_duration_hours as string) || 0,
     stops: stopRows.map(s => ({
       ...s,
       poi_name: (s.poi_name || s.location_name || "") as string,

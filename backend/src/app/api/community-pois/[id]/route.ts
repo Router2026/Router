@@ -11,35 +11,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
-import { supabase } from "@/lib/db/supabase";
-import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { getCommunityPoi, editCommunityPoi } from "@/lib/community-poi/community-poi-service";
 import { CommunityPoiRow } from "@/lib/community-poi/types";
+import { AuthUser, resolvePoiAuthUser } from "@/lib/auth/resolve-user";
 
 type RouteParams = { params: Promise<{ id: string }> };
-
-// ── Auth helper ────────────────────────────────────────────────────────────────
-
-interface AuthUser { id: number; username: string; }
-
-async function resolveAuthUser(req: NextRequest): Promise<AuthUser | null> {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-
-  const { data: { user: sbUser } } = await supabase.auth.getUser(token);
-  if (sbUser?.email) {
-    const { rows } = await rawDb.query(
-      `SELECT id, username FROM users WHERE email = $1 LIMIT 1`,
-      [sbUser.email]
-    );
-    return rows.length ? { id: rows[0].id as number, username: rows[0].username as string } : null;
-  }
-
-  const auth = await getUserFromRequest(req);
-  return auth?.id ? { id: auth.id as number, username: (auth as any).username as string ?? "" } : null;
-}
 
 /**
  * Returns true when the authenticated user owns this community POI.
@@ -64,8 +41,8 @@ async function isOwner(poi: CommunityPoiRow, auth: AuthUser): Promise<boolean> {
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const poiId = parseInt(id, 10);
-    if (isNaN(poiId)) {
+    const poiId = Number.parseInt(id, 10);
+    if (Number.isNaN(poiId)) {
       return NextResponse.json(
         errorResponse("Invalid community POI id", "VALIDATION_ERROR"),
         { status: 400 }
@@ -90,13 +67,35 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   }
 }
 
+type PoiFieldValue = string | number | boolean | null;
+
+function buildExtraPoiFields(body: any): { fields: string[]; params: PoiFieldValue[] } {
+  const fields: string[] = [];
+  const params: PoiFieldValue[] = [];
+  let idx = 2; // $1 = poiId
+
+  const add = (col: string, val: PoiFieldValue) => {
+    fields.push(`${col} = $${idx++}`);
+    params.push(val);
+  };
+
+  if (body.difficulty !== undefined)       add("difficulty", body.difficulty ?? null);
+  if (body.duration_minutes !== undefined) add("duration_minutes", body.duration_minutes == null ? null : Number.parseInt(body.duration_minutes));
+  if (body.has_water !== undefined)        add("has_water", body.has_water == null ? null : Boolean(body.has_water));
+  if (body.has_shade !== undefined)        add("has_shade", body.has_shade == null ? null : Boolean(body.has_shade));
+  if (body.accessible !== undefined)       add("accessible", body.accessible == null ? null : Boolean(body.accessible));
+  if (body.photo_credit !== undefined)     add("photo_credit", body.photo_credit ?? null);
+
+  return { fields, params };
+}
+
 // ── PATCH ──────────────────────────────────────────────────────────────────────
 // Allowed body fields: name, category, description, latitude, longitude, photos,
 //   difficulty, duration_minutes, has_water, has_shade, accessible, photo_credit
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await resolveAuthUser(req);
+    const auth = await resolvePoiAuthUser(req);
     if (!auth) {
       return NextResponse.json(
         errorResponse("Authentication required", "AUTH_ERROR"),
@@ -105,8 +104,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const poiId = parseInt(id, 10);
-    if (isNaN(poiId)) {
+    const poiId = Number.parseInt(id, 10);
+    if (Number.isNaN(poiId)) {
       return NextResponse.json(
         errorResponse("Invalid community POI id", "VALIDATION_ERROR"),
         { status: 400 }
@@ -144,7 +143,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
 
     // Use the shared editCommunityPoi service (same as admin edit)
-    const updated = await editCommunityPoi(poiId, {
+    await editCommunityPoi(poiId, {
       name: body.name,
       category: body.category,
       description: body.description,
@@ -153,36 +152,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       photos: body.photos,
     });
 
-    // Also update the extra detail fields that editCommunityPoi doesn't cover yet
-    const extraFields: string[] = [];
-    const extraParams: (string | number | boolean | null)[] = [];
-    let paramIdx = 2; // $1 is reserved for poiId
-
-    if (body.difficulty !== undefined) {
-      extraFields.push(`difficulty = $${paramIdx++}`);
-      extraParams.push(body.difficulty ?? null);
-    }
-    if (body.duration_minutes !== undefined) {
-      extraFields.push(`duration_minutes = $${paramIdx++}`);
-      extraParams.push(body.duration_minutes != null ? parseInt(body.duration_minutes) : null);
-    }
-    if (body.has_water !== undefined) {
-      extraFields.push(`has_water = $${paramIdx++}`);
-      extraParams.push(body.has_water != null ? Boolean(body.has_water) : null);
-    }
-    if (body.has_shade !== undefined) {
-      extraFields.push(`has_shade = $${paramIdx++}`);
-      extraParams.push(body.has_shade != null ? Boolean(body.has_shade) : null);
-    }
-    if (body.accessible !== undefined) {
-      extraFields.push(`accessible = $${paramIdx++}`);
-      extraParams.push(body.accessible != null ? Boolean(body.accessible) : null);
-    }
-    if (body.photo_credit !== undefined) {
-      extraFields.push(`photo_credit = $${paramIdx++}`);
-      extraParams.push(body.photo_credit ?? null);
-    }
-
+    const { fields: extraFields, params: extraParams } = buildExtraPoiFields(body);
     if (extraFields.length > 0) {
       extraFields.push(`updated_at = NOW()`);
       await rawDb.query(
@@ -208,7 +178,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await resolveAuthUser(req);
+    const auth = await resolvePoiAuthUser(req);
     if (!auth) {
       return NextResponse.json(
         errorResponse("Authentication required", "AUTH_ERROR"),
@@ -217,8 +187,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const poiId = parseInt(id, 10);
-    if (isNaN(poiId)) {
+    const poiId = Number.parseInt(id, 10);
+    if (Number.isNaN(poiId)) {
       return NextResponse.json(
         errorResponse("Invalid community POI id", "VALIDATION_ERROR"),
         { status: 400 }

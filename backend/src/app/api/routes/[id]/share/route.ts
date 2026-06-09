@@ -18,8 +18,8 @@ export async function POST(
     }
 
     const { id } = await params;
-    const routeId = parseInt(id, 10);
-    if (isNaN(routeId)) {
+    const routeId = Number.parseInt(id, 10);
+    if (Number.isNaN(routeId)) {
       return NextResponse.json(errorResponse("Invalid route id", "VALIDATION_ERROR"), { status: 400 });
     }
 

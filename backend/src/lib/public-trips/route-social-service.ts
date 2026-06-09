@@ -143,7 +143,7 @@ export async function setRouteRating(routeId: number, userId: number, rating: nu
 
   const { rows } = await rawDb.query(`SELECT average_rating, ratings_count FROM routes WHERE id = $1`, [routeId]);
   return {
-    average_rating: parseFloat(rows[0]?.average_rating as string) ?? 0,
+    average_rating: Number.parseFloat(rows[0]?.average_rating as string) ?? 0,
     ratings_count: (rows[0]?.ratings_count as number) ?? 0,
     user_rating: rating,
   };
@@ -151,7 +151,7 @@ export async function setRouteRating(routeId: number, userId: number, rating: nu
 
 export async function getRouteRatingStatus(routeId: number, userId: number | null): Promise<{ average_rating: number; ratings_count: number; user_rating: number | null }> {
   const { rows } = await rawDb.query(`SELECT average_rating, ratings_count FROM routes WHERE id = $1`, [routeId]);
-  const average_rating = parseFloat(rows[0]?.average_rating as string) ?? 0;
+  const average_rating = Number.parseFloat(rows[0]?.average_rating as string) ?? 0;
   const ratings_count = (rows[0]?.ratings_count as number) ?? 0;
 
   if (!userId) return { average_rating, ratings_count, user_rating: null };
@@ -313,7 +313,7 @@ export async function getSocialStatsForRoutes(
     statsMap.set(id, {
       likes_count: (row.likes_count as number) ?? 0,
       comments_count: (row.comments_count as number) ?? 0,
-      average_rating: parseFloat(row.average_rating as string) ?? 0,
+      average_rating: Number.parseFloat(row.average_rating as string) ?? 0,
       ratings_count: (row.ratings_count as number) ?? 0,
       user_liked: likedSet.has(id),
       user_rating: userRatingMap.get(id) ?? null,

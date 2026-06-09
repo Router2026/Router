@@ -15,8 +15,8 @@ export async function POST(
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { locationId } = await params;
-    const locId = parseInt(locationId, 10);
-    if (isNaN(locId)) return NextResponse.json(errorResponse("Invalid locationId", "VALIDATION_ERROR"), { status: 400 });
+    const locId = Number.parseInt(locationId, 10);
+    if (Number.isNaN(locId)) return NextResponse.json(errorResponse("Invalid locationId", "VALIDATION_ERROR"), { status: 400 });
 
     const fav = await addFavorite(auth.id, locId);
     return NextResponse.json(successResponse({ favorited: true, favorite: fav }), { status: 201 });
@@ -36,8 +36,8 @@ export async function DELETE(
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { locationId } = await params;
-    const locId = parseInt(locationId, 10);
-    if (isNaN(locId)) return NextResponse.json(errorResponse("Invalid locationId", "VALIDATION_ERROR"), { status: 400 });
+    const locId = Number.parseInt(locationId, 10);
+    if (Number.isNaN(locId)) return NextResponse.json(errorResponse("Invalid locationId", "VALIDATION_ERROR"), { status: 400 });
 
     await removeFavorite(auth.id, locId);
     return NextResponse.json(successResponse({ favorited: false }));

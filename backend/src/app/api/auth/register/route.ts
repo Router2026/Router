@@ -4,7 +4,7 @@ import { supabase } from "@/lib/db/supabase";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { checkRateLimit, clientIp } from "@/lib/auth/rate-limit";
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const USERNAME_RE = /^\w{3,20}$/;
 // Minimum 8 characters with at least one letter and one number/symbol
 const PASSWORD_RE = /^(?=.*[a-zA-Z])(?=.*[\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     if (existing.length > 0)
       return NextResponse.json(errorResponse("Email or username already in use", "CONFLICT"), { status: 409 });
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {

@@ -89,11 +89,11 @@ export default function PublicUserProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const userId = parseInt(id || '', 10);
+  const userId = Number.parseInt(id || '', 10);
   const isOwnProfile = user && Number(user.id) === userId;
 
   useEffect(() => {
-    if (!userId || isNaN(userId)) { setError('מזהה משתמש לא תקין'); setLoading(false); return; }
+    if (!userId || Number.isNaN(userId)) { setError('מזהה משתמש לא תקין'); setLoading(false); return; }
     setLoading(true);
     api.userProfiles.get(userId)
       .then(({ profile: p, trips: t, community_pois: cp }) => { setProfile(p); setTrips(t); setCommunityPois(cp ?? []); })

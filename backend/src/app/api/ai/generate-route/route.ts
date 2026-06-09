@@ -45,6 +45,23 @@ const GROUP_MAP: Record<string, { travelerType: TripInput["travelerType"]; group
   friends: { travelerType: "friends", groupSize: 3 },
 };
 
+function buildRequestedCategories(
+  styles: string[],
+  includeFood: boolean,
+  includeCoffee: boolean,
+): Set<string> {
+  const cats = new Set<string>();
+  for (const style of styles) {
+    for (const cat of STYLE_TO_CATEGORIES[style] ?? []) {
+      cats.add(cat);
+    }
+  }
+  if (includeFood) cats.add("restaurant");
+  if (includeCoffee) cats.add("coffee_trail");
+  if (cats.size === 0) cats.add("attraction");
+  return cats;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { getUserFromRequest } = await import("@/lib/auth/tokens");
@@ -73,16 +90,7 @@ export async function POST(req: NextRequest) {
     const groupMapping = GROUP_MAP[groupType] ?? GROUP_MAP["friends"];
     const times = { start: startTime, end: endTime };
 
-    // Build requested POI categories from styles
-    const requestedCategories = new Set<string>();
-    for (const style of styles) {
-      for (const cat of STYLE_TO_CATEGORIES[style] ?? []) {
-        requestedCategories.add(cat);
-      }
-    }
-    if (includeFood) requestedCategories.add("restaurant");
-    if (includeCoffee) requestedCategories.add("coffee_trail");
-    if (requestedCategories.size === 0) requestedCategories.add("attraction");
+    const requestedCategories = buildRequestedCategories(styles, includeFood, includeCoffee);
 
     // Always include attraction + hiking_trail as a base so the query never returns empty
     const queryCategories = [...new Set([...requestedCategories, "attraction", "hiking_trail"])];
@@ -123,7 +131,7 @@ export async function POST(req: NextRequest) {
       travelerType: groupMapping.travelerType,
       groupSize: groupMapping.groupSize,
       durationDays: 1,
-      poiCategories: finalCategories as TripInput["poiCategories"],
+      poiCategories: finalCategories,
       areas: [regionMapping.area],
       subAreas: [regionMapping.subArea],
       dayStartTime: times.start,
@@ -143,8 +151,8 @@ export async function POST(req: NextRequest) {
       region: regionMapping.area,
       description: (r.description as string) || "",
       address: "",
-      latitude: parseFloat(r.latitude as string),
-      longitude: parseFloat(r.longitude as string),
+      latitude: Number.parseFloat(r.latitude as string),
+      longitude: Number.parseFloat(r.longitude as string),
       subRegion: regionMapping.subArea,
       visitDurationMinutes: (r.duration_minutes as number) ?? 60,
       openingHours: null,

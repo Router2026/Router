@@ -373,20 +373,20 @@ export default function RouteGenerator() {
     try {
       const stops = optimized.map((p, i) => ({
         poi_name: p.name,
-        location_id: parseInt(p.id),
+        location_id: Number.parseInt(p.id),
         arrival_time: `${String(8 + i * 2).padStart(2, '0')}:00`,
         duration_minutes: p.duration_minutes || 60,
         order_index: i,
       }));
       const dist = totalDistance(optimized);
-      const autoHours = parseFloat(
+      const autoHours = Number.parseFloat(
         (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
       );
       const saved = await api.trips.create({
         name: routeName || `מסלול ב${selectedRegion?.name}`,
         region: selectedRegion?.name,
-        total_duration_hours: tripDuration ? parseFloat(tripDuration) : autoHours,
-        total_distance_km: parseFloat(dist.toFixed(1)),
+        total_duration_hours: tripDuration ? Number.parseFloat(tripDuration) : autoHours,
+        total_distance_km: Number.parseFloat(dist.toFixed(1)),
         difficulty: tripDifficulty,
         group_type: tripType,
         style: tripStyle,
@@ -400,7 +400,7 @@ export default function RouteGenerator() {
 
   const buildStops = () => optimized.map((p, i) => ({
     poi_name: p.name,
-    location_id: parseInt(p.id),
+    location_id: Number.parseInt(p.id),
     arrival_time: `${String(8 + i * 2).padStart(2, '0')}:00`,
     duration_minutes: p.duration_minutes || 60,
     order_index: i,
@@ -412,14 +412,14 @@ export default function RouteGenerator() {
     try {
       const stops = buildStops();
       const dist = totalDistance(optimized);
-      const autoHours = parseFloat(
+      const autoHours = Number.parseFloat(
         (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
       );
       const publicTrip = await api.publicTrips.create({
         title: routeName || `מסלול ב${selectedRegion?.name}`,
         description: publishDesc || undefined,
         is_public: true,
-        location_ids: optimized.map(p => parseInt(p.id)),
+        location_ids: optimized.map(p => Number.parseInt(p.id)),
       });
       if (publishDesc || publishPOI || publishStops) {
         await api.publicTrips.updateMedia(publicTrip.id, {
@@ -993,7 +993,7 @@ export default function RouteGenerator() {
                   type="number" min="0.5" max="24" step="0.5"
                   value={tripDuration}
                   onChange={e => setTripDuration(e.target.value)}
-                  placeholder={`${parseFloat((optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0) / 60).toFixed(1))} שעות (אוטומטי)`}
+                  placeholder={`${Number.parseFloat((optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0) / 60).toFixed(1))} שעות (אוטומטי)`}
                   style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '9px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', direction: 'ltr', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>

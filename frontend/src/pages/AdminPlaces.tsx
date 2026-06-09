@@ -61,8 +61,8 @@ async function fetchAllLocations(): Promise<POI[]> {
             category: r.category,
             region: r.region_name || r.region || '',
             region_id: r.region_id,
-            latitude: parseFloat(r.latitude),
-            longitude: parseFloat(r.longitude),
+            latitude: Number.parseFloat(r.latitude),
+            longitude: Number.parseFloat(r.longitude),
             images: Array.isArray(r.images) ? r.images
                 : (typeof r.images === 'string' ? JSON.parse(r.images) : []),
             main_image: r.main_image || '',
@@ -71,7 +71,7 @@ async function fetchAllLocations(): Promise<POI[]> {
             has_water: r.has_water,
             has_shade: r.has_shade,
             accessible: r.accessible,
-            average_rating: parseFloat(r.average_rating) || 4.0,
+            average_rating: Number.parseFloat(r.average_rating) || 4.0,
             photo_credit: r.photo_credit || undefined,
             uploaded_by: r.uploaded_by || undefined,
             // Preserve all extra DB fields (is_featured, source, source_id, created_at, etc.)
@@ -216,8 +216,8 @@ export default function AdminPlaces() {
         showToast(`🗑 "${name}" נמחק`);
     };
 
-    const uniqueCategories = [...new Set(pois.map(p => p.category))].sort();
-    const uniqueRegions = [...new Set(pois.map(p => p.region).filter(Boolean))].sort();
+    const uniqueCategories = [...new Set(pois.map(p => p.category))].sort((a, b) => a.localeCompare(b));
+    const uniqueRegions = [...new Set(pois.map(p => p.region).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
     const filtered = pois.filter(p => {
         if (filterFeatured && !p.is_featured) return false;

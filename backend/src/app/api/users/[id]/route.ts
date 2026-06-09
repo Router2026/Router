@@ -28,8 +28,8 @@ async function getApprovedCommunityPoisForUser(userId: number): Promise<Communit
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const userId = parseInt(id, 10);
-    if (isNaN(userId)) {
+    const userId = Number.parseInt(id, 10);
+    if (Number.isNaN(userId)) {
       return NextResponse.json(errorResponse("Invalid user id", "VALIDATION_ERROR"), { status: 400 });
     }
 

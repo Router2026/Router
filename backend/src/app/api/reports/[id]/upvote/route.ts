@@ -7,7 +7,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     const delta: 1 | -1 = body.action === 'remove' ? -1 : 1;
-    const data = await upvoteReport(parseInt(id), delta);
+    const data = await upvoteReport(Number.parseInt(id), delta);
     if (!data) {
       return NextResponse.json(errorResponse("Report not found", "NOT_FOUND"), { status: 404 });
     }

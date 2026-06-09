@@ -17,8 +17,8 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
@@ -81,8 +81,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
@@ -108,8 +108,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 

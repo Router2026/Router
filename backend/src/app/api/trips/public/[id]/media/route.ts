@@ -1,6 +1,6 @@
-// src/app/api/locations/[id]/media/route.ts
-// GET  /locations/:id/media       — list all media (images + videos)
-// POST /locations/:id/media       — upload image or video (authenticated)
+// src/app/api/trips/public/[id]/media/route.ts
+// GET  /trips/public/:id/media    — list all media (images + videos)
+// POST /trips/public/:id/media    — upload image or video (authenticated)
 //
 // POST body options:
 //   { media_url: string, media_type?: "image"|"video" }
@@ -21,12 +21,12 @@ import {
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-// GET /locations/:id/media
+// GET /trips/public/:id/media
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const media = await getLocationMedia(locationId, approvedOnly);
     return NextResponse.json(successResponse(media));
   } catch (err) {
-    console.error("[GET /api/locations/:id/media]", err);
+    console.error("[GET /api/trips/public/:id/media]", err);
     return NextResponse.json(errorResponse("Failed to fetch media", "DB_ERROR"), { status: 500 });
   }
 }
@@ -46,7 +46,7 @@ export const config = {
   api: { bodyParser: false },
 };
 
-// POST /locations/:id/media — upload image or video (multipart/form-data OR JSON)
+// POST /trips/public/:id/media — upload image or video (multipart/form-data OR JSON)
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
@@ -55,8 +55,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }), { status: 201 });
 
   } catch (err: any) {
-    console.error("[POST /api/locations/:id/media]", err);
+    console.error("[POST /api/trips/public/:id/media]", err);
     if (err?.code === "LIMIT_REACHED") {
       return NextResponse.json(errorResponse(err.message, "LIMIT_REACHED"), { status: 429 });
     }
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PATCH /locations/:id/media  — approve or reject (admin only)
+// PATCH /trips/public/:id/media  — approve or reject (admin only)
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
@@ -196,12 +196,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json(successResponse({ rejected: true }));
     }
   } catch (err: any) {
-    console.error("[PATCH /api/locations/:id/media]", err);
+    console.error("[PATCH /api/trips/public/:id/media]", err);
     return NextResponse.json(errorResponse("Failed to update media", "DB_ERROR"), { status: 500 });
   }
 }
 
-// DELETE /locations/:id/media  — delete own media (or admin)
+// DELETE /trips/public/:id/media  — delete own media (or admin)
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
@@ -218,7 +218,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     await deleteMedia(media_id, auth.id, auth.is_admin ?? false);
     return NextResponse.json(successResponse({ deleted: true }));
   } catch (err: any) {
-    console.error("[DELETE /api/locations/:id/media]", err);
+    console.error("[DELETE /api/trips/public/:id/media]", err);
     if (err?.code === "NOT_FOUND") {
       return NextResponse.json(errorResponse(err.message, "NOT_FOUND"), { status: 404 });
     }

@@ -60,8 +60,8 @@ export async function getRatingSummary(
   }
 
   return {
-    average: parseFloat(rows[0].average as string) || 0,
-    count: parseInt(rows[0].count as string, 10),
+    average: Number.parseFloat(rows[0].average as string) || 0,
+    count: Number.parseInt(rows[0].count as string, 10),
     userRating,
   };
 }

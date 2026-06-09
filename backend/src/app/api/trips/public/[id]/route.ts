@@ -11,8 +11,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const tripId = parseInt(id, 10);
-    if (isNaN(tripId)) {
+    const tripId = Number.parseInt(id, 10);
+    if (Number.isNaN(tripId)) {
       return NextResponse.json(errorResponse("Invalid trip id", "VALIDATION_ERROR"), { status: 400 });
     }
     const trip = await getPublicTripById(tripId);
@@ -32,8 +32,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { id } = await params;
-    const tripId = parseInt(id, 10);
-    if (isNaN(tripId)) return NextResponse.json(errorResponse("Invalid trip id", "VALIDATION_ERROR"), { status: 400 });
+    const tripId = Number.parseInt(id, 10);
+    if (Number.isNaN(tripId)) return NextResponse.json(errorResponse("Invalid trip id", "VALIDATION_ERROR"), { status: 400 });
 
     const body = await req.json();
 

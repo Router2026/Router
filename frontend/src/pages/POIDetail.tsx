@@ -574,7 +574,7 @@ export default function POIDetail() {
   } = useQuery<POIDetailData, Error>({
     queryKey: poiDetailKeys.detail(poiId),
     queryFn: () => fetchPOIDetail(poiId, isAdmin),
-    enabled: !!poiId && !isNaN(poiIdNum),
+    enabled: !!poiId && !Number.isNaN(poiIdNum),
     // Keep previous data visible while a background refetch runs (e.g. after an edit)
     placeholderData: previousData => previousData,
   });
@@ -628,7 +628,7 @@ export default function POIDetail() {
 
   // ── Render guards ──────────────────────────────────────────────────────────
 
-  if (!poiId || isNaN(poiIdNum)) {
+  if (!poiId || Number.isNaN(poiIdNum)) {
     return (
       <POIDetailError
         message="מזהה מקום לא תקין"
@@ -717,7 +717,7 @@ export default function POIDetail() {
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 </button>
-                {!isNaN(poiIdNum) && <FavoriteButton locationId={poiIdNum} size={20} style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 14, width: 42, height: 42 }} />}
+                {!Number.isNaN(poiIdNum) && <FavoriteButton locationId={poiIdNum} size={20} style={{ background: 'rgba(255,255,255,0.88)', borderRadius: 14, width: 42, height: 42 }} />}
                 {isAdmin && (
                   <button onClick={() => setShowAdminEdit(true)}
                     style={{ background: 'rgba(124,58,237,0.9)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -791,12 +791,12 @@ export default function POIDetail() {
           </div>
 
           <MiniMap poi={poi} />
-          {!isNaN(poiIdNum) && <NearbyPlaces locationId={poiIdNum} />}
+          {!Number.isNaN(poiIdNum) && <NearbyPlaces locationId={poiIdNum} />}
           <MediaGallery locationId={poiIdNum} media={allMedia} isAdmin={isAdmin}
             onApprove={id => { if (media.some(m => m.id === id)) handleApproveMedia(id); else handleApproveImage(id); }}
             onReject={id => { if (media.some(m => m.id === id)) handleRejectMedia(id); else handleRejectImage(id); }} />
 
-          {isLoggedIn && !isNaN(poiIdNum) && (
+          {isLoggedIn && !Number.isNaN(poiIdNum) && (
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
               <UploadPhotoButton locationId={poiIdNum} onUploaded={newMedia => {
                 queryClient.setQueryData<POIDetailData>(poiDetailKeys.detail(poiId), old =>

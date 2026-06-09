@@ -182,8 +182,8 @@ export async function approveCommunityPoi(
     // uploaded_by always records who submitted the community POI.
     const photoCredit = (poi as any).photo_credit || submitterUsername || null;
 
-    const lat = parseFloat(poi.latitude as unknown as string);
-    const lng = parseFloat(poi.longitude as unknown as string);
+    const lat = Number.parseFloat(poi.latitude as unknown as string);
+    const lng = Number.parseFloat(poi.longitude as unknown as string);
 
     // 3. Upsert into public locations table — inside the same transaction
     // Note: lat/lng are passed TWICE — once as numeric for the columns,

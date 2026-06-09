@@ -39,22 +39,22 @@ const extractLatLngFromGoogle = (input: string): LatLng | null => {
 
   const rawCoord = s.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
   if (rawCoord) {
-    const lat = parseFloat(rawCoord[1]);
-    const lng = parseFloat(rawCoord[2]);
+    const lat = Number.parseFloat(rawCoord[1]);
+    const lng = Number.parseFloat(rawCoord[2]);
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
   }
 
   const atCoord = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (atCoord) return { lat: parseFloat(atCoord[1]), lng: parseFloat(atCoord[2]) };
+  if (atCoord) return { lat: Number.parseFloat(atCoord[1]), lng: Number.parseFloat(atCoord[2]) };
 
   const embCoord = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-  if (embCoord) return { lat: parseFloat(embCoord[1]), lng: parseFloat(embCoord[2]) };
+  if (embCoord) return { lat: Number.parseFloat(embCoord[1]), lng: Number.parseFloat(embCoord[2]) };
 
   const qParam = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (qParam) return { lat: parseFloat(qParam[1]), lng: parseFloat(qParam[2]) };
+  if (qParam) return { lat: Number.parseFloat(qParam[1]), lng: Number.parseFloat(qParam[2]) };
 
   const llParam = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (llParam) return { lat: parseFloat(llParam[1]), lng: parseFloat(llParam[2]) };
+  if (llParam) return { lat: Number.parseFloat(llParam[1]), lng: Number.parseFloat(llParam[2]) };
 
   return null;
 };
@@ -79,7 +79,7 @@ async function geocodePlaceName(name: string): Promise<LatLng | null> {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=1&countrycodes=il`;
     const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
     const data = await res.json();
-    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    if (data?.[0]) return { lat: Number.parseFloat(data[0].lat), lng: Number.parseFloat(data[0].lon) };
   } catch { /* silent */ }
   return null;
 }
@@ -389,7 +389,7 @@ export default function ContributePOI() {
           longitude: pickedPoint.lng,
           photos, // Valid JSON string array for jsonb column
           difficulty,
-          duration_minutes: durationMinutes ? parseInt(durationMinutes, 10) : undefined,
+          duration_minutes: durationMinutes ? Number.parseInt(durationMinutes, 10) : undefined,
           has_water: hasWater,
           has_shade: hasShade,
           accessible,

@@ -5,15 +5,18 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
-    const north = parseFloat(sp.get("north") || "");
-    const south = parseFloat(sp.get("south") || "");
-    const east  = parseFloat(sp.get("east")  || "");
-    const west  = parseFloat(sp.get("west")  || "");
+    const north = Number.parseFloat(sp.get("north") || "");
+    const south = Number.parseFloat(sp.get("south") || "");
+    const east = Number.parseFloat(sp.get("east") || "");
+    const west = Number.parseFloat(sp.get("west") || "");
 
-    if ([north, south, east, west].some(isNaN)) {
+    if ([north, south, east, west].some(Number.isNaN)) {
       return NextResponse.json(
-        errorResponse("north, south, east, west query params are required", "VALIDATION_ERROR"),
-        { status: 400 }
+        errorResponse(
+          "north, south, east, west query params are required",
+          "VALIDATION_ERROR",
+        ),
+        { status: 400 },
       );
     }
 
@@ -21,7 +24,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(successResponse(data));
   } catch (err) {
     console.error("[GET /api/locations/map]", err);
-    return NextResponse.json(errorResponse("Failed to fetch map locations", "DB_ERROR"), { status: 500 });
+    return NextResponse.json(
+      errorResponse("Failed to fetch map locations", "DB_ERROR"),
+      { status: 500 },
+    );
   }
 }
 

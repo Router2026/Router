@@ -5,8 +5,8 @@
 import { rawDb } from "@/lib/db/raw-client";
 import { cacheGet, cacheSet } from "@/lib/cache/mem-cache";
 
-const MAP_CACHE_TTL = parseInt(process.env.MAP_CACHE_TTL || "30");
-const LIST_CACHE_TTL = parseInt(process.env.LIST_CACHE_TTL || "300");
+const MAP_CACHE_TTL = Number.parseInt(process.env.MAP_CACHE_TTL || "30");
+const LIST_CACHE_TTL = Number.parseInt(process.env.LIST_CACHE_TTL || "300");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,8 +98,8 @@ function rowToLocation(row: Record<string, unknown>): Location {
     category: row.category as string,
     region_id: row.region_id as number,
     region_name: row.region_name as string | undefined,
-    latitude: parseFloat(row.latitude as string),
-    longitude: parseFloat(row.longitude as string),
+    latitude: Number.parseFloat(row.latitude as string),
+    longitude: Number.parseFloat(row.longitude as string),
     images,
     main_image: (row.main_image as string) || images[0] || "",
     source: row.source as Location["source"],
@@ -110,7 +110,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     is_featured: row.is_featured as boolean | undefined,
-    average_rating: parseFloat(row.average_rating as string) || 4.0,
+    average_rating: Number.parseFloat(row.average_rating as string) || 4.0,
     photo_credit: (row.photo_credit as string) || undefined,
     uploaded_by: (row.uploaded_by as string) || undefined,
     created_at: row.created_at as Date,
@@ -132,8 +132,8 @@ function rowToLocationSlim(row: Record<string, unknown>): Location {
     category: row.category as string,
     region_id: row.region_id as number,
     region_name: row.region_name as string | undefined,
-    latitude: parseFloat(row.latitude as string),
-    longitude: parseFloat(row.longitude as string),
+    latitude: Number.parseFloat(row.latitude as string),
+    longitude: Number.parseFloat(row.longitude as string),
     images: [],                        // not fetched in list — main_image is enough
     main_image: (row.main_image as string) || "",
     source: "manual",                  // not needed in list view
@@ -143,7 +143,7 @@ function rowToLocationSlim(row: Record<string, unknown>): Location {
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     is_featured: row.is_featured as boolean | undefined,
-    average_rating: parseFloat(row.average_rating as string) || 4.0,
+    average_rating: Number.parseFloat(row.average_rating as string) || 4.0,
     photo_credit: (row.photo_credit as string) || undefined,
     uploaded_by: (row.uploaded_by as string) || undefined,
     created_at: new Date(0),               // not needed in list view
@@ -295,7 +295,7 @@ export async function getLocations(query: LocationQuery): Promise<LocationWithDi
   const result = rows.map(row => {
     const loc = rowToLocationSlim(row) as LocationWithDistance;
     if (row.distance_meters !== undefined && row.distance_meters !== null) {
-      loc.distance_meters = parseFloat(row.distance_meters as string);
+      loc.distance_meters = Number.parseFloat(row.distance_meters as string);
     }
     return loc;
   });
@@ -334,7 +334,7 @@ export async function getFilteredCount(query: Omit<LocationQuery, "limit" | "off
     params
   );
 
-  const count = parseInt(rows[0].n as string);
+  const count = Number.parseInt(rows[0].n as string);
   cacheSet(cacheKey, count, LIST_CACHE_TTL);
   return count;
 }
@@ -420,7 +420,7 @@ export async function getNearbyLocations(
 
   const result = rows.map(row => ({
     ...rowToLocationSlim(row),
-    distance_meters: parseFloat(row.distance_meters as string),
+    distance_meters: Number.parseFloat(row.distance_meters as string),
   }));
 
   cacheSet(cacheKey, result, LIST_CACHE_TTL);
@@ -499,7 +499,7 @@ export async function getNearbyUserLocations(
 
   const result = rows.map(row => ({
     ...rowToLocationSlim(row),
-    distance_meters: parseFloat(row.distance_meters as string),
+    distance_meters: Number.parseFloat(row.distance_meters as string),
   }));
 
   cacheSet(cacheKey, result, LIST_CACHE_TTL);
@@ -555,9 +555,9 @@ export async function getLocationClusters(bounds?: MapBounds): Promise<Cluster[]
   );
 
   return rows.map(r => ({
-    lat: parseFloat(r.lat as string),
-    lng: parseFloat(r.lng as string),
-    count: parseInt(r.count as string),
+    lat: Number.parseFloat(r.lat as string),
+    lng: Number.parseFloat(r.lng as string),
+    count: Number.parseInt(r.count as string),
     ids: r.ids as number[],
     category: r.category as string | undefined,
   }));
@@ -567,7 +567,7 @@ export async function getLocationClusters(bounds?: MapBounds): Promise<Cluster[]
 
 export async function getTotalCount(): Promise<number> {
   const { rows } = await rawDb.query("SELECT COUNT(*) FROM locations");
-  return parseInt(rows[0].count as string);
+  return Number.parseInt(rows[0].count as string);
 }
 
 // ── upsertLocation ────────────────────────────────────────────────────────────

@@ -6,18 +6,18 @@ export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
 
-    const userLat = sp.get("user_lat") ? parseFloat(sp.get("user_lat")!) : undefined;
-    const userLng = sp.get("user_lng") ? parseFloat(sp.get("user_lng")!) : undefined;
+    const userLat = sp.get("user_lat") ? Number.parseFloat(sp.get("user_lat")!) : undefined;
+    const userLng = sp.get("user_lng") ? Number.parseFloat(sp.get("user_lng")!) : undefined;
     const validCoords =
       userLat !== undefined && userLng !== undefined &&
-      !isNaN(userLat) && !isNaN(userLng) &&
+      !Number.isNaN(userLat) && !Number.isNaN(userLng) &&
       userLat >= -90 && userLat <= 90 &&
       userLng >= -180 && userLng <= 180;
 
-    const rawLimit = sp.get("limit") ? parseInt(sp.get("limit")!) : 40;
+    const rawLimit = sp.get("limit") ? Number.parseInt(sp.get("limit")!) : 40;
     const limit = Math.min(rawLimit, 100);
 
-    const radius = sp.get("radius") ? parseInt(sp.get("radius")!) : undefined;
+    const radius = sp.get("radius") ? Number.parseInt(sp.get("radius")!) : undefined;
 
     const query = {
       region: sp.get("region") || undefined,
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       has_shade: sp.get("has_shade") === "true",
       accessible: sp.get("accessible") === "true",
       limit,
-      offset: sp.get("offset") ? parseInt(sp.get("offset")!) : undefined,
+      offset: sp.get("offset") ? Number.parseInt(sp.get("offset")!) : undefined,
       user_lat: validCoords ? userLat : undefined,
       user_lng: validCoords ? userLng : undefined,
       radius: radius,

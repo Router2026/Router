@@ -110,4 +110,81 @@ describe('createRoute', () => {
     const insertCall = mockDb.query.mock.calls[0]
     expect(insertCall[0]).toContain('INSERT INTO routes')
   })
+
+  it('creates route with no stops', async () => {
+    const newRoute = { ...sampleRoute, id: 3 }
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [newRoute] })
+      .mockResolvedValueOnce({ rows: [newRoute] })
+      .mockResolvedValueOnce({ rows: [] })
+    const result = await createRoute({ name: 'Empty Route' })
+    expect(result).not.toBeNull()
+    expect(mockDb.query).toHaveBeenCalledTimes(3) // INSERT + 2x getRouteById
+  })
+
+  it('uses defaults for optional fields', async () => {
+    const newRoute = { ...sampleRoute, id: 4 }
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [newRoute] })
+      .mockResolvedValueOnce({ rows: [newRoute] })
+      .mockResolvedValueOnce({ rows: [] })
+    await createRoute({})
+    const [, params] = mockDb.query.mock.calls[0]
+    expect(params[0]).toBe('מסלול חדש')   // default name
+    expect(params[4]).toBe('בינוני')       // default difficulty
+  })
+
+  it('throws when getRouteById returns null after insert', async () => {
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [{ ...sampleRoute, id: 5 }] }) // INSERT
+      .mockResolvedValueOnce({ rows: [] })                           // getRouteById → null
+    await expect(createRoute({ name: 'Broken' })).rejects.toThrow('Failed to retrieve created route')
+  })
+
+  it('inserts multiple stops with correct order_index', async () => {
+    const newRoute = { ...sampleRoute, id: 6 }
+    const stops = [
+      { order_index: 0, arrival_time: '09:00', duration_minutes: 60 },
+      { order_index: 1, arrival_time: '11:00', duration_minutes: 90 },
+    ]
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [newRoute] })  // INSERT route
+      .mockResolvedValueOnce({ rows: [] })           // INSERT stop 0
+      .mockResolvedValueOnce({ rows: [] })           // INSERT stop 1
+      .mockResolvedValueOnce({ rows: [newRoute] })   // getRouteById routes
+      .mockResolvedValueOnce({ rows: [] })           // getRouteById stops
+    await createRoute({ name: 'Multi-stop', stops })
+    // call 0 = INSERT route, calls 1+2 = INSERT stops
+    expect(mockDb.query.mock.calls[1][1][3]).toBe(0)  // first stop order_index
+    expect(mockDb.query.mock.calls[2][1][3]).toBe(1)  // second stop order_index
+  })
+})
+
+describe('stop poi_name fallback branches', () => {
+  it('getRoutes: uses location_name when poi_name is null', async () => {
+    const stopWithNoPoiName = { ...sampleStop, poi_name: null, location_name: 'Fallback Name' }
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [sampleRoute] })
+      .mockResolvedValueOnce({ rows: [stopWithNoPoiName] })
+    const result = await getRoutes()
+    expect(result[0].stops[0].poi_name).toBe('Fallback Name')
+  })
+
+  it('getRoutes: uses empty string when both poi_name and location_name are null', async () => {
+    const stopBothNull = { ...sampleStop, poi_name: null, location_name: null }
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [sampleRoute] })
+      .mockResolvedValueOnce({ rows: [stopBothNull] })
+    const result = await getRoutes()
+    expect(result[0].stops[0].poi_name).toBe('')
+  })
+
+  it('getRouteById: uses location_name when poi_name is null', async () => {
+    const stopWithNoPoiName = { ...sampleStop, poi_name: null, location_name: 'Named via loc', latitude: null, longitude: null }
+    mockDb.query
+      .mockResolvedValueOnce({ rows: [sampleRoute] })
+      .mockResolvedValueOnce({ rows: [stopWithNoPoiName] })
+    const result = await getRouteById(1)
+    expect(result!.stops[0].poi_name).toBe('Named via loc')
+  })
 })

@@ -61,7 +61,7 @@ export default function EditMyPlace() {
 
   useEffect(() => {
     if (!id || !user) { setLoading(false); return; }
-    api.communityPois.get(parseInt(id))
+    api.communityPois.get(Number.parseInt(id))
       .then(p => {
         // Authorization guard: only owner may access this page
         if (p.user_id !== null && String(p.user_id) !== String(user.id)) {
@@ -131,7 +131,7 @@ export default function EditMyPlace() {
         description: description.trim() || null,
         photos,
         difficulty: difficulty || undefined,
-        duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
+        duration_minutes: durationMinutes ? Number.parseInt(durationMinutes) : null,
         has_water: hasWater,
         has_shade: hasShade,
         accessible,
@@ -140,9 +140,9 @@ export default function EditMyPlace() {
       // Approved POIs: use ownerEdit so changes go live immediately on the map.
       // Pending/rejected: use update (stays in review flow).
       if (poi.status === 'approved') {
-        await api.communityPois.ownerEdit(parseInt(id), payload);
+        await api.communityPois.ownerEdit(Number.parseInt(id), payload);
       } else {
-        await api.communityPois.update(parseInt(id), payload);
+        await api.communityPois.update(Number.parseInt(id), payload);
       }
       setSuccess(true);
       setTimeout(() => navigate('/my-places'), 1200);

@@ -220,15 +220,15 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 photo_credit: edit.photo_credit || null,
                 main_image: edit.main_image || null,
                 images: edit.images,
-                average_rating: parseFloat(edit.average_rating) || 4.0,
-                latitude: parseFloat(edit.latitude),
-                longitude: parseFloat(edit.longitude),
+                average_rating: Number.parseFloat(edit.average_rating) || 4.0,
+                latitude: Number.parseFloat(edit.latitude),
+                longitude: Number.parseFloat(edit.longitude),
                 source: edit.source || undefined,
                 source_id: edit.source_id || undefined,
                 uploaded_by: edit.uploaded_by || null,
             };
-            if (edit.duration_minutes) payload.duration_minutes = parseInt(edit.duration_minutes);
-            if (edit.region_id) payload.region_id = parseInt(edit.region_id);
+            if (edit.duration_minutes) payload.duration_minutes = Number.parseInt(edit.duration_minutes);
+            if (edit.region_id) payload.region_id = Number.parseInt(edit.region_id);
 
             const res = await adminFetch<{ data: any }>(`/locations/${poi.id}`, {
                 method: 'PATCH',
@@ -241,17 +241,17 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 description: edit.description,
                 category: edit.category,
                 difficulty: edit.difficulty,
-                duration_minutes: edit.duration_minutes ? parseInt(edit.duration_minutes) : undefined,
+                duration_minutes: edit.duration_minutes ? Number.parseInt(edit.duration_minutes) : undefined,
                 has_water: edit.has_water,
                 has_shade: edit.has_shade,
                 accessible: edit.accessible,
                 photo_credit: edit.photo_credit || undefined,
                 main_image: edit.main_image,
                 images: edit.images,
-                latitude: parseFloat(edit.latitude),
-                longitude: parseFloat(edit.longitude),
-                average_rating: parseFloat(edit.average_rating) || 4.0,
-                region_id: edit.region_id ? parseInt(edit.region_id) : poi.region_id,
+                latitude: Number.parseFloat(edit.latitude),
+                longitude: Number.parseFloat(edit.longitude),
+                average_rating: Number.parseFloat(edit.average_rating) || 4.0,
+                region_id: edit.region_id ? Number.parseInt(edit.region_id) : poi.region_id,
                 region: regions.find(r => String(r.id) === edit.region_id)?.name || poi.region,
                 uploaded_by: edit.uploaded_by || undefined,
                 ...(res as any)?.data,
@@ -474,7 +474,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                             <InputField label="משך ביקור (דקות)" value={edit.duration_minutes} onChange={v => set('duration_minutes', v)} type="number" placeholder="90" />
                             <div>
                                 <FieldLabel>דירוג ממוצע</FieldLabel>
-                                <StarRating value={parseFloat(edit.average_rating) || 0} onChange={v => set('average_rating', String(v))} />
+                                <StarRating value={Number.parseFloat(edit.average_rating) || 0} onChange={v => set('average_rating', String(v))} />
                                 <input type="range" min="0" max="5" step="0.1" value={edit.average_rating}
                                     onChange={e => set('average_rating', e.target.value)}
                                     style={{ width: '100%', marginTop: 8, accentColor: '#0d9e6e' }} />
@@ -512,8 +512,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                                         {geoResults.map((r, i) => (
                                             <button key={i} onClick={() => {
-                                                set('latitude', parseFloat(r.lat).toFixed(6));
-                                                set('longitude', parseFloat(r.lon).toFixed(6));
+                                                set('latitude', Number.parseFloat(r.lat).toFixed(6));
+                                                set('longitude', Number.parseFloat(r.lon).toFixed(6));
                                                 setGeoResults([]);
                                                 setGeoQuery('');
                                             }} style={{
@@ -530,7 +530,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                                 <span style={{ fontWeight: 700, color: '#1d4ed8' }}>📍 </span>
                                                 {r.display_name.length > 80 ? r.display_name.slice(0, 80) + '…' : r.display_name}
                                                 <span style={{ display: 'block', fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                                                    {parseFloat(r.lat).toFixed(5)}, {parseFloat(r.lon).toFixed(5)}
+                                                    {Number.parseFloat(r.lat).toFixed(5)}, {Number.parseFloat(r.lon).toFixed(5)}
                                                 </span>
                                             </button>
                                         ))}
@@ -557,8 +557,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                             <div>
                                 <FieldLabel>בחר מיקום על המפה (לחץ לעדכון)</FieldLabel>
                                 <LocationPickerMap
-                                    lat={parseFloat(edit.latitude) || 31.5}
-                                    lng={parseFloat(edit.longitude) || 35.0}
+                                    lat={Number.parseFloat(edit.latitude) || 31.5}
+                                    lng={Number.parseFloat(edit.longitude) || 35.0}
                                     onChange={(lat, lng) => { set('latitude', lat.toFixed(6)); set('longitude', lng.toFixed(6)); }}
                                 />
                             </div>

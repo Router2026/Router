@@ -1,5 +1,23 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Hoisted mocks intercept the dynamic `await import(...)` calls inside getUserFromRequest
+vi.mock('@/lib/db/supabase', () => ({
+  supabase: { auth: { getUser: vi.fn() } },
+}))
+vi.mock('@/lib/db/raw-client', () => ({
+  rawDb: { query: vi.fn() },
+}))
+
+import { supabase } from '@/lib/db/supabase'
+import { rawDb } from '@/lib/db/raw-client'
 import { signJWT, verifyJWT, hashPassword, verifyPassword, getUserFromRequest } from './tokens'
+
+const mockSb    = supabase as { auth: { getUser: ReturnType<typeof vi.fn> } }
+const mockRawDb = rawDb   as { query: ReturnType<typeof vi.fn> }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('JWT', () => {
   it('signJWT + verifyJWT round-trip', async () => {
@@ -26,18 +44,9 @@ describe('JWT', () => {
   })
 
   it('verifyJWT throws on expired token', async () => {
-    // Build a token with exp in the past
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
-    const body = Buffer.from(JSON.stringify({ id: 1, iat: 1000, exp: 1001 })).toString('base64url')
-    // Sign it properly first to get a valid-format token, then replace body
-    const validToken = await signJWT({ id: 1 })
-    const [h, , s] = validToken.split('.')
-    // Create expired token — won't have valid sig but exp check comes first? No, sig check first.
-    // Instead, let's just build manually with known secret via the actual function
-    // The simplest approach: sign then manipulate exp in body (which invalidates signature)
-    // So test that expired + invalid sig both throw
-    const expiredToken = `${header}.${body}.fakesig`
-    await expect(verifyJWT(expiredToken)).rejects.toThrow()
+    const body   = Buffer.from(JSON.stringify({ id: 1, iat: 1000, exp: 1001 })).toString('base64url')
+    await expect(verifyJWT(`${header}.${body}.fakesig`)).rejects.toThrow()
   })
 })
 
@@ -71,8 +80,7 @@ describe('Password hashing', () => {
 
 describe('getUserFromRequest', () => {
   it('returns null when no Authorization header', async () => {
-    const req = new Request('http://localhost/test')
-    const result = await getUserFromRequest(req)
+    const result = await getUserFromRequest(new Request('http://localhost/test'))
     expect(result).toBeNull()
   })
 
@@ -80,32 +88,53 @@ describe('getUserFromRequest', () => {
     const req = new Request('http://localhost/test', {
       headers: { Authorization: 'Basic sometoken' },
     })
-    const result = await getUserFromRequest(req)
-    expect(result).toBeNull()
+    expect(await getUserFromRequest(req)).toBeNull()
   })
 
-  it('returns payload for valid custom JWT Bearer token', async () => {
-    // Mock supabase to fail so it falls back to custom JWT
-    vi.doMock('@/lib/db/supabase', () => ({
-      supabase: {
-        auth: {
-          getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error('no') }),
-        },
-      },
-    }))
-    vi.doMock('@/lib/db/raw-client', () => ({
-      rawDb: { query: vi.fn().mockResolvedValue({ rows: [] }) },
-    }))
+  it('returns user when supabase resolves email and DB row exists', async () => {
+    mockSb.auth.getUser.mockResolvedValue({ data: { user: { email: 'user@test.com' } }, error: null })
+    mockRawDb.query.mockResolvedValue({ rows: [{ id: 7, is_admin: false }] })
 
-    const token = await signJWT({ id: 42, email: 'user@test.com', is_admin: false })
+    const req = new Request('http://localhost/test', {
+      headers: { Authorization: 'Bearer supabase-token' },
+    })
+    const result = await getUserFromRequest(req)
+
+    expect(result).toEqual({ id: 7, email: 'user@test.com', is_admin: false })
+  })
+
+  it('falls through to JWT when supabase finds email but no DB row', async () => {
+    mockSb.auth.getUser.mockResolvedValue({ data: { user: { email: 'new@test.com' } }, error: null })
+    mockRawDb.query.mockResolvedValue({ rows: [] }) // no matching user in DB
+
+    const token = await signJWT({ id: 42, email: 'new@test.com', is_admin: true })
     const req = new Request('http://localhost/test', {
       headers: { Authorization: `Bearer ${token}` },
     })
     const result = await getUserFromRequest(req)
-    // The function either returns from supabase or custom JWT
-    // With mocked supabase failing and custom JWT valid, should return payload
-    // (This may return null if dynamic import mock doesn't work in vitest without vi.mock hoisting)
-    // At minimum it should not throw
-    expect(result === null || (typeof result === 'object' && 'id' in result!)).toBe(true)
+
+    // supabase path skipped (no rows[0]) → JWT fallback succeeds
+    expect(result).toMatchObject({ id: 42, email: 'new@test.com', is_admin: true })
+  })
+
+  it('falls through to JWT when supabase returns no user', async () => {
+    mockSb.auth.getUser.mockResolvedValue({ data: { user: null }, error: null })
+
+    const token = await signJWT({ id: 99, email: 'jwt@test.com', is_admin: false })
+    const req = new Request('http://localhost/test', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const result = await getUserFromRequest(req)
+
+    expect(result).toMatchObject({ id: 99, email: 'jwt@test.com' })
+  })
+
+  it('returns null when token is invalid and supabase returns no user', async () => {
+    mockSb.auth.getUser.mockResolvedValue({ data: { user: null }, error: null })
+
+    const req = new Request('http://localhost/test', {
+      headers: { Authorization: 'Bearer bad-token' },
+    })
+    expect(await getUserFromRequest(req)).toBeNull()
   })
 })

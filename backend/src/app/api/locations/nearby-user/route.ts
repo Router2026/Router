@@ -10,10 +10,10 @@ export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
 
-    const lat = parseFloat(sp.get("lat") || "");
-    const lng = parseFloat(sp.get("lng") || "");
+    const lat = Number.parseFloat(sp.get("lat") || "");
+    const lng = Number.parseFloat(sp.get("lng") || "");
 
-    if (isNaN(lat) || isNaN(lng)) {
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
       return NextResponse.json(
         errorResponse("lat and lng query params are required", "VALIDATION_ERROR"),
         { status: 400 }
@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const limit  = Math.min(parseInt(sp.get("limit")  || "8",     10), 20);
-    const radius = Math.min(parseInt(sp.get("radius") || "30000", 10), 100000);
+    const limit  = Math.min(Number.parseInt(sp.get("limit")  || "8",     10), 20);
+    const radius = Math.min(Number.parseInt(sp.get("radius") || "30000", 10), 100000);
 
     const nearby = await getNearbyUserLocations(lat, lng, limit, radius);
     return NextResponse.json(successResponse(nearby));

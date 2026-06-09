@@ -400,7 +400,7 @@ export default function Explore() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const total = res.headers.get('X-Total-Count');
-      if (total) setTotalCount(parseInt(total));
+      if (total) setTotalCount(Number.parseInt(total));
 
       const json = await res.json();
       const newPois: POI[] = (json.data ?? []).map((raw: any) => ({

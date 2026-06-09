@@ -26,8 +26,8 @@ function rowToMedia(r: Record<string, unknown>) {
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const routeId = parseInt(id, 10);
-    if (isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
+    const routeId = Number.parseInt(id, 10);
+    if (Number.isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
 
     const { rows } = await rawDb.query(
       `SELECT m.*, u.username, u.avatar_url
@@ -50,8 +50,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { id } = await params;
-    const routeId = parseInt(id, 10);
-    if (isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
+    const routeId = Number.parseInt(id, 10);
+    if (Number.isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
 
     // Verify route is public
     const { rows: routeRows } = await rawDb.query(

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const meta = user.user_metadata ?? {};
     const fullName = meta.full_name || meta.name || email.split('@')[0];
-    const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 15);
+    const baseUsername = email.split('@')[0].replace(/\W/g, '_').slice(0, 15);
 
     // Upsert user in our DB
     let { rows } = await rawDb.query(

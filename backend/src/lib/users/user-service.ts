@@ -24,7 +24,7 @@ export interface RouterUser {
 const XP_EXPR = `COALESCE(xp_points, 0)`;
 
 function rowToUser(row: Record<string, unknown>): RouterUser {
-  const xp = parseInt(row.xp as string, 10) || (row.xp_points as number) || 0;
+  const xp = Number.parseInt(row.xp as string, 10) || (row.xp_points as number) || 0;
   return {
     id:            row.id            as number,
     email:         (row.email        as string) || "",
@@ -79,7 +79,7 @@ export async function getStats(): Promise<{
   return {
     total_locations: (rows[0].total_locations as number) || 0,
     total_regions:   (rows[0].total_regions   as number) || 0,
-    average_rating:  parseFloat(rows[0].average_rating as string) || 4.8,
+    average_rating:  Number.parseFloat(rows[0].average_rating as string) || 4.8,
   };
 }
 

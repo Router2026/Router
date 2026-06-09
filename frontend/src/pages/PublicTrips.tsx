@@ -744,7 +744,7 @@ export default function PublicTrips() {
         });
         setTrips(sorted);
         // collect distinct regions for chips
-        const regions = [...new Set(data.map(t => t.region).filter(Boolean) as string[])].sort();
+        const regions = [...new Set(data.map(t => t.region).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
         setAllRegions(regions);
       })
       .catch(() => setTrips([]))

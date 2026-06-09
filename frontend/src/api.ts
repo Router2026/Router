@@ -227,32 +227,32 @@ function mapLocation(r: any): POI {
   return {
     id: String(r.id), name: r.name, description: r.description || '',
     category: r.category, region: r.region_name || r.region || '',
-    region_id: r.region_id, latitude: parseFloat(r.latitude),
-    longitude: parseFloat(r.longitude),
+    region_id: r.region_id, latitude: Number.parseFloat(r.latitude),
+    longitude: Number.parseFloat(r.longitude),
     images: Array.isArray(r.images) ? r.images : (typeof r.images === 'string' ? JSON.parse(r.images) : []),
     main_image: mainImage, thumbnail: getImageUrl(mainImage, 'card'), difficulty: r.difficulty || 'בינוני',
     duration_minutes: r.duration_minutes, has_water: r.has_water,
     has_shade: r.has_shade, accessible: r.accessible,
     is_featured: r.is_featured ?? false,
-    average_rating: parseFloat(r.average_rating) || 4.0,
+    average_rating: Number.parseFloat(r.average_rating) || 4.0,
     photo_credit: r.photo_credit || r.credit || undefined,
     uploaded_by: r.uploaded_by || undefined,
     distance_meters: r.distance_meters !== undefined && r.distance_meters !== null
-      ? parseFloat(r.distance_meters) : undefined,
+      ? Number.parseFloat(r.distance_meters) : undefined,
     owner_user_id: r.owner_user_id ?? null,
     community_poi_id: r.community_poi_id ?? null,
   };
 }
 
 function mapNearbyLocation(r: any): NearbyPOI {
-  return { ...mapLocation(r), distance_meters: parseFloat(r.distance_meters) || 0 };
+  return { ...mapLocation(r), distance_meters: Number.parseFloat(r.distance_meters) || 0 };
 }
 
 function mapTrip(r: any): Trip {
   return {
     id: String(r.id), name: r.name, description: r.description,
     region: r.region || r.region_name,
-    total_duration_hours: parseFloat(r.total_duration_hours) || 0,
+    total_duration_hours: Number.parseFloat(r.total_duration_hours) || 0,
     total_distance_km: r.total_distance_km, difficulty: r.difficulty,
     group_type: r.group_type, style: r.style,
     stops: (r.stops || []).map((s: any) => ({
@@ -737,7 +737,7 @@ export async function geocodeCity(query: string): Promise<GeocodedCity | null> {
       r.address?.municipality ||
       r.address?.suburb ||
       r.display_name.split(',')[0];
-    return { name: displayName, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
+    return { name: displayName, lat: Number.parseFloat(r.lat), lng: Number.parseFloat(r.lon) };
   } catch {
     return null;
   }

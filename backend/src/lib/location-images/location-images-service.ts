@@ -107,7 +107,7 @@ export async function countUserImages(userId: number, locationId: number): Promi
     `SELECT COUNT(*) AS cnt FROM location_images WHERE user_id = $1 AND location_id = $2`,
     [userId, locationId]
   );
-  return parseInt(rows[0].cnt as string, 10);
+  return Number.parseInt(rows[0].cnt as string, 10);
 }
 
 /** Get the first approved image URL for a location (fallback main image). */

@@ -45,8 +45,9 @@ describe('getLeaderboard', () => {
     expect(result).toHaveLength(2)
     expect(result[0].xp_points).toBe(1000)
     const [sql] = mockDb.query.mock.calls[0]
-    expect(sql).toContain('ORDER BY xp_points DESC')
-    expect(sql).toContain('LIMIT 50')
+    const normalSql = sql.replace(/\s+/g, ' ')
+    expect(normalSql).toContain('ORDER BY xp_points DESC')
+    expect(normalSql).toContain('LIMIT 50')
   })
 
   it('returns mock fallback data when DB is empty', async () => {
@@ -74,5 +75,39 @@ describe('getStats', () => {
     })
     const result = await getStats()
     expect(result.average_rating).toBe(4.8) // default fallback
+  })
+})
+
+describe('rowToUser edge cases', () => {
+  it('falls back to username as display_name when full_name is absent', async () => {
+    mockDb.query.mockResolvedValue({
+      rows: [{ ...sampleUser, full_name: null, username: 'alice123', xp_points: 0 }],
+    })
+    const result = await getCurrentUser()
+    expect(result!.display_name).toBe('alice123')
+  })
+
+  it('falls back to levelLabel when level column is empty', async () => {
+    mockDb.query.mockResolvedValue({
+      rows: [{ ...sampleUser, level: null, xp_points: 0 }],
+    })
+    const result = await getCurrentUser()
+    expect(result!.level).toBe('מטייל מתחיל')
+  })
+
+  it('computes level_number from xp', async () => {
+    mockDb.query.mockResolvedValue({
+      rows: [{ ...sampleUser, xp_points: 50 }],
+    })
+    const result = await getCurrentUser()
+    expect(result!.level_number).toBe(1) // floor(sqrt(50/50)) = 1
+  })
+
+  it('uses xp_points when xp field is not a parseable number', async () => {
+    mockDb.query.mockResolvedValue({
+      rows: [{ ...sampleUser, xp: null, xp_points: 200 }],
+    })
+    const result = await getCurrentUser()
+    expect(result!.xp).toBe(200)
   })
 })

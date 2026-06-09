@@ -202,22 +202,22 @@ function parseGoogleMapsUrl(raw: string): UserLocation | null {
   // Plain "lat,lng" e.g. "31.7683,35.2137"
   const plain = s.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
   if (plain) {
-    const lat = parseFloat(plain[1]);
-    const lng = parseFloat(plain[2]);
+    const lat = Number.parseFloat(plain[1]);
+    const lng = Number.parseFloat(plain[2]);
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
   }
 
   // @lat,lng,zoom  (appears in most Google Maps share URLs)
   const atSign = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (atSign) return { lat: parseFloat(atSign[1]), lng: parseFloat(atSign[2]) };
+  if (atSign) return { lat: Number.parseFloat(atSign[1]), lng: Number.parseFloat(atSign[2]) };
 
   // ?q=lat,lng  or  ll=lat,lng
   const qParam = s.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (qParam) return { lat: parseFloat(qParam[1]), lng: parseFloat(qParam[2]) };
+  if (qParam) return { lat: Number.parseFloat(qParam[1]), lng: Number.parseFloat(qParam[2]) };
 
   // /place/.../lat,lng
   const place = s.match(/\/place\/[^/]+\/(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (place) return { lat: parseFloat(place[1]), lng: parseFloat(place[2]) };
+  if (place) return { lat: Number.parseFloat(place[1]), lng: Number.parseFloat(place[2]) };
 
   return null;
 }
@@ -231,8 +231,8 @@ async function geocodePlaceName(query: string): Promise<GeoCandidate[]> {
     const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
     const data = await res.json();
     return (data ?? []).map((r: any) => ({
-      lat: parseFloat(r.lat),
-      lng: parseFloat(r.lon),
+      lat: Number.parseFloat(r.lat),
+      lng: Number.parseFloat(r.lon),
       display_name: r.display_name as string,
     }));
   } catch {

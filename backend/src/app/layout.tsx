@@ -5,7 +5,7 @@ runStartupChecks();
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html>
+    <html lang="he">
       <body>{children}</body>
     </html>
   );

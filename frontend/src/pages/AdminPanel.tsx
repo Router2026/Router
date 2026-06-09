@@ -276,7 +276,7 @@ function CommunityPoisTab() {
 
               {/* Coordinates + region + description */}
               <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right', marginBottom: 4 }}>
-                📍 {parseFloat(poi.latitude).toFixed(5)}, {parseFloat(poi.longitude).toFixed(5)}
+                📍 {Number.parseFloat(poi.latitude).toFixed(5)}, {Number.parseFloat(poi.longitude).toFixed(5)}
                 {(poi as any).region && (
                   <span style={{ marginRight: 8, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 6, padding: '1px 7px', fontWeight: 700 }}>
                     🗺️ {(poi as any).region}

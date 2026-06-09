@@ -12,8 +12,8 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
@@ -34,14 +34,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
     const body = await req.json();
-    const rating = parseInt(body.rating, 10);
-    if (isNaN(rating)) {
+    const rating = Number.parseInt(body.rating, 10);
+    if (Number.isNaN(rating)) {
       return NextResponse.json(errorResponse("rating must be a number 1-5", "VALIDATION_ERROR"), { status: 400 });
     }
 

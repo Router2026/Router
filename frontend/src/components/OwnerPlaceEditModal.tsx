@@ -138,7 +138,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
         description: description.trim() || undefined,
         photos,
         difficulty: difficulty || undefined,
-        duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
+        duration_minutes: durationMinutes ? Number.parseInt(durationMinutes) : null,
         has_water: hasWater,
         has_shade: hasShade,
         accessible,
@@ -155,7 +155,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
         category,
         description: description.trim(),
         difficulty,
-        duration_minutes: durationMinutes ? parseInt(durationMinutes) : undefined,
+        duration_minutes: durationMinutes ? Number.parseInt(durationMinutes) : undefined,
         has_water: hasWater ?? undefined,
         has_shade: hasShade ?? undefined,
         accessible: accessible ?? undefined,
@@ -359,12 +359,12 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
                 <div>
                   <Label>קו רוחב</Label>
                   <input type="number" step="0.000001" value={lat}
-                    onChange={e => setLat(parseFloat(e.target.value) || lat)} style={inputStyle} />
+                    onChange={e => setLat(Number.parseFloat(e.target.value) || lat)} style={inputStyle} />
                 </div>
                 <div>
                   <Label>קו אורך</Label>
                   <input type="number" step="0.000001" value={lng}
-                    onChange={e => setLng(parseFloat(e.target.value) || lng)} style={inputStyle} />
+                    onChange={e => setLng(Number.parseFloat(e.target.value) || lng)} style={inputStyle} />
                 </div>
               </div>
 

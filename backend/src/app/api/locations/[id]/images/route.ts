@@ -19,8 +19,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
     const images = await getLocationImages(locationId);
@@ -44,8 +44,8 @@ export async function POST(
     }
 
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 

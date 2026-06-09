@@ -83,11 +83,11 @@ function extractJsonFromLlmResponse(raw: string): unknown {
   try {
     return JSON.parse(raw.trim());
   } catch {
-    // Strip markdown fences and retry
-    const stripped = raw
-      .replace(/^```(?:json)?[ \t]*/m, '')   // explicit chars — no backtracking surface
-      .replace(/[ \t]*```$/m, '')             // ditto
-      .trim();
+    // Strip markdown fences with string ops — no regex, no backtracking surface
+    const lines = raw.split('\n');
+    if (lines[0]?.trimEnd().startsWith('```')) lines.shift();
+    if (lines[lines.length - 1]?.trim() === '```') lines.pop();
+    const stripped = lines.join('\n').trim();
     try {
       return JSON.parse(stripped);
     } catch {

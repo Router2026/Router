@@ -9,10 +9,10 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const lat = parseFloat(searchParams.get("lat") ?? "");
-    const lng = parseFloat(searchParams.get("lng") ?? "");
+    const lat = Number.parseFloat(searchParams.get("lat") ?? "");
+    const lng = Number.parseFloat(searchParams.get("lng") ?? "");
 
-    if (isNaN(lat) || isNaN(lng)) {
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
       return NextResponse.json(
         errorResponse("lat and lng query params are required", "VALIDATION_ERROR"),
         { status: 400 }

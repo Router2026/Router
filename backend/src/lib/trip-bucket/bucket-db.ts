@@ -62,14 +62,14 @@ export async function fetchBucketPois(ids: string[]): Promise<BucketPoi[]> {
     description: r.description as string,
     category: r.category as string,
     region: r.region as string,
-    latitude: parseFloat(r.latitude as string),
-    longitude: parseFloat(r.longitude as string),
+    latitude: Number.parseFloat(r.latitude as string),
+    longitude: Number.parseFloat(r.longitude as string),
     duration_minutes: Number(r.duration_minutes),
     difficulty: r.difficulty as string,
     has_water: Boolean(r.has_water),
     has_shade: Boolean(r.has_shade),
     accessible: Boolean(r.accessible),
-    average_rating: parseFloat(r.average_rating as string),
+    average_rating: Number.parseFloat(r.average_rating as string),
   }));
 }
 

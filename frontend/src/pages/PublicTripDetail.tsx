@@ -145,7 +145,7 @@ export default function PublicTripDetail() {
   const [savingStops, setSavingStops] = useState(false);
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const tripId = parseInt(id ?? '', 10);
+  const tripId = Number.parseInt(id ?? '', 10);
   const isOwner = user && trip && Number(user.id) === trip.user_id;
 
   useEffect(() => {
@@ -241,13 +241,13 @@ export default function PublicTripDetail() {
     stopSearchTimeout.current = setTimeout(async () => {
       try {
         const results = await api.locations.list({ search: q, limit: 8 });
-        setStopSearchResults(results.filter(r => !editStops.find(s => s.id === parseInt(r.id))));
+        setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
       } catch { } finally { setSearchingStops(false); }
     }, 300);
   };
 
   const addStop = (poi: any) => {
-    setEditStops(prev => [...prev, { id: parseInt(poi.id), name: poi.name, category: poi.category, main_image: poi.main_image || null }]);
+    setEditStops(prev => [...prev, { id: Number.parseInt(poi.id), name: poi.name, category: poi.category, main_image: poi.main_image || null }]);
     setStopSearch('');
     setStopSearchResults([]);
   };
@@ -425,7 +425,7 @@ export default function PublicTripDetail() {
             {(trip as any).difficulty && <span style={{ fontSize: 13, background: `${DIFF_COLOR[(trip as any).difficulty] || '#64748b'}18`, color: DIFF_COLOR[(trip as any).difficulty] || '#64748b', borderRadius: 10, padding: '5px 12px', fontWeight: 700 }}>{(trip as any).difficulty}</span>}
             {(trip as any).style && <span style={{ fontSize: 13, background: '#f8fafc', color: '#475569', borderRadius: 10, padding: '5px 12px', fontWeight: 600 }}>{(trip as any).style}</span>}
             {(trip as any).total_duration_hours && <span style={{ fontSize: 13, background: '#f8fafc', color: '#64748b', borderRadius: 10, padding: '5px 12px', fontWeight: 600 }}>⏱ {(trip as any).total_duration_hours} שע'</span>}
-            {(trip as any).total_distance_km && <span style={{ fontSize: 13, background: '#f8fafc', color: '#64748b', borderRadius: 10, padding: '5px 12px', fontWeight: 600 }}>📏 {parseFloat((trip as any).total_distance_km).toFixed(1)} ק"מ</span>}
+            {(trip as any).total_distance_km && <span style={{ fontSize: 13, background: '#f8fafc', color: '#64748b', borderRadius: 10, padding: '5px 12px', fontWeight: 600 }}>📏 {Number.parseFloat((trip as any).total_distance_km).toFixed(1)} ק"מ</span>}
             {(trip as any).group_type && GROUP_ICON[(trip as any).group_type] && <span style={{ fontSize: 13, background: '#f8fafc', color: '#64748b', borderRadius: 10, padding: '5px 12px', fontWeight: 600 }}>{GROUP_ICON[(trip as any).group_type]}</span>}
           </div>
 

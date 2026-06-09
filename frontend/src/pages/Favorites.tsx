@@ -126,7 +126,7 @@ export default function Favorites() {
                     </span>
                   )}
                 </div>
-                {fav.average_rating != null && !isNaN(Number(fav.average_rating)) && (
+                {fav.average_rating != null && !Number.isNaN(Number(fav.average_rating)) && (
                   <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 3 }}>
                     ★ {Number(fav.average_rating).toFixed(1)}
                   </div>

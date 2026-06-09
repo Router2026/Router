@@ -19,9 +19,9 @@ export interface Region {
 function rowToRegion(r: Record<string, unknown>): Region {
   return {
     ...r,
-    center_lat: parseFloat(r.center_lat as string),
-    center_lng: parseFloat(r.center_lng as string),
-    radius_meters: parseInt(r.radius_meters as string),
+    center_lat: Number.parseFloat(r.center_lat as string),
+    center_lng: Number.parseFloat(r.center_lng as string),
+    radius_meters: Number.parseInt(r.radius_meters as string),
     polygon_coords: (r.polygon_coords as [number, number][] | null) ?? null,
   } as Region;
 }

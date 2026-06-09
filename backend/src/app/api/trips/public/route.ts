@@ -10,15 +10,15 @@ import { getPublicTrips, createTrip, publishRoute } from "@/lib/public-trips/pub
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
-    const userIdParam = sp.get("user_id") ? parseInt(sp.get("user_id")!, 10) : undefined;
+    const userIdParam = sp.get("user_id") ? Number.parseInt(sp.get("user_id")!, 10) : undefined;
     const trips = await getPublicTrips({
-      user_id:    userIdParam && !isNaN(userIdParam) ? userIdParam : undefined,
+      user_id:    userIdParam && !Number.isNaN(userIdParam) ? userIdParam : undefined,
       region:     sp.get("region")     || undefined,
       difficulty: sp.get("difficulty") || undefined,
       style:      sp.get("style")      || undefined,
       group_type: sp.get("group_type") || undefined,
-      limit:      sp.get("limit")  ? parseInt(sp.get("limit")!)  : undefined,
-      offset:     sp.get("offset") ? parseInt(sp.get("offset")!) : undefined,
+      limit:      sp.get("limit")  ? Number.parseInt(sp.get("limit")!)  : undefined,
+      offset:     sp.get("offset") ? Number.parseInt(sp.get("offset")!) : undefined,
     });
     return NextResponse.json(successResponse(trips));
   } catch (err) {

@@ -101,7 +101,7 @@ export default function TripPlanner() {
           style: selectedStyles,
           start_time: startTime,
           end_time: endTime,
-          stops_count: parseInt(stops),
+          stops_count: Number.parseInt(stops),
           include_food: includeFood,
           include_coffee: includeCoffee,
           date,

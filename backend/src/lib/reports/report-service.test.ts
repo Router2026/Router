@@ -75,7 +75,7 @@ describe('upvoteReport', () => {
     const result = await upvoteReport(1)
     expect(result!.upvotes).toBe(3)
     const [sql, params] = mockDb.query.mock.calls[0]
-    expect(sql).toContain('upvotes = upvotes + 1')
+    expect(sql).toContain('GREATEST(0, upvotes + $2)')
     expect(params).toContain(1)
   })
 

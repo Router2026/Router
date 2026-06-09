@@ -5,12 +5,12 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
-    const north = parseFloat(sp.get("north") || "");
-    const south = parseFloat(sp.get("south") || "");
-    const east  = parseFloat(sp.get("east")  || "");
-    const west  = parseFloat(sp.get("west")  || "");
+    const north = Number.parseFloat(sp.get("north") || "");
+    const south = Number.parseFloat(sp.get("south") || "");
+    const east  = Number.parseFloat(sp.get("east")  || "");
+    const west  = Number.parseFloat(sp.get("west")  || "");
 
-    const bounds = [north, south, east, west].some(isNaN)
+    const bounds = [north, south, east, west].some(Number.isNaN)
       ? undefined
       : { north, south, east, west };
 

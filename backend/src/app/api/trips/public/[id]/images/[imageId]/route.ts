@@ -14,9 +14,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { id, imageId } = await params;
-    const routeId  = parseInt(id, 10);
-    const imgId    = parseInt(imageId, 10);
-    if (isNaN(routeId) || isNaN(imgId)) {
+    const routeId  = Number.parseInt(id, 10);
+    const imgId    = Number.parseInt(imageId, 10);
+    if (Number.isNaN(routeId) || Number.isNaN(imgId)) {
       return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
     }
 

@@ -5,7 +5,7 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const route = await getRouteById(parseInt(id));
+    const route = await getRouteById(Number.parseInt(id));
     if (!route) {
       return NextResponse.json(errorResponse("Route not found", "NOT_FOUND"), { status: 404 });
     }
@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await deleteRoute(parseInt(id));
+    await deleteRoute(Number.parseInt(id));
     return NextResponse.json(successResponse({ deleted: true }));
   } catch (err) {
     console.error("[DELETE /api/routes/[id]]", err);

@@ -9,7 +9,7 @@ import { getFeaturedLocations } from "@/lib/locations/location-service";
 export async function GET(req: NextRequest) {
   try {
     const limit = Math.min(
-      parseInt(req.nextUrl.searchParams.get("limit") || "10", 10),
+      Number.parseInt(req.nextUrl.searchParams.get("limit") || "10", 10),
       50
     );
     const featured = await getFeaturedLocations(limit);

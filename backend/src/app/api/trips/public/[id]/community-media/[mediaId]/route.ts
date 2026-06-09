@@ -13,9 +13,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { id, mediaId } = await params;
-    const routeId  = parseInt(id,      10);
-    const mId      = parseInt(mediaId, 10);
-    if (isNaN(routeId) || isNaN(mId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
+    const routeId  = Number.parseInt(id,      10);
+    const mId      = Number.parseInt(mediaId, 10);
+    if (Number.isNaN(routeId) || Number.isNaN(mId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
 
     // Allow: media uploader OR route owner
     const { rows } = await rawDb.query(

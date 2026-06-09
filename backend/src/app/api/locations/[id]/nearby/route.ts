@@ -11,14 +11,14 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const locationId = parseInt(id, 10);
-    if (isNaN(locationId)) {
+    const locationId = Number.parseInt(id, 10);
+    if (Number.isNaN(locationId)) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
     const url = new URL(req.url);
-    const limit  = Math.min(parseInt(url.searchParams.get("limit") || "6", 10), 20);
-    const radius = Math.min(parseInt(url.searchParams.get("radius") || "25000", 10), 100000);
+    const limit  = Math.min(Number.parseInt(url.searchParams.get("limit") || "6", 10), 20);
+    const radius = Math.min(Number.parseInt(url.searchParams.get("radius") || "25000", 10), 100000);
 
     const nearby = await getNearbyLocations(locationId, limit, radius);
     return NextResponse.json(successResponse(nearby));

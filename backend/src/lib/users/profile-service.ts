@@ -41,7 +41,7 @@ export interface UpdateProfileInput {
 const XP_EXPR = `COALESCE(xp_points, 0)`;
 
 function rowToProfile(row: Record<string, unknown>): PublicProfile {
-  const xp = parseInt(row.xp as string, 10) || (row.xp_points as number) || 0;
+  const xp = Number.parseInt(row.xp as string, 10) || (row.xp_points as number) || 0;
   return {
     id:               row.id               as number,
     username:         row.username         as string,

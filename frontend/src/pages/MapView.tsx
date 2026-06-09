@@ -143,7 +143,7 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
     const nextKeys = new Set<string>();
 
     for (const g of groups) {
-      const key = g.pois.map(p => p.id).sort().join(',');
+      const key = g.pois.map(p => p.id).sort((a, b) => a - b).join(',');
       nextKeys.add(key);
       if (markerMapRef.current.has(key)) continue;
 
@@ -281,9 +281,9 @@ export default function MapView() {
   const { addPoi, removePoi, hasPoi } = useTripBucket();
 
   const urlRegion = searchParams.get('region') || '';
-  const urlLat = parseFloat(searchParams.get('lat') || '0');
-  const urlLng = parseFloat(searchParams.get('lng') || '0');
-  const urlZoom = parseInt(searchParams.get('zoom') || '7');
+  const urlLat = Number.parseFloat(searchParams.get('lat') || '0');
+  const urlLng = Number.parseFloat(searchParams.get('lng') || '0');
+  const urlZoom = Number.parseInt(searchParams.get('zoom') || '7');
 
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [panTarget, setPanTarget] = useState<ViewTarget | null>(null);
@@ -342,7 +342,7 @@ export default function MapView() {
   }), [allPois, selCats, selDiffs, hasWater, hasShade, accessible]);
 
   const categories = useMemo(
-    () => [...new Set(allPois.map(p => p.category).filter(Boolean))].sort(),
+    () => [...new Set(allPois.map(p => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [allPois],
   );
 

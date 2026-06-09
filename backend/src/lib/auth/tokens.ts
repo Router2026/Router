@@ -125,7 +125,7 @@ export async function verifyPassword(
   const a = hashHex,
     b = newHash;
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+    diff |= (a.codePointAt(i) ?? 0) ^ (b.codePointAt(i) ?? 0);
   }
   // Both hashes are the same length (SHA-256 hex = 64 chars) so checking
   // length separately leaks no timing information; we check it anyway for safety.

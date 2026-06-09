@@ -24,7 +24,7 @@ async function requireAdmin(req: NextRequest) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const poi = await getCommunityPoi(parseInt(id));
+    const poi = await getCommunityPoi(Number.parseInt(id));
 
     if (!poi) {
       return NextResponse.json(
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params;
     const body = await req.json();
-    const poiId = parseInt(id);
+    const poiId = Number.parseInt(id);
     const adminId = admin.id as number;
 
     if (body.action === "approve") {

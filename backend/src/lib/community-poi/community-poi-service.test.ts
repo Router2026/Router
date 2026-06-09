@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// vi.hoisted runs before vi.mock — the only safe way to share state with the factory
+const { mockTxQuery, mockTxRelease } = vi.hoisted(() => ({
+  mockTxQuery:   vi.fn(),
+  mockTxRelease: vi.fn(),
+}))
+
 vi.mock('@/lib/db/raw-client', () => ({
-  rawDb: { query: vi.fn() },
+  rawDb: {
+    query:     vi.fn(),
+    getClient: vi.fn().mockResolvedValue({
+      query:   mockTxQuery,
+      release: mockTxRelease,
+    }),
+  },
 }))
 vi.mock('@/lib/notifications/push-service', () => ({
   sendPushToUser: vi.fn().mockResolvedValue(undefined),
@@ -17,7 +29,7 @@ import {
   editCommunityPoi,
 } from './community-poi-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as { query: ReturnType<typeof vi.fn>; getClient: ReturnType<typeof vi.fn> }
 const mockPush = sendPushToUser as ReturnType<typeof vi.fn>
 
 const samplePoi = {
@@ -29,6 +41,8 @@ const samplePoi = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockTxQuery.mockReset()
+  mockTxRelease.mockReset()
 })
 
 describe('listAllCommunityPois', () => {
@@ -67,26 +81,32 @@ describe('createCommunityPoi', () => {
 describe('approveCommunityPoi', () => {
   it('updates status to approved, copies to locations, awards XP, sends push', async () => {
     const approvedPoi = { ...samplePoi, status: 'approved' }
-    mockDb.query
-      .mockResolvedValueOnce({ rows: [approvedPoi] })  // UPDATE community_pois
-      .mockResolvedValueOnce({ rows: [] })              // INSERT into locations
-      .mockResolvedValueOnce({ rows: [] })              // UPDATE users XP
+    // Transaction client calls: BEGIN, UPDATE community_pois, SELECT username,
+    // INSERT locations, UPDATE users XP, COMMIT
+    mockTxQuery
+      .mockResolvedValueOnce({ rows: [] })              // BEGIN
+      .mockResolvedValueOnce({ rows: [approvedPoi] })   // UPDATE community_pois
+      .mockResolvedValueOnce({ rows: [{ username: 'ori' }] }) // SELECT username
+      .mockResolvedValueOnce({ rows: [{ id: 100 }] })   // INSERT INTO locations
+      .mockResolvedValueOnce({ rows: [] })               // UPDATE users XP
+      .mockResolvedValueOnce({ rows: [] })               // COMMIT
 
     const result = await approveCommunityPoi(1, 99)
     expect(result.status).toBe('approved')
 
-    // Should have made 3 DB calls
-    expect(mockDb.query).toHaveBeenCalledTimes(3)
+    // BEGIN and COMMIT should have been called
+    const txSqls = mockTxQuery.mock.calls.map(([sql]: [string]) => sql.trim())
+    expect(txSqls).toContain('BEGIN')
+    expect(txSqls).toContain('COMMIT')
 
-    // Should send push notification
+    // One of the calls should insert into locations
+    expect(txSqls.some((s: string) => s.includes('INSERT INTO'))).toBe(true)
+
+    // Push notification sent
     expect(mockPush).toHaveBeenCalledWith(
       approvedPoi.user_id,
       expect.objectContaining({ title: expect.stringContaining('אושר') })
     )
-
-    // Second call should be INSERT INTO locations
-    const [locationSql] = mockDb.query.mock.calls[1]
-    expect(locationSql).toContain('INSERT INTO locations')
   })
 })
 
@@ -116,6 +136,7 @@ describe('editCommunityPoi', () => {
 
     const result = await editCommunityPoi(1, { name: 'Updated Spring' })
     expect(result.name).toBe('Updated Spring')
+
     const [sql, params] = mockDb.query.mock.calls[0]
     expect(sql).toContain('COALESCE')
     expect(params).toContain('Updated Spring')

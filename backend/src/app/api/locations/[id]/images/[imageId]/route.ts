@@ -22,8 +22,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const { imageId } = await params;
-    const id = parseInt(imageId, 10);
-    if (isNaN(id)) {
+    const id = Number.parseInt(imageId, 10);
+    if (Number.isNaN(id)) {
       return NextResponse.json(errorResponse("Invalid image id", "VALIDATION_ERROR"), { status: 400 });
     }
 
@@ -59,8 +59,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     const { imageId } = await params;
-    const id = parseInt(imageId, 10);
-    if (isNaN(id)) {
+    const id = Number.parseInt(imageId, 10);
+    if (Number.isNaN(id)) {
       return NextResponse.json(errorResponse("Invalid image id", "VALIDATION_ERROR"), { status: 400 });
     }
 

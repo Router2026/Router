@@ -153,7 +153,7 @@ export default function AddReview() {
     setError('');
     try {
       await api.reviews.create({
-        location_id: selectedPoi ? parseInt(selectedPoi.id) : undefined,
+        location_id: selectedPoi ? Number.parseInt(selectedPoi.id) : undefined,
         poi_name: selectedPoi?.name ?? poiNameFromUrl ?? undefined,
         reviewer_name: user?.full_name ?? user?.username ?? undefined,
         rating,

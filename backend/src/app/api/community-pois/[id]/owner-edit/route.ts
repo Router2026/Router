@@ -24,34 +24,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
-import { supabase } from "@/lib/db/supabase";
-import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { getCommunityPoi } from "@/lib/community-poi/community-poi-service";
+import { AuthUser, resolvePoiAuthUser } from "@/lib/auth/resolve-user";
 
 type RouteParams = { params: Promise<{ id: string }> };
-
-// ── Auth helper ────────────────────────────────────────────────────────────────
-
-interface AuthUser { id: number; username: string; }
-
-async function resolveAuthUser(req: NextRequest): Promise<AuthUser | null> {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-
-  const { data: { user: sbUser } } = await supabase.auth.getUser(token);
-  if (sbUser?.email) {
-    const { rows } = await rawDb.query(
-      `SELECT id, username FROM users WHERE email = $1 LIMIT 1`,
-      [sbUser.email]
-    );
-    return rows.length ? { id: rows[0].id as number, username: rows[0].username as string } : null;
-  }
-
-  const auth = await getUserFromRequest(req);
-  return auth?.id ? { id: auth.id as number, username: (auth as any).username as string ?? "" } : null;
-}
 
 async function checkOwnership(poi: any, auth: AuthUser): Promise<boolean> {
   if (poi.user_id != null) return poi.user_id === auth.id;
@@ -64,11 +41,83 @@ async function checkOwnership(poi: any, auth: AuthUser): Promise<boolean> {
   return (rows[0].uploaded_by as string | null) === auth.username;
 }
 
+// ── Field-set builders ─────────────────────────────────────────────────────────
+
+function buildCommunityPoiPatch(
+  body: any,
+  locationChanged: boolean,
+  newLat: number | null,
+  newLng: number | null,
+): { fields: string[]; params: unknown[] } {
+  const fields: string[] = [];
+  const params: unknown[] = [];
+  let idx = 2; // $1 = poiId
+
+  const add = (col: string, val: unknown) => { fields.push(`${col} = $${idx++}`); params.push(val); };
+
+  if (body.name !== undefined)             add("name", body.name);
+  if (body.category !== undefined)         add("category", body.category);
+  if (body.description !== undefined)      add("description", body.description ?? null);
+  if (body.photos !== undefined)           add("photos", JSON.stringify(body.photos));
+  if (body.difficulty !== undefined)       add("difficulty", body.difficulty ?? null);
+  if (body.duration_minutes !== undefined) add("duration_minutes", body.duration_minutes == null ? null : Number.parseInt(body.duration_minutes));
+  if (body.has_water !== undefined)        add("has_water", body.has_water ?? null);
+  if (body.has_shade !== undefined)        add("has_shade", body.has_shade ?? null);
+  if (body.accessible !== undefined)       add("accessible", body.accessible ?? null);
+  if (body.photo_credit !== undefined)     add("photo_credit", body.photo_credit ?? null);
+
+  if (locationChanged && newLat != null && newLng != null) {
+    add("latitude", newLat);
+    add("longitude", newLng);
+    fields.push("status = 'pending'", "admin_note = NULL", "reviewed_by = NULL", "reviewed_at = NULL");
+  }
+
+  return { fields, params };
+}
+
+function buildLocationPatch(
+  body: any,
+  locationChanged: boolean,
+  newLat: number | null,
+  newLng: number | null,
+): { fields: string[]; params: unknown[] } {
+  const fields: string[] = [];
+  const params: unknown[] = [];
+  let idx = 2; // $1 = source_id
+
+  const add = (col: string, val: unknown) => { fields.push(`${col} = $${idx++}`); params.push(val); };
+
+  if (body.name !== undefined)             add("name", body.name);
+  if (body.category !== undefined)         add("category", body.category);
+  if (body.description !== undefined)      add("description", body.description ?? "");
+  if (body.difficulty !== undefined)       add("difficulty", body.difficulty ?? "בינוני");
+  if (body.duration_minutes !== undefined) add("duration_minutes", body.duration_minutes == null ? null : Number.parseInt(body.duration_minutes));
+  if (body.has_water !== undefined)        add("has_water", body.has_water ?? false);
+  if (body.has_shade !== undefined)        add("has_shade", body.has_shade ?? false);
+  if (body.accessible !== undefined)       add("accessible", body.accessible ?? false);
+  if (body.photo_credit !== undefined)     add("photo_credit", body.photo_credit ?? null);
+
+  const photos: string[] = Array.isArray(body.photos) ? body.photos : [];
+  if (body.photos !== undefined) {
+    add("images", JSON.stringify(photos));
+    add("main_image", photos[0] ?? null);
+  }
+
+  if (locationChanged) {
+    add("latitude", newLat);
+    add("longitude", newLng);
+    fields.push(`geom = ST_SetSRID(ST_MakePoint($${idx++}::float8, $${idx++}::float8), 4326)::geography`);
+    params.push(newLng, newLat);
+  }
+
+  return { fields, params };
+}
+
 // ── PATCH ──────────────────────────────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await resolveAuthUser(req);
+    const auth = await resolvePoiAuthUser(req);
     if (!auth) {
       return NextResponse.json(
         errorResponse("Authentication required", "AUTH_ERROR"),
@@ -77,8 +126,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const poiId = parseInt(id, 10);
-    if (isNaN(poiId)) {
+    const poiId = Number.parseInt(id, 10);
+    if (Number.isNaN(poiId)) {
       return NextResponse.json(
         errorResponse("Invalid community POI id", "VALIDATION_ERROR"),
         { status: 400 }
@@ -117,10 +166,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
 
     // Detect location change
-    const existingLat = parseFloat(existing.latitude as unknown as string);
-    const existingLng = parseFloat(existing.longitude as unknown as string);
-    const newLat = body.latitude != null ? parseFloat(body.latitude) : null;
-    const newLng = body.longitude != null ? parseFloat(body.longitude) : null;
+    const existingLat = Number.parseFloat(String(existing.latitude));
+    const existingLng = Number.parseFloat(String(existing.longitude));
+    const newLat = body.latitude == null ? null : Number.parseFloat(body.latitude);
+    const newLng = body.longitude == null ? null : Number.parseFloat(body.longitude);
 
     const locationChanged =
       newLat != null && newLng != null &&
@@ -131,78 +180,22 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       await client.query("BEGIN");
 
       // ── 1. Update community_pois ──────────────────────────────────────────
-
-      const cpFields: string[] = [];
-      const cpParams: unknown[] = [poiId]; // $1
-      let idx = 2;
-
-      // Text / image fields — always updated immediately
-      if (body.name !== undefined)        { cpFields.push(`name = $${idx++}`);             cpParams.push(body.name); }
-      if (body.category !== undefined)    { cpFields.push(`category = $${idx++}`);         cpParams.push(body.category); }
-      if (body.description !== undefined) { cpFields.push(`description = $${idx++}`);      cpParams.push(body.description ?? null); }
-      if (body.photos !== undefined)      { cpFields.push(`photos = $${idx++}`);           cpParams.push(JSON.stringify(body.photos)); }
-      if (body.difficulty !== undefined)  { cpFields.push(`difficulty = $${idx++}`);       cpParams.push(body.difficulty ?? null); }
-      if (body.duration_minutes !== undefined) { cpFields.push(`duration_minutes = $${idx++}`); cpParams.push(body.duration_minutes != null ? parseInt(body.duration_minutes) : null); }
-      if (body.has_water !== undefined)   { cpFields.push(`has_water = $${idx++}`);        cpParams.push(body.has_water ?? null); }
-      if (body.has_shade !== undefined)   { cpFields.push(`has_shade = $${idx++}`);        cpParams.push(body.has_shade ?? null); }
-      if (body.accessible !== undefined)  { cpFields.push(`accessible = $${idx++}`);       cpParams.push(body.accessible ?? null); }
-      if (body.photo_credit !== undefined){ cpFields.push(`photo_credit = $${idx++}`);     cpParams.push(body.photo_credit ?? null); }
-
-      // Location fields — only if changed; also resets status
-      if (locationChanged) {
-        cpFields.push(`latitude = $${idx++}`);    cpParams.push(newLat);
-        cpFields.push(`longitude = $${idx++}`);   cpParams.push(newLng);
-        cpFields.push(`status = 'pending'`);
-        cpFields.push(`admin_note = NULL`);
-        cpFields.push(`reviewed_by = NULL`);
-        cpFields.push(`reviewed_at = NULL`);
-      }
-
+      const { fields: cpFields, params: cpExtraParams } = buildCommunityPoiPatch(body, locationChanged, newLat, newLng);
       if (cpFields.length > 0) {
         cpFields.push(`updated_at = NOW()`);
         await client.query(
           `UPDATE community_pois SET ${cpFields.join(", ")} WHERE id = $1`,
-          cpParams
+          [poiId, ...cpExtraParams]
         );
       }
 
       // ── 2. Update the live locations row ──────────────────────────────────
-      // The locations row is identified by source='community' AND source_id=poiId
-
-      const locFields: string[] = [];
-      const locParams: unknown[] = [String(poiId)]; // $1 = source_id
-      let lidx = 2;
-
-      if (body.name !== undefined)        { locFields.push(`name = $${lidx++}`);            locParams.push(body.name); }
-      if (body.category !== undefined)    { locFields.push(`category = $${lidx++}`);        locParams.push(body.category); }
-      if (body.description !== undefined) { locFields.push(`description = $${lidx++}`);     locParams.push(body.description ?? ""); }
-      if (body.difficulty !== undefined)  { locFields.push(`difficulty = $${lidx++}`);      locParams.push(body.difficulty ?? "בינוני"); }
-      if (body.duration_minutes !== undefined) { locFields.push(`duration_minutes = $${lidx++}`); locParams.push(body.duration_minutes != null ? parseInt(body.duration_minutes) : null); }
-      if (body.has_water !== undefined)   { locFields.push(`has_water = $${lidx++}`);       locParams.push(body.has_water ?? false); }
-      if (body.has_shade !== undefined)   { locFields.push(`has_shade = $${lidx++}`);       locParams.push(body.has_shade ?? false); }
-      if (body.accessible !== undefined)  { locFields.push(`accessible = $${lidx++}`);      locParams.push(body.accessible ?? false); }
-      if (body.photo_credit !== undefined){ locFields.push(`photo_credit = $${lidx++}`);    locParams.push(body.photo_credit ?? null); }
-
-      // Photos: update images array and main_image
-      if (body.photos !== undefined) {
-        const photos: string[] = Array.isArray(body.photos) ? body.photos : [];
-        locFields.push(`images = $${lidx++}`);      locParams.push(JSON.stringify(photos));
-        locFields.push(`main_image = $${lidx++}`);  locParams.push(photos[0] ?? null);
-      }
-
-      // Location change: update coordinates and geom, flag for re-review
-      if (locationChanged && newLat != null && newLng != null) {
-        locFields.push(`latitude = $${lidx++}`);    locParams.push(newLat);
-        locFields.push(`longitude = $${lidx++}`);   locParams.push(newLng);
-        locFields.push(`geom = ST_SetSRID(ST_MakePoint($${lidx++}::float8, $${lidx++}::float8), 4326)::geography`);
-        locParams.push(newLng); locParams.push(newLat);
-      }
-
+      const { fields: locFields, params: locExtraParams } = buildLocationPatch(body, locationChanged, newLat, newLng);
       if (locFields.length > 0) {
         locFields.push(`updated_at = NOW()`);
         await client.query(
           `UPDATE locations SET ${locFields.join(", ")} WHERE source = 'community' AND source_id = $1`,
-          locParams
+          [String(poiId), ...locExtraParams]
         );
       }
 

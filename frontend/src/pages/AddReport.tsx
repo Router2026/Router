@@ -146,7 +146,7 @@ export default function AddReport() {
   const { user, isLoggedIn } = useAuth();
 
   const poiNameFromUrl = searchParams.get('poi_name') ?? '';
-  const locationIdFromUrl = searchParams.get('location_id') ? parseInt(searchParams.get('location_id')!) : undefined;
+  const locationIdFromUrl = searchParams.get('location_id') ? Number.parseInt(searchParams.get('location_id')!) : undefined;
 
   const [selectedPoi, setSelectedPoi] = useState<POI | null>(null);
   const [formData, setFormData] = useState({
@@ -168,7 +168,7 @@ export default function AddReport() {
     setError('');
 
     try {
-      const finalLocationId = selectedPoi ? parseInt(selectedPoi.id) : locationIdFromUrl;
+      const finalLocationId = selectedPoi ? Number.parseInt(selectedPoi.id) : locationIdFromUrl;
 
       await api.reports.create({
         ...formData,

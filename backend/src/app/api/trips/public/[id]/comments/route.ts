@@ -13,8 +13,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const routeId = parseInt(id, 10);
-    if (isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
+    const routeId = Number.parseInt(id, 10);
+    if (Number.isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
 
     const comments = await getRouteComments(routeId);
     return NextResponse.json(successResponse(comments));
@@ -30,8 +30,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { id } = await params;
-    const routeId = parseInt(id, 10);
-    if (isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
+    const routeId = Number.parseInt(id, 10);
+    if (Number.isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
 
     const body = await req.json();
     if (!body.content?.trim()) {
@@ -52,12 +52,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!auth) return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
 
     const { id } = await params;
-    const routeId = parseInt(id, 10);
-    if (isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
+    const routeId = Number.parseInt(id, 10);
+    if (Number.isNaN(routeId)) return NextResponse.json(errorResponse("Invalid id", "VALIDATION_ERROR"), { status: 400 });
 
     const url = new URL(req.url);
-    const commentId = parseInt(url.searchParams.get("commentId") ?? "", 10);
-    if (isNaN(commentId)) return NextResponse.json(errorResponse("commentId required", "VALIDATION_ERROR"), { status: 400 });
+    const commentId = Number.parseInt(url.searchParams.get("commentId") ?? "", 10);
+    if (Number.isNaN(commentId)) return NextResponse.json(errorResponse("commentId required", "VALIDATION_ERROR"), { status: 400 });
 
     await deleteRouteComment(commentId, auth.id, (auth as any).is_admin ?? false);
     return NextResponse.json(successResponse({ deleted: true }));

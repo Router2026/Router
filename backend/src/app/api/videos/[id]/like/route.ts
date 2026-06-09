@@ -5,7 +5,7 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const data = await likeVideo(parseInt(id));
+    const data = await likeVideo(Number.parseInt(id));
     if (!data) {
       return NextResponse.json(errorResponse("Video not found", "NOT_FOUND"), { status: 404 });
     }
