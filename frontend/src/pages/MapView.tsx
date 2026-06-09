@@ -273,25 +273,28 @@ function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiff
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── POI filter helper — module-level to keep MapView complexity below 15 ──────
 
-function filterPois(
-  allPois: POI[],
-  selCats: string[],
-  selDiffs: string[],
-  hasWater: boolean,
-  hasShade: boolean,
-  accessible: boolean,
-): POI[] {
-  return allPois.filter(p => {
-    if (selCats.length && !selCats.includes(p.category)) return false;
-    if (selDiffs.length && !selDiffs.includes(p.difficulty ?? '')) return false;
-    if (hasWater && !p.has_water) return false;
-    if (hasShade && !p.has_shade) return false;
-    if (accessible && !p.accessible) return false;
+interface PoiFilterOptions {
+  selCats: string[];
+  selDiffs: string[];
+  hasWater: boolean;
+  hasShade: boolean;
+  accessible: boolean;
+}
+
+function filterPois(pois: POI[], opts: PoiFilterOptions): POI[] {
+  return pois.filter(p => {
+    if (opts.selCats.length && !opts.selCats.includes(p.category)) return false;
+    if (opts.selDiffs.length && !opts.selDiffs.includes(p.difficulty ?? '')) return false;
+    if (opts.hasWater && !p.has_water) return false;
+    if (opts.hasShade && !p.has_shade) return false;
+    if (opts.accessible && !p.accessible) return false;
     return true;
   });
 }
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MapView() {
   const navigate = useNavigate();
@@ -315,7 +318,7 @@ export default function MapView() {
   const [accessible, setAccessible] = useState(false);
 
   const mapCenterRef = useRef<[number, number]>(
-    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0],
+    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35],
   );
   const urlWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (urlWriteTimerRef.current) clearTimeout(urlWriteTimerRef.current); }, []);
@@ -352,7 +355,7 @@ export default function MapView() {
   }, [writeUrl, selectedRegion?.name]);
 
   const pois = useMemo(
-    () => filterPois(allPois, selCats, selDiffs, hasWater, hasShade, accessible),
+    () => filterPois(allPois, { selCats, selDiffs, hasWater, hasShade, accessible }),
     [allPois, selCats, selDiffs, hasWater, hasShade, accessible],
   );
 
@@ -368,7 +371,7 @@ export default function MapView() {
   const resetView = useCallback(() => {
     setSelectedRegion(null);
     setMapZoom(7);
-    setPanTarget({ center: [31.5, 35.0], zoom: 7, id: Date.now() });
+    setPanTarget({ center: [31.5, 35], zoom: 7, id: Date.now() });
   }, []);
 
   const handleRegionClick = useCallback((region: Region) => {
@@ -418,8 +421,8 @@ export default function MapView() {
         hasWater={hasWater} setHasWater={setHasWater} hasShade={hasShade} setHasShade={setHasShade}
         accessible={accessible} setAccessible={setAccessible} />
 
-      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
-        maxBounds={[[29.0, 34.0], [33.8, 36.3]]} maxBoundsViscosity={0.85}
+      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
+        maxBounds={[[29, 34], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
@@ -435,7 +438,7 @@ export default function MapView() {
           if (!region.polygon_coords) return null;
           return (
             <Polygon key={region.id}
-              positions={region.polygon_coords as [number, number][]}
+              positions={region.polygon_coords!}
               pathOptions={{ color: region.color, fillColor: region.color, fillOpacity: 0.15, weight: 2 }}
               eventHandlers={{ click: () => handleRegionClick(region) }}>
               <Tooltip permanent direction="center" opacity={1} className="region-label">{region.name}</Tooltip>
@@ -445,7 +448,7 @@ export default function MapView() {
 
         {selectedRegion?.polygon_coords && (
           <Polygon
-            positions={selectedRegion.polygon_coords as [number, number][]}
+            positions={selectedRegion.polygon_coords!}
             pathOptions={{ color: selectedRegion.color, fillColor: selectedRegion.color, fillOpacity: 0.08, weight: 3, dashArray: '6,4' }}>
             <Tooltip permanent direction="center" opacity={1} className="region-label">{selectedRegion.name}</Tooltip>
           </Polygon>

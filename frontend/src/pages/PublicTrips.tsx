@@ -74,7 +74,7 @@ function RouteMapCard({ trip }: { trip: PublicTrip }) {
             html: `<div style="width:28px;height:28px;border-radius:50%;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.35);font-family:Heebo,Arial;">${i + 1}</div>`,
             className: '', iconSize: [28, 28], iconAnchor: [14, 14],
           });
-          return <Marker key={i} position={[loc.latitude, loc.longitude]} icon={icon} />;
+          return <Marker key={loc.location_id ?? loc.name ?? i} position={[loc.latitude, loc.longitude]} icon={icon} />;
         })}
         <FitBounds points={points} />
       </MapContainer>
@@ -275,36 +275,6 @@ function RatingModal({ tripId, isOpen, onClose, currentRating, onRated }: {
   );
 }
 
-// ── Module-level helpers (reduce cognitive complexity in TripCard/MediaUploadPanel) ─
-
-async function loadTripSocialData(
-  tripId: number,
-  onLike: (liked: boolean, count: number) => void,
-  onRating: (userRating: number, avg: number, count: number) => void,
-): Promise<void> {
-  await Promise.allSettled([
-    api.publicTrips.getLikes(tripId)
-      .then(({ liked: l, likes_count: lc }) => onLike(l, lc))
-      .catch(() => { /* intentional */ }),
-    api.publicTrips.getRating(tripId)
-      .then(r => onRating(r.user_rating ?? 0, r.average_rating, r.ratings_count))
-      .catch(() => { /* intentional */ }),
-  ]);
-}
-
-// ── Module-level helper for MediaUploadPanel save (reduces cognitive complexity) ─
-async function buildMediaUrls(
-  trip: PublicTrip,
-  imageFile: File | null,
-  videoFile: File | null,
-): Promise<{ image_url: string | undefined; video_url: string | undefined }> {
-  let image_url = trip.image_url || undefined;
-  let video_url = trip.video_url || undefined;
-  if (imageFile) image_url = await fileToBase64(imageFile);
-  if (videoFile) video_url = await fileToBase64(videoFile);
-  return { image_url, video_url };
-}
-
 // ── Media Upload Panel ────────────────────────────────────────────────────────
 function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Readonly<{
   trip: PublicTrip; isOpen: boolean; onClose: () => void; onUpdated: (t: PublicTrip) => void; currentUser: any;
@@ -329,7 +299,10 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
   const save = async () => {
     setSaving(true);
     try {
-      const { image_url, video_url } = await buildMediaUrls(trip, imageFile, videoFile);
+      let image_url = trip.image_url || undefined;
+      let video_url = trip.video_url || undefined;
+      if (imageFile) image_url = await fileToBase64(imageFile);
+      if (videoFile) video_url = await fileToBase64(videoFile);
       await api.publicTrips.updateMedia(trip.id, { user_description: desc, image_url, video_url });
       onUpdated({ ...trip, user_description: desc, image_url: imagePreview || image_url, video_url: videoPreview || video_url });
       onClose();
@@ -387,7 +360,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('image'); }}
                 onDragLeave={() => setDragOver(null)}
-                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) handleImage(f); }}
+                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) handleImage(f); }}
                 onClick={() => imageRef.current?.click()}
                 style={{ border: `2px dashed ${dragOver === 'image' ? '#0d9e6e' : '#d1d5db'}`, borderRadius: 16, padding: '32px 20px', textAlign: 'center', background: dragOver === 'image' ? '#f0fdf4' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
@@ -415,7 +388,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('video'); }}
                 onDragLeave={() => setDragOver(null)}
-                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('video/')) handleVideo(f); }}
+                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('video/')) handleVideo(f); }}
                 onClick={() => videoRef.current?.click()}
                 style={{ border: `2px dashed ${dragOver === 'video' ? '#7c3aed' : '#d1d5db'}`, borderRadius: 16, padding: '28px 20px', textAlign: 'center', background: dragOver === 'video' ? '#faf5ff' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>🎬</div>
@@ -456,11 +429,12 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
 
   useEffect(() => {
     if (currentUser && !currentUser.isGuest) {
-      loadTripSocialData(
-        trip.id,
-        (l, lc) => { setLiked(l); setLikesCount(lc); },
-        (ur, avg, cnt) => { setUserRating(ur); setAvgRating(avg); setRatingsCount(cnt); },
-      );
+      api.publicTrips.getLikes(trip.id)
+        .then(({ liked: l, likes_count: lc }) => { setLiked(l); setLikesCount(lc); })
+        .catch(() => { });
+      api.publicTrips.getRating(trip.id)
+        .then(r => { setUserRating(r.user_rating ?? 0); setAvgRating(r.average_rating); setRatingsCount(r.ratings_count); })
+        .catch(() => { });
     }
   }, [trip.id, currentUser]);
 
@@ -607,20 +581,12 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
           {/* Like */}
           <button onClick={toggleLike} disabled={likeLoading}
             style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: currentUser && !currentUser.isGuest ? 'pointer' : 'default', padding: 4, borderRadius: 8 }}>
-            {(() => {
-              let heartScale: string;
-              if (likeAnim) heartScale = 'scale(1.4)';
-              else if (liked) heartScale = 'scale(1.1)';
-              else heartScale = 'scale(1)';
-              return (
-                <svg width="24" height="24" viewBox="0 0 24 24"
-                  fill={liked ? '#ef4444' : 'none'}
-                  stroke={liked ? '#ef4444' : '#64748b'} strokeWidth="2"
-                  style={{ transition: 'all 0.25s', transform: heartScale }}>
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-              );
-            })()}
+            <svg width="24" height="24" viewBox="0 0 24 24"
+              fill={liked ? '#ef4444' : 'none'}
+              stroke={liked ? '#ef4444' : '#64748b'} strokeWidth="2"
+              style={{ transition: 'all 0.25s', transform: likeAnim ? 'scale(1.4)' : liked ? 'scale(1.1)' : 'scale(1)' }}>
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
             <span style={{ fontSize: 14, fontWeight: 700, color: liked ? '#ef4444' : '#64748b' }}>{likesCount}</span>
           </button>
 
@@ -751,6 +717,32 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
   );
 }
 
+// ── Module-level helpers to reduce cognitive complexity ───────────────────────
+
+function filterTrips(data: PublicTrip[], searchText: string): PublicTrip[] {
+  if (!searchText.trim()) return data;
+  const q = searchText.trim().toLowerCase();
+  return data.filter(t =>
+    t.title?.toLowerCase().includes(q) ||
+    t.creator_username?.toLowerCase().includes(q) ||
+    t.region?.toLowerCase().includes(q) ||
+    t.user_description?.toLowerCase().includes(q)
+  );
+}
+
+function sortTrips(trips: PublicTrip[]): PublicTrip[] {
+  return [...trips].sort((a, b) => {
+    const rA = (a.average_rating ?? 0) * 100 + (a.ratings_count ?? 0);
+    const rB = (b.average_rating ?? 0) * 100 + (b.ratings_count ?? 0);
+    if (rB !== rA) return rB - rA;
+    return (b.likes_count ?? 0) - (a.likes_count ?? 0);
+  });
+}
+
+function collectRegions(data: PublicTrip[]): string[] {
+  return [...new Set(data.map(t => t.region).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PublicTrips() {
   const navigate = useNavigate();
@@ -783,26 +775,8 @@ export default function PublicTrips() {
       group_type: selGroupType || undefined,
     })
       .then(data => {
-        let filtered = data;
-        if (searchText.trim()) {
-          const q = searchText.trim().toLowerCase();
-          filtered = data.filter(t =>
-            t.title?.toLowerCase().includes(q) ||
-            t.creator_username?.toLowerCase().includes(q) ||
-            t.region?.toLowerCase().includes(q) ||
-            t.user_description?.toLowerCase().includes(q)
-          );
-        }
-        const sorted = [...filtered].sort((a, b) => {
-          const rA = (a.average_rating ?? 0) * 100 + (a.ratings_count ?? 0);
-          const rB = (b.average_rating ?? 0) * 100 + (b.ratings_count ?? 0);
-          if (rB !== rA) return rB - rA;
-          return (b.likes_count ?? 0) - (a.likes_count ?? 0);
-        });
-        setTrips(sorted);
-        // collect distinct regions for chips
-        const regions = [...new Set(data.map(t => t.region).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
-        setAllRegions(regions);
+        setTrips(sortTrips(filterTrips(data, searchText)));
+        setAllRegions(collectRegions(data));
       })
       .catch(() => setTrips([]))
       .finally(() => setLoading(false));

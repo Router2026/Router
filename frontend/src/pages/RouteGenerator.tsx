@@ -28,6 +28,17 @@ function makeFallbackIconHtml(num: number): string {
   return `<div style='${style}'>${num}</div>`;
 }
 
+function buildPhotoMarkerHtml(poi: { main_image?: string | null }, index: number, selected: boolean): string {
+  const size = poi.main_image ? (selected ? 52 : 44) : (selected ? 44 : 36);
+  const border = selected ? '#0d9e6e' : '#fff';
+  const fallback = JSON.stringify(makeFallbackIconHtml(index + 1));
+  if (poi.main_image) {
+    return `<div style="position:relative;width:${size}px;height:${size}px;border-radius:12px;overflow:hidden;border:3px solid ${border};box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;"><img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML=${fallback}"/><div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.6));color:#fff;font-size:9px;font-weight:700;padding:4px 4px 3px;text-align:center;font-family:Heebo,Arial;">${index + 1}</div></div>`;
+  }
+  const bgBorder = selected ? '#fff' : '#e2e8f0';
+  return `<div style="width:${size}px;height:${size}px;border-radius:12px;background:linear-gradient(135deg,#0d9e6e,#0bba7e);border:3px solid ${bgBorder};display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 3px 10px rgba(13,158,110,0.4);font-family:Heebo,Arial;">${index + 1}</div>`;
+}
+
 // Static icon — created once for the entire session
 const _startIcon = L.divIcon({
   html: `<div style="width:36px;height:36px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;box-shadow:0 3px 10px rgba(37,99,235,0.45);transform:rotate(-45deg);"><span style="transform:rotate(45deg)">📍</span></div>`,
@@ -36,12 +47,12 @@ const _startIcon = L.divIcon({
   iconAnchor: [18, 36],
 });
 
-function StartMarker({ position }: { position: LatLng }) {
+function StartMarker({ position }: Readonly<{ position: LatLng }>) {
   return <Marker position={[position.lat, position.lng]} icon={_startIcon} />;
 }
 
 
-function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng | null }) {
+function RoutePolyline({ stops, startPoint }: Readonly<{ stops: POI[]; startPoint: LatLng | null }>) {
   const map = useMap();
   const lineRef = useRef<L.Polyline | null>(null);
 
@@ -70,46 +81,17 @@ function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng
   return null;
 }
 
-function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; selected: boolean }) {
+function PhotoMarker({ poi, index, selected }: Readonly<{ poi: POI; index: number; selected: boolean }>) {
   const map = useMap();
 
+  const iconSize = poi.main_image ? (selected ? 52 : 44) : (selected ? 44 : 36);
+  const iconAnchor = iconSize / 2;
   const icon = useMemo(() => L.divIcon({
-    html: poi.main_image
-      ? `<div style="
-          position:relative;
-          width:${selected ? 52 : 44}px;
-          height:${selected ? 52 : 44}px;
-          border-radius:12px;
-          overflow:hidden;
-          border:3px solid ${selected ? '#0d9e6e' : '#fff'};
-          box-shadow:0 3px 12px rgba(0,0,0,0.35);
-          cursor:pointer;
-        ">
-          <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML=${JSON.stringify(makeFallbackIconHtml(index + 1))}"/>
-          <div style="
-            position:absolute;bottom:0;left:0;right:0;
-            background:linear-gradient(transparent,rgba(0,0,0,0.6));
-            color:#fff;font-size:9px;font-weight:700;
-            padding:4px 4px 3px;text-align:center;
-            font-family:Heebo,Arial;
-          ">${index + 1}</div>
-        </div>`
-      : `<div style="
-          width:${selected ? 44 : 36}px;
-          height:${selected ? 44 : 36}px;
-          border-radius:12px;
-          background:linear-gradient(135deg,#0d9e6e,#0bba7e);
-          border:3px solid ${selected ? '#fff' : '#e2e8f0'};
-          display:flex;align-items:center;justify-content:center;
-          color:#fff;font-size:14px;font-weight:900;
-          box-shadow:0 3px 10px rgba(13,158,110,0.4);
-          font-family:Heebo,Arial;
-        ">${index + 1}</div>`,
+    html: buildPhotoMarkerHtml(poi, index, selected),
     className: '',
-    iconSize: [selected ? 52 : 44, selected ? 52 : 44],
-    iconAnchor: [selected ? 26 : 22, selected ? 26 : 22],
-   
-  }), [poi.main_image, index, selected]);
+    iconSize: [iconSize, iconSize],
+    iconAnchor: [iconAnchor, iconAnchor],
+  }), [poi, index, selected, iconSize, iconAnchor]);
 
   return (
     <Marker
@@ -124,11 +106,11 @@ function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; select
   );
 }
 
-function FitBoundsToSelection({ pois, startPoint, region }: {
+function FitBoundsToSelection({ pois, startPoint, region }: Readonly<{
   pois: POI[];
   startPoint: LatLng | null;
   region: Region | null;
-}) {
+}>) {
   const map = useMap();
   useEffect(() => {
     if (pois.length > 0) {
@@ -144,7 +126,7 @@ function FitBoundsToSelection({ pois, startPoint, region }: {
   return null;
 }
 
-function RegionLabel({ region, count }: { region: Region | null; count: number }) {
+function RegionLabel({ region, count }: Readonly<{ region: Region | null; count: number }>) {
   if (!region) return null;
   return (
     <div style={{
@@ -244,7 +226,7 @@ function resolveInitialOptimized(
   userLocation: { lat: number; lng: number } | null | undefined,
   alreadyOrdered: boolean | undefined,
   onResolved: (sp: LatLng | null, optimized: POI[]) => void,
-) {
+): void {
   if (userLocation) {
     const sp: LatLng = { lat: userLocation.lat, lng: userLocation.lng };
     const order = alreadyOrdered ? [...incoming] : optimizeRoute([...incoming], sp);
@@ -301,23 +283,24 @@ export default function RouteGenerator() {
       userLocation?: { lat: number; lng: number } | null;
       alreadyOrdered?: boolean;
     } | null;
-    if (!state?.bucketPois || state.bucketPois.length < 2) return;
+    if (state?.bucketPois && state.bucketPois.length >= 2) {
+      const incoming = state.bucketPois;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedPois(incoming);
+      setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
 
-    const incoming = state.bucketPois;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedPois(incoming);
-    setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
+      resolveInitialOptimized(incoming, state.userLocation, state.alreadyOrdered, (sp, order) => {
+        if (sp) {
+          setStartPoint(sp);
+          setUseCurrentLocation(true);
+        }
+        setOptimized(order);
+      });
 
-    resolveInitialOptimized(incoming, state.userLocation, state.alreadyOrdered, (sp, order) => {
-      if (sp) {
-        setStartPoint(sp);
-        setUseCurrentLocation(true);
-      }
-      setOptimized(order);
-    });
-
-    setStep('route');
-    window.history.replaceState({}, '');
+      setStep('route');
+      globalThis.history.replaceState({}, '');
+    }
+     
   }, [routerLocation.state]);
 
   const requestGeolocation = useCallback(() => {
@@ -358,7 +341,7 @@ export default function RouteGenerator() {
 
   const togglePOI = useCallback((poi: POI) => {
     setSelectedPois(prev =>
-      prev.find(p => p.id === poi.id)
+      prev.some(p => p.id === poi.id)
         ? prev.filter(p => p.id !== poi.id)
         : [...prev, poi]
     );
@@ -732,7 +715,7 @@ export default function RouteGenerator() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {filteredPois.map(poi => {
-                  const sel = !!selectedPois.find(p => p.id === poi.id);
+                  const sel = selectedPois.some(p => p.id === poi.id);
                   return (
                     <button key={poi.id} onClick={() => togglePOI(poi)}
                       style={{
@@ -1018,7 +1001,7 @@ export default function RouteGenerator() {
                   lat: optimized[0].latitude,
                   lng: optimized[0].longitude,
                 };
-                window.open(`https://waze.com/ul?q=${target.lat},${target.lng}`, '_blank');
+                globalThis.open(`https://waze.com/ul?q=${target.lat},${target.lng}`, '_blank');
               }}
                 style={{
                   width: '100%', padding: '14px',
@@ -1120,7 +1103,7 @@ export default function RouteGenerator() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 10 }}>📍 עצירות במסלול</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {optimized.map((p, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0d9e6e', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
                       <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>{p.name}</div>
                       <div style={{ fontSize: 11, color: '#94a3b8', marginRight: 'auto' }}>{p.category}</div>

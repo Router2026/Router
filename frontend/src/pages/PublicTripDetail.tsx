@@ -33,32 +33,24 @@ const GROUP_ICON: Record<string, string> = {
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
-    if (points.length > 1) { map.fitBounds(L.latLngBounds(points).pad(0.2)); }
-    else if (points.length === 1) { map.setView(points[0], 13); }
+    if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.2));
+    else if (points.length === 1) map.setView(points[0], 13);
   }, [points, map]);
   return null;
 }
 
-function buildStopMarkerHtml(loc: any, index: number): string {
-  if (loc.main_image) {
-    const fallbackStyle = String.raw`width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:900`;
-    return `<div style="position:relative;width:48px;height:48px;border-radius:12px;overflow:hidden;border:3px solid #0d9e6e;box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
-        <img src="${loc.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'${fallbackStyle}\\'>${index + 1}</div>'"/>
-        <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));color:#fff;font-size:9px;font-weight:800;padding:4px;text-align:center;font-family:Heebo,Arial;">${index + 1}</div>
-      </div>`;
-  }
-  return `<div style="width:36px;height:36px;border-radius:12px;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 3px 10px rgba(0,0,0,0.3);font-family:Heebo,Arial;">${index + 1}</div>`;
-}
-
-function StopMarker({ loc, index }: { loc: any; index: number }) {
+function StopMarker({ loc, index }: Readonly<{ loc: any; index: number }>) {
   const map = useMap();
-  const iconSize: [number, number] = loc.main_image ? [48, 48] : [36, 36];
-  const iconAnchor: [number, number] = loc.main_image ? [24, 24] : [18, 18];
   const icon = L.divIcon({
-    html: buildStopMarkerHtml(loc, index),
+    html: loc.main_image
+      ? `<div style="position:relative;width:48px;height:48px;border-radius:12px;overflow:hidden;border:3px solid #0d9e6e;box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
+          <img src="${loc.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:900\\'>${index + 1}</div>'"/>
+          <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));color:#fff;font-size:9px;font-weight:800;padding:4px;text-align:center;font-family:Heebo,Arial;">${index + 1}</div>
+        </div>`
+      : `<div style="width:36px;height:36px;border-radius:12px;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 3px 10px rgba(0,0,0,0.3);font-family:Heebo,Arial;">${index + 1}</div>`,
     className: '',
-    iconSize,
-    iconAnchor,
+    iconSize: loc.main_image ? [48, 48] : [36, 36],
+    iconAnchor: loc.main_image ? [24, 24] : [18, 18],
   });
   return (
     <Marker position={[loc.latitude, loc.longitude]} icon={icon}
@@ -66,7 +58,7 @@ function StopMarker({ loc, index }: { loc: any; index: number }) {
   );
 }
 
-function StarRating({ value, onChange, readonly, size = 26 }: { value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }) {
+function StarRating({ value, onChange, readonly, size = 26 }: Readonly<{ value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }>) {
   const [hover, setHover] = useState(0);
   return (
     <div style={{ display: 'flex', gap: 3 }}>
@@ -96,86 +88,16 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
-// ── Module-level handlers (S3776: extracted to reduce cognitive complexity) ───
-
-async function doToggleLike(
-  tripId: number,
-  user: unknown,
-  navigate: (path: string) => void,
-  setLikeLoading: (v: boolean) => void,
-  setLikeAnim: (v: boolean) => void,
-  setLiked: (v: boolean) => void,
-  setLikesCount: (v: number) => void,
+async function fetchStopSearchResults(
+  q: string,
+  editStops: Array<{ id: number }>,
+  setStopSearchResults: (r: any[]) => void,
+  setSearchingStops: (v: boolean) => void,
 ): Promise<void> {
-  if (!user) { navigate('/login'); return; }
-  setLikeLoading(true);
-  setLikeAnim(true);
-  setTimeout(() => setLikeAnim(false), 400);
   try {
-    const res = await api.publicTrips.toggleLike(tripId);
-    setLiked(res.liked); setLikesCount(res.likes_count);
-  } catch { /* intentional */ } finally { setLikeLoading(false); }
-}
-
-interface SetRatingOpts {
-  tripId: number;
-  r: number;
-  user: unknown;
-  navigate: (path: string) => void;
-  setRatingLoading: (v: boolean) => void;
-  setUserRating: (v: number) => void;
-  setAvgRating: (v: number) => void;
-  setRatingsCount: (v: number) => void;
-}
-
-async function doSetRating(opts: SetRatingOpts): Promise<void> {
-  const { tripId, r, user, navigate, setRatingLoading, setUserRating, setAvgRating, setRatingsCount } = opts;
-  if (!user) { navigate('/login'); return; }
-  setRatingLoading(true);
-  try {
-    const res = await api.publicTrips.setRating(tripId, r);
-    setUserRating(res.user_rating); setAvgRating(res.average_rating); setRatingsCount(res.ratings_count);
-  } catch { /* intentional */ } finally { setRatingLoading(false); }
-}
-
-async function doAddComment(
-  tripId: number,
-  commentText: string,
-  user: unknown,
-  navigate: (path: string) => void,
-  setCommentLoading: (v: boolean) => void,
-  setComments: (fn: (prev: RouteComment[]) => RouteComment[]) => void,
-  setCommentText: (v: string) => void,
-): Promise<void> {
-  if (!user) { navigate('/login'); return; }
-  if (!commentText.trim()) return;
-  setCommentLoading(true);
-  try {
-    const c = await api.publicTrips.addComment(tripId, commentText);
-    setComments(prev => [...prev, c]);
-    setCommentText('');
-  } catch { /* intentional */ } finally { setCommentLoading(false); }
-}
-
-async function doSaveDesc(
-  tripId: number,
-  editDesc: string,
-  editPOI: string,
-  editRecommendedStops: string,
-  setSavingMedia: (v: boolean) => void,
-  setTrip: (fn: (prev: PublicTrip | null) => PublicTrip | null) => void,
-  setEditMode: (v: boolean) => void,
-): Promise<void> {
-  setSavingMedia(true);
-  try {
-    await api.publicTrips.updateMedia(tripId, {
-      user_description: editDesc,
-      points_of_interest: editPOI,
-      recommended_stops: editRecommendedStops,
-    });
-    setTrip(prev => prev ? { ...prev, user_description: editDesc, points_of_interest: editPOI, recommended_stops: editRecommendedStops } as PublicTrip : prev);
-    setEditMode(false);
-  } catch { /* intentional */ } finally { setSavingMedia(false); }
+    const results = await api.locations.list({ search: q, limit: 8 });
+    setStopSearchResults(results.filter(r => !editStops.some(s => s.id === Number.parseInt(r.id))));
+  } catch { /* intentional */ } finally { setSearchingStops(false); }
 }
 
 export default function PublicTripDetail() {
@@ -239,7 +161,7 @@ export default function PublicTripDetail() {
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tripId = Number.parseInt(id ?? '', 10);
-  const isOwner = !!user && Number(user.id) === trip?.user_id;
+  const isOwner = user && trip && Number(user.id) === trip.user_id;
 
   useEffect(() => {
     if (!id) return;
@@ -270,9 +192,36 @@ export default function PublicTripDetail() {
     }).catch(() => { });
   }, [tripId]);
 
-  const handleLike = () => doToggleLike(tripId, user, navigate, setLikeLoading, setLikeAnim, setLiked, setLikesCount);
-  const handleRate = (r: number) => doSetRating({ tripId, r, user, navigate, setRatingLoading, setUserRating, setAvgRating, setRatingsCount });
-  const handleComment = () => doAddComment(tripId, commentText, user, navigate, setCommentLoading, setComments, setCommentText);
+  const handleLike = async () => {
+    if (!user) { navigate('/login'); return; }
+    setLikeLoading(true);
+    setLikeAnim(true);
+    setTimeout(() => setLikeAnim(false), 400);
+    try {
+      const res = await api.publicTrips.toggleLike(tripId);
+      setLiked(res.liked); setLikesCount(res.likes_count);
+    } catch { /* intentional */ } finally { setLikeLoading(false); }
+  };
+
+  const handleRate = async (r: number) => {
+    if (!user) { navigate('/login'); return; }
+    setRatingLoading(true);
+    try {
+      const res = await api.publicTrips.setRating(tripId, r);
+      setUserRating(res.user_rating); setAvgRating(res.average_rating); setRatingsCount(res.ratings_count);
+    } catch { /* intentional */ } finally { setRatingLoading(false); }
+  };
+
+  const handleComment = async () => {
+    if (!user) { navigate('/login'); return; }
+    if (!commentText.trim()) return;
+    setCommentLoading(true);
+    try {
+      const c = await api.publicTrips.addComment(tripId, commentText);
+      setComments(prev => [...prev, c]);
+      setCommentText('');
+    } catch { /* intentional */ } finally { setCommentLoading(false); }
+  };
 
   const handleDeleteComment = async (commentId: number) => {
     try {
@@ -281,19 +230,33 @@ export default function PublicTripDetail() {
     } catch { /* intentional */ }
   };
 
-  const handleSaveDesc = () => doSaveDesc(tripId, editDesc, editPOI, editRecommendedStops, setSavingMedia, setTrip, setEditMode);
+  const handleSaveDesc = async () => {
+    setSavingMedia(true);
+    try {
+      await api.publicTrips.updateMedia(tripId, {
+        user_description: editDesc,
+        points_of_interest: editPOI,
+        recommended_stops: editRecommendedStops,
+      });
+      setTrip(prev => prev ? {
+        ...prev,
+        user_description: editDesc,
+        points_of_interest: editPOI,
+        recommended_stops: editRecommendedStops,
+      } as any : prev);
+      setEditMode(false);
+    } catch { /* intentional */ } finally { setSavingMedia(false); }
+  };
 
   const handleStopSearch = (q: string) => {
     setStopSearch(q);
     if (stopSearchTimeout.current) clearTimeout(stopSearchTimeout.current);
     if (!q.trim()) { setStopSearchResults([]); return; }
     setSearchingStops(true);
-    stopSearchTimeout.current = setTimeout(async () => {
-      try {
-        const results = await api.locations.list({ search: q, limit: 8 });
-        setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
-      } catch { /* intentional */ } finally { setSearchingStops(false); }
-    }, 300);
+    stopSearchTimeout.current = setTimeout(
+      () => fetchStopSearchResults(q, editStops, setStopSearchResults, setSearchingStops),
+      300,
+    );
   };
 
   const addStop = (poi: any) => {
@@ -408,8 +371,8 @@ export default function PublicTripDetail() {
       {/* ── Sticky top bar ─────────────────────────────────────────────── */}
       <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#64748b', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 10, transition: 'background 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f1f5f9'}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>
           ← חזור
         </button>
 
@@ -445,7 +408,7 @@ export default function PublicTripDetail() {
             {pts.length > 1 && (
               <Polyline positions={pts} pathOptions={{ color: '#0d9e6e', weight: 3.5, opacity: 0.9, dashArray: '10,6' }} />
             )}
-            {validStops.map((loc, i) => <StopMarker key={i} loc={loc} index={i} />)}
+            {validStops.map((loc, i) => <StopMarker key={loc.location_id ?? loc.name ?? i} loc={loc} index={i} />)}
             <FitBounds points={pts} />
           </MapContainer>
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
@@ -717,8 +680,8 @@ export default function PublicTripDetail() {
                           {stopSearchResults.map(poi => (
                             <button type="button" key={poi.id} onClick={() => addStop(poi)}
                               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: '#fff', transition: 'background 0.15s', width: '100%', border: 'none', textAlign: 'right' }}
-                              onMouseEnter={e => { e.currentTarget.style.background = '#f0fdf4'; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}>
+                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0fdf4'}
+                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff'}>
                               {poi.main_image ? (
                                 <img src={getImageUrl(poi.main_image, 'thumb')} alt="" loading="lazy" decoding="async" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                               ) : (
@@ -876,15 +839,27 @@ export default function PublicTripDetail() {
                 placeholder="כיתוב אופציונלי..."
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
               <input ref={communityImageRef} type="file" accept="image/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'image'); } e.target.value = ''; }} />
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'image'); e.target.value = ''; }} />
               <input ref={communityVideoRef} type="file" accept="video/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'video'); } e.target.value = ''; }} />
-              <button
-                onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
-                disabled={addingMedia}
-                style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
-                {addingMedia ? '⏳ מעלה...' : `📤 העלה ${communityMediaTab === 'image' ? 'תמונה' : 'סרטון'} (+10 XP)`}
-              </button>
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'video'); e.target.value = ''; }} />
+              {(() => {
+                let uploadLabel: string;
+                if (addingMedia) {
+                  uploadLabel = '⏳ מעלה...';
+                } else if (communityMediaTab === 'image') {
+                  uploadLabel = '📤 העלה תמונה (+10 XP)';
+                } else {
+                  uploadLabel = '📤 העלה סרטון (+10 XP)';
+                }
+                return (
+                  <button
+                    onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
+                    disabled={addingMedia}
+                    style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
+                    {uploadLabel}
+                  </button>
+                );
+              })()}
             </div>
           )}
 
@@ -944,7 +919,7 @@ export default function PublicTripDetail() {
             </div>
           ) : (
             <div style={{ fontSize: 13, color: '#94a3b8' }}>
-              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 13 }}>התחבר</button> כדי לדרג
+              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 13 }}>התחבר</button><span> כדי לדרג</span>
             </div>
           )}
         </div>
@@ -975,8 +950,8 @@ export default function PublicTripDetail() {
             <button
               onClick={() => window.open(`https://waze.com/ul?ll=${validStops[0].latitude},${validStops[0].longitude}&navigate=yes`, '_blank')}
               style={{ width: '100%', marginTop: 18, padding: '14px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg,#0d9e6e,#059669)', color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(13,158,110,0.25)', transition: 'opacity 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
-              onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}>
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.9'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
               נווט לנקודת ההתחלה
             </button>
@@ -1018,7 +993,7 @@ export default function PublicTripDetail() {
             </div>
           ) : (
             <div style={{ marginBottom: 16, textAlign: 'center', padding: '14px', background: '#f8fafc', borderRadius: 13, fontSize: 14, color: '#94a3b8' }}>
-              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 800, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>התחבר</button> כדי להגיב על המסלול
+              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 800, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>התחבר</button><span> כדי להגיב על המסלול</span>
             </div>
           )}
 

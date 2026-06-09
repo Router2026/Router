@@ -10,7 +10,7 @@
 //     spinner that would show nothing useful during a slow/failed load.
 //  4. The admin regions list is also parallelised into the same fan-out.
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
@@ -268,15 +268,15 @@ function MiniMap({ poi }: { poi: POI }) {
       </div>
       <div style={{ padding: '12px 16px', direction: 'rtl' }}>
         {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8, textAlign: 'center' }}>{geoError}</div>}
-        {userCoords ? (
-          <button onClick={() => window.open(`https://waze.com/ul?q=${poi.latitude},${poi.longitude}`, '_blank')}
-            style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            פתח ב-Waze
-          </button>
-        ) : (
+        {!userCoords ? (
           <button onClick={handleGetLocation} disabled={geoLoading}
             style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 14, background: geoLoading ? '#e2e8f0' : 'linear-gradient(135deg, #3b82f6, #60a5fa)', color: geoLoading ? '#94a3b8' : '#fff', fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif' }}>
             {geoLoading ? '⏳ מאתר מיקום...' : '📍 הצג מסלול מהמיקום שלי'}
+          </button>
+        ) : (
+          <button onClick={() => window.open(`https://waze.com/ul?q=${poi.latitude},${poi.longitude}`, '_blank')}
+            style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            פתח ב-Waze
           </button>
         )}
       </div>
@@ -317,24 +317,14 @@ function StarRating({
     <div style={{ direction: 'rtl' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <div style={{ display: 'flex', gap: 3 }}>
-          {[1, 2, 3, 4, 5].map(star => {
-            let starColor: string;
-            if (star <= activeStars) {
-              starColor = '#f59e0b';
-            } else if (star <= displayRating) {
-              starColor = '#fcd34d';
-            } else {
-              starColor = '#d1d5db';
-            }
-            return (
-              <button key={star} onClick={() => handleRate(star)}
-                onMouseEnter={() => isLoggedIn && setHovered(star)} onMouseLeave={() => setHovered(0)}
-                disabled={saving || !isLoggedIn}
-                style={{ background: 'none', border: 'none', padding: '2px', cursor: isLoggedIn ? 'pointer' : 'default', fontSize: 22, lineHeight: 1, color: starColor, transition: 'color 0.1s, transform 0.1s', transform: hovered === star ? 'scale(1.2)' : 'scale(1)' }}>
-                ★
-              </button>
-            );
-          })}
+          {[1, 2, 3, 4, 5].map(star => (
+            <button key={star} onClick={() => handleRate(star)}
+              onMouseEnter={() => isLoggedIn && setHovered(star)} onMouseLeave={() => setHovered(0)}
+              disabled={saving || !isLoggedIn}
+              style={{ background: 'none', border: 'none', padding: '2px', cursor: isLoggedIn ? 'pointer' : 'default', fontSize: 22, lineHeight: 1, color: star <= activeStars ? '#f59e0b' : star <= displayRating ? '#fcd34d' : '#d1d5db', transition: 'color 0.1s, transform 0.1s', transform: hovered === star ? 'scale(1.2)' : 'scale(1)' }}>
+              ★
+            </button>
+          ))}
         </div>
         <span style={{ fontWeight: 900, color: '#1a2e2a', fontSize: 18 }}>{displayRating.toFixed(1)}</span>
         <span style={{ fontSize: 12, color: '#94a3b8' }}>({ratingCount} דירוגים)</span>
@@ -350,16 +340,16 @@ function StarRating({
 
 function MediaGallery({
   locationId: _locationId, media, isAdmin, onApprove: _onApprove, onReject,
-}: {
+}: Readonly<{
   locationId: number; media: LocationMedia[];
   isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void;
-}) {
+}>) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   if (!media.length) return null;
 
   const closeLightbox = () => setLightboxIdx(null);
-  const prevItem = () => setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : null);
-  const nextItem = () => setLightboxIdx(i => i !== null ? Math.min(media.length - 1, i + 1) : null);
+  const prevItem = () => setLightboxIdx(i => i === null ? null : Math.max(0, i - 1));
+  const nextItem = () => setLightboxIdx(i => i === null ? null : Math.min(media.length - 1, i + 1));
 
   return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16 }}>
@@ -383,7 +373,7 @@ function MediaGallery({
             ) : (
               <img src={getImageUrl(item.media_url, 'card')} alt={item.caption || 'gallery'} loading="lazy" decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { e.currentTarget.style.opacity = '0.3'; e.currentTarget.onerror = null; }} />
+                onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
             )}
             {item.media_type === 'video' && (
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
@@ -435,7 +425,7 @@ function MediaGallery({
 
 // ── NearbyPlaces ──────────────────────────────────────────────────────────────
 
-function NearbyPlaces({ locationId }: { locationId: number }) {
+function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
   const navigate = useNavigate();
   // NearbyPlaces keeps its own useQuery so it can load in parallel with (and
   // independently of) the main POI data — it's a PostGIS spatial query that can
@@ -472,7 +462,7 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
               {place.main_image ? (
                 <img src={getImageUrl(place.main_image, 'thumb')} alt={place.name} loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                   <span style={{ fontSize: 28, opacity: 0.5 }}>🏞️</span>
@@ -531,7 +521,7 @@ function POIDetailSkeleton() {
 
 // ── Error state ───────────────────────────────────────────────────────────────
 
-function POIDetailError({ message, onBack, onRetry }: { message: string; onBack: () => void; onRetry: () => void }) {
+function POIDetailError({ message, onBack, onRetry }: Readonly<{ message: string; onBack: () => void; onRetry: () => void }>) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12, padding: '0 24px', textAlign: 'center' }}>
       <div style={{ fontSize: 52 }}>😕</div>
@@ -635,7 +625,7 @@ export default function POIDetail() {
 
   const openGoogleMaps = () => {
     if (!poi) return;
-    window.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
+    globalThis.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
   };
 
   // ── Render guards ──────────────────────────────────────────────────────────
@@ -805,12 +795,8 @@ export default function POIDetail() {
           <MiniMap poi={poi} />
           {!Number.isNaN(poiIdNum) && <NearbyPlaces locationId={poiIdNum} />}
           <MediaGallery locationId={poiIdNum} media={allMedia} isAdmin={isAdmin}
-            onApprove={id => {
-              if (media.some(m => m.id === id)) { handleApproveMedia(id); } else { handleApproveImage(id); }
-            }}
-            onReject={id => {
-              if (media.some(m => m.id === id)) { handleRejectMedia(id); } else { handleRejectImage(id); }
-            }} />
+            onApprove={id => { if (media.some(m => m.id === id)) handleApproveMedia(id); else handleApproveImage(id); }}
+            onReject={id => { if (media.some(m => m.id === id)) handleRejectMedia(id); else handleRejectImage(id); }} />
 
           {isLoggedIn && !Number.isNaN(poiIdNum) && (
             <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-start', direction: 'rtl' }}>
@@ -835,75 +821,55 @@ export default function POIDetail() {
             ))}
           </div>
 
-          {tab === 'reports' && (() => {
-            let reportAction: React.ReactNode;
-            if (isLoggedIn) {
-              reportAction = (
+          {tab === 'reports' && (
+            <div style={{ direction: 'rtl' }}>
+              {reports.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין דיווחים עדיין לאתר זה</div>}
+              {reports.slice(0, 5).map(r => (
+                <div key={r.id} style={{ background: '#fff', borderRadius: 18, padding: '16px', marginBottom: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, color: '#94a3b8' }}>{r.reporter_name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#d97706', background: '#fffbeb', borderRadius: 8, padding: '4px 10px' }}>{r.report_type}</span>
+                  </div>
+                  <p style={{ fontSize: 14, color: '#475569', textAlign: 'right', margin: 0 }}>{r.content}</p>
+                </div>
+              ))}
+              {isLoggedIn ? (
                 <button onClick={() => navigate(`/AddReport?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ הוסף דיווח</button>
-              );
-            } else if (isGuest) {
-              reportAction = (
+              ) : isGuest ? (
                 <><button onClick={() => reportLock.guardAction(() => { })}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 הוסף דיווח — דרוש חשבון</button>{reportLock.PromptComponent}</>
-              );
-            } else {
-              reportAction = (
+              ) : (
                 <button onClick={() => navigate('/Login')}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי להוסיף דיווח</button>
-              );
-            }
-            return (
-              <div style={{ direction: 'rtl' }}>
-                {reports.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין דיווחים עדיין לאתר זה</div>}
-                {reports.slice(0, 5).map(r => (
-                  <div key={r.id} style={{ background: '#fff', borderRadius: 18, padding: '16px', marginBottom: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: '#94a3b8' }}>{r.reporter_name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: '#d97706', background: '#fffbeb', borderRadius: 8, padding: '4px 10px' }}>{r.report_type}</span>
-                    </div>
-                    <p style={{ fontSize: 14, color: '#475569', textAlign: 'right', margin: 0 }}>{r.content}</p>
-                  </div>
-                ))}
-                {reportAction}
-              </div>
-            );
-          })()}
+              )}
+            </div>
+          )}
 
-          {tab === 'reviews' && (() => {
-            let reviewAction: React.ReactNode;
-            if (isLoggedIn) {
-              reviewAction = (
+          {tab === 'reviews' && (
+            <div style={{ direction: 'rtl' }}>
+              {reviews.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין ביקורות עדיין</div>}
+              {reviews.map(r => (
+                <div key={r.id} style={{ background: '#fff', borderRadius: 18, padding: '16px', marginBottom: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ color: '#f59e0b', fontSize: 16, letterSpacing: 2 }}>{'★'.repeat(r.rating)}</div>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a' }}>{r.reviewer_name}</span>
+                  </div>
+                  <p style={{ fontSize: 14, color: '#475569', textAlign: 'right', margin: 0 }}>{r.content}</p>
+                </div>
+              ))}
+              {isLoggedIn ? (
                 <button onClick={() => navigate(`/AddReview?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ כתוב ביקורת</button>
-              );
-            } else if (isGuest) {
-              reviewAction = (
+              ) : isGuest ? (
                 <><button onClick={() => reviewLock.guardAction(() => { })}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 כתוב ביקורת — דרוש חשבון</button>{reviewLock.PromptComponent}</>
-              );
-            } else {
-              reviewAction = (
+              ) : (
                 <button onClick={() => navigate('/Login')}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי לכתוב ביקורת</button>
-              );
-            }
-            return (
-              <div style={{ direction: 'rtl' }}>
-                {reviews.length === 0 && <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>אין ביקורות עדיין</div>}
-                {reviews.map(r => (
-                  <div key={r.id} style={{ background: '#fff', borderRadius: 18, padding: '16px', marginBottom: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <div style={{ color: '#f59e0b', fontSize: 16, letterSpacing: 2 }}>{'★'.repeat(r.rating)}</div>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a' }}>{r.reviewer_name}</span>
-                    </div>
-                    <p style={{ fontSize: 14, color: '#475569', textAlign: 'right', margin: 0 }}>{r.content}</p>
-                  </div>
-                ))}
-                {reviewAction}
-              </div>
-            );
-          })()}
+              )}
+            </div>
+          )}
 
           <Disclaimer />
           <button onClick={() => window.open(`https://waze.com/ul?ll=${poi.latitude},${poi.longitude}&navigate=yes`, '_blank')}

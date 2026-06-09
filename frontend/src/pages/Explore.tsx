@@ -29,7 +29,7 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function FilterSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
+function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>{title}</div>
@@ -38,9 +38,9 @@ function FilterSection({ title, children }: Readonly<{ title: string; children: 
   );
 }
 
-function TagGrid({ items, selected, onToggle }: Readonly<{
+function TagGrid({ items, selected, onToggle }: {
   items: string[]; selected: string[]; onToggle: (v: string) => void;
-}>) {
+}) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {items.map(item => {
@@ -74,16 +74,6 @@ function FilterPanel({
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
 
-  let proximityBorderColor: string;
-  if (sortByProximity) { proximityBorderColor = '#0d9e6e'; }
-  else if (geoError) { proximityBorderColor = '#ef4444'; }
-  else { proximityBorderColor = '#e2e8f0'; }
-
-  let proximityTextColor: string;
-  if (sortByProximity) { proximityTextColor = '#0d9e6e'; }
-  else if (geoError) { proximityTextColor = '#ef4444'; }
-  else { proximityTextColor = '#64748b'; }
-
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'flex-start' }}>
       <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'default', padding: 0 }} />
@@ -105,9 +95,9 @@ function FilterPanel({
         <FilterSection title="מיון">
           <button onClick={handleProximityToggle} disabled={geoLoading} style={{
             width: '100%', padding: '10px 14px', borderRadius: 12,
-            border: `2px solid ${proximityBorderColor}`,
+            border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`,
             background: sortByProximity ? '#f0fdf8' : '#fff',
-            color: proximityTextColor,
+            color: sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#64748b',
             fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'wait' : 'pointer',
             fontFamily: 'Heebo, sans-serif',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -161,43 +151,9 @@ function formatDistance(m: number): string {
   return `${Math.round(m / 1000)} ק"מ`;
 }
 
-// ── Module-level fetch helpers (reduce fetchPage cognitive complexity) ─────────
-
-function mapRawToPoi(raw: Record<string, unknown>): POI {
-  return {
-    id: String(raw.id),
-    name: raw.name,
-    description: raw.description ?? '',
-    category: raw.category,
-    region: (raw.region_name ?? raw.region ?? '') as string,
-    region_id: raw.region_id,
-    latitude: raw.latitude,
-    longitude: raw.longitude,
-    images: raw.images ?? [],
-    main_image: raw.main_image ?? '',
-    difficulty: raw.difficulty ?? 'בינוני',
-    duration_minutes: raw.duration_minutes,
-    has_water: raw.has_water,
-    has_shade: raw.has_shade,
-    accessible: raw.accessible,
-    is_featured: raw.is_featured,
-    average_rating: raw.average_rating ?? 4,
-    photo_credit: raw.photo_credit,
-    uploaded_by: raw.uploaded_by,
-    distance_meters: raw.distance_meters,
-  } as POI;
-}
-
-function appendPoisDedup(prev: POI[], newPois: POI[], pageNum: number): POI[] {
-  if (pageNum === 0) return newPois;
-  const seen = new Set(prev.map(p => p.id));
-  const unique = newPois.filter(p => !seen.has(p.id));
-  return unique.length > 0 ? [...prev, ...unique] : prev;
-}
-
 // ── POICard ───────────────────────────────────────────────────────────────────
 
-const POICard = React.memo(function POICard({ poi, onDelete }: Readonly<{ poi: POI; onDelete?: (id: string) => void }>) {
+const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
@@ -215,31 +171,6 @@ const POICard = React.memo(function POICard({ poi, onDelete }: Readonly<{ poi: P
     e.stopPropagation();
     favLock.guardAction(() => toggleFavorite(Number(poi.id)));
   };
-
-  let bucketAriaLabel: string;
-  let bucketBorderColor: string;
-  let bucketBg: string;
-  let bucketColor: string;
-  let bucketLabel: React.ReactNode;
-  if (isGuest) {
-    bucketAriaLabel = 'הוספה לסל המסלול — דרוש חשבון';
-    bucketBorderColor = '#e2e8f0';
-    bucketBg = '#f8fafc';
-    bucketColor = '#94a3b8';
-    bucketLabel = <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>;
-  } else if (inBucket) {
-    bucketAriaLabel = 'הסר מסל המסלול';
-    bucketBorderColor = '#0d9e6e';
-    bucketBg = '#f0fdf8';
-    bucketColor = '#0d9e6e';
-    bucketLabel = <>✓ נוסף לסל המסלול</>;
-  } else {
-    bucketAriaLabel = 'הוסף לסל המסלול';
-    bucketBorderColor = '#e2e8f0';
-    bucketBg = '#f8fafc';
-    bucketColor = '#64748b';
-    bucketLabel = <>+ הוספה מהירה למסלול</>;
-  }
 
   return (
     <button type="button" onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
@@ -266,7 +197,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: Readonly<{ poi: P
         {favLock.PromptComponent}
 
         {user?.is_admin && onDelete && (
-          <button onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
+          <button onClick={e => { e.stopPropagation(); if (globalThis.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
             style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
           </button>
@@ -299,9 +230,12 @@ const POICard = React.memo(function POICard({ poi, onDelete }: Readonly<{ poi: P
           {poi.has_shade && <div style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>🌿 צל</div>}
         </div>
         <button onClick={handleBucketToggle}
-          aria-label={bucketAriaLabel}
-          style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${bucketBorderColor}`, borderRadius: 10, background: bucketBg, color: bucketColor, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
-          {bucketLabel}
+          aria-label={isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול'}
+          style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${isGuest ? '#e2e8f0' : inBucket ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 10, background: isGuest ? '#f8fafc' : inBucket ? '#f0fdf8' : '#f8fafc', color: isGuest ? '#94a3b8' : inBucket ? '#0d9e6e' : '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
+          {isGuest
+            ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
+            : inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>
+          }
         </button>
         {bucketLock.PromptComponent}
       </div>
@@ -319,6 +253,153 @@ const POICard = React.memo(function POICard({ poi, onDelete }: Readonly<{ poi: P
  *               so the client-side radius filter can narrow them down.
  */
 type FetchMode = 'normal' | 'city';
+
+// ── Module-level fetch helpers ────────────────────────────────────────────────
+
+interface PoiQueryOptions {
+  selRegions: string[];
+  selCats: string[];
+  selDiffs: string[];
+  hasWater: boolean;
+  hasShade: boolean;
+  accessible: boolean;
+  isCityFetch: boolean;
+  debouncedSearch: string;
+  pageNum: number;
+  gpsCoords?: { lat: number; lng: number } | null;
+}
+
+function buildPoiQueryParams(opts: PoiQueryOptions): URLSearchParams {
+  const qs = new URLSearchParams();
+  if (opts.selRegions[0]) qs.set('region', opts.selRegions[0]);
+  if (opts.selCats[0]) qs.set('category', opts.selCats[0]);
+  if (opts.selDiffs[0]) qs.set('difficulty', opts.selDiffs[0]);
+  if (opts.hasWater) qs.set('has_water', 'true');
+  if (opts.hasShade) qs.set('has_shade', 'true');
+  if (opts.accessible) qs.set('accessible', 'true');
+  // City fetches omit `search=` so the server returns unfiltered candidates
+  // for the client-side radius pass. Normal fetches pass the search term.
+  if (opts.isCityFetch) {
+    // intentionally no search param in city mode
+  } else if (opts.debouncedSearch.trim()) {
+    qs.set('search', opts.debouncedSearch.trim());
+  }
+  const effectivePageSize = opts.isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
+  qs.set('limit', String(effectivePageSize));
+  qs.set('offset', String(opts.pageNum * effectivePageSize));
+  if (opts.gpsCoords) {
+    qs.set('user_lat', String(opts.gpsCoords.lat));
+    qs.set('user_lng', String(opts.gpsCoords.lng));
+  }
+  return qs;
+}
+
+function mapRawToPoi(raw: Record<string, unknown>): POI {
+  return {
+    id: String(raw.id),
+    name: raw.name,
+    description: (raw.description ?? '') as string,
+    category: raw.category,
+    region: ((raw.region_name ?? raw.region ?? '') as string),
+    region_id: raw.region_id,
+    latitude: raw.latitude,
+    longitude: raw.longitude,
+    images: (raw.images ?? []) as string[],
+    main_image: (raw.main_image ?? '') as string,
+    thumbnail: (raw.main_image ?? '') as string,
+    difficulty: (raw.difficulty ?? 'בינוני') as string,
+    duration_minutes: raw.duration_minutes as number | undefined,
+    has_water: raw.has_water as boolean | undefined,
+    has_shade: raw.has_shade as boolean | undefined,
+    accessible: raw.accessible as boolean | undefined,
+    is_featured: raw.is_featured as boolean | undefined,
+    average_rating: (raw.average_rating ?? 4.0) as number,
+    photo_credit: raw.photo_credit as string | undefined,
+    uploaded_by: raw.uploaded_by as string | undefined,
+    distance_meters: raw.distance_meters as number | undefined,
+  };
+}
+
+function mergePois(prev: POI[], newPois: POI[], pageNum: number): POI[] {
+  if (pageNum === 0) return newPois;
+  const seen = new Set(prev.map(p => p.id));
+  const unique = newPois.filter(p => !seen.has(p.id));
+  return unique.length > 0 ? [...prev, ...unique] : prev;
+}
+
+/** Returns true when the fetched POI list contains a name that exactly matches
+ *  the search term — used to decide whether to skip the geocoding step. */
+function hasStrongNameMatch(pois: POI[], term: string): boolean {
+  return pois.some(p => p.name === term || p.name.startsWith(term + ' '));
+}
+
+interface SearchRefs {
+  fetchModeRef: React.MutableRefObject<FetchMode>;
+  cityResultRef: React.MutableRefObject<GeocodedCity | null>;
+  pageRef: React.MutableRefObject<number>;
+  fetchingRef: React.MutableRefObject<boolean>;
+}
+
+interface SearchSetters {
+  setCityResult: (v: GeocodedCity | null) => void;
+  setCitySearching: (v: boolean) => void;
+  setPois: React.Dispatch<React.SetStateAction<POI[]>>;
+  setTotalCount: React.Dispatch<React.SetStateAction<number | null>>;
+}
+
+/** Resets all search-related state to normal (no-search) mode and triggers a
+ *  fresh page-0 fetch. Called when the search box is cleared. */
+async function runClearSearch(
+  refs: SearchRefs,
+  setters: SearchSetters,
+  fetchPage: (page: number, coords: { lat: number; lng: number } | null | undefined) => Promise<POI[] | null>,
+  userCoords: { lat: number; lng: number } | null,
+): Promise<void> {
+  refs.fetchModeRef.current = 'normal';
+  refs.cityResultRef.current = null;
+  setters.setCityResult(null);
+  setters.setCitySearching(false);
+  setters.setPois([]);
+  refs.pageRef.current = 0;
+  setters.setTotalCount(null);
+  refs.fetchingRef.current = false;
+  await fetchPage(0, userCoords);
+}
+
+/** Attempts to geocode `term` and, if successful, switches to city mode and
+ *  triggers a fresh city-radius fetch. Returns false when cancelled. */
+async function runGeocodeAndCityFetch(
+  term: string,
+  cancelled: () => boolean,
+  refs: SearchRefs,
+  setters: SearchSetters,
+  fetchPage: (page: number, coords: { lat: number; lng: number } | null | undefined) => Promise<POI[] | null>,
+): Promise<void> {
+  setters.setCitySearching(true);
+  const result = await geocodeCity(term);
+  if (cancelled()) return;
+
+  setters.setCitySearching(false);
+
+  if (!result) {
+    refs.cityResultRef.current = null;
+    setters.setCityResult(null);
+    return;
+  }
+
+  // Enter city mode — set the ref BEFORE triggering the city fetch so
+  // fetchPage snapshots the correct mode.
+  refs.fetchModeRef.current = 'city';
+  refs.cityResultRef.current = result;
+  setters.setCityResult(result);
+  setters.setPois([]);
+  refs.pageRef.current = 0;
+  setters.setTotalCount(null);
+  refs.fetchingRef.current = false;
+  // Pass the city's coordinates so the server sorts its 200-item batch by
+  // proximity to the city centre.
+  await fetchPage(0, { lat: result.lat, lng: result.lng });
+}
 
 // ── Main Explore page ─────────────────────────────────────────────────────────
 
@@ -431,28 +512,10 @@ export default function Explore() {
     let aborted = false;
 
     try {
-      const qs = new URLSearchParams();
-      if (selRegions[0]) qs.set('region', selRegions[0]);
-      if (selCats[0]) qs.set('category', selCats[0]);
-      if (selDiffs[0]) qs.set('difficulty', selDiffs[0]);
-      if (hasWater) qs.set('has_water', 'true');
-      if (hasShade) qs.set('has_shade', 'true');
-      if (accessible) qs.set('accessible', 'true');
-      // City fetches omit `search=` so the server returns unfiltered candidates
-      // for the client-side radius pass. Normal fetches pass the search term.
-      if (!isCityFetch && debouncedSearch.trim()) qs.set('search', debouncedSearch.trim());
-
-      // FIX 1 (Offset over-fetch in city mode): limit and offset must use the
-      // SAME page-size constant. City pages are CITY_PAGE_SIZE items wide, so
-      // page 1 must start at offset 200, not 40.
-      const effectivePageSize = isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
-      qs.set('limit', String(effectivePageSize));
-      qs.set('offset', String(pageNum * effectivePageSize));
-
-      if (gpsCoords) {
-        qs.set('user_lat', String(gpsCoords.lat));
-        qs.set('user_lng', String(gpsCoords.lng));
-      }
+      const qs = buildPoiQueryParams({
+        selRegions, selCats, selDiffs, hasWater, hasShade, accessible,
+        isCityFetch, debouncedSearch, pageNum, gpsCoords,
+      });
 
       const token = localStorage.getItem('router_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -468,11 +531,12 @@ export default function Explore() {
       if (total) setTotalCount(Number.parseInt(total));
 
       const json = await res.json();
-      const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => mapRawToPoi(raw));
+      // mapRawToPoi and mergePois are module-level helpers (S3776 complexity split)
+      const newPois: POI[] = (json.data ?? []).map(mapRawToPoi);
 
       // Deduplicate by ID before updating state. Prevents double-appends from
       // concurrent observer triggers or re-renders.
-      setPois(prev => appendPoisDedup(prev, newPois, pageNum));
+      setPois(prev => mergePois(prev, newPois, pageNum));
 
       // FIX 4 (City-mode infinite pagination): if the server returned fewer
       // items than requested, there are no more server pages to fetch. Mark the
@@ -512,21 +576,17 @@ export default function Explore() {
   // effect and trigger a fresh fetch regardless of whether city mode is active.
   useEffect(() => {
     let cancelled = false;
+    const isCancelled = () => cancelled;
+
+    const refs: SearchRefs = { fetchModeRef, cityResultRef, pageRef, fetchingRef };
+    const setters: SearchSetters = { setCityResult, setCitySearching, setPois, setTotalCount };
 
     const run = async () => {
       const term = debouncedSearch.trim();
 
       if (!term) {
         // User cleared the search box — exit city mode and do one normal fetch.
-        fetchModeRef.current = 'normal';
-        cityResultRef.current = null;
-        setCityResult(null);
-        setCitySearching(false);
-        setPois([]);
-        pageRef.current = 0;
-        setTotalCount(null);
-        fetchingRef.current = false;
-        await fetchPage(0, userCoords);
+        await runClearSearch(refs, setters, fetchPage, userCoords);
         return;
       }
 
@@ -541,47 +601,16 @@ export default function Explore() {
       if (cancelled) return;
 
       // --- Geocode attempt (only if standard search found no strong match) ---
-      // FIX 2 (setPois-as-getter anti-pattern): fetchPage now returns the fetched
-      // array directly, so we inspect it here instead of misusing setState as a
-      // synchronous read mechanism (which is undefined behaviour — React batches
-      // updates and the updater function is not guaranteed to run immediately).
-      const strongMatch = (normalResults ?? []).some(
-        p => p.name === term || p.name.startsWith(term + ' '),
-      );
-
-      if (strongMatch) {
+      // FIX 2 (setPois-as-getter anti-pattern): fetchPage returns the fetched
+      // array directly, avoiding misuse of setState as a synchronous getter.
+      if (hasStrongNameMatch(normalResults ?? [], term)) {
         cityResultRef.current = null;
         setCityResult(null);
         return;
       }
 
-      // Attempt geocoding
-      setCitySearching(true);
-      const result = await geocodeCity(term);
-      if (cancelled) return;
-
-      setCitySearching(false);
-
-      if (!result) {
-        cityResultRef.current = null;
-        setCityResult(null);
-        return;
-      }
-
-      // Enter city mode — set the ref BEFORE triggering the city fetch so
-      // fetchPage snapshots the correct mode.
-      fetchModeRef.current = 'city';
-      cityResultRef.current = result;
-      setCityResult(result);
-      setPois([]);
-      pageRef.current = 0;
-      setTotalCount(null);
-      fetchingRef.current = false;
-      // Pass the city's coordinates so the server sorts its 200-item batch by
-      // proximity to the city centre. Without this the server returns an
-      // arbitrary 200 POIs, and the client-side radius filter finds 0 matches
-      // for a city whose POIs sit further down in the un-sorted database.
-      await fetchPage(0, { lat: result.lat, lng: result.lng });
+      // Attempt geocoding — delegates to module-level helper (S3776)
+      await runGeocodeAndCityFetch(term, isCancelled, refs, setters, fetchPage);
     };
 
     run();
@@ -589,7 +618,7 @@ export default function Explore() {
     return () => { cancelled = true; };
     // fetchPage identity changes when filters change, which correctly triggers
     // a re-run of this effect even in city mode — fixing Bug 2.
-  }, [debouncedSearch, fetchPage, userCoords]);  
+  }, [debouncedSearch, fetchPage, userCoords]);
 
   // ── URL category param ────────────────────────────────────────────────────
   useEffect(() => {
@@ -617,12 +646,9 @@ export default function Explore() {
         if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
 
         pageRef.current += 1;
-        let coords: { lat: number; lng: number } | null;
-        if (fetchModeRef.current === 'city') {
-          coords = cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null;
-        } else {
-          coords = userCoords;
-        }
+        const coords = fetchModeRef.current === 'city'
+          ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
+          : userCoords;
         fetchPage(pageRef.current, coords);
       }
     });
@@ -687,35 +713,12 @@ export default function Explore() {
     selRegions.length + selCats.length + selDiffs.length +
     (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
-  // ── Count bar text ────────────────────────────────────────────────────────
-  let countBarNode: React.ReactNode;
-  if (loading && pois.length === 0) {
-    countBarNode = <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>;
-  } else if (error) {
-    countBarNode = <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>;
-  } else {
-    let countBarText: string;
-    if (cityResult) {
-      countBarText = `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`;
-    } else if (sortByProximity) {
-      countBarText = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`;
-    } else {
-      countBarText = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`;
-    }
-    countBarNode = <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countBarText}</span>;
-  }
-
-  // ── Empty grid message ────────────────────────────────────────────────────
-  const emptyMessage = cityResult
-    ? `לא נמצאו אתרים בקרבת ${cityResult.name}`
-    : 'לא נמצאו אתרים תואמים לחיפוש שלך';
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
-          <button onClick={() => { setSelCats([]); window.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
+          <button onClick={() => { setSelCats([]); globalThis.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
           <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>קטגוריה: {urlCategory}</span>
         </div>
       )}
@@ -782,7 +785,19 @@ export default function Explore() {
       </div>
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
-        {countBarNode}
+        {loading && pois.length === 0
+          ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
+          : error
+            ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
+            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
+              {cityResult
+                ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
+                : sortByProximity
+                  ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
+                  : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`
+              }
+            </span>
+        }
       </div>
 
       {/* Grid */}
@@ -795,10 +810,12 @@ export default function Explore() {
             </div>
           );
         })}
-        {loading || displayedPois.length > 0 ? null : (
+        {!loading && displayedPois.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8', gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontWeight: 700 }}>{emptyMessage}</div>
+            <div style={{ fontWeight: 700 }}>
+              {cityResult ? `לא נמצאו אתרים בקרבת ${cityResult.name}` : 'לא נמצאו אתרים תואמים לחיפוש שלך'}
+            </div>
           </div>
         )}
       </div>

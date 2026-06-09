@@ -26,7 +26,7 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ function LocationPickerMap({ lat, lng, onChange }: { lat: number; lng: number; o
     };
     return (
         <div style={{ height: 220, width: '100%', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0' }}>
-            <MapContainer center={[lat || 31.5, lng || 35.0]} zoom={11} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={[lat || 31.5, lng || 35]} zoom={11} style={{ height: '100%', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 {!!(lat && lng) && <Marker position={[lat, lng]} />}
                 <MapEvents />
@@ -389,30 +389,16 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: 4, padding: '8px 12px', background: '#fff', borderBottom: '1px solid #f1f5f9', overflowX: 'auto', flexShrink: 0 }}>
-                    {SECTIONS.map(s => {
-                        let tabBg: string;
-                        if (activeSection === s.id) {
-                            tabBg = s.id === 'danger' ? '#dc2626' : '#0d9e6e';
-                        } else {
-                            tabBg = 'transparent';
-                        }
-                        let tabColor: string;
-                        if (activeSection === s.id) {
-                            tabColor = '#fff';
-                        } else {
-                            tabColor = s.id === 'danger' ? '#dc2626' : '#64748b';
-                        }
-                        return (
-                            <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
-                                padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
-                                background: tabBg,
-                                color: tabColor,
-                                fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                                fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap',
-                                transition: 'all 0.15s',
-                            }}>{s.label}</button>
-                        );
-                    })}
+                    {SECTIONS.map(s => (
+                        <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
+                            padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
+                            background: activeSection === s.id ? (s.id === 'danger' ? '#dc2626' : '#0d9e6e') : 'transparent',
+                            color: activeSection === s.id ? '#fff' : (s.id === 'danger' ? '#dc2626' : '#64748b'),
+                            fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                            fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap',
+                            transition: 'all 0.15s',
+                        }}>{s.label}</button>
+                    ))}
                 </div>
 
                 {/* Content */}
@@ -525,8 +511,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{geoError}</div>}
                                 {geoResults.length > 0 && (
                                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        {geoResults.map((r, i) => (
-                                            <button key={i} onClick={() => {
+                                        {geoResults.map((r) => (
+                                            <button key={`${r.lat},${r.lon}`} onClick={() => {
                                                 set('latitude', Number.parseFloat(r.lat).toFixed(6));
                                                 set('longitude', Number.parseFloat(r.lon).toFixed(6));
                                                 setGeoResults([]);
@@ -573,7 +559,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 <FieldLabel>בחר מיקום על המפה (לחץ לעדכון)</FieldLabel>
                                 <LocationPickerMap
                                     lat={Number.parseFloat(edit.latitude) || 31.5}
-                                    lng={Number.parseFloat(edit.longitude) || 35.0}
+                                    lng={Number.parseFloat(edit.longitude) || 35}
                                     onChange={(lat, lng) => { set('latitude', lat.toFixed(6)); set('longitude', lng.toFixed(6)); }}
                                 />
                             </div>
@@ -720,26 +706,14 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 <p style={{ fontSize: 13, color: '#991b1b', textAlign: 'center', lineHeight: 1.6, marginBottom: 20 }}>
                                     מחיקת <strong>{poi.name}</strong> תמחק את כל הנתונים הקשורים אליו לצמיתות. פעולה זו אינה ניתנת לביטול.
                                 </p>
-                                {(() => {
-                                    let deleteLabel: string;
-                                    if (deleting) {
-                                        deleteLabel = '⏳ מוחק...';
-                                    } else if (confirmDelete) {
-                                        deleteLabel = '⚠️ לחץ שוב לאישור סופי';
-                                    } else {
-                                        deleteLabel = '🗑 מחק מקום לצמיתות';
-                                    }
-                                    return (
-                                        <button onClick={handleDelete} disabled={deleting} style={{
-                                            width: '100%', padding: '14px', border: `2px solid ${confirmDelete ? '#dc2626' : '#fecaca'}`,
-                                            borderRadius: 12, background: confirmDelete ? '#dc2626' : '#fff',
-                                            color: confirmDelete ? '#fff' : '#dc2626',
-                                            fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s',
-                                        }}>
-                                            {deleteLabel}
-                                        </button>
-                                    );
-                                })()}
+                                <button onClick={handleDelete} disabled={deleting} style={{
+                                    width: '100%', padding: '14px', border: `2px solid ${confirmDelete ? '#dc2626' : '#fecaca'}` as any,
+                                    borderRadius: 12, background: confirmDelete ? '#dc2626' : '#fff',
+                                    color: confirmDelete ? '#fff' : '#dc2626',
+                                    fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s',
+                                }}>
+                                    {deleting ? '⏳ מוחק...' : confirmDelete ? '⚠️ לחץ שוב לאישור סופי' : '🗑 מחק מקום לצמיתות'}
+                                </button>
                                 {confirmDelete && (
                                     <button onClick={() => setConfirmDelete(false)}
                                         style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: '#94a3b8', fontSize: 13, cursor: 'pointer', marginTop: 8, fontFamily: 'Heebo, sans-serif' }}>
