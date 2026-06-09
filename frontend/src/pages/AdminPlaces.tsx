@@ -25,7 +25,7 @@ async function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getToken() ?? ''}`,
-            ...(options?.headers ?? {}),
+            ...options?.headers,
         },
     });
     if (!res.ok) {
@@ -101,7 +101,7 @@ const DIFF_COLOR: Record<string, string> = {
 
 // ── Place Card ────────────────────────────────────────────────────────────────
 
-function PlaceCard({ poi, onEdit }: { poi: POI; onEdit: (poi: POI) => void }) {
+function PlaceCard({ poi, onEdit }: Readonly<{ poi: POI; onEdit: (poi: POI) => void }>) {
     const diff = DIFF_COLOR[poi.difficulty] || '#64748b';
     return (
         <button type="button" onClick={() => onEdit(poi)} style={{

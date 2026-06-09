@@ -75,10 +75,10 @@ export async function POST(req: NextRequest) {
       longitude: Number.parseFloat(body.longitude),
       photos: Array.isArray(body.photos) ? body.photos : [],
       difficulty: body.difficulty ?? undefined,
-      duration_minutes: body.duration_minutes != null ? Number.parseInt(body.duration_minutes) : undefined,
-      has_water: body.has_water != null ? Boolean(body.has_water) : undefined,
-      has_shade: body.has_shade != null ? Boolean(body.has_shade) : undefined,
-      accessible: body.accessible != null ? Boolean(body.accessible) : undefined,
+      duration_minutes: body.duration_minutes == null ? undefined : Number.parseInt(body.duration_minutes),
+      has_water: body.has_water == null ? undefined : Boolean(body.has_water),
+      has_shade: body.has_shade == null ? undefined : Boolean(body.has_shade),
+      accessible: body.accessible == null ? undefined : Boolean(body.accessible),
       photo_credit: body.photo_credit ?? undefined,
     });
 

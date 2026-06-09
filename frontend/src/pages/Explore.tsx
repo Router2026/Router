@@ -29,7 +29,7 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
+function FilterSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>{title}</div>
@@ -38,9 +38,9 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
   );
 }
 
-function TagGrid({ items, selected, onToggle }: {
+function TagGrid({ items, selected, onToggle }: Readonly<{
   items: string[]; selected: string[]; onToggle: (v: string) => void;
-}) {
+}>) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {items.map(item => {
@@ -93,11 +93,15 @@ function FilterPanel({
         </div>
 
         <FilterSection title="מיון">
+          {(() => {
+            const borderColor = sortByProximity ? '#0d9e6e' : (geoError ? '#ef4444' : '#e2e8f0');
+            const textColor = sortByProximity ? '#0d9e6e' : (geoError ? '#ef4444' : '#64748b');
+            return (
           <button onClick={handleProximityToggle} disabled={geoLoading} style={{
             width: '100%', padding: '10px 14px', borderRadius: 12,
-            border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`,
+            border: `2px solid ${borderColor}`,
             background: sortByProximity ? '#f0fdf8' : '#fff',
-            color: sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#64748b',
+            color: textColor,
             fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'wait' : 'pointer',
             fontFamily: 'Heebo, sans-serif',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -114,6 +118,8 @@ function FilterPanel({
               {sortByProximity && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
             </div>
           </button>
+            );
+          })()}
           {geoError && <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>⚠️ {geoError}</div>}
         </FilterSection>
 
@@ -197,7 +203,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
         {favLock.PromptComponent}
 
         {user?.is_admin && onDelete && (
-          <button onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
+          <button onClick={e => { e.stopPropagation(); if (globalThis.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
             style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
           </button>
@@ -229,14 +235,22 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
           {poi.has_water && <div style={{ color: '#0284c7', fontSize: 11, fontWeight: 600 }}>💧 מים</div>}
           {poi.has_shade && <div style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>🌿 צל</div>}
         </div>
+        {(() => {
+          const bucketLabel = isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : (inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול');
+          const bucketBorderColor = isGuest ? '#e2e8f0' : (inBucket ? '#0d9e6e' : '#e2e8f0');
+          const bucketBg = isGuest ? '#f8fafc' : (inBucket ? '#f0fdf8' : '#f8fafc');
+          const bucketColor = isGuest ? '#94a3b8' : (inBucket ? '#0d9e6e' : '#64748b');
+          return (
         <button onClick={handleBucketToggle}
-          aria-label={isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול'}
-          style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${isGuest ? '#e2e8f0' : inBucket ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 10, background: isGuest ? '#f8fafc' : inBucket ? '#f0fdf8' : '#f8fafc', color: isGuest ? '#94a3b8' : inBucket ? '#0d9e6e' : '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
+          aria-label={bucketLabel}
+          style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${bucketBorderColor}`, borderRadius: 10, background: bucketBg, color: bucketColor, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
           {isGuest
             ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
             : inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>
           }
         </button>
+          );
+        })()}
         {bucketLock.PromptComponent}
       </div>
     </button>
@@ -419,7 +433,7 @@ export default function Explore() {
         has_shade: raw.has_shade,
         accessible: raw.accessible,
         is_featured: raw.is_featured,
-        average_rating: raw.average_rating ?? 4.0,
+        average_rating: raw.average_rating ?? 4,
         photo_credit: raw.photo_credit,
         uploaded_by: raw.uploaded_by,
         distance_meters: raw.distance_meters,
@@ -577,9 +591,10 @@ export default function Explore() {
         if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
 
         pageRef.current += 1;
-        const coords = fetchModeRef.current === 'city'
-          ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
-          : userCoords;
+        const cityCoords = cityResultRef.current
+          ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng }
+          : null;
+        const coords = fetchModeRef.current === 'city' ? cityCoords : userCoords;
         fetchPage(pageRef.current, coords);
       }
     });
@@ -649,7 +664,7 @@ export default function Explore() {
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
-          <button onClick={() => { setSelCats([]); window.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
+          <button onClick={() => { setSelCats([]); globalThis.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
           <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>קטגוריה: {urlCategory}</span>
         </div>
       )}
@@ -716,19 +731,21 @@ export default function Explore() {
       </div>
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
-        {loading && pois.length === 0
-          ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
-          : error
-            ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
-            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
-              {cityResult
-                ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
-                : sortByProximity
-                  ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
-                  : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`
-              }
-            </span>
-        }
+        {(() => {
+          if (loading && pois.length === 0) {
+            return <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>;
+          }
+          if (error) {
+            return <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>;
+          }
+          const proximityLabel = sortByProximity
+            ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
+            : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`;
+          const countLabel = cityResult
+            ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
+            : proximityLabel;
+          return <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countLabel}</span>;
+        })()}
       </div>
 
       {/* Grid */}

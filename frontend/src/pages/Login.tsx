@@ -57,9 +57,9 @@ export default function Login() {
     setError(null);
     try {
       // Use Supabase OAuth redirect flow
-      const redirectTo = `${window.location.origin}/auth/callback?from=${encodeURIComponent(from)}`;
+      const redirectTo = `${globalThis.location.origin}/auth/callback?from=${encodeURIComponent(from)}`;
       const url = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&access_type=offline`;
-      window.location.href = url;
+      globalThis.location.href = url;
     } catch {
       setError('Google login failed');
       setGoogleLoading(false);
@@ -88,25 +88,25 @@ export default function Login() {
     <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl' }}>
 
       {/* Hero */}
-      <div role="banner" style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '48px 24px 60px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+      <header style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '48px 24px 60px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         <div aria-hidden="true" style={{ position: 'absolute', top: -40, left: -40, width: 130, height: 130, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
         <div aria-hidden="true" style={{ fontSize: 44, marginBottom: 8 }}>🧭</div>
         <div style={{ fontSize: 26, fontWeight: 900, color: '#fff' }}>Router</div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', marginTop: 4 }}>גלה מסלולים ייחודיים בטבע ישראל</div>
-      </div>
+      </header>
 
       <div style={{ maxWidth: 420, margin: '-28px auto 0', padding: '0 20px 100px', position: 'relative', zIndex: 10 }}>
         <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.1)', padding: '28px 24px 24px' }}>
 
           {justVerified && (
-            <div role="status" style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '10px 14px', marginBottom: 16, color: '#166534', fontWeight: 700, fontSize: 14, textAlign: 'right' }}>
+            <output style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '10px 14px', marginBottom: 16, color: '#166534', fontWeight: 700, fontSize: 14, textAlign: 'right', display: 'block' }}>
               ✓ האימייל אומת בהצלחה! כעת ניתן להתחבר.
-            </div>
+            </output>
           )}
           {justReset && (
-            <div role="status" style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '10px 14px', marginBottom: 16, color: '#166534', fontWeight: 700, fontSize: 14, textAlign: 'right' }}>
+            <output style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '10px 14px', marginBottom: 16, color: '#166534', fontWeight: 700, fontSize: 14, textAlign: 'right', display: 'block' }}>
               ✓ הסיסמה עודכנה בהצלחה! כעת ניתן להתחבר.
-            </div>
+            </output>
           )}
 
           <h1 style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a', textAlign: 'right', marginBottom: 22, marginTop: 0 }}>כניסה לחשבון</h1>

@@ -32,6 +32,53 @@ const REGION_ICONS: Record<string, string> = {
   'עמק יזרעאל': '🌾', 'שרון': '🌸', 'נגב': '🏜️', 'ערבה': '🌵',
 };
 
+function buildLLMPayload(
+  selectedRegionName: string,
+  selectedGroupType: string,
+  selectedStyles: string,
+  startTime: string,
+  endTime: string,
+  stops: string,
+  includeFood: boolean,
+  includeCoffee: boolean,
+  date: string,
+  userLocation: { lat: number; lng: number } | null,
+) {
+  return {
+    region: selectedRegionName,
+    group_type: selectedGroupType,
+    style: selectedStyles,
+    start_time: startTime,
+    end_time: endTime,
+    stops_count: Number.parseInt(stops),
+    include_food: includeFood,
+    include_coffee: includeCoffee,
+    date,
+    user_location: userLocation,
+    starting_point: userLocation
+      ? { lat: userLocation.lat, lng: userLocation.lng, label: 'מיקום נוכחי' }
+      : null,
+    optimize_order: true,
+  };
+}
+
+async function generateAndSaveTrip(
+  payload: ReturnType<typeof buildLLMPayload>,
+  selectedRegionName: string,
+  selectedGroupType: string,
+  selectedStyles: string,
+) {
+  const { base44 } = await import('../api');
+  const tripData = await base44.integrations.Core.InvokeLLM({ body: JSON.stringify(payload) });
+  const trip = tripData?.data ?? tripData;
+  return api.trips.create({
+    ...trip,
+    region: selectedRegionName,
+    group_type: selectedGroupType,
+    style: selectedStyles,
+  });
+}
+
 export default function TripPlanner() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -52,6 +99,7 @@ export default function TripPlanner() {
 
   useEffect(() => {
     if (navigator.geolocation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocationLoading(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -91,39 +139,8 @@ export default function TripPlanner() {
       const selectedRegionName = REGIONS.find(r => r.id === region)?.name || region;
       const selectedGroupType = GROUP_TYPES.find(g => g.id === groupType)?.name || groupType;
       const selectedStyles = styles.map(s => STYLES.find(st => st.id === s)?.name || s).join(', ');
-
-      // Generate trip data (AI simulation via base44 shim)
-      const { base44 } = await import('../api');
-      const tripData = await base44.integrations.Core.InvokeLLM({
-        body: JSON.stringify({
-          region: selectedRegionName,
-          group_type: selectedGroupType,
-          style: selectedStyles,
-          start_time: startTime,
-          end_time: endTime,
-          stops_count: Number.parseInt(stops),
-          include_food: includeFood,
-          include_coffee: includeCoffee,
-          date,
-          user_location: userLocation,
-          // Feature 11: explicitly tell the AI to start from user's location
-          // and optimise stop order. RouteGenerator already handles this via
-          // nearest-neighbour TSP; TripPlanner passes it as a hint to the LLM.
-          starting_point: userLocation
-            ? { lat: userLocation.lat, lng: userLocation.lng, label: 'מיקום נוכחי' }
-            : null,
-          optimize_order: true,
-        })
-      });
-
-      // Save the generated trip to the backend
-      const trip = tripData?.data ?? tripData;
-      const saved = await api.trips.create({
-        ...trip,
-        region: selectedRegionName,
-        group_type: selectedGroupType,
-        style: selectedStyles,
-      });
+      const payload = buildLLMPayload(selectedRegionName, selectedGroupType, selectedStyles, startTime, endTime, stops, includeFood, includeCoffee, date, userLocation);
+      const saved = await generateAndSaveTrip(payload, selectedRegionName, selectedGroupType, selectedStyles);
       navigate(`/TripDetail?id=${saved.id}`);
     } catch (e) {
       console.error('Trip generation failed:', e);
@@ -190,15 +207,18 @@ export default function TripPlanner() {
           {STEPS.map((label, i) => {
             const done = i < step;
             const active = i === step;
+            const stepBg = done || active ? '#0d9e6e' : '#f1f5f9';
+            const stepColor = done || active ? '#fff' : '#94a3b8';
+            const stepBorder = done || active ? '2px solid #0d9e6e' : '2px solid #e2e8f0';
             return (
               <React.Fragment key={label}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: '50%',
-                    background: done ? '#0d9e6e' : active ? '#0d9e6e' : '#f1f5f9',
-                    color: done || active ? '#fff' : '#94a3b8',
+                    background: stepBg,
+                    color: stepColor,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800, border: done ? '2px solid #0d9e6e' : active ? '2px solid #0d9e6e' : '2px solid #e2e8f0',
+                    fontSize: 13, fontWeight: 800, border: stepBorder,
                   }}>
                     {done ? (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -331,6 +351,16 @@ export default function TripPlanner() {
               </div>
 
               {/* Location status */}
+              {(() => {
+                let locationLabel: string;
+                if (locationLoading) {
+                  locationLabel = 'מאתר מיקום...';
+                } else if (userLocation) {
+                  locationLabel = 'מיקום זוהה — יחושב זמן נסיעה';
+                } else {
+                  locationLabel = 'לא זוהה מיקום';
+                }
+                return (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end',
                 marginBottom: 24, padding: '10px 14px', borderRadius: 12,
@@ -338,10 +368,12 @@ export default function TripPlanner() {
                 border: `1.5px solid ${userLocation ? '#6ee7b7' : '#e2e8f0'}`,
               }}>
                 <span style={{ fontSize: 13, color: userLocation ? '#0d9e6e' : '#94a3b8', fontWeight: 700 }}>
-                  {locationLoading ? 'מאתר מיקום...' : userLocation ? 'מיקום זוהה — יחושב זמן נסיעה' : 'לא זוהה מיקום'}
+                  {locationLabel}
                 </span>
                 <span style={{ fontSize: 18 }}>{userLocation ? '📍' : '🔍'}</span>
               </div>
+                );
+              })()}
 
               <div style={{ fontSize: 14, fontWeight: 800, color: '#475569', display: 'block', marginBottom: 10, textAlign: 'right' }}>
                 מספר עצירות מקסימלי

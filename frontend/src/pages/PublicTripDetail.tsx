@@ -30,7 +30,7 @@ const GROUP_ICON: Record<string, string> = {
   יחיד: '🚶', זוג: '👫', משפחה: '👨‍👩‍👧‍👦', חברים: '👥',
 };
 
-function FitBounds({ points }: { points: [number, number][] }) {
+function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
   const map = useMap();
   useEffect(() => {
     if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.2));
@@ -39,12 +39,12 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-function StopMarker({ loc, index }: { loc: any; index: number }) {
+function StopMarker({ loc, index }: Readonly<{ loc: any; index: number }>) {
   const map = useMap();
   const icon = L.divIcon({
     html: loc.main_image
-      ? `<div style="position:relative;width:48px;height:48px;border-radius:12px;overflow:hidden;border:3px solid #0d9e6e;box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
-          <img src="${loc.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:900\\'>${index + 1}</div>'"/>
+      ? String.raw`<div style="position:relative;width:48px;height:48px;border-radius:12px;overflow:hidden;border:3px solid #0d9e6e;box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
+          <img src="${loc.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:900\'>${index + 1}</div>'"/>
           <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));color:#fff;font-size:9px;font-weight:800;padding:4px;text-align:center;font-family:Heebo,Arial;">${index + 1}</div>
         </div>`
       : `<div style="width:36px;height:36px;border-radius:12px;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 3px 10px rgba(0,0,0,0.3);font-family:Heebo,Arial;">${index + 1}</div>`,
@@ -58,7 +58,7 @@ function StopMarker({ loc, index }: { loc: any; index: number }) {
   );
 }
 
-function StarRating({ value, onChange, readonly, size = 26 }: { value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }) {
+function StarRating({ value, onChange, readonly, size = 26 }: Readonly<{ value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }>) {
   const [hover, setHover] = useState(0);
   return (
     <div style={{ display: 'flex', gap: 3 }}>
@@ -149,7 +149,7 @@ export default function PublicTripDetail() {
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tripId = Number.parseInt(id ?? '', 10);
-  const isOwner = user && trip && Number(user.id) === trip.user_id;
+  const isOwner = user != null && trip != null && Number(user.id) === trip.user_id;
 
   useEffect(() => {
     if (!id) return;
@@ -241,12 +241,13 @@ export default function PublicTripDetail() {
     if (stopSearchTimeout.current) clearTimeout(stopSearchTimeout.current);
     if (!q.trim()) { setStopSearchResults([]); return; }
     setSearchingStops(true);
-    stopSearchTimeout.current = setTimeout(async () => {
+    const searchStops = async () => {
       try {
         const results = await api.locations.list({ search: q, limit: 8 });
-        setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
+        setStopSearchResults(results.filter(r => !editStops.some(s => s.id === Number.parseInt(r.id))));
       } catch { /* intentional */ } finally { setSearchingStops(false); }
-    }, 300);
+    };
+    stopSearchTimeout.current = setTimeout(searchStops, 300);
   };
 
   const addStop = (poi: any) => {
@@ -398,7 +399,7 @@ export default function PublicTripDetail() {
             {pts.length > 1 && (
               <Polyline positions={pts} pathOptions={{ color: '#0d9e6e', weight: 3.5, opacity: 0.9, dashArray: '10,6' }} />
             )}
-            {validStops.map((loc, i) => <StopMarker key={i} loc={loc} index={i} />)}
+            {validStops.map((loc, i) => <StopMarker key={loc.location_id ?? i} loc={loc} index={i} />)}
             <FitBounds points={pts} />
           </MapContainer>
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
@@ -829,14 +830,18 @@ export default function PublicTripDetail() {
                 placeholder="כיתוב אופציונלי..."
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
               <input ref={communityImageRef} type="file" accept="image/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'image'); e.target.value = ''; }} />
+                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'image'); } e.target.value = ''; }} />
               <input ref={communityVideoRef} type="file" accept="video/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'video'); e.target.value = ''; }} />
+                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'video'); } e.target.value = ''; }} />
               <button
                 onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
                 disabled={addingMedia}
                 style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
-                {addingMedia ? '⏳ מעלה...' : `📤 העלה ${communityMediaTab === 'image' ? 'תמונה' : 'סרטון'} (+10 XP)`}
+                {(() => {
+                  if (addingMedia) return '⏳ מעלה...';
+                  const mediaTypeLabel = communityMediaTab === 'image' ? 'תמונה' : 'סרטון';
+                  return `📤 העלה ${mediaTypeLabel} (+10 XP)`;
+                })()}
               </button>
             </div>
           )}

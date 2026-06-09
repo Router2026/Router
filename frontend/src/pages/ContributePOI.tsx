@@ -37,23 +37,23 @@ const MAX_FILE_MB = 50;
 const extractLatLngFromGoogle = (input: string): LatLng | null => {
   const s = input.trim();
 
-  const rawCoord = s.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
+  const rawCoord = /^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/.exec(s);
   if (rawCoord) {
     const lat = Number.parseFloat(rawCoord[1]);
     const lng = Number.parseFloat(rawCoord[2]);
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
   }
 
-  const atCoord = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const atCoord = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
   if (atCoord) return { lat: Number.parseFloat(atCoord[1]), lng: Number.parseFloat(atCoord[2]) };
 
-  const embCoord = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  const embCoord = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/.exec(s);
   if (embCoord) return { lat: Number.parseFloat(embCoord[1]), lng: Number.parseFloat(embCoord[2]) };
 
-  const qParam = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const qParam = /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
   if (qParam) return { lat: Number.parseFloat(qParam[1]), lng: Number.parseFloat(qParam[2]) };
 
-  const llParam = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const llParam = /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
   if (llParam) return { lat: Number.parseFloat(llParam[1]), lng: Number.parseFloat(llParam[2]) };
 
   return null;
@@ -159,7 +159,7 @@ function MapRecenter({ position }: { position: LatLng | null }) {
   return null;
 }
 
-function PickedMarker({ position }: { position: LatLng }) {
+function PickedMarker({ position }: Readonly<{ position: LatLng }>) {
   const icon = L.divIcon({
     html: `<div style="width:40px;height:40px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#0d9e6e,#0bba7e);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;box-shadow:0 3px 12px rgba(13,158,110,0.45);transform:rotate(-45deg)"><span style="transform:rotate(45deg)">📍</span></div>`,
     className: '',
@@ -319,6 +319,56 @@ export default function ContributePOI() {
     });
   };
 
+  // ── Submit helpers ────────────────────────────────────────────
+
+  const uploadMediaFile = async (item: MediaItem, apiBase: string, token: string | null): Promise<string> => {
+    const base64 = await fileToBase64(item.file!);
+    const res = await fetch(`${apiBase}/api/media/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ media_data: base64, mime_type: item.file!.type }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json?.error?.message ?? `Upload error ${res.status}`);
+    }
+    const json = await res.json();
+    const publicUrl: string = json?.data?.url;
+    if (!publicUrl) throw new Error('No URL returned from upload API');
+    return publicUrl;
+  };
+
+  const submitPoiToApi = async (apiBase: string, token: string | null, photos: string[], point: LatLng) => {
+    const res = await fetch(`${apiBase}/api/community-pois`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        name: name.trim(),
+        category,
+        description: description.trim() || undefined,
+        latitude: point.lat,
+        longitude: point.lng,
+        photos,
+        difficulty,
+        duration_minutes: durationMinutes ? Number.parseInt(durationMinutes, 10) : undefined,
+        has_water: hasWater,
+        has_shade: hasShade,
+        accessible,
+        photo_credit: photoCredit.trim() || undefined,
+      }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
+    }
+  };
+
   // ── Submit ────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
@@ -337,31 +387,7 @@ export default function ContributePOI() {
 
       // Upload files to Supabase Storage
       const uploadResults = await Promise.allSettled(
-        fileItems.map(async (item) => {
-          const base64 = await fileToBase64(item.file!);
-
-          const res = await fetch(`${apiBase}/api/media/upload`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              media_data: base64,
-              mime_type: item.file!.type,
-            }),
-          });
-
-          if (!res.ok) {
-            const json = await res.json().catch(() => ({}));
-            throw new Error(json?.error?.message ?? `Upload error ${res.status}`);
-          }
-
-          const json = await res.json();
-          const publicUrl: string = json?.data?.url;
-          if (!publicUrl) throw new Error('No URL returned from upload API');
-          return publicUrl;
-        })
+        fileItems.map(item => uploadMediaFile(item, apiBase, token))
       );
 
       const uploadedUrls = uploadResults
@@ -369,39 +395,9 @@ export default function ContributePOI() {
         .map(r => r.value);
 
       // Combine all URLs into a proper JSON array structure
-      const photos: string[] = [
-        ...urlItems,
-        ...uploadedUrls,
-      ];
+      const photos: string[] = [...urlItems, ...uploadedUrls];
 
-      // Post to community POI endpoint
-      const res = await fetch(`${apiBase}/api/community-pois`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          category,
-          description: description.trim() || undefined,
-          latitude: pickedPoint.lat,
-          longitude: pickedPoint.lng,
-          photos, // Valid JSON string array for jsonb column
-          difficulty,
-          duration_minutes: durationMinutes ? Number.parseInt(durationMinutes, 10) : undefined,
-          has_water: hasWater,
-          has_shade: hasShade,
-          accessible,
-          photo_credit: photoCredit.trim() || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
-      }
-
+      await submitPoiToApi(apiBase, token, photos, pickedPoint);
       setSubmitted(true);
 
     } catch (err) {

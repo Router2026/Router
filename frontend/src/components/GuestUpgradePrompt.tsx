@@ -36,7 +36,7 @@ interface Props {
   onClose?: () => void;
 }
 
-export default function GuestUpgradePrompt({ feature, onClose }: Props) {
+export default function GuestUpgradePrompt({ feature, onClose }: Readonly<Props>) {
   const navigate = useNavigate();
   const { upgradeGuest } = useAuth();
   const primaryRef = useRef<HTMLButtonElement>(null);
@@ -51,8 +51,8 @@ export default function GuestUpgradePrompt({ feature, onClose }: Props) {
   // Keyboard: Escape closes
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    globalThis.addEventListener('keydown', handler);
+    return () => globalThis.removeEventListener('keydown', handler);
   }, [onClose]);
 
   const perkData = feature ? (FEATURE_PERKS[feature] || null) : null;
@@ -71,12 +71,7 @@ export default function GuestUpgradePrompt({ feature, onClose }: Props) {
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="guest-upgrade-title"
-      style={{ position: 'fixed', inset: 0, zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl' }}
-    >
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl' }}>
       {/* Backdrop */}
       <button
         type="button"
@@ -84,7 +79,11 @@ export default function GuestUpgradePrompt({ feature, onClose }: Props) {
         onClick={() => onClose?.()}
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', border: 'none', cursor: 'default', padding: 0 }}
       />
-      <div style={{ position: 'relative', zIndex: 1, background: '#fff', borderRadius: 24, padding: '28px 22px 22px', maxWidth: 360, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.22)' }}>
+      <dialog
+        open
+        aria-labelledby="guest-upgrade-title"
+        style={{ position: 'relative', zIndex: 1, background: '#fff', borderRadius: 24, padding: '28px 22px 22px', maxWidth: 360, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.22)', border: 'none' }}
+      >
         {/* Icon */}
         <div style={{ width: 56, height: 56, borderRadius: 18, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 14px', boxShadow: '0 8px 20px rgba(13,158,110,0.25)' }}>
           {icon}
@@ -99,8 +98,8 @@ export default function GuestUpgradePrompt({ feature, onClose }: Props) {
 
         {/* Perks */}
         <div style={{ background: '#f8fafc', borderRadius: 14, padding: '12px 14px', marginBottom: 20 }}>
-          {perks.map((perk, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: i < perks.length - 1 ? '1px solid #e8f9f3' : 'none' }}>
+          {perks.map((perk) => (
+            <div key={perk} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: perks.indexOf(perk) < perks.length - 1 ? '1px solid #e8f9f3' : 'none' }}>
               <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#e8f9f3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
@@ -133,7 +132,7 @@ export default function GuestUpgradePrompt({ feature, onClose }: Props) {
             המשך כאורח
           </button>
         )}
-      </div>
+      </dialog>
     </div>
   );
 }

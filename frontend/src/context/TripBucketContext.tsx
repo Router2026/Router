@@ -23,7 +23,7 @@ import type { BucketItem, GeneratedRoute, TripBucketContextValue, UserLocation }
 
 const TripBucketContext = createContext<TripBucketContextValue | null>(null);
 
-export function TripBucketProvider({ children }: { children: React.ReactNode }) {
+export function TripBucketProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [items, setItems] = useState<BucketItem[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [generatedRoute, setGeneratedRoute] = useState<GeneratedRoute | null>(null);
@@ -67,7 +67,7 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
   const openSheet = useCallback(() => setIsSheetOpen(true), []);
   const closeSheet = useCallback(() => setIsSheetOpen(false), []);
 
-  const value: TripBucketContextValue = {
+  const value: TripBucketContextValue = useMemo(() => ({
     items,
     count: items.length,
     addPoi,
@@ -86,7 +86,7 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
     setGenerationError,
     userLocation,
     setUserLocation,
-  };
+  }), [items, addPoi, removePoi, reorderItems, hasPoi, clearBucket, isSheetOpen, openSheet, closeSheet, generatedRoute, setGeneratedRoute, isGenerating, setIsGenerating, generationError, setGenerationError, userLocation, setUserLocation]);
 
   return (
     <TripBucketContext.Provider value={value}>

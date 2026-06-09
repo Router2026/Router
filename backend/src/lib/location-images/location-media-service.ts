@@ -37,8 +37,8 @@ export interface SaveMediaResult {
   xp: XpResult;
 }
 
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"];
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"]);
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
@@ -46,8 +46,8 @@ const MIME_TO_EXT: Record<string, string> = {
 };
 
 export function getMediaType(mimeType: string): MediaType {
-  if (ALLOWED_IMAGE_TYPES.includes(mimeType)) return "image";
-  if (ALLOWED_VIDEO_TYPES.includes(mimeType)) return "video";
+  if (ALLOWED_IMAGE_TYPES.has(mimeType)) return "image";
+  if (ALLOWED_VIDEO_TYPES.has(mimeType)) return "video";
   throw Object.assign(
     new Error(`Unsupported file type: ${mimeType}. Supported: JPEG, PNG, WEBP, GIF, MP4, WEBM, MOV`),
     { code: "VALIDATION_ERROR" }
@@ -56,7 +56,7 @@ export function getMediaType(mimeType: string): MediaType {
 
 export function validateMediaSize(base64Data: string, mimeType: string) {
   const estimatedBytes = (base64Data.length * 3) / 4;
-  const limit = ALLOWED_VIDEO_TYPES.includes(mimeType)
+  const limit = ALLOWED_VIDEO_TYPES.has(mimeType)
     ? MAX_MEDIA_SIZE_BYTES
     : MAX_IMAGE_SIZE_BYTES;
   if (estimatedBytes > limit) {
@@ -134,7 +134,7 @@ export async function saveLocationMedia(
   }
 
   const xpResult = await awardXp(userId, XP_REWARDS.PHOTO_UPLOAD);
-  return { media: rows[0] as unknown as LocationMedia, xp: xpResult };
+  return { media: rows[0] as LocationMedia, xp: xpResult };
 }
 
 /**
@@ -158,7 +158,7 @@ export async function getLocationMedia(
      ORDER BY m.created_at DESC`,
     [locationId]
   );
-  return rows as unknown as LocationMedia[];
+  return rows as LocationMedia[];
 }
 
 export async function approveMedia(mediaId: number, adminId: number): Promise<LocationMedia> {
@@ -170,7 +170,7 @@ export async function approveMedia(mediaId: number, adminId: number): Promise<Lo
     [mediaId, adminId]
   );
   if (!rows.length) throw Object.assign(new Error("Media not found"), { code: "NOT_FOUND" });
-  return rows[0] as unknown as LocationMedia;
+  return rows[0] as LocationMedia;
 }
 
 export async function rejectMedia(mediaId: number): Promise<void> {

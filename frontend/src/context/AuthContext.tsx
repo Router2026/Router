@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { api, type UserProfile } from "../api";
 
 export interface GuestUser {
@@ -32,7 +32,7 @@ const TOKEN_KEY = 'router_auth_token';
 const GUEST_KEY = 'router_guest_mode';
 const GUEST_USER: GuestUser = { isGuest: true, username: 'אורח', id: 'guest', xp_points: 0, level: 'אורח' };
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [state, setState] = useState<AuthState>({
     user: null, token: null, isLoggedIn: false, isGuest: false, isLoading: true,
   });
@@ -95,8 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, token: null, isLoggedIn: false, isGuest: false, isLoading: false });
   }, []);
 
+  const value = useMemo(
+    () => ({ ...state, login, register, loginWithToken, loginAsGuest, upgradeGuest, logout }),
+    [state, login, register, loginWithToken, loginAsGuest, upgradeGuest, logout],
+  );
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, loginWithToken, loginAsGuest, upgradeGuest, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

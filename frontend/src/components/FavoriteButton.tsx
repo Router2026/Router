@@ -12,7 +12,7 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-export default function FavoriteButton({ locationId, size = 24, style }: Props) {
+export default function FavoriteButton({ locationId, size = 24, style }: Readonly<Props>) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { isFavorite, toggleFavorite } = useFavorites();

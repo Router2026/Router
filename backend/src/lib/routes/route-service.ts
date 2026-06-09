@@ -61,7 +61,7 @@ export async function getRoutes(userId?: number): Promise<Route[]> {
     stops: stopRows
       .filter(s => s.route_id === route.id)
       .map(s => ({ ...s, poi_name: (s.poi_name || s.location_name || "") as string })),
-  })) as unknown as Route[];
+  })) as Route[];
 }
 
 export async function getRouteById(id: number): Promise<Route | null> {
@@ -96,7 +96,7 @@ export async function getRouteById(id: number): Promise<Route | null> {
       latitude: s.latitude ?? null,
       longitude: s.longitude ?? null,
     })),
-  } as unknown as Route;
+  } as Route;
 }
 
 export async function deleteRoute(id: number): Promise<void> {

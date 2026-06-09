@@ -12,9 +12,11 @@ export default function Leaderboard() {
   const [users, setUsers] = useState<unknown[]>([]);
 
   useEffect(() => {
-    base44.entities.UserProfile.list().then(data =>
-      setUsers(data.sort((a, b) => (b.xp_points || 0) - (a.xp_points || 0)))
-    );
+    base44.entities.UserProfile.list().then(data => {
+      const sorted = [...data];
+      sorted.sort((a, b) => (b.xp_points || 0) - (a.xp_points || 0));
+      setUsers(sorted);
+    });
   }, []);
 
   const myRank = 1; // current user is first

@@ -87,11 +87,8 @@ export interface LocationMeta {
  * Used by getLocationById, upsertLocation, updateLocation, deleteLocation.
  */
 function rowToLocation(row: Record<string, unknown>): Location {
-  const images = Array.isArray(row.images)
-    ? (row.images as string[])
-    : typeof row.images === "string"
-      ? JSON.parse(row.images as string)
-      : [];
+  const parsedImages = typeof row.images === "string" ? JSON.parse(row.images) : [];
+  const images = Array.isArray(row.images) ? (row.images as string[]) : parsedImages;
   return {
     id: row.id as number,
     name: row.name as string,
@@ -111,7 +108,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     is_featured: row.is_featured as boolean | undefined,
-    average_rating: Number.parseFloat(row.average_rating as string) || 4.0,
+    average_rating: Number.parseFloat(row.average_rating as string) || 4,
     photo_credit: (row.photo_credit as string) || undefined,
     uploaded_by: (row.uploaded_by as string) || undefined,
     created_at: row.created_at as Date,
@@ -144,7 +141,7 @@ function rowToLocationSlim(row: Record<string, unknown>): Location {
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     is_featured: row.is_featured as boolean | undefined,
-    average_rating: Number.parseFloat(row.average_rating as string) || 4.0,
+    average_rating: Number.parseFloat(row.average_rating as string) || 4,
     photo_credit: (row.photo_credit as string) || undefined,
     uploaded_by: (row.uploaded_by as string) || undefined,
     created_at: new Date(0),               // not needed in list view
@@ -605,7 +602,7 @@ export async function upsertLocation(
     source, source_id,
     difficulty = "בינוני", duration_minutes,
     has_water = false, has_shade = false, accessible = false,
-    average_rating = 4.0,
+    average_rating = 4,
   } = loc;
 
   const { rows } = await rawDb.query(

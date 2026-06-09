@@ -15,7 +15,7 @@ const STATUS_CFG: Record<string, { bg: string; color: string; border: string; la
   rejected: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca', label: 'נדחה', icon: '❌' },
 };
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status }: Readonly<{ status: string }>) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.pending;
   return (
     <span style={{
@@ -33,11 +33,11 @@ function PlaceCard({
   poi,
   onEdit,
   onDelete,
-}: {
+}: Readonly<{
   poi: CommunityPoiSubmission;
   onEdit: () => void;
   onDelete: () => void;
-}) {
+}>) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isLocked = poi.status === 'approved';
   const mainPhoto = poi.photos?.[0] ?? null;
@@ -263,7 +263,7 @@ export default function MyPlaces() {
         )}
 
         {/* Empty state */}
-        {places.length === 0 ? (
+        {places.length === 0 && (
           <div style={{ background: '#fff', borderRadius: 20, padding: '48px 24px', textAlign: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
             <div style={{ fontSize: 52, marginBottom: 14 }}>🗺️</div>
             <div style={{ fontWeight: 900, fontSize: 18, color: '#0f172a', marginBottom: 8 }}>
@@ -278,11 +278,13 @@ export default function MyPlaces() {
               📍 הוסף מיקום ראשון
             </button>
           </div>
-        ) : filtered.length === 0 ? (
+        )}
+        {places.length > 0 && filtered.length === 0 && (
           <div style={{ textAlign: 'center', color: '#94a3b8', padding: '32px 0', fontSize: 15 }}>
             אין מיקומים עם הסטטוס שנבחר
           </div>
-        ) : (
+        )}
+        {places.length > 0 && filtered.length > 0 && (
           filtered.map(poi => (
             <PlaceCard
               key={poi.id}
@@ -311,7 +313,7 @@ const primaryBtn: React.CSSProperties = {
   fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
 };
 
-function Spinner({ label }: { label: string }) {
+function Spinner({ label }: Readonly<{ label: string }>) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', fontFamily: 'Heebo, sans-serif' }}>
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>

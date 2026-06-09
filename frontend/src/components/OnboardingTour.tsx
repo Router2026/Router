@@ -54,7 +54,7 @@ function TripBucketIllustration() {
         <span style={{ marginRight: 'auto', background: '#ef4444', color: '#fff', borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>3</span>
       </div>
       {items.map((item, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < items.length - 1 ? '1px solid #e8f9f3' : 'none' }}>
+        <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < items.length - 1 ? '1px solid #e8f9f3' : 'none' }}>
           <span style={{ width: 22, height: 22, background: '#0d9e6e', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>{i + 1}</span>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#1a2e2a', flex: 1 }}>{item}</span>
           <span style={{ fontSize: 11, color: '#94a3b8' }}>⠿</span>
@@ -74,7 +74,7 @@ function RouteStepsIllustration() {
   return (
     <div style={{ background: 'linear-gradient(135deg, #f0fdf8, #e8f9f3)', borderRadius: 16, padding: '14px 16px', marginBottom: 16, direction: 'rtl' }}>
       {steps.map((s, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', position: 'relative' }}>
+        <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', position: 'relative' }}>
           {i < steps.length - 1 && (
             <div style={{ position: 'absolute', right: 13, top: 28, width: 2, height: 18, background: s.done ? '#0d9e6e' : '#e2e8f0', borderRadius: 2 }} />
           )}
@@ -175,12 +175,12 @@ const ALL_STEPS: Step[] = [
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function OnboardingTour({ onComplete }: { onComplete?: () => void }) {
+export default function OnboardingTour({ onComplete }: Readonly<{ onComplete?: () => void }>) {
   const { isGuest } = useAuth();
   const [step, setStep] = useState(0);
   const [visible, setVisible] = useState(true);
   const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDialogElement>(null);
 
   // Filter steps for current user type
   const steps = ALL_STEPS.filter(s => {
@@ -204,8 +204,8 @@ export default function OnboardingTour({ onComplete }: { onComplete?: () => void
     // eslint-disable-next-line react-hooks/set-state-in-effect
     calcSpotlight();
     const t = setTimeout(calcSpotlight, 120); // re-run after layout settles
-    window.addEventListener('resize', calcSpotlight);
-    return () => { clearTimeout(t); window.removeEventListener('resize', calcSpotlight); };
+    globalThis.addEventListener('resize', calcSpotlight);
+    return () => { clearTimeout(t); globalThis.removeEventListener('resize', calcSpotlight); };
   }, [calcSpotlight]);
 
   // Focus trap inside the card
@@ -228,8 +228,8 @@ export default function OnboardingTour({ onComplete }: { onComplete?: () => void
       if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
       if (e.key === 'Escape') finish();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    globalThis.addEventListener('keydown', handler);
+    return () => globalThis.removeEventListener('keydown', handler);
   }, [step, visible, steps.length]);
 
   if (!visible || !current) return null;
@@ -271,10 +271,9 @@ export default function OnboardingTour({ onComplete }: { onComplete?: () => void
       )}
 
       {/* Tooltip card */}
-      <div
+      <dialog
         ref={cardRef}
-        role="dialog"
-        aria-modal="true"
+        open
         aria-label={`סיור הדרכה — שלב ${step + 1} מתוך ${steps.length}: ${current.title}`}
         tabIndex={-1}
         style={{
@@ -284,6 +283,7 @@ export default function OnboardingTour({ onComplete }: { onComplete?: () => void
           padding: '22px 20px 18px',
           boxShadow: '0 24px 64px rgba(0,0,0,0.28)',
           direction: 'rtl', outline: 'none',
+          border: 'none',
         }}
       >
         {/* Header */}
@@ -347,7 +347,7 @@ export default function OnboardingTour({ onComplete }: { onComplete?: () => void
             🚀 הרשמה חינמית עכשיו
           </a>
         )}
-      </div>
+      </dialog>
     </>
   );
 }

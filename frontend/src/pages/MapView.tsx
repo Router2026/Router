@@ -108,7 +108,12 @@ function makeClusterIcon(count: number, color: string, size = 48): L.DivIcon {
 
 function clusterPOIs(pois: POI[], zoom: number) {
   if (zoom >= 13) return pois.map(poi => ({ pois: [poi], lat: poi.latitude, lng: poi.longitude }));
-  const gridSizeDeg = zoom < 7 ? 1.5 : zoom < 9 ? 0.8 : zoom < 11 ? 0.3 : zoom < 13 ? 0.1 : 0.05;
+  let gridSizeDeg: number;
+  if (zoom < 7) { gridSizeDeg = 1.5; }
+  else if (zoom < 9) { gridSizeDeg = 0.8; }
+  else if (zoom < 11) { gridSizeDeg = 0.3; }
+  else if (zoom < 13) { gridSizeDeg = 0.1; }
+  else { gridSizeDeg = 0.05; }
   const cells = new Map<string, POI[]>();
   for (const poi of pois) {
     const key = `${Math.floor(poi.latitude / gridSizeDeg)},${Math.floor(poi.longitude / gridSizeDeg)}`;
@@ -122,6 +127,35 @@ function clusterPOIs(pois: POI[], zoom: number) {
   }));
 }
 
+// ── Marker creation helpers ───────────────────────────────────────────────────
+
+function createSingleMarker(
+  g: { pois: POI[]; lat: number; lng: number },
+  onClickRef: { current: (poi: POI) => void },
+): L.Marker {
+  const marker = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
+  marker.on('click', e => { L.DomEvent.stopPropagation(e); onClickRef.current(g.pois[0]); });
+  return marker;
+}
+
+function createClusterMarker(
+  g: { pois: POI[]; lat: number; lng: number },
+  map: L.Map,
+  zoom: number,
+): L.Marker {
+  const color = CAT_COLOR[g.pois[0].category] || '#0d9e6e';
+  let size: number;
+  if (g.pois.length > 50) { size = 60; }
+  else if (g.pois.length > 10) { size = 52; }
+  else { size = 44; }
+  const marker = L.marker([g.lat, g.lng], { icon: makeClusterIcon(g.pois.length, color, size) });
+  marker.on('click', e => {
+    L.DomEvent.stopPropagation(e);
+    map.setView([g.lat, g.lng], Math.min(zoom + 2, 14), { animate: true });
+  });
+  return marker;
+}
+
 // ── MarkersLayer — keyed diff, no full rebuild ────────────────────────────────
 
 interface MarkersLayerProps {
@@ -131,7 +165,7 @@ interface MarkersLayerProps {
   zoom: number;
 }
 
-function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerProps) {
+function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: Readonly<MarkersLayerProps>) {
   const map = useMap();
   const markerMapRef = useRef<Map<string, L.Marker>>(new Map());
   const onClickRef = useRef(onMarkerClick);
@@ -147,19 +181,9 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
       nextKeys.add(key);
       if (markerMapRef.current.has(key)) continue;
 
-      let marker: L.Marker;
-      if (g.pois.length === 1) {
-        marker = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
-        marker.on('click', e => { L.DomEvent.stopPropagation(e); onClickRef.current(g.pois[0]); });
-      } else {
-        const color = CAT_COLOR[g.pois[0].category] || '#0d9e6e';
-        const size = g.pois.length > 50 ? 60 : g.pois.length > 10 ? 52 : 44;
-        marker = L.marker([g.lat, g.lng], { icon: makeClusterIcon(g.pois.length, color, size) });
-        marker.on('click', e => {
-          L.DomEvent.stopPropagation(e);
-          map.setView([g.lat, g.lng], Math.min(zoom + 2, 14), { animate: true });
-        });
-      }
+      const marker = g.pois.length === 1
+        ? createSingleMarker(g, onClickRef)
+        : createClusterMarker(g, map, zoom);
       marker.addTo(map);
       markerMapRef.current.set(key, marker);
     }
@@ -189,7 +213,7 @@ interface ViewTarget {
   id: number;
 }
 
-function PanController({ target }: { target: ViewTarget | null }) {
+function PanController({ target }: Readonly<{ target: ViewTarget | null }>) {
   const map = useMap();
   const prev = useRef<number>(0);
   useEffect(() => {
@@ -203,7 +227,7 @@ function PanController({ target }: { target: ViewTarget | null }) {
   return null;
 }
 
-function MapStateTracker({ onChange }: { onChange: (lat: number, lng: number, zoom: number) => void }) {
+function MapStateTracker({ onChange }: Readonly<{ onChange: (lat: number, lng: number, zoom: number) => void }>) {
   const map = useMap();
   const cbRef = useRef(onChange);
   useEffect(() => { cbRef.current = onChange; }, [onChange]);
@@ -223,7 +247,7 @@ interface OverlayFilterProps {
   accessible: boolean; setAccessible: (v: boolean) => void;
 }
 
-function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiffs, setSelDiffs, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible }: OverlayFilterProps) {
+function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiffs, setSelDiffs, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible }: Readonly<OverlayFilterProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open && containerRef.current) {
@@ -273,6 +297,27 @@ function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiff
   );
 }
 
+// ── Filter helpers ────────────────────────────────────────────────────────────
+
+interface FilterState {
+  selCats: string[];
+  selDiffs: string[];
+  hasWater: boolean;
+  hasShade: boolean;
+  accessible: boolean;
+}
+
+function applyPoiFilters(pois: POI[], filters: FilterState): POI[] {
+  return pois.filter(p => {
+    if (filters.selCats.length && !filters.selCats.includes(p.category)) return false;
+    if (filters.selDiffs.length && !filters.selDiffs.includes(p.difficulty ?? '')) return false;
+    if (filters.hasWater && !p.has_water) return false;
+    if (filters.hasShade && !p.has_shade) return false;
+    if (filters.accessible && !p.accessible) return false;
+    return true;
+  });
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MapView() {
@@ -297,7 +342,7 @@ export default function MapView() {
   const [accessible, setAccessible] = useState(false);
 
   const mapCenterRef = useRef<[number, number]>(
-    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0],
+    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35],
   );
   const urlWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (urlWriteTimerRef.current) clearTimeout(urlWriteTimerRef.current); }, []);
@@ -333,14 +378,10 @@ export default function MapView() {
     writeUrl(lat, lng, zoom, selectedRegion?.name ?? '');
   }, [writeUrl, selectedRegion?.name]);
 
-  const pois = useMemo(() => allPois.filter(p => {
-    if (selCats.length && !selCats.includes(p.category)) return false;
-    if (selDiffs.length && !selDiffs.includes(p.difficulty ?? '')) return false;
-    if (hasWater && !p.has_water) return false;
-    if (hasShade && !p.has_shade) return false;
-    if (accessible && !p.accessible) return false;
-    return true;
-  }), [allPois, selCats, selDiffs, hasWater, hasShade, accessible]);
+  const pois = useMemo(
+    () => applyPoiFilters(allPois, { selCats, selDiffs, hasWater, hasShade, accessible }),
+    [allPois, selCats, selDiffs, hasWater, hasShade, accessible],
+  );
 
   const categories = useMemo(
     () => [...new Set(allPois.map(p => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -354,7 +395,7 @@ export default function MapView() {
   const resetView = useCallback(() => {
     setSelectedRegion(null);
     setMapZoom(7);
-    setPanTarget({ center: [31.5, 35.0], zoom: 7, id: Date.now() });
+    setPanTarget({ center: [31.5, 35], zoom: 7, id: Date.now() });
   }, []);
 
   const handleRegionClick = useCallback((region: Region) => {
@@ -404,7 +445,7 @@ export default function MapView() {
         hasWater={hasWater} setHasWater={setHasWater} hasShade={hasShade} setHasShade={setHasShade}
         accessible={accessible} setAccessible={setAccessible} />
 
-      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
+      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
         maxBounds={[[29.0, 34.0], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         <TileLayer
@@ -421,7 +462,7 @@ export default function MapView() {
           if (!region.polygon_coords) return null;
           return (
             <Polygon key={region.id}
-              positions={region.polygon_coords as [number, number][]}
+              positions={region.polygon_coords}
               pathOptions={{ color: region.color, fillColor: region.color, fillOpacity: 0.15, weight: 2 }}
               eventHandlers={{ click: () => handleRegionClick(region) }}>
               <Tooltip permanent direction="center" opacity={1} className="region-label">{region.name}</Tooltip>
@@ -431,7 +472,7 @@ export default function MapView() {
 
         {selectedRegion?.polygon_coords && (
           <Polygon
-            positions={selectedRegion.polygon_coords as [number, number][]}
+            positions={selectedRegion.polygon_coords}
             pathOptions={{ color: selectedRegion.color, fillColor: selectedRegion.color, fillOpacity: 0.08, weight: 3, dashArray: '6,4' }}>
             <Tooltip permanent direction="center" opacity={1} className="region-label">{selectedRegion.name}</Tooltip>
           </Polygon>

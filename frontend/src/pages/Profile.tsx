@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type UserProfile, type CommunityReport, type Review } from '../api';
 import { useAuth } from '../context/AuthContext';
 
-function LevelBar({ xp }: { xp: number }) {
+function LevelBar({ xp }: Readonly<{ xp: number }>) {
   const level = Math.floor(Math.sqrt(xp / 50));
   const nextLevelXp = (level + 1) * (level + 1) * 50;
   const currentLevelXp = level * level * 50;

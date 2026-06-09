@@ -30,8 +30,8 @@ export default function InstallPrompt() {
 
     // Already installed (standalone mode)
     const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as Record<string, unknown>).standalone === true;
+      globalThis.matchMedia('(display-mode: standalone)').matches ||
+      (globalThis.navigator as Record<string, unknown>).standalone === true;
     if (isStandalone) return;
 
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -47,8 +47,8 @@ export default function InstallPrompt() {
       setInstallEvent(e as BeforeInstallPromptEvent);
       setVisible(true);
     };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    globalThis.addEventListener('beforeinstallprompt', handler);
+    return () => globalThis.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstall = async () => {
@@ -107,7 +107,7 @@ export default function InstallPrompt() {
               { icon: '➕', text: 'גלול למטה ובחר "הוסף למסך הבית"' },
               { icon: '✅', text: 'לחץ "הוסף" לאישור' },
             ].map((step, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div key={step.text} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0d9e6e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>{i + 1}</div>
                 <div style={{ fontSize: 13, color: '#374151', flex: 1, textAlign: 'right' }}>
                   <span style={{ marginLeft: 4 }}>{step.icon}</span>{step.text}

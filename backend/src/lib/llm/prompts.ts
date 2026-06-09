@@ -1,4 +1,4 @@
-import type { TripInput, TripPlan, TripStop } from "@/types/llm";
+import type { TripInput, TripPlan } from "@/types/llm";
 import type { Poi } from "@/lib/db/schema";
 
 export function buildGenerateTripPrompt(input: TripInput, pois: Poi[]): string {
@@ -109,8 +109,8 @@ export function buildRegenerateStopPrompt(
     .map((s) => s.name)
     .join(", ");
 
-  const usedNames = plan.days.flatMap((d) => d.stops.map((s) => s.name));
-  const availablePois = pois.filter((p) => !usedNames.includes(p.name));
+  const usedNames = new Set(plan.days.flatMap((d) => d.stops.map((s) => s.name)));
+  const availablePois = pois.filter((p) => !usedNames.has(p.name));
 
   const poiList = availablePois
     .map(

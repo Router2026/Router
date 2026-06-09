@@ -209,7 +209,7 @@ export default function PublicUserProfile() {
         {/* ── Public trips ── */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 17, fontWeight: 900, color: '#0f172a', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            🗺️ המסלולים הציבוריים
+            <span>🗺️ המסלולים הציבוריים</span>
             <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>({trips.length})</span>
           </div>
 
@@ -233,7 +233,7 @@ export default function PublicUserProfile() {
         {communityPois.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 17, fontWeight: 900, color: '#0f172a', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              📍 מיקומים שהוסיף לקהילה
+              <span>📍 מיקומים שהוסיף לקהילה</span>
               <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>({communityPois.length})</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -170,7 +170,7 @@ async function attachStops(routes: Record<string, unknown>[]): Promise<PublicTri
       comments_count:       Number.parseInt(r.comments_count as string, 10) || 0,
       average_rating:       Number.parseFloat(r.average_rating as string) || 0,
       ratings_count:        Number.parseInt(r.ratings_count  as string, 10) || 0,
-    } as PublicTrip;
+    };
   });
 }
 

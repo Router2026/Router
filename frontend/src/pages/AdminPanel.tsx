@@ -56,7 +56,7 @@ async function patchAdminPoi(
 
 
 
-function EditModal({ poi, onClose, onSaved }: EditModalProps) {
+function EditModal({ poi, onClose, onSaved }: Readonly<EditModalProps>) {
   const [name, setName] = useState(poi.name);
   const [category, setCategory] = useState(poi.category);
   const [description, setDescription] = useState(poi.description ?? '');
@@ -160,7 +160,7 @@ function CommunityPoisTab() {
     setBusy(poi.id);
     try {
       const updated = await patchAdminPoi(poi.id, { action: 'approve' });
-      if (updated && updated.status) {
+      if (updated?.status) {
         setPois(prev => prev.map(p => p.id === poi.id ? updated : p));
       } else {
         // Refetch to get latest state if response was malformed
@@ -178,7 +178,7 @@ function CommunityPoisTab() {
     setBusy(id);
     try {
       const updated = await patchAdminPoi(id, { action: 'reject', admin_note: note || undefined });
-      if (updated && updated.status) {
+      if (updated?.status) {
         setPois(prev => prev.map(p => p.id === id ? updated : p));
       } else {
         const fresh = await fetchAdminPois(filter === 'all' ? undefined : filter);
@@ -231,10 +231,12 @@ function CommunityPoisTab() {
               fontWeight: 800, fontSize: 12, cursor: 'pointer',
               fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
             }}>
-            {f === 'all' ? `הכל` :
-              f === 'pending' ? `ממתין (${counts.pending})` :
-                f === 'approved' ? `אושר (${counts.approved})` :
-                  `נדחה (${counts.rejected})`}
+            {(() => {
+              if (f === 'all') return 'הכל';
+              if (f === 'pending') return `ממתין (${counts.pending})`;
+              if (f === 'approved') return `אושר (${counts.approved})`;
+              return `נדחה (${counts.rejected})`;
+            })()}
           </button>
         ))}
       </div>
@@ -629,7 +631,10 @@ export default function AdminPanel() {
                       cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {busy === String(u.id) ? '...' : u.is_admin ? 'הסר Admin' : 'הפוך Admin'}
+                    {(() => {
+                      if (busy === String(u.id)) return '...';
+                      return u.is_admin ? 'הסר Admin' : 'הפוך Admin';
+                    })()}
                   </button>
                   <button disabled={busy === String(u.id)} onClick={() => handleDeleteUser(String(u.id))}
                     style={{
@@ -640,7 +645,10 @@ export default function AdminPanel() {
                       color: confirmDelete === String(u.id) ? '#fff' : '#ef4444',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {busy === String(u.id) ? '...' : confirmDelete === String(u.id) ? 'מחק?' : '🗑'}
+                    {(() => {
+                      if (busy === String(u.id)) return '...';
+                      return confirmDelete === String(u.id) ? 'מחק?' : '🗑';
+                    })()}
                   </button>
                 </div>
               </div>
@@ -683,7 +691,10 @@ export default function AdminPanel() {
                     color: confirmDelete === String(r.id) ? '#fff' : '#ef4444',
                     fontFamily: 'Heebo, sans-serif',
                   }}>
-                  {busy === String(r.id) ? '...' : confirmDelete === String(r.id) ? 'מחק?' : '🗑'}
+                  {(() => {
+                    if (busy === String(r.id)) return '...';
+                    return confirmDelete === String(r.id) ? 'מחק?' : '🗑';
+                  })()}
                 </button>
               </div>
             ))}

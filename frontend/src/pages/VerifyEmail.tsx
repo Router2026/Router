@@ -15,7 +15,7 @@ export default function VerifyEmail() {
 
   useEffect(() => {
     // Supabase redirects with hash: #access_token=...&type=signup
-    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const hash = new URLSearchParams(globalThis.location.hash.slice(1));
     const accessToken = hash.get('access_token');
     const type = hash.get('type');
 

@@ -7,7 +7,7 @@ import { extractJson } from "./extract-json";
 import type { Poi } from "@/lib/db/schema";
 
 export class AnthropicProvider implements LLMProvider {
-  private client: Anthropic;
+  private readonly client: Anthropic;
 
   constructor() {
     if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
@@ -21,7 +21,7 @@ export class AnthropicProvider implements LLMProvider {
       messages: [{ role: "user", content: buildGenerateTripPrompt(input, pois) }],
     });
     const block = message.content[0];
-    if (!block || block.type !== "text") {
+    if (block?.type !== "text") {
       throw new LLMOutputError("No text content in Anthropic response");
     }
     return this.parse(block.text);
@@ -34,7 +34,7 @@ export class AnthropicProvider implements LLMProvider {
       messages: [{ role: "user", content: buildRegenerateStopPrompt(plan, dayIndex, stopIndex, pois) }],
     });
     const block = message.content[0];
-    if (!block || block.type !== "text") {
+    if (block?.type !== "text") {
       throw new LLMOutputError("No text content in Anthropic response");
     }
     const json = extractJson(block.text);

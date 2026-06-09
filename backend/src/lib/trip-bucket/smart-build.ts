@@ -116,7 +116,7 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
     throw new Error('Missing route_title');
   }
   if (typeof obj.route_description !== 'string') {
-    throw new Error('Missing route_description');
+    throw new TypeError('Missing route_description');
   }
   if (!Array.isArray(obj.stops) || obj.stops.length === 0) {
     throw new Error('stops must be a non-empty array');
@@ -145,8 +145,8 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
   }
 
   return {
-    route_title: obj.route_title as string,
-    route_description: obj.route_description as string,
+    route_title: obj.route_title,
+    route_description: obj.route_description,
     stops,
   };
 }
@@ -178,7 +178,7 @@ export async function runSmartBuild(pois: BucketPoi[]): Promise<SmartPlan> {
   });
 
   const block = message.content[0];
-  if (!block || block.type !== 'text') {
+  if (block?.type !== 'text') {
     throw new Error('Anthropic returned no text content');
   }
 

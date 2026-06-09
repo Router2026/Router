@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
-function StrengthBar({ password }: { password: string }) {
-  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
+function StrengthBar({ password }: Readonly<{ password: string }>) {
+  const score = [/.{6,}/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
   const labels = ['', 'חלשה', 'בינונית', 'חזקה', 'מצוינת'];
   const colors = ['#e2e8f0', '#ef4444', '#f59e0b', '#0d9e6e', '#059669'];
   if (!password) return null;
@@ -34,7 +34,7 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
 
   // Supabase sends tokens as hash fragment: #access_token=...&refresh_token=...&type=recovery
-  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const hash = new URLSearchParams(globalThis.location.hash.slice(1));
   const accessToken = hash.get('access_token') || params.get('access_token');
   const refreshToken = hash.get('refresh_token') || params.get('refresh_token');
 
@@ -111,7 +111,7 @@ export default function ResetPassword() {
             <div style={{ position: 'relative' }}>
               <input id="rp-confirm-password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
                 type={showPass ? 'text' : 'password'}
-                style={{ ...inputBase, paddingRight: 44, borderColor: confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0' }}
+                style={{ ...inputBase, paddingRight: 44, borderColor: (() => { if (confirm && confirm !== password) return '#ef4444'; if (confirm && confirm === password) return '#0d9e6e'; return '#e2e8f0'; })() }}
               />
               {confirm && <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>{confirm === password ? '✅' : '❌'}</div>}
             </div>

@@ -13,6 +13,17 @@ const GROUP_ICONS: Record<string, string> = {
   'solo': '🚶', 'couple': '👫', 'family': '👨‍👩‍👧‍👦', 'friends': '👥',
 };
 
+function getTripShareIcon(isSharing: boolean, hasShared: boolean) {
+  if (isSharing) return '⏳';
+  if (hasShared) return '✓';
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
+
 export default function MyTrips() {
   const navigate = useNavigate();
   const [trips, setTrips] = useState<unknown[]>([]);
@@ -58,9 +69,9 @@ export default function MyTrips() {
       setSharedIds(prev => new Set(prev).add(id));
       const trip = trips.find(t => String(t.id) === id);
       if (navigator.share && trip) {
-        navigator.share({ title: trip.name, url: `${window.location.origin}/TripDetail?id=${id}` }).catch(() => {});
+        navigator.share({ title: trip.name, url: `${globalThis.location.origin}/TripDetail?id=${id}` }).catch(() => {});
       } else {
-        navigator.clipboard.writeText(`${window.location.origin}/TripDetail?id=${id}`).catch(() => {});
+        navigator.clipboard.writeText(`${globalThis.location.origin}/TripDetail?id=${id}`).catch(() => {});
       }
     } catch (err) { console.error('Share failed:', err); }
     finally { setSharingId(null); }
@@ -161,16 +172,17 @@ export default function MyTrips() {
                         {/* Delete */}
                         <button onClick={e => handleDelete(id, e)} disabled={isDeleting}
                           style={{ background: isConfirming ? '#ef4444' : 'transparent', border: `1.5px solid ${isConfirming ? '#ef4444' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: isConfirming ? '#fff' : '#94a3b8', fontSize: 12, fontWeight: 700, fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>
-                          {isDeleting ? '...' : isConfirming ? 'מחיקה?' : '🗑'}
+                          {(() => {
+                            if (isDeleting) return '...';
+                            return isConfirming ? 'מחיקה?' : '🗑';
+                          })()}
                         </button>
 
                         {/* Feature 9: Share button */}
                         <button onClick={e => handleShare(id, e)} disabled={isSharing}
                           title={hasShared ? 'שותף! +15 XP' : 'שתף מסלול וקבל +15 XP'}
                           style={{ background: hasShared ? '#f0fdf8' : 'transparent', border: `1.5px solid ${hasShared ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: hasShared ? '#0d9e6e' : '#94a3b8', fontSize: 12, fontWeight: 700, fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s ease' }}>
-                          {isSharing ? '⏳' : hasShared ? '✓' : (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
-                          )}
+                          {getTripShareIcon(isSharing, hasShared)}
                           {hasShared ? 'שותף' : 'שתף'}
                         </button>
 

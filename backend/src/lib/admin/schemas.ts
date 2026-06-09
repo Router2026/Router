@@ -11,14 +11,14 @@ export const PoiRecordSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   openingHours: z.string().optional(),
-  sourceUrl: z.string().url().optional(),
+  sourceUrl: z.url().optional(),
   isActive: z.boolean().optional().default(true),
 });
 
 export const DataSourceSchema = z.object({
   name: z.string().min(1),
   category: z.enum(POI_CATEGORIES),
-  sourceUrl: z.string().url(),
+  sourceUrl: z.url(),
   syncCadenceHours: z.number().int().min(1).default(168),
   isActive: z.boolean().optional().default(true),
 });

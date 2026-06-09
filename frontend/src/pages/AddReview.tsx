@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import type { LocationSelectorProps } from '../utils/types';
 
 // ── Location Selector ──────────────────────────────────────────────────────────
-function LocationSelector({ initialName, onSelect }: LocationSelectorProps) {
+function LocationSelector({ initialName, onSelect }: Readonly<LocationSelectorProps>) {
   const [query, setQuery] = useState(initialName ?? '');
   const [results, setResults] = useState<POI[]>([]);
   const [selected, setSelected] = useState<POI | null>(null);

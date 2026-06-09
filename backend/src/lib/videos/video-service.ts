@@ -15,7 +15,7 @@ export interface VideoPost {
 
 export async function getVideos(): Promise<VideoPost[]> {
   const { rows } = await rawDb.query(`SELECT * FROM video_posts ORDER BY created_at DESC`);
-  return rows as unknown as VideoPost[];
+  return rows as VideoPost[];
 }
 
 export async function createVideo(data: Partial<VideoPost>): Promise<VideoPost> {
@@ -31,7 +31,7 @@ export async function createVideo(data: Partial<VideoPost>): Promise<VideoPost> 
       data.thumbnail_url || null,
     ]
   );
-  return rows[0] as unknown as VideoPost;
+  return rows[0] as VideoPost;
 }
 
 export async function likeVideo(id: number): Promise<VideoPost | null> {
@@ -39,5 +39,5 @@ export async function likeVideo(id: number): Promise<VideoPost | null> {
     `UPDATE video_posts SET likes_count = likes_count + 1 WHERE id = $1 RETURNING *`,
     [id]
   );
-  return (rows[0] as unknown as VideoPost) || null;
+  return (rows[0] as VideoPost) || null;
 }

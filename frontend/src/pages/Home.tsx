@@ -40,14 +40,16 @@ interface PlaceCardProps {
   onClick: () => void;
 }
 
-function PlaceCard({ poi, badge, onClick }: PlaceCardProps) {
+function PlaceCard({ poi, badge, onClick }: Readonly<PlaceCardProps>) {
   const color = CATEGORY_COLORS[poi.category] || '#0d9e6e';
   const img = poi.main_image || poi.images?.[0];
-  const categoryEmoji =
-    poi.category.includes('נחל') ? '💧'
-      : poi.category.includes('מצפה') ? '⛰️'
-        : poi.category.includes('היסטור') ? '🏛️'
-          : '🌿';
+  const getCategoryEmoji = () => {
+    if (poi.category.includes('נחל')) return '💧';
+    if (poi.category.includes('מצפה')) return '⛰️';
+    if (poi.category.includes('היסטור')) return '🏛️';
+    return '🌿';
+  };
+  const categoryEmoji = getCategoryEmoji();
 
   return (
     <button
@@ -109,7 +111,7 @@ function PlaceCard({ poi, badge, onClick }: PlaceCardProps) {
 // ── Horizontal scroll row ────────────────────────────────────────────────────
 // Horizontal scroll row
 // ── Horizontal scroll row ────────────────────────────────────────────────────
-function HScrollRow({ children }: { children: React.ReactNode }) {
+function HScrollRow({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div
       className="pretty-scroll"
@@ -123,7 +125,7 @@ function HScrollRow({ children }: { children: React.ReactNode }) {
         paddingLeft: 16,
         scrollbarWidth: 'thin',
         scrollbarColor: '#cbd5e1 transparent'
-      } as React.CSSProperties}
+      }}
     >
       <style>{`
         .pretty-scroll::-webkit-scrollbar {
@@ -162,7 +164,7 @@ function SkeletonCard() {
 interface SectionHeaderProps {
   title: string; icon?: string; actionLabel?: string; onAction?: () => void;
 }
-function SectionHeader({ title, icon, actionLabel, onAction }: SectionHeaderProps) {
+function SectionHeader({ title, icon, actionLabel, onAction }: Readonly<SectionHeaderProps>) {
   return (
     <div style={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -178,6 +180,12 @@ function SectionHeader({ title, icon, actionLabel, onAction }: SectionHeaderProp
       </span>
     </div>
   );
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+function buildExploreUrl(search: string) {
+  const qs = search ? `?q=${encodeURIComponent(search)}` : '';
+  return `/Explore${qs}`;
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
@@ -197,6 +205,7 @@ export default function Home() {
   const { data: nearby = [], isLoading: nearbyLoading,
     geoError: locationError } = useNearbyUserLocations(10, 30000);
 
+  const handleSearchNavigate = () => navigate(buildExploreUrl(search));
 
   const displayRegions = regions.slice(0, 6);
 
@@ -211,10 +220,10 @@ export default function Home() {
           <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.88)', marginBottom: 28 }}>גלה מסלולים ייחודיים בטבע ישראל</div>
           <div style={{ background: '#fff', borderRadius: 16, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
             <input value={search} onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') navigate(`/Explore${search ? `?q=${encodeURIComponent(search)}` : ''}`); }}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearchNavigate(); }}
               placeholder="חפש מסלול, אתר, אזור..."
               style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', color: '#1a2e2a', background: 'transparent', textAlign: 'right' }} />
-            <button onClick={() => navigate(`/Explore${search ? `?q=${encodeURIComponent(search)}` : ''}`)}
+            <button onClick={handleSearchNavigate}
               style={{ background: '#0d9e6e', border: 'none', borderRadius: 12, padding: '8px 16px', cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'Heebo, sans-serif' }}>חפש</button>
           </div>
         </div>
@@ -271,9 +280,10 @@ export default function Home() {
             ══════════════════════════════════════════ */}
         <div style={{ marginBottom: 28 }}>
           <SectionHeader title="מקומות מומלצים" icon="⭐" actionLabel="הכל" onAction={() => navigate('/Explore')} />
-          {featuredLoading ? (
+          {featuredLoading && (
             <HScrollRow>{[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}</HScrollRow>
-          ) : featured.length > 0 ? (
+          )}
+          {!featuredLoading && featured.length > 0 && (
             <HScrollRow>
               {featured.map(poi => (
                 <PlaceCard
@@ -294,7 +304,8 @@ export default function Home() {
                 />
               ))}
             </HScrollRow>
-          ) : (
+          )}
+          {!featuredLoading && featured.length === 0 && (
             <p style={{ padding: '0 16px', color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
               אין מקומות מומלצים כרגע
             </p>
@@ -311,9 +322,10 @@ export default function Home() {
             actionLabel={nearby.length > 0 ? 'במפה' : undefined}
             onAction={() => navigate('/MapView')}
           />
-          {nearbyLoading ? (
+          {nearbyLoading && (
             <HScrollRow>{[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}</HScrollRow>
-          ) : nearby.length > 0 ? (
+          )}
+          {!nearbyLoading && nearby.length > 0 && (
             <HScrollRow>
               {nearby.map(poi => (
                 <PlaceCard
@@ -333,7 +345,8 @@ export default function Home() {
                 />
               ))}
             </HScrollRow>
-          ) : locationError ? (
+          )}
+          {!nearbyLoading && nearby.length === 0 && locationError && (
             <div style={{
               margin: '0 16px', background: '#fff', borderRadius: 18,
               padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14,
@@ -345,7 +358,7 @@ export default function Home() {
                 <div style={{ fontSize: 12, color: '#64748b' }}>אפשר גישה למיקום כדי לראות מה קרוב אליך</div>
               </div>
             </div>
-          ) : null}
+          )}
         </div>
 
         {/* ── Recommended Regions ── */}

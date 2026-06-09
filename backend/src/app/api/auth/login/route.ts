@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       [normalizedEmail]
     );
     const user = rows[0];
-    if (!user || !user.password_hash)
+    if (!user?.password_hash)
       return NextResponse.json(errorResponse("Invalid email or password", "AUTH_ERROR"), { status: 401 });
 
     const valid = await verifyPassword(password, user.password_hash as string);

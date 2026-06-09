@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { api, type AppStats, type Region } from '../api';
 import { roundToThousands } from '../utils/helper';
 
-function StrengthBar({ password }: { password: string }) {
-  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
+function StrengthBar({ password }: Readonly<{ password: string }>) {
+  const score = [/.{6,}/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
   const labels = ['', 'חלשה', 'בינונית', 'חזקה', 'מצוינת'];
   const colors = ['#e2e8f0', '#ef4444', '#f59e0b', '#0d9e6e', '#059669'];
   if (!password) return null;
@@ -23,7 +23,27 @@ function StrengthBar({ password }: { password: string }) {
   );
 }
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const USERNAME_RE = /^\w{3,20}$/;
+
+function validateRegistration(
+  fullName: string,
+  username: string,
+  usernameStatus: string,
+  email: string,
+  password: string,
+  confirm: string,
+  agreedToTerms: boolean,
+): string | null {
+  if (!fullName.trim()) return 'אנא הכנס שם מלא';
+  if (!username || !USERNAME_RE.test(username)) return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
+  if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
+  if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
+  if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
+  if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
+  if (password !== confirm) return 'הסיסמאות אינן תואמות';
+  if (!agreedToTerms) return 'יש לאשר את מדיניות הפרטיות כדי להמשיך';
+  return null;
+}
 
 export default function Register() {
   const navigate = useNavigate();
@@ -69,20 +89,8 @@ export default function Register() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [username]);
 
-  const validate = () => {
-    if (!fullName.trim()) return 'אנא הכנס שם מלא';
-    if (!username || !USERNAME_RE.test(username)) return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
-    if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
-    if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
-    if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
-    if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
-    if (password !== confirm) return 'הסיסמאות אינן תואמות';
-    if (!agreedToTerms) return 'יש לאשר את מדיניות הפרטיות כדי להמשיך';
-    return null;
-  };
-
   const handleSubmit = async () => {
-    const err = validate();
+    const err = validateRegistration(fullName, username, usernameStatus, email, password, confirm, agreedToTerms);
     if (err) { setError(err); return; }
     setError(null);
     setLoading(true);
@@ -175,7 +183,9 @@ export default function Register() {
               />
               {usernameStatus !== 'idle' && (
                 <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>
-                  {usernameStatus === 'checking' ? '⏳' : usernameStatus === 'available' ? '✅' : '❌'}
+                  {usernameStatus === 'checking' && '⏳'}
+                  {usernameStatus === 'available' && '✅'}
+                  {usernameStatus !== 'checking' && usernameStatus !== 'available' && '❌'}
                 </div>
               )}
             </div>
@@ -219,11 +229,16 @@ export default function Register() {
           <div style={{ marginBottom: 20 }}>
             <label htmlFor="register-confirm" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימות סיסמה *</label>
             <div style={{ position: 'relative' }}>
-              <input id="register-confirm" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
-                type={showPass ? 'text' : 'password'}
-                style={{ ...inputBase, paddingRight: 44, borderColor: confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0' }}
-                onFocus={e => { if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e'; }}
-                onBlur={e => { e.target.style.borderColor = confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0'; }} />
+              {(() => {
+                const confirmBorderColor = confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0';
+                return (
+                  <input id="register-confirm" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
+                    type={showPass ? 'text' : 'password'}
+                    style={{ ...inputBase, paddingRight: 44, borderColor: confirmBorderColor }}
+                    onFocus={e => { if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e'; }}
+                    onBlur={e => { e.target.style.borderColor = confirmBorderColor; }} />
+                );
+              })()}
               {confirm && <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>{confirm === password ? '✅' : '❌'}</div>}
             </div>
             {confirm && confirm !== password && <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'right', marginTop: 4 }}>הסיסמאות אינן תואמות</div>}

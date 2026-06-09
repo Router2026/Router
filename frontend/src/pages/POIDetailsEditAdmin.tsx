@@ -40,7 +40,7 @@ async function adminFetch<T>(path: string, options?: RequestInit): Promise<T> {
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getToken() ?? ''}`,
-            ...(options?.headers ?? {}),
+            ...options?.headers,
         },
     });
     if (!res.ok) {
@@ -84,23 +84,24 @@ const DIFF_COLOR: Record<string, string> = {
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
-function LocationPickerMap({ lat, lng, onChange }: { lat: number; lng: number; onChange: (lat: number, lng: number) => void }) {
-    const MapEvents = () => {
-        useMapEvents({ click(e) { onChange(e.latlng.lat, e.latlng.lng); } });
-        return null;
-    };
+function MapClickHandler({ onChange }: Readonly<{ onChange: (lat: number, lng: number) => void }>) {
+    useMapEvents({ click(e) { onChange(e.latlng.lat, e.latlng.lng); } });
+    return null;
+}
+
+function LocationPickerMap({ lat, lng, onChange }: Readonly<{ lat: number; lng: number; onChange: (lat: number, lng: number) => void }>) {
     return (
         <div style={{ height: 220, width: '100%', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0' }}>
-            <MapContainer center={[lat || 31.5, lng || 35.0]} zoom={11} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={[lat || 31.5, lng || 35]} zoom={11} style={{ height: '100%', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 {!!(lat && lng) && <Marker position={[lat, lng]} />}
-                <MapEvents />
+                <MapClickHandler onChange={onChange} />
             </MapContainer>
         </div>
     );
 }
 
-function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function StarRating({ value, onChange }: Readonly<{ value: number; onChange: (v: number) => void }>) {
     const [hover, setHover] = useState(0);
     return (
         <div style={{ display: 'flex', gap: 4, direction: 'ltr', alignItems: 'center' }}>
@@ -114,7 +115,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
     );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, checked, onChange }: Readonly<{ label: string; checked: boolean; onChange: (v: boolean) => void }>) {
     return (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
@@ -126,14 +127,14 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
     );
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
     return <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>{children}</div>;
 }
 
-function InputField({ label, value, onChange, type = 'text', placeholder = '', step, readOnly }: {
+function InputField({ label, value, onChange, type = 'text', placeholder = '', step, readOnly }: Readonly<{
     label: string; value: string; onChange?: (v: string) => void;
     type?: string; placeholder?: string; step?: string; readOnly?: boolean;
-}) {
+}>) {
     return (
         <div>
             <FieldLabel>{label}</FieldLabel>
@@ -165,7 +166,7 @@ export interface POIDetailsEditAdminProps {
     onDeleted: (id: string) => void;
 }
 
-export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, onDeleted }: POIDetailsEditAdminProps) {
+export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, onDeleted }: Readonly<POIDetailsEditAdminProps>) {
     const [edit, setEdit] = useState<EditState>({
         name: poi.name,
         description: poi.description || '',
@@ -221,7 +222,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 photo_credit: edit.photo_credit || null,
                 main_image: edit.main_image || null,
                 images: edit.images,
-                average_rating: Number.parseFloat(edit.average_rating) || 4.0,
+                average_rating: Number.parseFloat(edit.average_rating) || 4,
                 latitude: Number.parseFloat(edit.latitude),
                 longitude: Number.parseFloat(edit.longitude),
                 source: edit.source || undefined,
@@ -251,15 +252,15 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 images: edit.images,
                 latitude: Number.parseFloat(edit.latitude),
                 longitude: Number.parseFloat(edit.longitude),
-                average_rating: Number.parseFloat(edit.average_rating) || 4.0,
+                average_rating: Number.parseFloat(edit.average_rating) || 4,
                 region_id: edit.region_id ? Number.parseInt(edit.region_id) : poi.region_id,
                 region: regions.find(r => String(r.id) === edit.region_id)?.name || poi.region,
                 uploaded_by: edit.uploaded_by || undefined,
-                ...(res as any)?.data,
+                ...res?.data,
                 is_featured: edit.is_featured,
                 source: edit.source,
                 source_id: edit.source_id,
-            } as any;
+            } as POI;
 
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2000);
@@ -322,7 +323,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
 
     const handleMapsLinkChange = (val: string) => {
         setMapsLink(val);
-        const match = val.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        const match = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(val);
         if (match) { set('latitude', match[1]); set('longitude', match[2]); }
     };
 
@@ -389,16 +390,22 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: 4, padding: '8px 12px', background: '#fff', borderBottom: '1px solid #f1f5f9', overflowX: 'auto', flexShrink: 0 }}>
-                    {SECTIONS.map(s => (
-                        <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
-                            padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
-                            background: activeSection === s.id ? (s.id === 'danger' ? '#dc2626' : '#0d9e6e') : 'transparent',
-                            color: activeSection === s.id ? '#fff' : (s.id === 'danger' ? '#dc2626' : '#64748b'),
-                            fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                            fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap',
-                            transition: 'all 0.15s',
-                        }}>{s.label}</button>
-                    ))}
+                    {SECTIONS.map(s => {
+                        const isActive = activeSection === s.id;
+                        const isDanger = s.id === 'danger';
+                        const tabBg = isActive ? (isDanger ? '#dc2626' : '#0d9e6e') : 'transparent';
+                        const tabColor = isActive ? '#fff' : (isDanger ? '#dc2626' : '#64748b');
+                        return (
+                            <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
+                                padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
+                                background: tabBg,
+                                color: tabColor,
+                                fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                                fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap',
+                                transition: 'all 0.15s',
+                            }}>{s.label}</button>
+                        );
+                    })}
                 </div>
 
                 {/* Content */}
@@ -511,8 +518,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{geoError}</div>}
                                 {geoResults.length > 0 && (
                                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        {geoResults.map((r, i) => (
-                                            <button key={i} onClick={() => {
+                                        {geoResults.map((r) => (
+                                            <button key={r.display_name} onClick={() => {
                                                 set('latitude', Number.parseFloat(r.lat).toFixed(6));
                                                 set('longitude', Number.parseFloat(r.lon).toFixed(6));
                                                 setGeoResults([]);
@@ -559,7 +566,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 <FieldLabel>בחר מיקום על המפה (לחץ לעדכון)</FieldLabel>
                                 <LocationPickerMap
                                     lat={Number.parseFloat(edit.latitude) || 31.5}
-                                    lng={Number.parseFloat(edit.longitude) || 35.0}
+                                    lng={Number.parseFloat(edit.longitude) || 35}
                                     onChange={(lat, lng) => { set('latitude', lat.toFixed(6)); set('longitude', lng.toFixed(6)); }}
                                 />
                             </div>
@@ -712,7 +719,11 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                     color: confirmDelete ? '#fff' : '#dc2626',
                                     fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s',
                                 }}>
-                                    {deleting ? '⏳ מוחק...' : confirmDelete ? '⚠️ לחץ שוב לאישור סופי' : '🗑 מחק מקום לצמיתות'}
+                                    {(() => {
+                                        if (deleting) return '⏳ מוחק...';
+                                        if (confirmDelete) return '⚠️ לחץ שוב לאישור סופי';
+                                        return '🗑 מחק מקום לצמיתות';
+                                    })()}
                                 </button>
                                 {confirmDelete && (
                                     <button onClick={() => setConfirmDelete(false)}

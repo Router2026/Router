@@ -3,7 +3,6 @@
 // Added: region auto-classification from coordinates via PostGIS / bounding-box lookup.
 
 import { rawDb } from "@/lib/db/raw-client";
-import { uploadToStorage } from "@/lib/location-images/location-media-service";
 import { sendPushToUser } from "@/lib/notifications/push-service";
 import { CommunityPoiRow, CommunityPoiStatus, CreateCommunityPoiInput } from "./types";
 
@@ -62,7 +61,7 @@ export async function listAllCommunityPois(
      ORDER BY cp.created_at DESC`,
     params
   );
-  return rows as unknown as CommunityPoiRow[];
+  return rows as CommunityPoiRow[];
 }
 
 export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | null> {
@@ -75,7 +74,7 @@ export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | nul
      WHERE  cp.id = $1`,
     [id]
   );
-  return (rows[0] as unknown as CommunityPoiRow) ?? null;
+  return (rows[0] as CommunityPoiRow) ?? null;
 }
 
 // ── Create ─────────────────────────────────────────────────────────────────────
@@ -165,7 +164,7 @@ export async function approveCommunityPoi(
       throw Object.assign(new Error("Community POI not found"), { code: "NOT_FOUND" });
     }
 
-    const poi = updatedRows[0] as unknown as CommunityPoiRow;
+    const poi = updatedRows[0] as CommunityPoiRow;
 
     // 2. Fetch submitter username for credit fields
     let submitterUsername: string | null = null;
@@ -183,8 +182,8 @@ export async function approveCommunityPoi(
     // uploaded_by always records who submitted the community POI.
     const photoCredit = (poi as any).photo_credit || submitterUsername || null;
 
-    const lat = Number.parseFloat(poi.latitude as unknown as string);
-    const lng = Number.parseFloat(poi.longitude as unknown as string);
+    const lat = Number.parseFloat(poi.latitude as string);
+    const lng = Number.parseFloat(poi.longitude as string);
 
     // 3. Upsert into public locations table — inside the same transaction
     // Note: lat/lng are passed TWICE — once as numeric for the columns,
@@ -243,7 +242,7 @@ export async function approveCommunityPoi(
     //    We insert them into location_media so they appear in the approved POI's gallery.
     const pendingPhotos: string[] = Array.isArray(poi.photos) ? poi.photos : [];
     for (const photoUrl of pendingPhotos) {
-      if (!photoUrl || !photoUrl.startsWith("http")) continue;
+      if (!photoUrl?.startsWith("http")) continue;
       await client.query(
         `INSERT INTO location_media
            (user_id, location_id, media_type, media_url, is_approved, approved_at)
@@ -351,5 +350,5 @@ export async function editCommunityPoi(
       updates.photos ? JSON.stringify(updates.photos) : null,
     ]
   );
-  return rows[0] as unknown as CommunityPoiRow;
+  return rows[0] as CommunityPoiRow;
 }

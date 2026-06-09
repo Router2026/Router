@@ -9,7 +9,7 @@ interface Props {
   onDone: () => void;
 }
 
-export default function XpToast({ xp, onDone }: Props) {
+export default function XpToast({ xp, onDone }: Readonly<Props>) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {

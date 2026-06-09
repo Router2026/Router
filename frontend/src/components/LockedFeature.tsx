@@ -25,7 +25,7 @@ interface LockedFeatureProps {
   inline?: boolean;          // if true, renders inline instead of absolute overlay
 }
 
-export function LockedFeature({ children, feature, dim = true, inline = false }: LockedFeatureProps) {
+export function LockedFeature({ children, feature, dim = true, inline = false }: Readonly<LockedFeatureProps>) {
   const { isGuest } = useAuth();
   const [showPrompt, setShowPrompt] = useState(false);
 
@@ -33,13 +33,11 @@ export function LockedFeature({ children, feature, dim = true, inline = false }:
 
   return (
     <>
-      <div
-        style={{ position: 'relative', display: inline ? 'inline-block' : 'block' }}
+      <button
+        type="button"
+        style={{ position: 'relative', display: inline ? 'inline-block' : 'block', background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'inherit' }}
         onClick={e => { e.stopPropagation(); setShowPrompt(true); }}
-        role="button"
-        tabIndex={0}
         aria-label={`תכונה נעולה: ${feature || 'דרוש חשבון'}`}
-        onKeyDown={e => e.key === 'Enter' && setShowPrompt(true)}
       >
         {/* Dimmed children */}
         <div style={{ opacity: dim ? 0.45 : 1, pointerEvents: 'none', userSelect: 'none' }}>
@@ -74,7 +72,7 @@ export function LockedFeature({ children, feature, dim = true, inline = false }:
             </span>
           </div>
         </div>
-      </div>
+      </button>
 
       {showPrompt && <GuestUpgradePrompt feature={feature} onClose={() => setShowPrompt(false)} />}
     </>
@@ -89,7 +87,7 @@ interface LockedButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
   children: React.ReactNode;
 }
 
-export function LockedButton({ feature, lockLabel, children, onClick, style, ...rest }: LockedButtonProps) {
+export function LockedButton({ feature, lockLabel, children, onClick, style, ...rest }: Readonly<LockedButtonProps>) {
   const { isGuest } = useAuth();
   const [showPrompt, setShowPrompt] = useState(false);
 
@@ -127,7 +125,7 @@ export function LockedButton({ feature, lockLabel, children, onClick, style, ...
 
 // ── Lock badge — small inline chip ────────────────────────────────────────────
 
-export function LockBadge({ label }: { label?: string }) {
+export function LockBadge({ label }: Readonly<{ label?: string }>) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,

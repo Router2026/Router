@@ -16,7 +16,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     // Supabase puts the token in the URL hash after OAuth redirect
-    const hash = window.location.hash;
+    const hash = globalThis.location.hash;
     const params = new URLSearchParams(hash.replace('#', ''));
     const accessToken = params.get('access_token');
 

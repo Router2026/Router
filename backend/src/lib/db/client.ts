@@ -7,7 +7,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const connectionString = (() => {
-  const url = new URL(process.env.DATABASE_URL!);
+  const url = new URL(process.env.DATABASE_URL);
   url.searchParams.set("options", "--search_path=router,public");
   return url.toString();
 })();

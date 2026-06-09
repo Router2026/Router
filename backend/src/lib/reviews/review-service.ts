@@ -11,7 +11,7 @@ export async function getReviews(locationId?: number): Promise<Review[]> {
       [locationId]
     )
     : await rawDb.query(`SELECT * FROM reviews ORDER BY created_at DESC`);
-  return rows as unknown as Review[];
+  return rows as Review[];
 }
 
 
@@ -42,5 +42,5 @@ export async function createReview(data: CreateReviewInput): Promise<Review> {
     );
   }
 
-  return rows[0] as unknown as Review;
+  return rows[0] as Review;
 }

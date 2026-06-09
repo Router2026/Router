@@ -7,7 +7,7 @@ if (!process.env.DATABASE_URL) {
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const connectionString = (() => {
-  const url = new URL(process.env.DATABASE_URL!);
+  const url = new URL(process.env.DATABASE_URL);
   // Append search_path as a libpq connection option so it is applied by
   // PostgreSQL itself during connection setup, before any query can run.
   url.searchParams.set("options", "--search_path=router,public");

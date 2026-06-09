@@ -14,8 +14,7 @@ export default function GuestBanner() {
   if (!isGuest || dismissed) return null;
 
   return (
-    <div
-      role="status"
+    <output
       aria-label="מצב אורח — חלק מהתכונות נעולות"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 3000,
@@ -56,7 +55,7 @@ export default function GuestBanner() {
       >
         ×
       </button>
-    </div>
+    </output>
   );
 }
 

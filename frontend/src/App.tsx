@@ -48,7 +48,7 @@ function TokenSync() {
   return null;
 }
 
-const Wrap = ({ name, children }: { name: string; children: React.ReactNode }) => (
+const Wrap = ({ name, children }: Readonly<{ name: string; children: React.ReactNode }>) => (
   <Layout currentPageName={name}>{children}</Layout>
 );
 
@@ -57,15 +57,15 @@ const Wrap = ({ name, children }: { name: string; children: React.ReactNode }) =
  * allowGuest=true  → guests can see it (read-only browse)
  * allowGuest=false → must be a real registered user
  */
-function RequireAuth({ children, allowGuest = false }: { children: React.ReactNode; allowGuest?: boolean }) {
+function RequireAuth({ children, allowGuest = false }: Readonly<{ children: React.ReactNode; allowGuest?: boolean }>) {
   const { user, isLoading, isGuest } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
     return (
-      <div role="status" aria-label="טוען" style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>
+      <output aria-label="טוען" style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontFamily: 'Heebo, sans-serif', display: 'block' }}>
         טוען...
-      </div>
+      </output>
     );
   }
 
@@ -78,7 +78,7 @@ function RequireAuth({ children, allowGuest = false }: { children: React.ReactNo
   return <>{children}</>;
 }
 
-function RequireAdmin({ children }: { children: React.ReactNode }) {
+function RequireAdmin({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>טוען...</div>;

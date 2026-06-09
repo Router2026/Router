@@ -20,7 +20,7 @@ const NAV_ITEMS = [
 
 const HIDE_NAV = new Set(['TripDetail', 'POIDetail', 'AddReport', 'AddReview', 'UploadVideo', 'Login', 'Register']);
 
-export default function Layout({ children, currentPageName }: { children: React.ReactNode; currentPageName: string }) {
+export default function Layout({ children, currentPageName }: Readonly<{ children: React.ReactNode; currentPageName: string }>) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn, isGuest, user, logout } = useAuth();
@@ -88,22 +88,30 @@ export default function Layout({ children, currentPageName }: { children: React.
 
           {/* Auth pill */}
           <div style={{ position: 'absolute', top: -44, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
-            {isLoggedIn && user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 20, padding: '6px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', pointerEvents: 'all' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a', fontFamily: 'Heebo, sans-serif' }}>@{(user as Record<string, unknown>).username}</span>
-                <div aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: '#0d9e6e' }} />
-                <button onClick={logout} aria-label="יציאה מהחשבון" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>יציאה</button>
-              </div>
-            ) : isGuest ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 20, padding: '6px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', pointerEvents: 'all' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', fontFamily: 'Heebo, sans-serif' }}>👀 אורח</span>
-                <button onClick={() => navigate('/Register')} aria-label="הרשמה" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0d9e6e', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>הרשמה</button>
-              </div>
-            ) : (
-              <button onClick={() => navigate('/Register')} aria-label="הרשמה או כניסה לחשבון" style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', border: 'none', borderRadius: 20, padding: '7px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: '0 2px 12px rgba(13,158,110,0.25)', pointerEvents: 'all' }}>
-                🚀 הרשמה / כניסה
-              </button>
-            )}
+            {(() => {
+              if (isLoggedIn && user) {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 20, padding: '6px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', pointerEvents: 'all' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a', fontFamily: 'Heebo, sans-serif' }}>@{(user as Record<string, unknown>).username}</span>
+                    <div aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: '#0d9e6e' }} />
+                    <button onClick={logout} aria-label="יציאה מהחשבון" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>יציאה</button>
+                  </div>
+                );
+              }
+              if (isGuest) {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 20, padding: '6px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', pointerEvents: 'all' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', fontFamily: 'Heebo, sans-serif' }}>👀 אורח</span>
+                    <button onClick={() => navigate('/Register')} aria-label="הרשמה" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0d9e6e', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>הרשמה</button>
+                  </div>
+                );
+              }
+              return (
+                <button onClick={() => navigate('/Register')} aria-label="הרשמה או כניסה לחשבון" style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', border: 'none', borderRadius: 20, padding: '7px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: '0 2px 12px rgba(13,158,110,0.25)', pointerEvents: 'all' }}>
+                  🚀 הרשמה / כניסה
+                </button>
+              );
+            })()}
           </div>
         </nav>
       )}

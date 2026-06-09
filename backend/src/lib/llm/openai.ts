@@ -7,7 +7,7 @@ import { extractJson } from "./extract-json";
 import type { Poi } from "@/lib/db/schema";
 
 export class OpenAIProvider implements LLMProvider {
-  private client: OpenAI;
+  private readonly client: OpenAI;
 
   constructor() {
     if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");

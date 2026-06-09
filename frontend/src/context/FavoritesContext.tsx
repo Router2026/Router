@@ -1,7 +1,7 @@
 // src/context/FavoritesContext.tsx
 // Single source of truth for favorites — fetched once on login, shared by all components.
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api, type FavoriteLocation } from '../api';
 import { useAuth } from './AuthContext';
 
@@ -15,7 +15,7 @@ interface FavoritesContextValue {
 
 const FavoritesContext = createContext<FavoritesContextValue | null>(null);
 
-export function FavoritesProvider({ children }: { children: React.ReactNode }) {
+export function FavoritesProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useAuth();
   const [favorites, setFavorites] = useState<FavoriteLocation[]>([]);
   const [loading, setLoading]     = useState(false);
@@ -76,8 +76,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, isFavorite, fetchFavorites]);
 
+  const value = useMemo(
+    () => ({ favorites, loading, isFavorite, toggleFavorite, refresh: fetchFavorites }),
+    [favorites, loading, isFavorite, toggleFavorite, fetchFavorites],
+  );
+
   return (
-    <FavoritesContext.Provider value={{ favorites, loading, isFavorite, toggleFavorite, refresh: fetchFavorites }}>
+    <FavoritesContext.Provider value={value}>
       {children}
     </FavoritesContext.Provider>
   );

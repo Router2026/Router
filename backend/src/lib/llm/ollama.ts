@@ -7,8 +7,8 @@ import { extractJson } from "./extract-json";
 import type { Poi } from "@/lib/db/schema";
 
 export class OllamaProvider implements LLMProvider {
-  private client: OpenAI;
-  private model: string;
+  private readonly client: OpenAI;
+  private readonly model: string;
 
   constructor() {
     this.client = new OpenAI({

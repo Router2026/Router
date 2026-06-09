@@ -21,7 +21,7 @@ L.Icon.Default.mergeOptions({
 
 // ── Photo marker ──────────────────────────────────────────────────────────────
 
-function PhotoStopMarker({ stop, index }: { stop: any; index: number }) {
+function PhotoStopMarker({ stop, index }: Readonly<{ stop: any; index: number }>) {
   const map = useMap();
   const icon = L.divIcon({
     html: stop.main_image
@@ -66,7 +66,7 @@ function PhotoStopMarker({ stop, index }: { stop: any; index: number }) {
 
 // ── FitBounds ─────────────────────────────────────────────────────────────────
 
-function FitBounds({ points }: { points: [number, number][] }) {
+function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
   const map = useMap();
   useEffect(() => {
     if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.18));
@@ -76,7 +76,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
 
 // ── RegionLabel ───────────────────────────────────────────────────────────────
 
-function RegionLabel({ name }: { name: string }) {
+function RegionLabel({ name }: Readonly<{ name: string }>) {
   return (
     <div style={{
       position: "absolute", top: "50%", left: "50%",
@@ -92,6 +92,24 @@ function RegionLabel({ name }: { name: string }) {
         {name}
       </div>
     </div>
+  );
+}
+
+// ── Share icon helper ─────────────────────────────────────────────────────────
+
+function getShareIcon(sharing: boolean, shared: boolean) {
+  if (sharing) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+    );
+  }
+  if (shared) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+    );
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
   );
 }
 
@@ -113,7 +131,7 @@ export default function TripDetail() {
       .then(data => { setTrip(data); setLoading(false); })
       .catch(() => {
         api.trips.list()
-          .then(trips => { if (trips.length > 0) setTrip(trips[0]); setLoading(false); })
+          .then(trips => { if (trips.length > 0) { setTrip(trips[0]); } setLoading(false); })
           .catch(() => setLoading(false));
       });
   }, [tripId]);
@@ -126,9 +144,9 @@ export default function TripDetail() {
       if (result.xp_awarded && result.xp) setShareXp(result.xp);
       setShared(true);
       if (navigator.share) {
-        await navigator.share({ title: trip?.name || 'המסלול שלי', text: trip?.description || '', url: window.location.href }).catch(() => { });
+        await navigator.share({ title: trip?.name || 'המסלול שלי', text: trip?.description || '', url: globalThis.location.href }).catch(() => { });
       } else {
-        navigator.clipboard.writeText(window.location.href).catch(() => { });
+        navigator.clipboard.writeText(globalThis.location.href).catch(() => { });
       }
     } catch (err) {
       console.error("Share failed:", err);
@@ -211,7 +229,7 @@ export default function TripDetail() {
                   <Polyline positions={polylinePoints} pathOptions={{ color: "#0d9e6e", weight: 3, opacity: 0.8, dashArray: "8,6" }} />
                 )}
                 {stopsWithCoords.map((s: any, i: number) => (
-                  <PhotoStopMarker key={i} stop={s} index={i} />
+                  <PhotoStopMarker key={s.location_id ?? s.poi_name ?? i} stop={s} index={i} />
                 ))}
                 <FitBounds points={polylinePoints} />
               </MapContainer>
@@ -228,7 +246,7 @@ export default function TripDetail() {
           <div style={{ background: "#fff", borderRadius: 20, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
             <h2 style={{ fontSize: 18, fontWeight: 900, color: "#1a2e2a", marginBottom: 16, textAlign: "right" }}>עצירות במסלול</h2>
             {(trip.stops || []).map((stop: any, index: number) => (
-              <div key={index} style={{ display: "flex", gap: 12, marginBottom: 16, direction: "rtl" }}>
+              <div key={stop.location_id ?? stop.poi_name ?? index} style={{ display: "flex", gap: 12, marginBottom: 16, direction: "rtl" }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
                   <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #0d9e6e, #34d399)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 13 }}>{index + 1}</div>
                   {index < (trip.stops || []).length - 1 && <div style={{ flex: 1, width: 2, background: "#e2e8f0", minHeight: 24 }} />}
@@ -261,13 +279,7 @@ export default function TripDetail() {
             <button onClick={handleShare} disabled={sharing}
               style={{ width: 56, height: 56, border: shared ? "2px solid #0d9e6e" : "2px solid #e2e8f0", borderRadius: 16, background: shared ? "#f0fdf8" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s ease" }}
               title="שתף מסלול וקבל XP">
-              {sharing ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-              ) : shared ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
-              )}
+              {getShareIcon(sharing, shared)}
             </button>
             <button
               onClick={() => { const addr = encodeURIComponent(trip.stops?.[0]?.poi_name || trip.region); window.open(`https://waze.com/ul?q=${addr}`, "_blank"); }}

@@ -283,7 +283,7 @@ const newPois: SeedPoi[] = [
     category: "restaurant", region: "jerusalem", subRegion: "jerusalem_city",
     description: "Upscale rooftop restaurant with panoramic views of the Old City walls and Tower of David. Modern Israeli cuisine, grills, and an extensive wine list.",
     address: "1 King Solomon St, Jerusalem",
-    latitude: 31.7780, longitude: 35.2256,
+    latitude: 31.778, longitude: 35.2256,
     visitDurationMinutes: 90, openingHours: "Daily 12:30–16:00 and 18:30–23:00", isActive: true,
   },
   {
@@ -375,7 +375,7 @@ const newPois: SeedPoi[] = [
     category: "hiking_trail", region: "jerusalem", subRegion: "jerusalem_hills",
     description: "Peaceful pine forest walk to the Kennedy Memorial with panoramic views over the Jerusalem Hills and the valley toward Tel Aviv. Difficulty: Easy.",
     address: "Jerusalem Forest, Hadassah area",
-    latitude: 31.7700, longitude: 35.1200,
+    latitude: 31.77, longitude: 35.12,
     visitDurationMinutes: 90, openingHours: "Always open", isActive: true,
   },
   {
@@ -443,7 +443,7 @@ const newPois: SeedPoi[] = [
     category: "attraction", region: "jerusalem", subRegion: "jerusalem_city",
     description: "Israel's largest cultural institution. Home to the Dead Sea Scrolls in the Shrine of the Book, an outdoor scale model of ancient Jerusalem, and world-class art collections.",
     address: "Ruppin Blvd 11, Jerusalem",
-    latitude: 31.7730, longitude: 35.2037,
+    latitude: 31.773, longitude: 35.2037,
     visitDurationMinutes: 180, openingHours: "Mon–Wed, Sat 10:00–17:00; Thu 10:00–21:00; Fri 10:00–14:00", isActive: true,
   },
   {
@@ -459,7 +459,7 @@ const newPois: SeedPoi[] = [
     category: "attraction", region: "jerusalem", subRegion: "jerusalem_city",
     description: "Wade through an 8th-century BCE tunnel carved by King Hezekiah to secure Jerusalem's water supply. A unique underground adventure through 2,700 years of history.",
     address: "City of David, Silwan, Jerusalem",
-    latitude: 31.7740, longitude: 35.2360,
+    latitude: 31.774, longitude: 35.236,
     visitDurationMinutes: 120, openingHours: "Sun–Thu 08:00–18:00, Fri 08:00–15:00", isActive: true,
   },
   {
@@ -467,7 +467,7 @@ const newPois: SeedPoi[] = [
     category: "attraction", region: "jerusalem", subRegion: "judean_desert",
     description: "Site where the Dead Sea Scrolls were discovered in 1947. Ancient Essene settlement with archaeological excavations and stunning desert cliffs backdrop.",
     address: "Qumran National Park, near Dead Sea",
-    latitude: 31.7420, longitude: 35.4617,
+    latitude: 31.742, longitude: 35.4617,
     visitDurationMinutes: 90, openingHours: "Sat–Thu 08:00–17:00, Fri 08:00–16:00", isActive: true,
   },
   {
@@ -531,7 +531,7 @@ const newPois: SeedPoi[] = [
     category: "restaurant", region: "tel_aviv", subRegion: "tel_aviv_city",
     description: "Famed falafel spot off Dizengoff Square. Crispy on the outside, soft inside — served in fresh pita with a dozen salads. A Tel Aviv institution since 1967.",
     address: "Shlomo HaMelech 1, Tel Aviv",
-    latitude: 32.0760, longitude: 34.7748,
+    latitude: 32.076, longitude: 34.7748,
     visitDurationMinutes: 30, openingHours: "Sun–Thu 11:00–21:00, Fri 11:00–15:00", isActive: true,
   },
   {
@@ -539,7 +539,7 @@ const newPois: SeedPoi[] = [
     category: "restaurant", region: "tel_aviv", subRegion: "tel_aviv_city",
     description: "Award-winning Asian-fusion restaurant in Tel Aviv. Chef Moshe Segev blends Israeli, Chinese, and Vietnamese influences with locally sourced ingredients.",
     address: "Menachem Begin 23, Tel Aviv",
-    latitude: 32.0710, longitude: 34.7795,
+    latitude: 32.071, longitude: 34.7795,
     visitDurationMinutes: 120, openingHours: "Mon–Sat 12:00–15:00 and 18:30–23:00", isActive: true,
   },
   {
@@ -547,7 +547,7 @@ const newPois: SeedPoi[] = [
     category: "restaurant", region: "tel_aviv", subRegion: "tel_aviv_city",
     description: "Beloved seafood restaurant on Gordon Street. Israeli-Mediterranean fish dishes, raw bar, and a consistently superb wine selection.",
     address: "Gordon 182, Tel Aviv",
-    latitude: 32.0811, longitude: 34.7660,
+    latitude: 32.0811, longitude: 34.766,
     visitDurationMinutes: 90, openingHours: "Mon–Sat 12:30–23:00", isActive: true,
   },
   {
@@ -591,7 +591,7 @@ const newPois: SeedPoi[] = [
     category: "coffee_trail", region: "tel_aviv", subRegion: "tel_aviv_city",
     description: "Tel Aviv's specialty coffee pioneer on Balfour Street. Third-wave espresso, precise pour-overs, and rotating single-origin beans. The gold standard of Tel Aviv coffee.",
     address: "Balfour 36, Tel Aviv",
-    latitude: 32.0702, longitude: 34.7750,
+    latitude: 32.0702, longitude: 34.775,
     visitDurationMinutes: 45, openingHours: "Mon–Fri 07:30–18:00, Sat 09:00–18:00", isActive: true,
   },
   {
@@ -671,7 +671,7 @@ const newPois: SeedPoi[] = [
     category: "attraction", region: "tel_aviv", subRegion: "tel_aviv_city",
     description: "One of the world's oldest port cities. Winding stone alleyways, the artists' colony, stunning sea views, and a vibrant flea market. The ancient heart of Tel Aviv.",
     address: "Old Jaffa, Tel Aviv-Yafo",
-    latitude: 32.0555, longitude: 34.7520,
+    latitude: 32.0555, longitude: 34.752,
     visitDurationMinutes: 120, openingHours: "Always open", isActive: true,
   },
   {
@@ -687,7 +687,7 @@ const newPois: SeedPoi[] = [
     category: "attraction", region: "tel_aviv", subRegion: "tel_aviv_city",
     description: "UNESCO World Heritage Site — the largest concentration of International Style (Bauhaus) buildings in the world. Self-guided walk through 4,000 buildings from the 1930s.",
     address: "Dizengoff Square area, Tel Aviv",
-    latitude: 32.0766, longitude: 34.7740,
+    latitude: 32.0766, longitude: 34.774,
     visitDurationMinutes: 120, openingHours: "Always open", isActive: true,
   },
   {
@@ -767,7 +767,7 @@ const newPois: SeedPoi[] = [
     category: "restaurant", region: "negev", subRegion: "beer_sheva",
     description: "Authentic Bedouin hospitality in a goat-hair tent near Be'er Sheva. Traditional mansaf, stuffed lamb, fresh taboon bread baked on coals, and sweet tea.",
     address: "Near Tel Sheva, Beer Sheva region",
-    latitude: 31.2610, longitude: 34.8492,
+    latitude: 31.261, longitude: 34.8492,
     visitDurationMinutes: 120, openingHours: "Daily 10:00–21:00 (by reservation)", isActive: true,
   },
   {
@@ -803,7 +803,7 @@ const newPois: SeedPoi[] = [
     category: "coffee_trail", region: "negev", subRegion: "mitzpe_ramon",
     description: "קפה ספיישלטי על קצה מצוק בן גוריון שבשדה בוקר. נוף פנורמי אל ואדי צין ומדבר יהודה. מקום שבן גוריון עצמו היה אוהב.",
     address: "שדה בוקר, נגב",
-    latitude: 30.8756, longitude: 34.7980,
+    latitude: 30.8756, longitude: 34.798,
     visitDurationMinutes: 45, openingHours: "ג'–ו' 08:00–15:00, שבת 09:00–16:00", isActive: true,
   },
   {
@@ -871,7 +871,7 @@ const newPois: SeedPoi[] = [
     category: "hiking_trail", region: "negev", subRegion: "mitzpe_ramon",
     description: "Short trail from Ben Gurion's desert home to his grave on the edge of the Tzin Canyon. Stunning panorama and a moment of quiet reflection in the Negev.",
     address: "Sde Boker, Negev",
-    latitude: 30.8734, longitude: 34.7960,
+    latitude: 30.8734, longitude: 34.796,
     visitDurationMinutes: 90, openingHours: "Always open", isActive: true,
   },
 
@@ -995,7 +995,7 @@ const newPois: SeedPoi[] = [
     category: "coffee_trail", region: "jerusalem", subRegion: "jerusalem_hills",
     description: "עגלת קפה חמה במבשרת ציון, שער הרי ירושלים. קפה ספיישלטי עם נוף לעמק המצלבה ולירושלים. עצירה מושלמת בדרך ירושלים–תל אביב.",
     address: "מרכז מבשרת ציון",
-    latitude: 31.8100, longitude: 35.1550,
+    latitude: 31.81, longitude: 35.155,
     visitDurationMinutes: 30, openingHours: "א'–ו' 07:00–15:00", isActive: true,
   },
   {
@@ -1003,7 +1003,7 @@ const newPois: SeedPoi[] = [
     category: "coffee_trail", region: "jerusalem", subRegion: "jerusalem_hills",
     description: "עגלת קפה בוטיק בכפר עמינדב שבהרי ירושלים. קפה ספיישלטי עם נוף עמוק לצנחייה ולשפלה. מקום שהזמן עוצר בו.",
     address: "עמינדב, הרי ירושלים",
-    latitude: 31.7550, longitude: 35.0500,
+    latitude: 31.755, longitude: 35.05,
     visitDurationMinutes: 30, openingHours: "ו'–שבת 08:30–14:00", isActive: true,
   },
 
@@ -1015,7 +1015,7 @@ const newPois: SeedPoi[] = [
     category: "restaurant", region: "galilee", subRegion: "lower_galilee",
     description: "Elegant Arab restaurant in a restored Ottoman mansion in old Nazareth. Refined Palestinian cuisine — mansaf, warak dawali, and muqadam — in stunning surroundings.",
     address: "Old City, Nazareth",
-    latitude: 32.7020, longitude: 35.2973,
+    latitude: 32.702, longitude: 35.2973,
     visitDurationMinutes: 90, openingHours: "Daily 10:00–23:00", isActive: true,
   },
   {

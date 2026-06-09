@@ -11,7 +11,7 @@ interface LocationSelectorProps {
   onSelect: (poi: POI | null) => void;
 }
 
-function LocationSelector({ initialName, onSelect }: LocationSelectorProps) {
+function LocationSelector({ initialName, onSelect }: Readonly<LocationSelectorProps>) {
   const [query, setQuery] = useState(initialName ?? '');
   const [results, setResults] = useState<POI[]>([]);
   const [selected, setSelected] = useState<POI | null>(null);
