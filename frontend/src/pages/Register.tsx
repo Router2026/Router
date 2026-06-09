@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api, type AppStats, type Region } from '../api';
 import { roundToThousands } from '../utils/helper';
 
-function StrengthBar({ password }: { password: string }) {
-  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
+function StrengthBar({ password }: Readonly<{ password: string }>) {
+  const score = [/.{6,}/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
   const labels = ['', 'חלשה', 'בינונית', 'חזקה', 'מצוינת'];
   const colors = ['#e2e8f0', '#ef4444', '#f59e0b', '#0d9e6e', '#059669'];
   if (!password) return null;
@@ -23,7 +23,26 @@ function StrengthBar({ password }: { password: string }) {
   );
 }
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const USERNAME_RE = /^\w{3,20}$/;
+const noop = () => { /* intentional no-op */ };
+const ICON_BY_STATUS: Record<string, string> = { checking: '⏳', available: '✅', taken: '❌', invalid: '❌', idle: '❌' };
+
+type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
+
+function validateRegister(
+  fullName: string, username: string, usernameStatus: UsernameStatus,
+  email: string, password: string, confirm: string, agreedToTerms: boolean,
+): string | null {
+  if (!fullName.trim()) return 'אנא הכנס שם מלא';
+  if (!username || !USERNAME_RE.test(username)) return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
+  if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
+  if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
+  if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
+  if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
+  if (password !== confirm) return 'הסיסמאות אינן תואמות';
+  if (!agreedToTerms) return 'יש לאשר את מדיניות הפרטיות כדי להמשיך';
+  return null;
+}
 
 export default function Register() {
   const navigate = useNavigate();
@@ -40,13 +59,12 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [regions, setRegions] = useState<Region[]>([]);
   const [stats, setStats] = useState<AppStats | null>(null);
 
   useEffect(() => {
-    api.regions.list().then(setRegions).catch(() => { });
-    api.users.stats().then(setStats).catch(() => { });
+    api.regions.list().then(setRegions).catch(noop);
+    api.users.stats().then(setStats).catch(noop);
   }, []);
 
   const totalLocations = roundToThousands(stats?.total_locations) ?? 0;
@@ -56,33 +74,19 @@ export default function Register() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!username) { setUsernameStatus('idle'); return; }
-     
     if (!USERNAME_RE.test(username)) { setUsernameStatus('invalid'); return; }
     setUsernameStatus('checking');
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
+    const tid = setTimeout(async () => {
       try {
         const available = await api.auth.checkUsername(username);
         setUsernameStatus(available ? 'available' : 'taken');
       } catch { setUsernameStatus('idle'); }
     }, 500);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => clearTimeout(tid);
   }, [username]);
 
-  const validate = () => {
-    if (!fullName.trim()) return 'אנא הכנס שם מלא';
-    if (!username || !USERNAME_RE.test(username)) return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
-    if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
-    if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
-    if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
-    if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
-    if (password !== confirm) return 'הסיסמאות אינן תואמות';
-    if (!agreedToTerms) return 'יש לאשר את מדיניות הפרטיות כדי להמשיך';
-    return null;
-  };
-
   const handleSubmit = async () => {
-    const err = validate();
+    const err = validateRegister(fullName, username, usernameStatus, email, password, confirm, agreedToTerms);
     if (err) { setError(err); return; }
     setError(null);
     setLoading(true);
@@ -90,7 +94,7 @@ export default function Register() {
       await register(email.trim(), password, fullName.trim(), username.trim().toLowerCase());
       setSuccess(true);
     } catch (e) {
-      setError((e as Error).message);
+      setError((e instanceof Error ? e : new Error(String(e))).message);
       setLoading(false);
     }
   };
@@ -105,6 +109,7 @@ export default function Register() {
 
   const usernameColor = { idle: '#e2e8f0', checking: '#f59e0b', available: '#0d9e6e', taken: '#ef4444', invalid: '#ef4444' }[usernameStatus];
   const usernameHint = { idle: '', checking: 'בודק זמינות...', available: '✓ שם משתמש פנוי', taken: '✗ שם משתמש תפוס', invalid: '✗ 3-20 תווים: אנגלית, מספרים, _ בלבד' }[usernameStatus];
+  const usernameStatusIcon = ICON_BY_STATUS[usernameStatus];
 
   if (success) return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl', padding: 24 }}>
@@ -124,6 +129,10 @@ export default function Register() {
       </button>
     </div>
   );
+
+  let confirmBorderColor = '#e2e8f0';
+  if (confirm && confirm !== password) confirmBorderColor = '#ef4444';
+  else if (confirm && confirm === password) confirmBorderColor = '#0d9e6e';
 
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl' }}>
@@ -175,7 +184,7 @@ export default function Register() {
               />
               {usernameStatus !== 'idle' && (
                 <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>
-                  {usernameStatus === 'checking' ? '⏳' : usernameStatus === 'available' ? '✅' : '❌'}
+                  {usernameStatusIcon}
                 </div>
               )}
             </div>
@@ -219,16 +228,11 @@ export default function Register() {
           <div style={{ marginBottom: 20 }}>
             <label htmlFor="register-confirm" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'right', marginBottom: 6 }}>אימות סיסמה *</label>
             <div style={{ position: 'relative' }}>
-              {(() => {
-                const confirmBorderColor = confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0';
-                return (
-                  <input id="register-confirm" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
-                    type={showPass ? 'text' : 'password'}
-                    style={{ ...inputBase, paddingRight: 44, borderColor: confirmBorderColor }}
-                    onFocus={e => { if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e'; }}
-                    onBlur={e => { e.target.style.borderColor = confirmBorderColor; }} />
-                );
-              })()}
+              <input id="register-confirm" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
+                type={showPass ? 'text' : 'password'}
+                style={{ ...inputBase, paddingRight: 44, borderColor: confirmBorderColor }}
+                onFocus={e => { if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e'; }}
+                onBlur={e => { e.target.style.borderColor = confirmBorderColor; }} />
               {confirm && <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>{confirm === password ? '✅' : '❌'}</div>}
             </div>
             {confirm && confirm !== password && <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'right', marginTop: 4 }}>הסיסמאות אינן תואמות</div>}
@@ -242,7 +246,7 @@ export default function Register() {
               {agreedToTerms && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
             </button>
             <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
-              קראתי ואני מסכים/ה ל
+              <span>קראתי ואני מסכים/ה ל</span>
               <a href="/privacy.html" target="_blank" rel="noopener noreferrer"
                 style={{ color: '#0d9e6e', fontWeight: 700, textDecoration: 'underline' }}>
                 מדיניות הפרטיות

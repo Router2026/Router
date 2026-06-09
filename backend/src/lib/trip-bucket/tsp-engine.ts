@@ -81,45 +81,32 @@ export function buildHaversineMatrix(nodes: TspNode[]): DistanceMatrix {
 
 // ── Held-Karp DP TSP with fixed start ────────────────────────────────────────
 
-/**
- * Held-Karp with a FIXED start node (node 0 is the origin).
- * Permutes only nodes [1..n-1].
- */
-function heldKarpFixedStart(matrix: DistanceMatrix): number[] {
-  const n = matrix.length;
-  const INF = Number.MAX_SAFE_INTEGER / 2;
-  const m = n - 1; // number of POI nodes
-  const FULL = (1 << m) - 1;
-
-  const dp: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(INF));
-  const parent: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(-1));
-
+function applyTransFixed(
+  dp: number[][], parent: number[][], matrix: DistanceMatrix,
+  mask: number, u: number, n: number, INF: number,
+): void {
+  if (dp[mask][u] === INF) return;
   for (let v = 1; v < n; v++) {
-    dp[1 << (v - 1)][v] = matrix[0][v];
+    if (mask & (1 << (v - 1))) continue;
+    const nextMask = mask | (1 << (v - 1));
+    const cost = dp[mask][u] + matrix[u][v];
+    if (cost < dp[nextMask][v]) { dp[nextMask][v] = cost; parent[nextMask][v] = u; }
   }
+}
 
+function fillDpFixed(
+  dp: number[][], parent: number[][], matrix: DistanceMatrix,
+  n: number, FULL: number,
+): void {
   for (let mask = 1; mask <= FULL; mask++) {
     for (let u = 1; u < n; u++) {
       if (!(mask & (1 << (u - 1)))) continue;
-      if (dp[mask][u] === INF) continue;
-      for (let v = 1; v < n; v++) {
-        if (mask & (1 << (v - 1))) continue;
-        const nextMask = mask | (1 << (v - 1));
-        const cost = dp[mask][u] + matrix[u][v];
-        if (cost < dp[nextMask][v]) {
-          dp[nextMask][v] = cost;
-          parent[nextMask][v] = u;
-        }
-      }
+      applyTransFixed(dp, parent, matrix, mask, u, n, Number.MAX_SAFE_INTEGER / 2);
     }
   }
+}
 
-  let lastNode = 1;
-  let minCost = INF;
-  for (let u = 1; u < n; u++) {
-    if (dp[FULL][u] < minCost) { minCost = dp[FULL][u]; lastNode = u; }
-  }
-
+function reconstructFixed(parent: number[][], FULL: number, lastNode: number): number[] {
   const path: number[] = [];
   let mask = FULL;
   let cur = lastNode;
@@ -133,40 +120,67 @@ function heldKarpFixedStart(matrix: DistanceMatrix): number[] {
 }
 
 /**
+ * Held-Karp with a FIXED start node (node 0 is the origin).
+ * Permutes only nodes [1..n-1].
+ */
+function heldKarpFixedStart(matrix: DistanceMatrix): number[] {
+  const n = matrix.length;
+  const INF = Number.MAX_SAFE_INTEGER / 2;
+  const m = n - 1;
+  const FULL = (1 << m) - 1;
+  const dp: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(INF));
+  const parent: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(-1));
+  for (let v = 1; v < n; v++) dp[1 << (v - 1)][v] = matrix[0][v];
+  fillDpFixed(dp, parent, matrix, n, FULL);
+  let lastNode = 1;
+  let minCost = INF;
+  for (let u = 1; u < n; u++) {
+    if (dp[FULL][u] < minCost) { minCost = dp[FULL][u]; lastNode = u; }
+  }
+  return reconstructFixed(parent, FULL, lastNode);
+}
+
+function applyTransStandard(
+  dp: number[][], parent: number[][], matrix: DistanceMatrix,
+  mask: number, u: number, n: number, INF: number,
+): void {
+  if (dp[mask][u] === INF) return;
+  for (let v = 0; v < n; v++) {
+    if (mask & (1 << v)) continue;
+    const nextMask = mask | (1 << v);
+    const cost = dp[mask][u] + matrix[u][v];
+    if (cost < dp[nextMask][v]) { dp[nextMask][v] = cost; parent[nextMask][v] = u; }
+  }
+}
+
+function fillDpStandard(
+  dp: number[][], parent: number[][], matrix: DistanceMatrix,
+  n: number, FULL_MASK: number,
+): void {
+  for (let mask = 1; mask <= FULL_MASK; mask++) {
+    for (let u = 0; u < n; u++) {
+      if (!(mask & (1 << u))) continue;
+      applyTransStandard(dp, parent, matrix, mask, u, n, Number.MAX_SAFE_INTEGER / 2);
+    }
+  }
+}
+
+/**
  * Standard Held-Karp (no fixed start — finds globally optimal starting node).
  */
 function heldKarpStandard(matrix: DistanceMatrix): number[] {
   const n = matrix.length;
   const INF = Number.MAX_SAFE_INTEGER / 2;
   const FULL_MASK = (1 << n) - 1;
-
   const dp: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(INF));
   const parent: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(-1));
-
   dp[1][0] = 0;
-
-  for (let mask = 1; mask <= FULL_MASK; mask++) {
-    for (let u = 0; u < n; u++) {
-      if (!(mask & (1 << u))) continue;
-      if (dp[mask][u] === INF) continue;
-      for (let v = 0; v < n; v++) {
-        if (mask & (1 << v)) continue;
-        const nextMask = mask | (1 << v);
-        const cost = dp[mask][u] + matrix[u][v];
-        if (cost < dp[nextMask][v]) {
-          dp[nextMask][v] = cost;
-          parent[nextMask][v] = u;
-        }
-      }
-    }
-  }
-
+  fillDpStandard(dp, parent, matrix, n, FULL_MASK);
   let lastNode = 0;
   let minCost = INF;
   for (let u = 0; u < n; u++) {
     if (dp[FULL_MASK][u] < minCost) { minCost = dp[FULL_MASK][u]; lastNode = u; }
   }
-
   const path: number[] = [];
   let mask = FULL_MASK;
   let cur = lastNode;

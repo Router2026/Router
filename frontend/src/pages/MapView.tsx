@@ -149,7 +149,7 @@ type ClusterGroup = { pois: POI[]; lat: number; lng: number };
 
 function createSingleMarker(
   g: ClusterGroup,
-  onClickRef: React.MutableRefObject<(poi: POI) => void>,
+  onClickRef: { current: (poi: POI) => void },
 ): L.Marker {
   const marker = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
   marker.on('click', e => { L.DomEvent.stopPropagation(e); onClickRef.current(g.pois[0]); });
@@ -176,7 +176,7 @@ function syncMarkers(
   markerMap: Map<string, L.Marker>,
   map: L.Map,
   zoom: number,
-  onClickRef: React.MutableRefObject<(poi: POI) => void>,
+  onClickRef: { current: (poi: POI) => void },
 ): void {
   const nextKeys = new Set<string>();
 
@@ -404,7 +404,7 @@ export default function MapView() {
   const [accessible, setAccessible] = useState(false);
 
   const mapCenterRef = useRef<[number, number]>(
-    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0],
+    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35],
   );
   const urlWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (urlWriteTimerRef.current) clearTimeout(urlWriteTimerRef.current); }, []);
@@ -461,7 +461,7 @@ export default function MapView() {
   const resetView = useCallback(() => {
     setSelectedRegion(null);
     setMapZoom(7);
-    setPanTarget({ center: [31.5, 35.0], zoom: 7, id: Date.now() });
+    setPanTarget({ center: [31.5, 35], zoom: 7, id: Date.now() });
   }, []);
 
   const handleRegionClick = useCallback((region: Region) => {
@@ -511,8 +511,8 @@ export default function MapView() {
         hasWater={hasWater} setHasWater={setHasWater} hasShade={hasShade} setHasShade={setHasShade}
         accessible={accessible} setAccessible={setAccessible} />
 
-      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
-        maxBounds={[[29.0, 34.0], [33.8, 36.3]]} maxBoundsViscosity={0.85}
+      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
+        maxBounds={[[29, 34], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
@@ -528,7 +528,7 @@ export default function MapView() {
           if (!region.polygon_coords) return null;
           return (
             <Polygon key={region.id}
-              positions={region.polygon_coords as [number, number][]}
+              positions={region.polygon_coords}
               pathOptions={{ color: region.color, fillColor: region.color, fillOpacity: 0.15, weight: 2 }}
               eventHandlers={{ click: () => handleRegionClick(region) }}>
               <Tooltip permanent direction="center" opacity={1} className="region-label">{region.name}</Tooltip>
@@ -538,7 +538,7 @@ export default function MapView() {
 
         {selectedRegion?.polygon_coords && (
           <Polygon
-            positions={selectedRegion.polygon_coords as [number, number][]}
+            positions={selectedRegion.polygon_coords}
             pathOptions={{ color: selectedRegion.color, fillColor: selectedRegion.color, fillOpacity: 0.08, weight: 3, dashArray: '6,4' }}>
             <Tooltip permanent direction="center" opacity={1} className="region-label">{selectedRegion.name}</Tooltip>
           </Polygon>
