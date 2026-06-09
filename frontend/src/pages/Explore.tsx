@@ -270,15 +270,15 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
             <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
             <span style={{ fontWeight: 800, color: '#f59e0b', fontSize: 14 }}>{poi.average_rating}</span>
           </div>
-          <span style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a' }}>{poi.name}</span>
+          <span style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a', fontFamily: 'Heebo, sans-serif' }}>{poi.name}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#94a3b8' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-            <span style={{ fontSize: 12 }}>{poi.region}</span>
+            <span style={{ fontSize: 12 ,fontFamily: 'Heebo, sans-serif'}}>{poi.region}</span>
           </div>
           {poi.distance_meters !== undefined && (
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#0d9e6e', background: '#f0fdf4', borderRadius: 8, padding: '2px 8px', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#0d9e6e', background: '#f0fdf4', borderRadius: 8, padding: '2px 8px', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 3,  }}>
               📍 {formatDistance(poi.distance_meters)}
             </span>
           )}
