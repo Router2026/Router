@@ -59,9 +59,9 @@ function MapPickerEvents({ onChange }: Readonly<{ onChange: (lat: number, lng: n
 function MapPicker({ lat, lng, onChange }: Readonly<{ lat: number; lng: number; onChange: (lat: number, lng: number) => void }>) {
   return (
     <div style={{ height: 200, borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', marginBottom: 8 }}>
-      <MapContainer center={[lat || 31.5, lng || 35]} zoom={12} style={{ height: '100%', width: '100%' }}>
+      <MapContainer center={[lat || 31.5, lng || 35.0]} zoom={12} style={{ height: '100%', width: '100%' }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {lat && lng ? <Marker position={[lat, lng]} /> : null}
+        {!!(lat && lng) && <Marker position={[lat, lng]} />}
         <MapPickerEvents onChange={onChange} />
       </MapContainer>
     </div>
@@ -81,7 +81,7 @@ export interface OwnerPlaceEditModalProps {
   onSaved: (updatedPoi: POI, pendingReview: boolean) => void;
 }
 
-export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSaved }: Readonly<OwnerPlaceEditModalProps>) {
+export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSaved }: OwnerPlaceEditModalProps) {
   const [section, setSection] = useState<Section>('details');
 
   // Text fields
@@ -130,7 +130,9 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
 
   const handleSave = async () => {
     if (!name.trim()) { setError('יש להזין שם'); return; }
-    if (locationChanged && !locationWarningAccepted) {
+    if (!locationChanged || locationWarningAccepted) {
+      // location is unchanged or warning accepted — proceed
+    } else {
       setError('יש לאשר את אזהרת שינוי המיקום לפני השמירה');
       setSection('location');
       return;
@@ -319,7 +321,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
                   {photos.map((url, i) => (
-                    <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
+                    <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
                       <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       <button onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))}
                         style={{ position: 'absolute', top: 4, left: 4, width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -409,11 +411,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
             cursor: saving || success ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif',
             boxShadow: '0 4px 14px rgba(13,158,110,0.28)',
           }}>
-            {(() => {
-              if (saving) return '⏳ שומר...';
-              if (success) return '✅ נשמר!';
-              return '💾 שמור שינויים';
-            })()}
+            {saving ? '⏳ שומר...' : success ? '✅ נשמר!' : '💾 שמור שינויים'}
           </button>
         </div>
       </div>
@@ -430,6 +428,6 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-function Label({ children }: Readonly<{ children: React.ReactNode }>) {
+function Label({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 5 }}>{children}</div>;
 }

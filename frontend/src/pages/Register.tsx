@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { api, type AppStats, type Region } from '../api';
 import { roundToThousands } from '../utils/helper';
 
-function StrengthBar({ password }: Readonly<{ password: string }>) {
-  const score = [/.{6,}/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
+function StrengthBar({ password }: { password: string }) {
+  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
   const labels = ['', 'חלשה', 'בינונית', 'חזקה', 'מצוינת'];
   const colors = ['#e2e8f0', '#ef4444', '#f59e0b', '#0d9e6e', '#059669'];
   if (!password) return null;
@@ -23,27 +23,7 @@ function StrengthBar({ password }: Readonly<{ password: string }>) {
   );
 }
 
-const USERNAME_RE = /^\w{3,20}$/;
-
-function validateRegistration(
-  fullName: string,
-  username: string,
-  usernameStatus: string,
-  email: string,
-  password: string,
-  confirm: string,
-  agreedToTerms: boolean,
-): string | null {
-  if (!fullName.trim()) return 'אנא הכנס שם מלא';
-  if (!username || !USERNAME_RE.test(username)) return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
-  if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
-  if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
-  if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
-  if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
-  if (password !== confirm) return 'הסיסמאות אינן תואמות';
-  if (!agreedToTerms) return 'יש לאשר את מדיניות הפרטיות כדי להמשיך';
-  return null;
-}
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 export default function Register() {
   const navigate = useNavigate();
@@ -89,8 +69,20 @@ export default function Register() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [username]);
 
+  const validate = () => {
+    if (!fullName.trim()) return 'אנא הכנס שם מלא';
+    if (!username || !USERNAME_RE.test(username)) return 'שם משתמש לא תקין (3-20 תווים, אנגלית/מספרים/_)';
+    if (usernameStatus === 'taken') return 'שם המשתמש תפוס';
+    if (usernameStatus === 'checking') return 'ממתין לבדיקת שם משתמש...';
+    if (!email.trim() || !email.includes('@')) return 'אנא הכנס כתובת אימייל תקינה';
+    if (password.length < 6) return 'הסיסמה חייבת להכיל לפחות 6 תווים';
+    if (password !== confirm) return 'הסיסמאות אינן תואמות';
+    if (!agreedToTerms) return 'יש לאשר את מדיניות הפרטיות כדי להמשיך';
+    return null;
+  };
+
   const handleSubmit = async () => {
-    const err = validateRegistration(fullName, username, usernameStatus, email, password, confirm, agreedToTerms);
+    const err = validate();
     if (err) { setError(err); return; }
     setError(null);
     setLoading(true);
@@ -183,9 +175,7 @@ export default function Register() {
               />
               {usernameStatus !== 'idle' && (
                 <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>
-                  {usernameStatus === 'checking' && '⏳'}
-                  {usernameStatus === 'available' && '✅'}
-                  {usernameStatus !== 'checking' && usernameStatus !== 'available' && '❌'}
+                  {usernameStatus === 'checking' ? '⏳' : usernameStatus === 'available' ? '✅' : '❌'}
                 </div>
               )}
             </div>
@@ -252,7 +242,7 @@ export default function Register() {
               {agreedToTerms && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
             </button>
             <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
-              <span>קראתי ואני מסכים/ה ל</span>
+              קראתי ואני מסכים/ה ל
               <a href="/privacy.html" target="_blank" rel="noopener noreferrer"
                 style={{ color: '#0d9e6e', fontWeight: 700, textDecoration: 'underline' }}>
                 מדיניות הפרטיות

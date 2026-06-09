@@ -37,23 +37,23 @@ const MAX_FILE_MB = 50;
 const extractLatLngFromGoogle = (input: string): LatLng | null => {
   const s = input.trim();
 
-  const rawCoord = s.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
+  const rawCoord = /^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/.exec(s);
   if (rawCoord) {
     const lat = Number.parseFloat(rawCoord[1]);
     const lng = Number.parseFloat(rawCoord[2]);
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
   }
 
-  const atCoord = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const atCoord = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
   if (atCoord) return { lat: Number.parseFloat(atCoord[1]), lng: Number.parseFloat(atCoord[2]) };
 
-  const embCoord = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  const embCoord = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/.exec(s);
   if (embCoord) return { lat: Number.parseFloat(embCoord[1]), lng: Number.parseFloat(embCoord[2]) };
 
-  const qParam = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const qParam = /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
   if (qParam) return { lat: Number.parseFloat(qParam[1]), lng: Number.parseFloat(qParam[2]) };
 
-  const llParam = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const llParam = /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
   if (llParam) return { lat: Number.parseFloat(llParam[1]), lng: Number.parseFloat(llParam[2]) };
 
   return null;
@@ -169,9 +169,9 @@ function PickedMarker({ position }: { position: LatLng }) {
   return <Marker position={[position.lat, position.lng]} icon={icon} />;
 }
 
-// ── Submit helpers ────────────────────────────────────────────────────────────
+// ── Submit helpers (module level to reduce cognitive complexity) ─────────────
 
-async function uploadFileItems(fileItems: MediaItem[], token: string | null, apiBase: string): Promise<string[]> {
+async function uploadMediaFiles(fileItems: MediaItem[], token: string | null, apiBase: string): Promise<string[]> {
   const results = await Promise.allSettled(
     fileItems.map(async (item) => {
       const base64 = await fileToBase64(item.file!);
@@ -189,7 +189,7 @@ async function uploadFileItems(fileItems: MediaItem[], token: string | null, api
       }
       const json = await res.json();
       const publicUrl: string = json?.data?.url;
-      if (!publicUrl) { throw new Error('No URL returned from upload API'); }
+      if (!publicUrl) throw new Error('No URL returned from upload API');
       return publicUrl;
     })
   );
@@ -198,22 +198,14 @@ async function uploadFileItems(fileItems: MediaItem[], token: string | null, api
     .map(r => r.value);
 }
 
-interface PoiSubmitPayload {
-  name: string;
-  category: string;
-  description: string;
-  latitude: number;
-  longitude: number;
-  photos: string[];
-  difficulty: string;
-  durationMinutes: string;
-  hasWater: boolean;
-  hasShade: boolean;
-  accessible: boolean;
-  photoCredit: string;
+interface PoiSubmitData {
+  name: string; category: string; description: string;
+  lat: number; lng: number; photos: string[];
+  difficulty: string; durationMinutes: string;
+  hasWater: boolean; hasShade: boolean; accessible: boolean; photoCredit: string;
 }
 
-async function postCommunityPoi(payload: PoiSubmitPayload, token: string | null, apiBase: string): Promise<void> {
+async function submitCommunityPoi(data: PoiSubmitData, token: string | null, apiBase: string): Promise<void> {
   const res = await fetch(`${apiBase}/api/community-pois`, {
     method: 'POST',
     headers: {
@@ -221,18 +213,18 @@ async function postCommunityPoi(payload: PoiSubmitPayload, token: string | null,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
-      name: payload.name.trim(),
-      category: payload.category,
-      description: payload.description.trim() || undefined,
-      latitude: payload.latitude,
-      longitude: payload.longitude,
-      photos: payload.photos,
-      difficulty: payload.difficulty,
-      duration_minutes: payload.durationMinutes ? Number.parseInt(payload.durationMinutes, 10) : undefined,
-      has_water: payload.hasWater,
-      has_shade: payload.hasShade,
-      accessible: payload.accessible,
-      photo_credit: payload.photoCredit.trim() || undefined,
+      name: data.name.trim(),
+      category: data.category,
+      description: data.description.trim() || undefined,
+      latitude: data.lat,
+      longitude: data.lng,
+      photos: data.photos,
+      difficulty: data.difficulty,
+      duration_minutes: data.durationMinutes ? Number.parseInt(data.durationMinutes, 10) : undefined,
+      has_water: data.hasWater,
+      has_shade: data.hasShade,
+      accessible: data.accessible,
+      photo_credit: data.photoCredit.trim() || undefined,
     }),
   });
   if (!res.ok) {
@@ -406,19 +398,19 @@ export default function ContributePOI() {
       const token = localStorage.getItem('router_auth_token');
       const apiBase = (import.meta.env.VITE_API_URL ?? '');
 
-      const uploadedUrls = await uploadFileItems(fileItems, token, apiBase);
+      const uploadedUrls = await uploadMediaFiles(fileItems, token, apiBase);
       const photos: string[] = [...urlItems, ...uploadedUrls];
 
-      await postCommunityPoi({
+      await submitCommunityPoi({
         name, category, description,
-        latitude: pickedPoint.lat, longitude: pickedPoint.lng,
+        lat: pickedPoint.lat, lng: pickedPoint.lng,
         photos, difficulty, durationMinutes,
         hasWater, hasShade, accessible, photoCredit,
       }, token, apiBase);
 
       setSubmitted(true);
     } catch (err) {
-      setError((err as Error).message ?? 'אירעה שגיאה בשמירה');
+      setError((err instanceof Error ? err : new Error(String(err))).message ?? 'אירעה שגיאה בשמירה');
     } finally {
       setSubmitting(false);
     }

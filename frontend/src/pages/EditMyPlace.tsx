@@ -2,7 +2,7 @@
 // Allows the authenticated owner of a community POI to edit its details and photos.
 // Approved POIs use ownerEdit (immediate save). Pending/rejected use update (re-submitted for review).
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, type CommunityPoiSubmission } from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -12,90 +12,7 @@ const DIFFICULTIES = ['קל - משפחות', 'קל', 'בינוני', 'קשה', '
 
 // ── Status badge helper ──────────────────────────────────────────────────────
 
-// ── Toggle helper (module level to reduce complexity) ────────────────────────
-
-type ToggleField = 'hasWater' | 'hasShade' | 'accessible';
-
-interface ToggleState {
-  hasWater: boolean | null;
-  setHasWater: (v: boolean | null) => void;
-  hasShade: boolean | null;
-  setHasShade: (v: boolean | null) => void;
-  accessible: boolean | null;
-  setAccessible: (v: boolean | null) => void;
-}
-
-function getToggleNextVal(val: boolean | null): boolean | null {
-  if (val === null) return false;
-  if (val === false) return true;
-  return null;
-}
-
-function getToggleTitle(val: boolean | null): string {
-  if (val === null) return 'לא ידוע';
-  return val ? 'כן' : 'לא';
-}
-
-function getToggleBorderColor(val: boolean | null): string {
-  if (val === true) return '#0d9e6e';
-  if (val === false) return '#ef4444';
-  return '#e2e8f0';
-}
-
-function getToggleBg(val: boolean | null): string {
-  if (val === true) return '#f0fdf4';
-  if (val === false) return '#fef2f2';
-  return '#fff';
-}
-
-function getToggleColor(val: boolean | null): string {
-  if (val === true) return '#0d9e6e';
-  if (val === false) return '#ef4444';
-  return '#94a3b8';
-}
-
-function getToggleIcon(val: boolean | null): string {
-  if (val === true) return '✓';
-  if (val === false) return '✗';
-  return '?';
-}
-
-const TOGGLE_FIELDS: { key: ToggleField; label: string }[] = [
-  { key: 'hasWater', label: '💧 יש מים' },
-  { key: 'hasShade', label: '🌳 יש צל' },
-  { key: 'accessible', label: '♿ נגיש' },
-];
-
-function renderToggles(state: ToggleState): React.ReactNode {
-  return TOGGLE_FIELDS.map(({ key, label }) => {
-    const setters: Record<ToggleField, (v: boolean | null) => void> = {
-      hasWater: state.setHasWater,
-      hasShade: state.setHasShade,
-      accessible: state.setAccessible,
-    };
-    const val = state[key];
-    const set = setters[key];
-    const nextVal = getToggleNextVal(val);
-    return (
-      <button
-        key={key}
-        onClick={() => set(nextVal)}
-        title={getToggleTitle(val)}
-        style={{
-          padding: '8px 14px', borderRadius: 20, border: '1.5px solid',
-          borderColor: getToggleBorderColor(val),
-          background: getToggleBg(val),
-          color: getToggleColor(val),
-          fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13,
-          cursor: 'pointer',
-        }}>
-        {label} {getToggleIcon(val)}
-      </button>
-    );
-  });
-}
-
-function StatusBadge({ status }: Readonly<{ status: string }>) {
+function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { bg: string; color: string; label: string }> = {
     pending:  { bg: '#fef3c7', color: '#d97706', label: '⏳ ממתין לאישור' },
     approved: { bg: '#dcfce7', color: '#16a34a', label: '✅ מאושר' },
@@ -147,22 +64,22 @@ export default function EditMyPlace() {
     api.communityPois.get(Number.parseInt(id))
       .then(p => {
         // Authorization guard: only owner may access this page
-        if (p.user_id !== null && String(p.user_id) !== String(user.id)) {
+        if (p.user_id === null || String(p.user_id) === String(user.id)) {
+          setPoi(p);
+          setName(p.name);
+          setCategory(p.category);
+          setDescription(p.description ?? '');
+          setDifficulty(p.difficulty ?? '');
+          setDurationMinutes(p.duration_minutes != null ? String(p.duration_minutes) : '');
+          setHasWater(p.has_water ?? null);
+          setHasShade(p.has_shade ?? null);
+          setAccessible(p.accessible ?? null);
+          setPhotoCredit(p.photo_credit ?? '');
+          setPhotos(p.photos ?? []);
+        } else {
           setError('אין לך הרשאה לערוך מיקום זה');
           setLoading(false);
-          return;
         }
-        setPoi(p);
-        setName(p.name);
-        setCategory(p.category);
-        setDescription(p.description ?? '');
-        setDifficulty(p.difficulty ?? '');
-        setDurationMinutes(p.duration_minutes != null ? String(p.duration_minutes) : '');
-        setHasWater(p.has_water ?? null);
-        setHasShade(p.has_shade ?? null);
-        setAccessible(p.accessible ?? null);
-        setPhotoCredit(p.photo_credit ?? '');
-        setPhotos(p.photos ?? []);
       })
       .catch(() => setError('לא ניתן לטעון את המיקום'))
       .finally(() => setLoading(false));
@@ -357,7 +274,26 @@ export default function EditMyPlace() {
           {/* Toggles */}
           <Label>מאפיינים</Label>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
-            {renderToggles({ hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible })}
+            {([
+              { key: 'hasWater', label: '💧 יש מים', val: hasWater, set: setHasWater },
+              { key: 'hasShade', label: '🌳 יש צל', val: hasShade, set: setHasShade },
+              { key: 'accessible', label: '♿ נגיש', val: accessible, set: setAccessible },
+            ] as const).map(({ key, label, val, set }) => (
+              <button
+                key={key}
+                onClick={() => set(val === true ? null : val === false ? true : false)}
+                    title={val === null ? 'לא ידוע' : val ? 'כן' : 'לא'}
+                style={{
+                  padding: '8px 14px', borderRadius: 20, border: '1.5px solid',
+                  borderColor: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#e2e8f0',
+                  background: val === true ? '#f0fdf4' : val === false ? '#fef2f2' : '#fff',
+                  color: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#94a3b8',
+                  fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13,
+                  cursor: 'pointer',
+                }}>
+                {label} {val === true ? '✓' : val === false ? '✗' : '?'}
+              </button>
+            ))}
           </div>
 
           <Label>קרדיט לצלם</Label>
@@ -400,7 +336,7 @@ export default function EditMyPlace() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {photos.map((url, i) => (
-                <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
+                <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: '#f1f5f9' }}>
                   <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <button
                       onClick={() => removePhoto(i)}
@@ -425,17 +361,22 @@ export default function EditMyPlace() {
 
         {/* ── Actions ── */}
         <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={handleSave}
-              disabled={saving || success}
-              style={{
-                flex: 1, padding: '15px 0', border: 'none', borderRadius: 16,
-                background: saving || success ? '#a7f3d0' : 'linear-gradient(135deg,#0d9e6e,#0bba7e)',
-                color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer',
-                fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
-              }}>
-              {saving ? '⏳ שומר...' : success ? '✅ נשמר!' : '💾 שמור שינויים'}
-            </button>
+            {(() => {
+              const saveLabel = saving ? '⏳ שומר...' : success ? '✅ נשמר!' : '💾 שמור שינויים';
+              return (
+                <button
+                  onClick={handleSave}
+                  disabled={saving || success}
+                  style={{
+                    flex: 1, padding: '15px 0', border: 'none', borderRadius: 16,
+                    background: saving || success ? '#a7f3d0' : 'linear-gradient(135deg,#0d9e6e,#0bba7e)',
+                    color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer',
+                    fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
+                  }}>
+                  {saveLabel}
+                </button>
+              );
+            })()}
           </div>
       </div>
     </div>
@@ -471,7 +412,7 @@ function input(disabled: boolean): React.CSSProperties {
   };
 }
 
-function Label({ children }: Readonly<{ children: React.ReactNode }>) {
+function Label({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
       {children}
@@ -479,7 +420,7 @@ function Label({ children }: Readonly<{ children: React.ReactNode }>) {
   );
 }
 
-function Spinner({ label }: Readonly<{ label: string }>) {
+function Spinner({ label }: { label: string }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', fontFamily: 'Heebo, sans-serif' }}>
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>

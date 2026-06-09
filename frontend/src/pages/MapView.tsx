@@ -11,7 +11,7 @@
 //     Faster global CDN, correct subdomains (a/b/c/d), crossOrigin for caching.
 //  5. useMemo for client-side filter + categories derivation.
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -106,9 +106,17 @@ function makeClusterIcon(count: number, color: string, size = 48): L.DivIcon {
 
 // ── Clustering ────────────────────────────────────────────────────────────────
 
+function resolveGridSizeDeg(zoom: number): number {
+  if (zoom < 7) return 1.5;
+  if (zoom < 9) return 0.8;
+  if (zoom < 11) return 0.3;
+  if (zoom < 13) return 0.1;
+  return 0.05;
+}
+
 function clusterPOIs(pois: POI[], zoom: number) {
   if (zoom >= 13) return pois.map(poi => ({ pois: [poi], lat: poi.latitude, lng: poi.longitude }));
-  const gridSizeDeg = zoom < 7 ? 1.5 : zoom < 9 ? 0.8 : zoom < 11 ? 0.3 : zoom < 13 ? 0.1 : 0.05;
+  const gridSizeDeg = resolveGridSizeDeg(zoom);
   const cells = new Map<string, POI[]>();
   for (const poi of pois) {
     const key = `${Math.floor(poi.latitude / gridSizeDeg)},${Math.floor(poi.longitude / gridSizeDeg)}`;
@@ -131,6 +139,67 @@ interface MarkersLayerProps {
   zoom: number;
 }
 
+function resolveClusterSize(count: number): number {
+  if (count > 50) return 60;
+  if (count > 10) return 52;
+  return 44;
+}
+
+type ClusterGroup = { pois: POI[]; lat: number; lng: number };
+
+function createSingleMarker(
+  g: ClusterGroup,
+  onClickRef: React.MutableRefObject<(poi: POI) => void>,
+): L.Marker {
+  const marker = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
+  marker.on('click', e => { L.DomEvent.stopPropagation(e); onClickRef.current(g.pois[0]); });
+  return marker;
+}
+
+function createClusterMarker(
+  g: ClusterGroup,
+  map: L.Map,
+  zoom: number,
+): L.Marker {
+  const color = CAT_COLOR[g.pois[0].category] || '#0d9e6e';
+  const size = resolveClusterSize(g.pois.length);
+  const marker = L.marker([g.lat, g.lng], { icon: makeClusterIcon(g.pois.length, color, size) });
+  marker.on('click', e => {
+    L.DomEvent.stopPropagation(e);
+    map.setView([g.lat, g.lng], Math.min(zoom + 2, 14), { animate: true });
+  });
+  return marker;
+}
+
+function syncMarkers(
+  groups: ClusterGroup[],
+  markerMap: Map<string, L.Marker>,
+  map: L.Map,
+  zoom: number,
+  onClickRef: React.MutableRefObject<(poi: POI) => void>,
+): void {
+  const nextKeys = new Set<string>();
+
+  for (const g of groups) {
+    const key = g.pois.map(p => p.id).sort((a, b) => a - b).join(',');
+    nextKeys.add(key);
+    if (markerMap.has(key)) continue;
+
+    const marker = g.pois.length === 1
+      ? createSingleMarker(g, onClickRef)
+      : createClusterMarker(g, map, zoom);
+    marker.addTo(map);
+    markerMap.set(key, marker);
+  }
+
+  for (const [key, marker] of markerMap) {
+    if (!nextKeys.has(key)) {
+      marker.remove();
+      markerMap.delete(key);
+    }
+  }
+}
+
 function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerProps) {
   const map = useMap();
   const markerMapRef = useRef<Map<string, L.Marker>>(new Map());
@@ -140,36 +209,7 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
   const groups = useMemo(() => clusterPOIs(pois, zoom), [pois, zoom]);
 
   useEffect(() => {
-    const nextKeys = new Set<string>();
-
-    for (const g of groups) {
-      const key = g.pois.map(p => p.id).sort((a, b) => a - b).join(',');
-      nextKeys.add(key);
-      if (markerMapRef.current.has(key)) continue;
-
-      let marker: L.Marker;
-      if (g.pois.length === 1) {
-        marker = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
-        marker.on('click', e => { L.DomEvent.stopPropagation(e); onClickRef.current(g.pois[0]); });
-      } else {
-        const color = CAT_COLOR[g.pois[0].category] || '#0d9e6e';
-        const size = g.pois.length > 50 ? 60 : g.pois.length > 10 ? 52 : 44;
-        marker = L.marker([g.lat, g.lng], { icon: makeClusterIcon(g.pois.length, color, size) });
-        marker.on('click', e => {
-          L.DomEvent.stopPropagation(e);
-          map.setView([g.lat, g.lng], Math.min(zoom + 2, 14), { animate: true });
-        });
-      }
-      marker.addTo(map);
-      markerMapRef.current.set(key, marker);
-    }
-
-    for (const [key, marker] of markerMapRef.current) {
-      if (!nextKeys.has(key)) {
-        marker.remove();
-        markerMapRef.current.delete(key);
-      }
-    }
+    syncMarkers(groups, markerMapRef.current, map, zoom, onClickRef);
   }, [groups, map, zoom]);
 
   useEffect(() => () => {
@@ -223,7 +263,7 @@ interface OverlayFilterProps {
   accessible: boolean; setAccessible: (v: boolean) => void;
 }
 
-function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiffs, setSelDiffs, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible }: OverlayFilterProps) {
+function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiffs, setSelDiffs, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible }: Readonly<OverlayFilterProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open && containerRef.current) {
@@ -284,13 +324,18 @@ interface PoiPopupCardProps {
 }
 
 function PoiPopupCard({ poi, inBucket, onClose, onNavigate, onToggleBucket }: Readonly<PoiPopupCardProps>) {
+  const bucketTopBg = inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)';
+  const bucketTopShadow = inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : '0 2px 8px rgba(0,0,0,0.1)';
+  const bucketBottomBorder = inBucket ? '#0d9e6e' : '#f1f5f9';
+  const bucketBottomBg = inBucket ? '#f0fdf8' : '#f8fafc';
+  const bucketBottomColor = inBucket ? '#0d9e6e' : '#64748b';
   return (
     <div style={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 1200, width: 330, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden', direction: 'rtl' }}>
       <button onClick={onClose} style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
       <button onClick={onToggleBucket}
-        style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : '0 2px 8px rgba(0,0,0,0.1)', transition: 'all 0.18s ease' }}>
+        style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: bucketTopBg, border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: bucketTopShadow, transition: 'all 0.18s ease' }}>
         {inBucket
           ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -327,54 +372,10 @@ function PoiPopupCard({ poi, inBucket, onClose, onNavigate, onToggleBucket }: Re
           </a>
         </div>
         <button onClick={onToggleBucket}
-          style={{ width: '100%', padding: '10px', border: `2px solid ${inBucket ? '#0d9e6e' : '#f1f5f9'}`, borderRadius: 12, background: inBucket ? '#f0fdf8' : '#f8fafc', color: inBucket ? '#0d9e6e' : '#64748b', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
+          style={{ width: '100%', padding: '10px', border: `2px solid ${bucketBottomBorder}`, borderRadius: 12, background: bucketBottomBg, color: bucketBottomColor, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
           {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
         </button>
       </div>
-    </div>
-  );
-}
-
-// ── Map top bar ───────────────────────────────────────────────────────────────
-
-interface MapTopBarProps {
-  isError: boolean;
-  isLoading: boolean;
-  selectedRegion: Region | null;
-  pois: POI[];
-  activeFilterCount: number;
-  onToggleFilter: () => void;
-  onResetView: () => void;
-}
-
-function MapTopBar({ isError, isLoading, selectedRegion, pois, activeFilterCount, onToggleFilter, onResetView }: Readonly<MapTopBarProps>) {
-  return (
-    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1100, background: '#fff', padding: 'calc(var(--safe-top) + 12px) 20px 10px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', direction: 'rtl', display: 'flex', alignItems: 'center', gap: 12 }}>
-      {isError && <div style={{ width: '100%', textAlign: 'center', color: '#dc2626', fontSize: 13, fontWeight: 700 }}>שגיאה בטעינת אזורים</div>}
-      {!isError && selectedRegion ? (
-        <>
-          <div style={{ width: 12, height: 12, borderRadius: '50%', background: selectedRegion.color, flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{selectedRegion.name}</div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
-              {isLoading ? 'טוען...' : `${pois.length} אתרים`}
-              {activeFilterCount > 0 ? ` (${activeFilterCount} פילטרים)` : ''}
-            </div>
-          </div>
-          <button onClick={onToggleFilter} style={{ background: activeFilterCount > 0 ? '#0d9e6e' : '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: activeFilterCount > 0 ? '#fff' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600, position: 'relative' }}>
-            {activeFilterCount > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>}
-            סינון
-          </button>
-          <button onClick={onResetView} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
-            ← כל האזורים
-          </button>
-        </>
-      ) : !isError && (
-        <div style={{ width: '100%', textAlign: 'center' }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>בחר אזור לצפייה באתרים</div>
-          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>לחץ על אזור במפה או בתפריט התחתון</div>
-        </div>
-      )}
     </div>
   );
 }
@@ -477,15 +478,33 @@ export default function MapView() {
   return (
     <div style={{ position: 'relative', width: '100%', height: 'calc(100dvh - 72px - var(--safe-top))', overflow: 'hidden', direction: 'rtl' }}>
       {/* Top bar */}
-      <MapTopBar
-        isError={isError}
-        isLoading={isLoading}
-        selectedRegion={selectedRegion}
-        pois={pois}
-        activeFilterCount={activeFilterCount}
-        onToggleFilter={() => setFilterOpen(!filterOpen)}
-        onResetView={resetView}
-      />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1100, background: '#fff', padding: 'calc(var(--safe-top) + 12px) 20px 10px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', direction: 'rtl', display: 'flex', alignItems: 'center', gap: 12 }}>
+        {isError && <div style={{ width: '100%', textAlign: 'center', color: '#dc2626', fontSize: 13, fontWeight: 700 }}>שגיאה בטעינת אזורים</div>}
+        {!isError && selectedRegion ? (
+          <>
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: selectedRegion.color, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{selectedRegion.name}</div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
+                {isLoading ? 'טוען...' : `${pois.length} אתרים`}
+                {activeFilterCount > 0 ? ` (${activeFilterCount} פילטרים)` : ''}
+              </div>
+            </div>
+            <button onClick={() => setFilterOpen(!filterOpen)} style={{ background: activeFilterCount > 0 ? '#0d9e6e' : '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: activeFilterCount > 0 ? '#fff' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600, position: 'relative' }}>
+              {activeFilterCount > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>}
+              סינון
+            </button>
+            <button onClick={resetView} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
+              ← כל האזורים
+            </button>
+          </>
+        ) : !isError && (
+          <div style={{ width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>בחר אזור לצפייה באתרים</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>לחץ על אזור במפה או בתפריט התחתון</div>
+          </div>
+        )}
+      </div>
 
       <OverlayFilter open={filterOpen} onClose={() => setFilterOpen(false)} categories={categories}
         selCats={selCats} setSelCats={setSelCats} selDiffs={selDiffs} setSelDiffs={setSelDiffs}

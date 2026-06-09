@@ -30,27 +30,42 @@ const GROUP_ICON: Record<string, string> = {
   יחיד: '🚶', זוג: '👫', משפחה: '👨‍👩‍👧‍👦', חברים: '👥',
 };
 
-function FitBounds({ points }: { points: [number, number][] }) {
+function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
   const map = useMap();
   useEffect(() => {
-    if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.2));
-    else if (points.length === 1) map.setView(points[0], 13);
+    // S2681: add curly braces to multi-line if/else if block
+    if (points.length > 1) {
+      map.fitBounds(L.latLngBounds(points).pad(0.2));
+    } else if (points.length === 1) {
+      map.setView(points[0], 13);
+    }
   }, [points, map]);
   return null;
 }
 
-function StopMarker({ loc, index }: { loc: any; index: number }) {
+// S7780: String.raw avoids the need for escaped backslashes in the onerror handler
+function buildStopMarkerHtml(loc: any, index: number): string {
+  if (loc.main_image) {
+    const fallbackStyle = String.raw`width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:900`;
+    return `<div style="position:relative;width:48px;height:48px;border-radius:12px;overflow:hidden;border:3px solid #0d9e6e;box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
+        <img src="${loc.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'${fallbackStyle}\\'>${index + 1}</div>'"/>
+        <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));color:#fff;font-size:9px;font-weight:800;padding:4px;text-align:center;font-family:Heebo,Arial;">${index + 1}</div>
+      </div>`;
+  }
+  return `<div style="width:36px;height:36px;border-radius:12px;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 3px 10px rgba(0,0,0,0.3);font-family:Heebo,Arial;">${index + 1}</div>`;
+}
+
+// S6759: wrap props with Readonly<{...}>
+function StopMarker({ loc, index }: Readonly<{ loc: any; index: number }>) {
   const map = useMap();
+  // S3358: extract nested ternary values into named variables
+  const iconSize: [number, number] = loc.main_image ? [48, 48] : [36, 36];
+  const iconAnchor: [number, number] = loc.main_image ? [24, 24] : [18, 18];
   const icon = L.divIcon({
-    html: loc.main_image
-      ? `<div style="position:relative;width:48px;height:48px;border-radius:12px;overflow:hidden;border:3px solid #0d9e6e;box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
-          <img src="${loc.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:900\\'>${index + 1}</div>'"/>
-          <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));color:#fff;font-size:9px;font-weight:800;padding:4px;text-align:center;font-family:Heebo,Arial;">${index + 1}</div>
-        </div>`
-      : `<div style="width:36px;height:36px;border-radius:12px;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;box-shadow:0 3px 10px rgba(0,0,0,0.3);font-family:Heebo,Arial;">${index + 1}</div>`,
+    html: buildStopMarkerHtml(loc, index),
     className: '',
-    iconSize: loc.main_image ? [48, 48] : [36, 36],
-    iconAnchor: loc.main_image ? [24, 24] : [18, 18],
+    iconSize,
+    iconAnchor,
   });
   return (
     <Marker position={[loc.latitude, loc.longitude]} icon={icon}
@@ -58,7 +73,7 @@ function StopMarker({ loc, index }: { loc: any; index: number }) {
   );
 }
 
-function StarRating({ value, onChange, readonly, size = 26 }: { value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }) {
+function StarRating({ value, onChange, readonly, size = 26 }: Readonly<{ value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }>) {
   const [hover, setHover] = useState(0);
   return (
     <div style={{ display: 'flex', gap: 3 }}>
@@ -88,7 +103,7 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
-// ── Module-level handlers (extracted to reduce cognitive complexity) ──────────
+// ── Module-level handlers (S3776: extracted to reduce cognitive complexity) ───
 
 async function doToggleLike(
   tripId: number,
@@ -98,7 +113,7 @@ async function doToggleLike(
   setLikeAnim: (v: boolean) => void,
   setLiked: (v: boolean) => void,
   setLikesCount: (v: number) => void,
-) {
+): Promise<void> {
   if (!user) { navigate('/login'); return; }
   setLikeLoading(true);
   setLikeAnim(true);
@@ -109,16 +124,20 @@ async function doToggleLike(
   } catch { /* intentional */ } finally { setLikeLoading(false); }
 }
 
-async function doSetRating(
-  tripId: number,
-  r: number,
-  user: unknown,
-  navigate: (path: string) => void,
-  setRatingLoading: (v: boolean) => void,
-  setUserRating: (v: number) => void,
-  setAvgRating: (v: number) => void,
-  setRatingsCount: (v: number) => void,
-) {
+// S107: consolidate 8 params into an options object
+interface SetRatingOpts {
+  tripId: number;
+  r: number;
+  user: unknown;
+  navigate: (path: string) => void;
+  setRatingLoading: (v: boolean) => void;
+  setUserRating: (v: number) => void;
+  setAvgRating: (v: number) => void;
+  setRatingsCount: (v: number) => void;
+}
+
+async function doSetRating(opts: SetRatingOpts): Promise<void> {
+  const { tripId, r, user, navigate, setRatingLoading, setUserRating, setAvgRating, setRatingsCount } = opts;
   if (!user) { navigate('/login'); return; }
   setRatingLoading(true);
   try {
@@ -135,7 +154,7 @@ async function doAddComment(
   setCommentLoading: (v: boolean) => void,
   setComments: (fn: (prev: RouteComment[]) => RouteComment[]) => void,
   setCommentText: (v: string) => void,
-) {
+): Promise<void> {
   if (!user) { navigate('/login'); return; }
   if (!commentText.trim()) return;
   setCommentLoading(true);
@@ -154,7 +173,7 @@ async function doSaveDesc(
   setSavingMedia: (v: boolean) => void,
   setTrip: (fn: (prev: PublicTrip | null) => PublicTrip | null) => void,
   setEditMode: (v: boolean) => void,
-) {
+): Promise<void> {
   setSavingMedia(true);
   try {
     await api.publicTrips.updateMedia(tripId, {
@@ -162,23 +181,9 @@ async function doSaveDesc(
       points_of_interest: editPOI,
       recommended_stops: editRecommendedStops,
     });
-    setTrip(prev => prev ? { ...prev, user_description: editDesc, points_of_interest: editPOI, recommended_stops: editRecommendedStops } : prev);
+    setTrip(prev => prev ? { ...prev, user_description: editDesc, points_of_interest: editPOI, recommended_stops: editRecommendedStops } as PublicTrip : prev);
     setEditMode(false);
   } catch { /* intentional */ } finally { setSavingMedia(false); }
-}
-
-async function doUploadRouteImage(
-  tripId: number,
-  file: File,
-  setUploadingRouteImage: (v: boolean) => void,
-  setRouteImages: (fn: (prev: RouteImage[]) => RouteImage[]) => void,
-) {
-  setUploadingRouteImage(true);
-  try {
-    const base64 = await toBase64(file);
-    const img = await api.publicTrips.addImage(tripId, base64);
-    setRouteImages(prev => [...prev, img]);
-  } catch { /* intentional */ } finally { setUploadingRouteImage(false); }
 }
 
 export default function PublicTripDetail() {
@@ -242,7 +247,7 @@ export default function PublicTripDetail() {
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tripId = Number.parseInt(id ?? '', 10);
-  const isOwner = user != null && trip != null && Number(user.id) === trip.user_id;
+  const isOwner = user && trip && Number(user.id) === trip.user_id;
 
   useEffect(() => {
     if (!id) return;
@@ -274,7 +279,7 @@ export default function PublicTripDetail() {
   }, [tripId]);
 
   const handleLike = () => doToggleLike(tripId, user, navigate, setLikeLoading, setLikeAnim, setLiked, setLikesCount);
-  const handleRate = (r: number) => doSetRating(tripId, r, user, navigate, setRatingLoading, setUserRating, setAvgRating, setRatingsCount);
+  const handleRate = (r: number) => doSetRating({ tripId, r, user, navigate, setRatingLoading, setUserRating, setAvgRating, setRatingsCount });
   const handleComment = () => doAddComment(tripId, commentText, user, navigate, setCommentLoading, setComments, setCommentText);
 
   const handleDeleteComment = async (commentId: number) => {
@@ -286,19 +291,18 @@ export default function PublicTripDetail() {
 
   const handleSaveDesc = () => doSaveDesc(tripId, editDesc, editPOI, editRecommendedStops, setSavingMedia, setTrip, setEditMode);
 
-  const executeStopSearch = async (q: string) => {
-    try {
-      const results = await api.locations.list({ search: q, limit: 8 });
-      setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
-    } catch { /* intentional */ } finally { setSearchingStops(false); }
-  };
-
   const handleStopSearch = (q: string) => {
     setStopSearch(q);
     if (stopSearchTimeout.current) clearTimeout(stopSearchTimeout.current);
     if (!q.trim()) { setStopSearchResults([]); return; }
     setSearchingStops(true);
-    stopSearchTimeout.current = setTimeout(() => executeStopSearch(q), 300);
+    stopSearchTimeout.current = setTimeout(async () => {
+      try {
+        const results = await api.locations.list({ search: q, limit: 8 });
+        // S7754: use .some() instead of .find() as boolean
+        setStopSearchResults(results.filter(r => !editStops.some(s => s.id === Number.parseInt(r.id))));
+      } catch { /* intentional */ } finally { setSearchingStops(false); }
+    }, 300);
   };
 
   const addStop = (poi: any) => {
@@ -329,7 +333,14 @@ export default function PublicTripDetail() {
     } catch { /* intentional */ } finally { setSavingStops(false); }
   };
 
-  const handleRouteImageUpload = (file: File) => doUploadRouteImage(tripId, file, setUploadingRouteImage, setRouteImages);
+  const handleRouteImageUpload = async (file: File) => {
+    setUploadingRouteImage(true);
+    try {
+      const base64 = await toBase64(file);
+      const img = await api.publicTrips.addImage(tripId, base64);
+      setRouteImages(prev => [...prev, img]);
+    } catch { /* intentional */ } finally { setUploadingRouteImage(false); }
+  };
 
   const handleAddCommunityMedia = async (file: File, type: 'image' | 'video') => {
     setAddingMedia(true);
@@ -443,7 +454,8 @@ export default function PublicTripDetail() {
             {pts.length > 1 && (
               <Polyline positions={pts} pathOptions={{ color: '#0d9e6e', weight: 3.5, opacity: 0.9, dashArray: '10,6' }} />
             )}
-            {validStops.map((loc, i) => <StopMarker key={i} loc={loc} index={i} />)}
+            {/* S6479: use stable id-based key instead of array index */}
+            {validStops.map((loc, i) => <StopMarker key={loc.location_id ?? loc.name ?? i} loc={loc} index={i} />)}
             <FitBounds points={pts} />
           </MapContainer>
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
@@ -736,7 +748,8 @@ export default function PublicTripDetail() {
                     {/* Current stops list (draggable order) */}
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
-                        📍 עצירות נוכחיות
+                        {/* S6772: wrap raw text adjacent to JSX elements in <span> */}
+                        <span>📍 עצירות נוכחיות</span>
                         <span style={{ fontWeight: 400, color: '#94a3b8', marginRight: 6 }}>({editStops.length})</span>
                       </div>
                       {editStops.length === 0 && (
@@ -877,12 +890,19 @@ export default function PublicTripDetail() {
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'image'); e.target.value = ''; }} />
               <input ref={communityVideoRef} type="file" accept="video/*" style={{ display: 'none' }}
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'video'); e.target.value = ''; }} />
-              <button
-                onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
-                disabled={addingMedia}
-                style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
-                {addingMedia ? '⏳ מעלה...' : `📤 העלה ${communityMediaTab === 'image' ? 'תמונה' : 'סרטון'} (+10 XP)`}
-              </button>
+              {/* S3358: extract nested ternary into named variable */}
+              {(() => {
+                const mediaTypeLabel = communityMediaTab === 'image' ? 'תמונה' : 'סרטון';
+                const uploadLabel = addingMedia ? '⏳ מעלה...' : `📤 העלה ${mediaTypeLabel} (+10 XP)`;
+                return (
+                  <button
+                    onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
+                    disabled={addingMedia}
+                    style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
+                    {uploadLabel}
+                  </button>
+                );
+              })()}
             </div>
           )}
 
