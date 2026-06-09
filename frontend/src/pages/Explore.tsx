@@ -309,7 +309,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
  *
  * - 'normal'  : standard paginated fetch, passes `search=` to the server.
  * - 'city'    : city-mode fetch, fetches all POIs without a `search=` param
- *               so the client-side radius filter can narrow them down.
+ * so the client-side radius filter can narrow them down.
  */
 type FetchMode = 'normal' | 'city';
 
@@ -513,7 +513,7 @@ export default function Explore() {
       // --- Standard POI fetch (always runs first) ---
       fetchModeRef.current = 'normal';
       setPois([]);
-      setPage(0);
+      pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
       const normalResults = await fetchPage(0, userCoords);
@@ -554,7 +554,7 @@ export default function Explore() {
       cityResultRef.current = result;
       setCityResult(result);
       setPois([]);
-      setPage(0);
+      pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
       // Pass the city's coordinates so the server sorts its 200-item batch by
