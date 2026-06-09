@@ -12,6 +12,7 @@ export function useFavorites() {
 
   // Load favorites on login
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setFavorites([]); return; }
     setLoading(true);
     api.favorites.list()

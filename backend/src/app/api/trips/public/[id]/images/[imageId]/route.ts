@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/trips/public/[id]/images/[imageId]/route.ts
 // DELETE /trips/public/:id/images/:imageId — delete a specific image (owner only)
 

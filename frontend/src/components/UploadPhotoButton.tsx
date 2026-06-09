@@ -101,11 +101,12 @@ export default function UploadPhotoButton({ locationId, onUploaded }: Props) {
       setXpResult(res.xp);
       closeModal();
       onUploaded?.(res.media);
-    } catch (err: any) {
+    } catch (err) {
+      const e = err as Record<string, unknown>;
       setError(
-        err?.code === 'LIMIT_REACHED'
+        e?.code === 'LIMIT_REACHED'
           ? 'הגעת למגבלת המדיה עבור מיקום זה'
-          : err?.message || 'העלאה נכשלה — ודא שהקובץ תקין'
+          : (e?.message as string) || 'העלאה נכשלה — ודא שהקובץ תקין'
       );
     } finally {
       setUploading(false);

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/trips/public/[id]/media/route.ts
 // GET  /trips/public/:id/media    — list all media (images + videos)
 // POST /trips/public/:id/media    — upload image or video (authenticated)

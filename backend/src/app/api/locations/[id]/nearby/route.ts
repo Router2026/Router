@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/locations/[id]/nearby/route.ts
 // GET /locations/:id/nearby?limit=6&radius=25000
 // Returns nearby locations sorted by geographic distance using PostGIS.

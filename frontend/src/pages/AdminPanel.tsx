@@ -277,9 +277,9 @@ function CommunityPoisTab() {
               {/* Coordinates + region + description */}
               <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right', marginBottom: 4 }}>
                 📍 {Number.parseFloat(poi.latitude).toFixed(5)}, {Number.parseFloat(poi.longitude).toFixed(5)}
-                {(poi as any).region && (
+                {(poi as Record<string, unknown>).region && (
                   <span style={{ marginRight: 8, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 6, padding: '1px 7px', fontWeight: 700 }}>
-                    🗺️ {(poi as any).region}
+                    🗺️ {(poi as Record<string, unknown>).region as string}
                   </span>
                 )}
               </div>
@@ -433,19 +433,20 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const [tab, setTab] = useState<Tab>('community_pois');
-  const [users, setUsers] = useState<any[]>([]);
-  const [routes, setRoutes] = useState<any[]>([]);
+  const [users, setUsers] = useState<unknown[]>([]);
+  const [routes, setRoutes] = useState<unknown[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [stats, setStats] = useState({ users: 0, routes: 0, pending_pois: 0 });
 
   useEffect(() => {
-    if (!isLoading && (!user || !(user as any).is_admin)) navigate('/');
+    if (!isLoading && (!user || !(user as Record<string, unknown>).is_admin)) navigate('/');
   }, [user, isLoading, navigate]);
 
   useEffect(() => {
-    if (!user || !(user as any).is_admin) return;
+    if (!user || !(user as Record<string, unknown>).is_admin) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingData(true);
     Promise.all([
       api.admin.listUsers(),
@@ -473,7 +474,7 @@ export default function AdminPanel() {
     setBusy(id);
     const updated = await api.admin.toggleAdmin(id, !current);
     setUsers(prev =>
-      prev.map(u => String(u.id) === id ? { ...u, ...(updated as any), is_admin: !current } : u)
+      prev.map(u => String((u as Record<string, unknown>).id) === id ? { ...(u as Record<string, unknown>), ...(updated as Record<string, unknown>), is_admin: !current } : u)
     );
     setBusy(null);
   };

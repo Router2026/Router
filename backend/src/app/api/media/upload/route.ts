@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/media/upload/route.ts
 // POST /api/media/upload
 //

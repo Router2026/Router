@@ -61,12 +61,12 @@ export default function Reports() {
     const delta = alreadyVoted ? -1 : 1;
 
     // Optimistic cache update
-    queryClient.setQueryData<any[]>(queryKey, prev =>
-      prev?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes + delta) } : r) ?? [],
+    queryClient.setQueryData<unknown[]>(queryKey, prev =>
+      (prev as {id: number; upvotes: number}[])?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes + delta) } : r) ?? [],
     );
     setVotedIds(prev => {
       const next = new Set(prev);
-      alreadyVoted ? next.delete(id) : next.add(id);
+      if (alreadyVoted) { next.delete(id); } else { next.add(id); }
       localStorage.setItem('report_votes', JSON.stringify([...next]));
       return next;
     });
@@ -75,12 +75,12 @@ export default function Reports() {
       await api.reports.upvote(id, alreadyVoted ? 'remove' : 'add');
     } catch {
       // Roll back optimistic changes on error
-      queryClient.setQueryData<any[]>(queryKey, prev =>
-        prev?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes - delta) } : r) ?? [],
+      queryClient.setQueryData<unknown[]>(queryKey, prev =>
+        (prev as {id: number; upvotes: number}[])?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes - delta) } : r) ?? [],
       );
       setVotedIds(prev => {
         const next = new Set(prev);
-        alreadyVoted ? next.add(id) : next.delete(id);
+        if (alreadyVoted) { next.add(id); } else { next.delete(id); }
         localStorage.setItem('report_votes', JSON.stringify([...next]));
         return next;
       });

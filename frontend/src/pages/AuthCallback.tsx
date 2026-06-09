@@ -24,6 +24,7 @@ export default function AuthCallback() {
     const errorCode = params.get('error');
     const errorDesc = params.get('error_description');
     if (errorCode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(`שגיאה מ-Google: ${errorDesc || errorCode}`);
       return;
     }

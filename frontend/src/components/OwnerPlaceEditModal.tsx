@@ -17,10 +17,10 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { api, type POI, type CommunityPoiSubmission, fileToBase64 } from '../api';
+import { api, type POI } from '../api';
 import { CATEGORIES } from '../utils/constants';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -167,8 +167,8 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
       };
 
       setTimeout(() => onSaved(updatedPoi, result.pending_review), 900);
-    } catch (err: any) {
-      setError(err?.message || 'שגיאה בשמירה');
+    } catch (err) {
+      setError((err as Error)?.message || 'שגיאה בשמירה');
     } finally {
       setSaving(false);
     }

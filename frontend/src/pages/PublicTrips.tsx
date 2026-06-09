@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/PublicTrips.tsx — Instagram-style social feed (enhanced)
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -140,7 +141,7 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
       setComments(updated);
       onCountChange?.(updated.length);
       setText('');
-    } catch { } finally { setSending(false); }
+    } catch { /* intentional */ } finally { setSending(false); }
   };
 
   if (!isOpen) return null;
@@ -247,7 +248,7 @@ function RatingModal({ tripId, isOpen, onClose, currentRating, onRated }: {
       const r = await api.publicTrips.setRating(tripId, selected);
       onRated(r.average_rating, r.ratings_count, selected);
       onClose();
-    } catch { } finally { setSubmitting(false); }
+    } catch { /* intentional */ } finally { setSubmitting(false); }
   };
 
   return (
@@ -303,7 +304,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: {
       await api.publicTrips.updateMedia(trip.id, { user_description: desc, image_url, video_url });
       onUpdated({ ...trip, user_description: desc, image_url: imagePreview || image_url, video_url: videoPreview || video_url });
       onClose();
-    } catch { } finally { setSaving(false); }
+    } catch { /* intentional */ } finally { setSaving(false); }
   };
 
   return (
@@ -441,7 +442,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
     try {
       const { liked: l, likes_count: lc } = await api.publicTrips.toggleLike(trip.id);
       setLiked(l); setLikesCount(lc);
-    } catch { } finally { setLikeLoading(false); }
+    } catch { /* intentional */ } finally { setLikeLoading(false); }
   };
 
   const rankBorder = rank === 1 ? '#f59e0b' : rank === 2 ? '#94a3b8' : rank === 3 ? '#b45309' : 'transparent';

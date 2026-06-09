@@ -25,7 +25,7 @@ function StrengthBar({ password }: { password: string }) {
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { loginWithToken } = useAuth();
+  useAuth();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -65,8 +65,8 @@ export default function ResetPassword() {
       await api.auth.resetPassword(accessToken!, password);
       setSuccess(true);
       setTimeout(() => navigate('/Login?reset=true'), 2000);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError((e as Error).message);
       setLoading(false);
     }
   };

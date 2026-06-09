@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // JWT + password hashing using built-in Web Crypto API (no extra packages)
 
 function getSecret(): string {

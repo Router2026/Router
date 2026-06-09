@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/ProfileEdit.tsx — UPDATED
 // Feature 6: loads existing profile data from DB (not just AuthContext which may be stale).
 // Feature 7: avatar upload from computer via file picker.

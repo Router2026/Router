@@ -83,7 +83,7 @@ export default function PublicUserProfile() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<unknown>(null);
   const [trips, setTrips] = useState<PublicTrip[]>([]);
   const [communityPois, setCommunityPois] = useState<CommunityPoiSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +93,7 @@ export default function PublicUserProfile() {
   const isOwnProfile = user && Number(user.id) === userId;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!userId || Number.isNaN(userId)) { setError('מזהה משתמש לא תקין'); setLoading(false); return; }
     setLoading(true);
     api.userProfiles.get(userId)

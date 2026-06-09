@@ -3,7 +3,6 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -12,7 +11,7 @@ export default function Login() {
   const justVerified = searchParams.get('verified') === 'true';
   const justReset = searchParams.get('reset') === 'true';
   const { login, loginAsGuest } = useAuth();
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -22,7 +21,7 @@ export default function Login() {
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [resentVerification, setResentVerification] = useState(false);
 
-  const toHebrewError = (e: any): string => {
+  const toHebrewError = (e: { code?: string; message?: string }): string => {
     const code = e.code;
     const msg = (e.message || '').toLowerCase();
     if (code === 'AUTH_ERROR' || msg.includes('invalid email or password')) return 'האימייל או הסיסמה שגויים. נסה שוב.';
@@ -40,11 +39,12 @@ export default function Login() {
     try {
       await login(email.trim(), password);
       navigate(from, { replace: true });
-    } catch (e: any) {
-      if (e.code === 'EMAIL_NOT_VERIFIED' || e.message?.includes('verify your email')) {
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      if (err.code === 'EMAIL_NOT_VERIFIED' || err.message?.includes('verify your email')) {
         setUnverifiedEmail(email.trim().toLowerCase());
       } else {
-        setError(toHebrewError(e));
+        setError(toHebrewError(err));
       }
     } finally {
       setLoading(false);
@@ -60,7 +60,7 @@ export default function Login() {
       const redirectTo = `${window.location.origin}/auth/callback?from=${encodeURIComponent(from)}`;
       const url = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&access_type=offline`;
       window.location.href = url;
-    } catch (e: any) {
+    } catch {
       setError('Google login failed');
       setGoogleLoading(false);
     }

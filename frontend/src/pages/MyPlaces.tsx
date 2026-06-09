@@ -165,6 +165,7 @@ export default function MyPlaces() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setLoading(false); return; }
     api.communityPois.myPlaces()
       .then(setPlaces)
@@ -176,8 +177,8 @@ export default function MyPlaces() {
     try {
       await api.communityPois.delete(id);
       setPlaces(prev => prev.filter(p => p.id !== id));
-    } catch (err: any) {
-      setError(err?.message || 'שגיאה במחיקה');
+    } catch (err) {
+      setError((err as Error)?.message || 'שגיאה במחיקה');
     }
   };
 

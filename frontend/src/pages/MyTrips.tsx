@@ -15,13 +15,13 @@ const GROUP_ICONS: Record<string, string> = {
 
 export default function MyTrips() {
   const navigate = useNavigate();
-  const [trips, setTrips] = useState<any[]>([]);
+  const [trips, setTrips] = useState<unknown[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [sharingId, setSharingId] = useState<string | null>(null);
   const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
-  const [shareXp, setShareXp] = useState<any>(null);
+  const [shareXp, setShareXp] = useState<unknown>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
   const [showPublishModal, setShowPublishModal] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export default function MyTrips() {
         title: trip.name,
         description: publishDesc || undefined,
         is_public: true,
-        location_ids: trip.stops?.map((s: any) => s.location_id).filter(Boolean) || [],
+        location_ids: (trip as { stops?: { location_id: unknown }[] }).stops?.map(s => s.location_id).filter(Boolean) || [],
       });
       if (publishPOI || publishStops) {
         await api.publicTrips.updateMedia(result.id, {
@@ -84,7 +84,7 @@ export default function MyTrips() {
           recommended_stops: publishStops || undefined,
         });
       }
-      if ((result as any).xp_awarded) setShareXp((result as any).xp_awarded);
+      if ((result as Record<string, unknown>).xp_awarded) setShareXp((result as Record<string, unknown>).xp_awarded);
       setPublishedIds(prev => new Set(prev).add(id));
       setShowPublishModal(null);
       setPublishDesc(''); setPublishPOI(''); setPublishStops('');
@@ -128,33 +128,8 @@ export default function MyTrips() {
                 const isDeleting = deletingId === id;
                 const isSharing = sharingId === id;
                 const hasShared = sharedIds.has(id);
-                const handlePublish = async (id: string) => {
-    setPublishingId(id);
-    try {
-      // First create a public trip entry linked to this private route
-      const trip = trips.find(t => String(t.id) === id);
-      if (!trip) return;
-      const result = await api.publicTrips.create({
-        title: trip.name,
-        description: publishDesc || undefined,
-        is_public: true,
-        location_ids: trip.stops?.map((s: any) => s.location_id).filter(Boolean) || [],
-      });
-      if (publishPOI || publishStops) {
-        await api.publicTrips.updateMedia(result.id, {
-          points_of_interest: publishPOI || undefined,
-          recommended_stops: publishStops || undefined,
-        });
-      }
-      if ((result as any).xp_awarded) setShareXp((result as any).xp_awarded);
-      setPublishedIds(prev => new Set(prev).add(id));
-      setShowPublishModal(null);
-      setPublishDesc(''); setPublishPOI(''); setPublishStops('');
-    } catch (err) { console.error('Publish failed:', err); }
-    finally { setPublishingId(null); }
-  };
 
-  return (
+                return (
                   <div key={id} onClick={() => navigate(`/TripDetail?id=${id}`)}
                     style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', cursor: 'pointer', border: `1px solid ${isConfirming ? '#fecaca' : '#f0fdf8'}`, transition: 'all 0.2s ease', position: 'relative' }}>
                     <div style={{ height: 100, background: isConfirming ? 'linear-gradient(160deg, #ef4444 0%, #f87171 100%)' : 'linear-gradient(160deg, #0d9e6e 0%, #34d399 100%)', display: 'flex', alignItems: 'flex-end', padding: '16px', transition: 'background 0.2s ease' }}>

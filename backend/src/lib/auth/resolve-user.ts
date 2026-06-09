@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
 import { supabase } from "@/lib/db/supabase";

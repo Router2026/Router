@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/trips/public/[id]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";

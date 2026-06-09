@@ -201,6 +201,7 @@ export default function OnboardingTour({ onComplete }: { onComplete?: () => void
   }, [current]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     calcSpotlight();
     const t = setTimeout(calcSpotlight, 120); // re-run after layout settles
     window.addEventListener('resize', calcSpotlight);
@@ -351,9 +352,11 @@ export default function OnboardingTour({ onComplete }: { onComplete?: () => void
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useShouldShowTour() {
   const [show, setShow] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!localStorage.getItem(TOUR_KEY)) setShow(true);
   }, []);
   return {

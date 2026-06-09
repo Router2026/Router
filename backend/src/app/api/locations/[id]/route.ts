@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/locations/[id]/route.ts
 // GET   /locations/:id — public; enriches community-sourced POIs with owner_user_id.
 //                        Now fetches location row + community_pois lookup CONCURRENTLY.

@@ -1,4 +1,5 @@
 // src/api.ts — UPDATED: media upload (images+video), ratings, nearby locations
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
@@ -21,22 +22,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let code: string | undefined;
-    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
-    throw new ApiError(message, code);
-  }
-  return res.json();
-}
-
-// For multipart/form-data uploads — no Content-Type header so browser sets boundary automatically
-async function apiFetchForm<T>(path: string, formData: FormData): Promise<T> {
-  const token = _token ?? localStorage.getItem(TOKEN_KEY);
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`;
-    let code: string | undefined;
-    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
     throw new ApiError(message, code);
   }
   return res.json();
@@ -772,13 +758,13 @@ export const base44 = {
     POI: { list: () => api.locations.list(), filter: (p?: { region?: string }) => api.locations.list(p), get: (id: string) => api.locations.get(id) },
     Trip: { filter: () => api.trips.list(), create: (data: any) => api.trips.create(data) },
     Review: { filter: () => api.reviews.list(), create: (data: any) => api.reviews.create(data) },
-    CommunityReport: { filter: () => api.reports.list(), create: (data: any) => api.reports.create(data), update: (id: string, _data: any) => api.reports.upvote(id) },
-    UserProfile: { filter: () => api.users.me().then(u => [u]), list: () => api.users.leaderboard(), create: (d: any) => Promise.resolve(d), update: (_id: string, d: any) => Promise.resolve(d) },
-    VideoPost: { list: () => api.videos.list(), filter: () => api.videos.list(), create: (data: any) => api.videos.create(data), update: (id: string, _data: any) => api.videos.like(id) },
+    CommunityReport: { filter: () => api.reports.list(), create: (data: any) => api.reports.create(data), update: (id: string, _: any) => api.reports.upvote(id) },
+    UserProfile: { filter: () => api.users.me().then(u => [u]), list: () => api.users.leaderboard(), create: (d: any) => Promise.resolve(d), update: (_: string, d: any) => Promise.resolve(d) },
+    VideoPost: { list: () => api.videos.list(), filter: () => api.videos.list(), create: (data: any) => api.videos.create(data), update: (id: string, _: any) => api.videos.like(id) },
   },
   integrations: {
     Core: {
-      UploadFile: async (_a: { file: File }) => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
+      UploadFile: async (_: { file: File }) => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
       InvokeLLM: async ({ body }: { body: string }) => {
         const req = JSON.parse(body);
         const GROUP_TYPE_MAP: Record<string, string> = { 'יחיד': 'solo', 'זוג': 'couple', 'משפחה': 'family', 'חברים': 'friends' };

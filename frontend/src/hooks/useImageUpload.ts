@@ -75,8 +75,8 @@ export function useImageUpload(): UseImageUploadReturn {
             if (!publicUrl) throw new Error('No URL returned from upload API');
 
             return publicUrl;
-        } catch (err: any) {
-            const msg = err?.message ?? 'Upload failed';
+        } catch (err) {
+            const msg = (err as Error)?.message ?? 'Upload failed';
             setUploadError(msg);
             throw err;
         } finally {

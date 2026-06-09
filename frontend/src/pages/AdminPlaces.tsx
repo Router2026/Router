@@ -44,39 +44,45 @@ async function fetchRegions(): Promise<Region[]> {
  * Fetch ALL locations by paginating until the server returns fewer than PAGE items.
  * The backend caps at 500/req, so we loop with offset until exhausted.
  */
+function parseImages(images: unknown): string[] {
+  return typeof images === 'string' ? JSON.parse(images) : [];
+}
+
 async function fetchAllLocations(): Promise<POI[]> {
     const PAGE = 500;
     let offset = 0;
     const all: POI[] = [];
 
     while (true) {
-        const res = await adminFetch<{ data: any[] }>(`/locations?limit=${PAGE}&offset=${offset}`);
-        const page: any[] = Array.isArray(res) ? res : (res.data ?? []);
+        const res = await adminFetch<{ data: unknown[] }>(`/locations?limit=${PAGE}&offset=${offset}`);
+        const page: unknown[] = Array.isArray(res) ? res : (res.data ?? []);
         if (!page || page.length === 0) break;
 
-        const mapped = page.map((r: any): POI => ({
-            id: String(r.id),
-            name: r.name,
-            description: r.description || '',
-            category: r.category,
-            region: r.region_name || r.region || '',
-            region_id: r.region_id,
-            latitude: Number.parseFloat(r.latitude),
-            longitude: Number.parseFloat(r.longitude),
-            images: Array.isArray(r.images) ? r.images
-                : (typeof r.images === 'string' ? JSON.parse(r.images) : []),
-            main_image: r.main_image || '',
-            difficulty: r.difficulty || 'בינוני',
-            duration_minutes: r.duration_minutes,
-            has_water: r.has_water,
-            has_shade: r.has_shade,
-            accessible: r.accessible,
-            average_rating: Number.parseFloat(r.average_rating) || 4.0,
-            photo_credit: r.photo_credit || undefined,
-            uploaded_by: r.uploaded_by || undefined,
-            // Preserve all extra DB fields (is_featured, source, source_id, created_at, etc.)
-            ...(r as any),
-        }));
+        const mapped = page.map((r: unknown): POI => {
+            const row = r as Record<string, unknown>;
+            return {
+              id: String(row.id),
+              name: row.name as string,
+              description: (row.description as string) || '',
+              category: row.category as string,
+              region: (row.region_name as string) || (row.region as string) || '',
+              region_id: row.region_id as number,
+              latitude: Number.parseFloat(row.latitude as string),
+              longitude: Number.parseFloat(row.longitude as string),
+              images: Array.isArray(row.images) ? row.images : parseImages(row.images),
+              main_image: (row.main_image as string) || '',
+              difficulty: (row.difficulty as string) || 'בינוני',
+              duration_minutes: row.duration_minutes as number,
+              has_water: row.has_water as boolean,
+              has_shade: row.has_shade as boolean,
+              accessible: row.accessible as boolean,
+              average_rating: Number.parseFloat(row.average_rating as string) || 4,
+              photo_credit: (row.photo_credit as string) || undefined,
+              uploaded_by: (row.uploaded_by as string) || undefined,
+              // Preserve all extra DB fields (is_featured, source, source_id, created_at, etc.)
+              ...row,
+            };
+        });
 
         all.push(...mapped);
         if (page.length < PAGE) break;
@@ -186,12 +192,12 @@ export default function AdminPlaces() {
 
     // Auth guard
     useEffect(() => {
-        if (!isLoading && (!user || !(user as any).is_admin)) navigate('/');
+        if (!isLoading && (!user || !(user as Record<string, unknown>).is_admin)) navigate('/');
     }, [user, isLoading, navigate]);
 
     // Load all places + regions
     useEffect(() => {
-        if (!user || !(user as any).is_admin) return;
+        if (!user || !(user as Record<string, unknown>).is_admin) return;
         Promise.all([fetchAllLocations(), fetchRegions()])
             .then(([locs, regs]) => { setPois(locs); setRegions(regs); })
             .catch(err => console.error('AdminPlaces load error:', err))

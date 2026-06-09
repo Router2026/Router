@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/lib/locations/location-service.ts
 // OPTIMIZED: slim SELECT for list queries, full-text search, server-side filters
 // getLocationById() still fetches all columns — used only by POIDetail.

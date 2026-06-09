@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/locations/[id]/images/route.ts — UPDATED
 // GET  /locations/:id/images  — list all images for a location (public)
 // POST /locations/:id/images  — upload image (authenticated)

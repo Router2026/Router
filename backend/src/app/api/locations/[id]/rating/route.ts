@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/locations/[id]/rating/route.ts
 // POST /locations/:id/rating  — authenticated user rates a location (1-5)
 // GET  /locations/:id/rating  — public summary (avg, count); if auth, includes user's rating

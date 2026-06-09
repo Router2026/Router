@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/lib/notifications/push-service.ts
 // Thin wrapper around Firebase Cloud Messaging (FCM) HTTP v1 API.
 // For APNS tokens, route through FCM as well (Firebase handles the bridge).

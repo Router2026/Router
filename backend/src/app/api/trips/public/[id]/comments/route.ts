@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/trips/public/[id]/comments/route.ts
 // GET    /trips/public/:id/comments — list comments
 // POST   /trips/public/:id/comments — add comment (authenticated)

@@ -125,9 +125,9 @@ export default function TripPlanner() {
         style: selectedStyles,
       });
       navigate(`/TripDetail?id=${saved.id}`);
-    } catch (e: any) {
+    } catch (e) {
       console.error('Trip generation failed:', e);
-      setGenError(e?.message || 'שגיאה בייצור המסלול');
+      setGenError((e as Error)?.message || 'שגיאה בייצור המסלול');
     }
     setLoading(false);
   };

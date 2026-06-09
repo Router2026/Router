@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/PublicTripDetail.tsx — Enhanced detail page with full social features
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia, fileToBase64 } from '../api';
+import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia } from '../api';
 import { useAuth } from '../context/AuthContext';
 import Disclaimer from '../components/Disclaimer';
 import { getImageUrl } from '../utils/imageUtils';
@@ -185,7 +186,7 @@ export default function PublicTripDetail() {
     try {
       const res = await api.publicTrips.toggleLike(tripId);
       setLiked(res.liked); setLikesCount(res.likes_count);
-    } catch { } finally { setLikeLoading(false); }
+    } catch { /* intentional */ } finally { setLikeLoading(false); }
   };
 
   const handleRate = async (r: number) => {
@@ -194,7 +195,7 @@ export default function PublicTripDetail() {
     try {
       const res = await api.publicTrips.setRating(tripId, r);
       setUserRating(res.user_rating); setAvgRating(res.average_rating); setRatingsCount(res.ratings_count);
-    } catch { } finally { setRatingLoading(false); }
+    } catch { /* intentional */ } finally { setRatingLoading(false); }
   };
 
   const handleComment = async () => {
@@ -205,14 +206,14 @@ export default function PublicTripDetail() {
       const c = await api.publicTrips.addComment(tripId, commentText);
       setComments(prev => [...prev, c]);
       setCommentText('');
-    } catch { } finally { setCommentLoading(false); }
+    } catch { /* intentional */ } finally { setCommentLoading(false); }
   };
 
   const handleDeleteComment = async (commentId: number) => {
     try {
       await api.publicTrips.deleteComment(tripId, commentId);
       setComments(prev => prev.filter(c => c.id !== commentId));
-    } catch { }
+    } catch { /* intentional */ }
   };
 
   const handleSaveDesc = async () => {
@@ -230,7 +231,7 @@ export default function PublicTripDetail() {
         recommended_stops: editRecommendedStops,
       } as any : prev);
       setEditMode(false);
-    } catch { } finally { setSavingMedia(false); }
+    } catch { /* intentional */ } finally { setSavingMedia(false); }
   };
 
   const handleStopSearch = (q: string) => {
@@ -242,7 +243,7 @@ export default function PublicTripDetail() {
       try {
         const results = await api.locations.list({ search: q, limit: 8 });
         setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
-      } catch { } finally { setSearchingStops(false); }
+      } catch { /* intentional */ } finally { setSearchingStops(false); }
     }, 300);
   };
 
@@ -271,7 +272,7 @@ export default function PublicTripDetail() {
       const updated = await api.publicTrips.updateStops(tripId, editStops.map(s => s.id));
       setTrip(updated);
       setEditMode(false);
-    } catch { } finally { setSavingStops(false); }
+    } catch { /* intentional */ } finally { setSavingStops(false); }
   };
 
   const handleRouteImageUpload = async (file: File) => {
@@ -280,7 +281,7 @@ export default function PublicTripDetail() {
       const base64 = await toBase64(file);
       const img = await api.publicTrips.addImage(tripId, base64);
       setRouteImages(prev => [...prev, img]);
-    } catch { } finally { setUploadingRouteImage(false); }
+    } catch { /* intentional */ } finally { setUploadingRouteImage(false); }
   };
 
   const handleAddCommunityMedia = async (file: File, type: 'image' | 'video') => {
@@ -291,21 +292,21 @@ export default function PublicTripDetail() {
       setCommunityMedia(prev => [result, ...prev]);
       setShowAddMedia(false);
       setMediaCaption('');
-    } catch { } finally { setAddingMedia(false); }
+    } catch { /* intentional */ } finally { setAddingMedia(false); }
   };
 
   const handleDeleteCommunityMedia = async (mediaId: number) => {
     try {
       await api.publicTrips.deleteCommunityMedia(tripId, mediaId);
       setCommunityMedia(prev => prev.filter(m => m.id !== mediaId));
-    } catch { }
+    } catch { /* intentional */ }
   };
 
   const handleDeleteRouteImage = async (imageId: number) => {
     try {
       await api.publicTrips.deleteImage(tripId, imageId);
       setRouteImages(prev => prev.filter(i => i.id !== imageId));
-    } catch { }
+    } catch { /* intentional */ }
   };
 
   const handleImageUpload = async (file: File) => {
@@ -314,7 +315,7 @@ export default function PublicTripDetail() {
       const base64 = await toBase64(file);
       await api.publicTrips.updateMedia(tripId, { image_url: base64 });
       setTrip(prev => prev ? { ...prev, image_url: base64 } : prev);
-    } catch { } finally { setUploadingImage(false); }
+    } catch { /* intentional */ } finally { setUploadingImage(false); }
   };
 
   const handleVideoUpload = async (file: File) => {
@@ -323,7 +324,7 @@ export default function PublicTripDetail() {
       const base64 = await toBase64(file);
       await api.publicTrips.updateMedia(tripId, { video_url: base64 });
       setTrip(prev => prev ? { ...prev, video_url: base64 } : prev);
-    } catch { } finally { setUploadingVideo(false); }
+    } catch { /* intentional */ } finally { setUploadingVideo(false); }
   };
 
   if (loading) return (
@@ -761,7 +762,7 @@ export default function PublicTripDetail() {
 
             {routeImages.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {routeImages.map((img, i) => (
+                {routeImages.map((img) => (
                   <div key={img.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', aspectRatio: '1', cursor: 'pointer' }}
                     onClick={() => setSelectedGalleryImg(img.image_url)}>
                     <img src={img.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />

@@ -16,7 +16,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import type { LatLng } from '../utils/types';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: markerIcon,
   iconRetinaUrl: markerIcon2x,
@@ -35,15 +35,6 @@ function StartMarker({ position }: { position: LatLng }) {
   return <Marker position={[position.lat, position.lng]} icon={_startIcon} />;
 }
 
-function NumberedMarker({ poi, index }: { poi: POI; index: number }) {
-  const icon = useMemo(() => L.divIcon({
-    html: `<div style="width:32px;height:32px;border-radius:50%;background:#0d9e6e;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-family:Heebo,Arial">${index + 1}</div>`,
-    className: '',
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-  }), [index]);
-  return <Marker position={[poi.latitude, poi.longitude]} icon={icon} />;
-}
 
 function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng | null }) {
   const map = useMap();
@@ -398,23 +389,10 @@ export default function RouteGenerator() {
     }
   };
 
-  const buildStops = () => optimized.map((p, i) => ({
-    poi_name: p.name,
-    location_id: Number.parseInt(p.id),
-    arrival_time: `${String(8 + i * 2).padStart(2, '0')}:00`,
-    duration_minutes: p.duration_minutes || 60,
-    order_index: i,
-  }));
-
   const handlePublish = async () => {
     if (!optimized.length) return;
     setPublishing(true);
     try {
-      const stops = buildStops();
-      const dist = totalDistance(optimized);
-      const autoHours = Number.parseFloat(
-        (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
-      );
       const publicTrip = await api.publicTrips.create({
         title: routeName || `מסלול ב${selectedRegion?.name}`,
         description: publishDesc || undefined,

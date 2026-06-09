@@ -26,7 +26,7 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 // ── Category maps ─────────────────────────────────────────────────────────────
@@ -317,6 +317,7 @@ export default function MapView() {
   useEffect(() => {
     if (urlRegion && regions.length) {
       const found = regions.find(r => r.name === urlRegion);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (found) setSelectedRegion(found);
     }
   }, [urlRegion, regions]);
@@ -452,7 +453,7 @@ export default function MapView() {
             <button onClick={() => setSelectedPOI(null)} style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
-            <button onClick={e => { e.stopPropagation(); inBucket ? removePoi(selectedPOI.id) : addPoi(selectedPOI); }}
+            <button onClick={e => { e.stopPropagation(); if (inBucket) { removePoi(selectedPOI.id); } else { addPoi(selectedPOI); } }}
               style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : '0 2px 8px rgba(0,0,0,0.1)', transition: 'all 0.18s ease' }}>
               {inBucket
                 ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -489,7 +490,7 @@ export default function MapView() {
                   ניווט
                 </a>
               </div>
-              <button onClick={e => { e.stopPropagation(); inBucket ? removePoi(selectedPOI.id) : addPoi(selectedPOI); }}
+              <button onClick={e => { e.stopPropagation(); if (inBucket) { removePoi(selectedPOI.id); } else { addPoi(selectedPOI); } }}
                 style={{ width: '100%', padding: '10px', border: `2px solid ${inBucket ? '#0d9e6e' : '#f1f5f9'}`, borderRadius: 12, background: inBucket ? '#f0fdf8' : '#f8fafc', color: inBucket ? '#0d9e6e' : '#64748b', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
                 {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
               </button>

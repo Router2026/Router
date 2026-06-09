@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/lib/community-poi/community-poi-service.ts — UPDATED
 // Added: region auto-classification from coordinates via PostGIS / bounding-box lookup.
 

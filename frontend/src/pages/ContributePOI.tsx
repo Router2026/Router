@@ -14,7 +14,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
-import { api, fileToBase64 } from '../api';
+import { fileToBase64 } from '../api';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -22,7 +22,7 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import type { LatLng } from '../utils/types';
 import { CATEGORIES } from '../utils/constants';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow,
 });
@@ -404,8 +404,8 @@ export default function ContributePOI() {
 
       setSubmitted(true);
 
-    } catch (err: any) {
-      setError(err.message ?? 'אירעה שגיאה בשמירה');
+    } catch (err) {
+      setError((err as Error).message ?? 'אירעה שגיאה בשמירה');
     } finally {
       setSubmitting(false);
     }
@@ -610,7 +610,7 @@ export default function ContributePOI() {
             <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8, textAlign: 'right' }}>רמת קושי</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
               {['קל - משפחות', 'קל', 'בינוני', 'מאתגר', 'קשה', 'אקסטרים'].map(d => {
-                const color = ({ 'קל - משפחות': '#16a34a', 'קל': '#16a34a', 'בינוני': '#d97706', 'מאתגר': '#dc2626', 'קשה': '#dc2626', 'אקסטרים': '#7c3aed' } as any)[d] || '#64748b';
+                const color = ({ 'קל - משפחות': '#16a34a', 'קל': '#16a34a', 'בינוני': '#d97706', 'מאתגר': '#dc2626', 'קשה': '#dc2626', 'אקסטרים': '#7c3aed' } as Record<string, string>)[d] || '#64748b';
                 const active = difficulty === d;
                 return (
                   <button key={d} onClick={() => setDifficulty(d)} style={{

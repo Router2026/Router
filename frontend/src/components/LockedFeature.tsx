@@ -154,6 +154,7 @@ export function LockBadge({ label }: { label?: string }) {
  * 
  * guardAction(fn) — if guest, shows prompt; if registered, runs fn()
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useGuestLock(feature?: string) {
   const { isGuest } = useAuth();
   const [promptOpen, setPromptOpen] = useState(false);

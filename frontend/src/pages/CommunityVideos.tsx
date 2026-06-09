@@ -6,7 +6,7 @@ const TAGS = ['הכל', 'טבע', 'מים', 'היסטוריה', 'נוף'];
 
 export default function CommunityVideos() {
   const navigate = useNavigate();
-  const [videos, setVideos] = useState<any[]>([]);
+  const [videos, setVideos] = useState<unknown[]>([]);
   const [selectedTag, setSelectedTag] = useState('הכל');
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 

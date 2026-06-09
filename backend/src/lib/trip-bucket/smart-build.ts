@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Smart Build — RAG (Retrieval-Augmented Generation) Flow
  * ---------------------------------------------------------

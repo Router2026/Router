@@ -8,7 +8,7 @@ type Status = 'loading' | 'success' | 'expired' | 'invalid' | 'no_token';
 export default function VerifyEmail() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { loginWithToken } = useAuth();
+  useAuth();
   const [status, setStatus] = useState<Status>('loading');
   const [email, setEmail] = useState('');
   const [resent, setResent] = useState(false);
@@ -26,14 +26,15 @@ export default function VerifyEmail() {
 
     // Fallback: token in query param
     const token = params.get('token');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!token) { setStatus('no_token'); return; }
 
     api.auth.verifyEmail(token)
       .then(async () => {
         navigate('/Login?verified=true', { replace: true });
       })
-      .catch((err: any) => {
-        if (err.message?.includes('expired')) setStatus('expired');
+      .catch((err) => {
+        if ((err as Error).message?.includes('expired')) setStatus('expired');
         else setStatus('invalid');
       });
   }, []);

@@ -124,7 +124,7 @@ function StepIndicator({ current }: { current: 1 | 2 }) {
 function BucketListItem({
   item, index, onRemove, dragHandlers,
 }: {
-  item: { poi: any; addedAt: number };
+  item: { poi: Record<string, unknown>; addedAt: number };
   index: number;
   onRemove: (id: string) => void;
   dragHandlers: ReturnType<typeof useDragReorder>;
@@ -230,7 +230,7 @@ async function geocodePlaceName(query: string): Promise<GeoCandidate[]> {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&accept-language=he`;
     const res = await fetch(url, { headers: { 'Accept-Language': 'he' } });
     const data = await res.json();
-    return (data ?? []).map((r: any) => ({
+    return (data ?? []).map((r: Record<string, unknown>) => ({
       lat: Number.parseFloat(r.lat),
       lng: Number.parseFloat(r.lon),
       display_name: r.display_name as string,
@@ -741,8 +741,8 @@ export default function TripBucketSheet() {
           },
         },
       });
-    } catch (e: any) {
-      setGenerationError(e?.message || 'יצירת המסלול נכשלה. אנא נסה שוב.');
+    } catch (e) {
+      setGenerationError((e as Error)?.message || 'יצירת המסלול נכשלה. אנא נסה שוב.');
     } finally {
       setIsGenerating(false);
     }

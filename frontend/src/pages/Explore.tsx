@@ -7,7 +7,6 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useAuth } from '../context/AuthContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
-import Disclaimer from '../components/Disclaimer';
 import { useGuestLock } from '../components/LockedFeature';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -70,7 +69,7 @@ function FilterPanel({
   hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible,
   dynamicRegions, dynamicCategories,
   sortByProximity, handleProximityToggle, geoLoading, geoError,
-}: any) {
+}: Record<string, unknown>) {
   if (!open) return null;
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
@@ -166,7 +165,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
 
   const handleBucketToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    bucketLock.guardAction(() => { inBucket ? removePoi(poi.id) : addPoi(poi); });
+    bucketLock.guardAction(() => { if (inBucket) { removePoi(poi.id); } else { addPoi(poi); } });
   };
   const handleFavToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -275,7 +274,7 @@ export default function Explore() {
 
   // ── Server-side pagination ────────────────────────────────────────────────
   const [pois, setPois] = useState<POI[]>([]);
-  const [page, setPage] = useState(0);
+  const pageRef = useRef(0);
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -403,7 +402,7 @@ export default function Explore() {
       if (total) setTotalCount(Number.parseInt(total));
 
       const json = await res.json();
-      const newPois: POI[] = (json.data ?? []).map((raw: any) => ({
+      const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => ({
         id: String(raw.id),
         name: raw.name,
         description: raw.description ?? '',
@@ -445,9 +444,9 @@ export default function Explore() {
       // FIX 2 (setPois-as-getter anti-pattern): return the data directly so
       // the search effect can inspect it without a no-op setState trick.
       return newPois;
-    } catch (err: any) {
-      if (err.name === 'AbortError') { aborted = true; return null; }
-      setError(err.message);
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') { aborted = true; return null; }
+      setError((err as Error).message);
       return null;
     } finally {
       fetchingRef.current = false;
@@ -484,7 +483,7 @@ export default function Explore() {
         setCityResult(null);
         setCitySearching(false);
         setPois([]);
-        setPage(0);
+        pageRef.current = 0;
         setTotalCount(null);
         fetchingRef.current = false;
         await fetchPage(0, userCoords);
@@ -577,18 +576,11 @@ export default function Explore() {
         // has confirmed it has no more candidates (short-page signal).
         if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
 
-        setPage(prev => {
-          const next = prev + 1;
-          // In city mode use the geocoded city's coordinates (read from the ref
-          // so the closure is never stale) so every page is sorted by proximity
-          // to the city centre, matching the initial page-0 sort order.
-          // In normal mode use the user's GPS coords (or null if not available).
-          const coords = fetchModeRef.current === 'city'
-            ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
-            : userCoords;
-          fetchPage(next, coords);
-          return next;
-        });
+        pageRef.current += 1;
+        const coords = fetchModeRef.current === 'city'
+          ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
+          : userCoords;
+        fetchPage(pageRef.current, coords);
       }
     });
     if (node) observer.current.observe(node);

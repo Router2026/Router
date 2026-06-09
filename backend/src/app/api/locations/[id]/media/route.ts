@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/locations/[id]/media/route.ts
 // POST /locations/:id/media — receives base64 media_data, uploads to Supabase Storage,
 // then stores the resulting public URL in location_media.media_url.

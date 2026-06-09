@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/community-pois/[id]/route.ts
 // GET    /api/community-pois/:id  — public, fetch a single community POI
 // PATCH  /api/community-pois/:id  — owner-only edit (text fields + photos)

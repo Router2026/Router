@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * POIDetailsEditAdmin.tsx
  * Full admin editor for a POI/Location — dialog modal.

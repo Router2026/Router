@@ -9,7 +9,7 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 export default function Leaderboard() {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<unknown[]>([]);
 
   useEffect(() => {
     base44.entities.UserProfile.list().then(data =>

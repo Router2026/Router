@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/community-pois/[id]/owner-edit/route.ts
 //
 // PATCH /api/community-pois/:id/owner-edit

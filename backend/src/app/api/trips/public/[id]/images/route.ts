@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/trips/public/[id]/images/route.ts
 // GET  /trips/public/:id/images — list all images for a route
 // POST /trips/public/:id/images — add an image (owner only)

@@ -23,7 +23,6 @@ import {
   type CommunityReport,
   type LocationImage,
   type LocationMedia,
-  type NearbyPOI,
   type RatingSummary,
   type Region,
 } from '../api';
@@ -43,7 +42,7 @@ import { getImageUrl } from '../utils/imageUtils';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 const DIFF_COLORS: Record<string, string> = {
@@ -305,7 +304,7 @@ function StarRating({
       const updated = await api.locations.rate(locationId, star);
       setSummary(updated); setJustRated(true);
       setTimeout(() => setJustRated(false), 2000);
-    } catch { }
+    } catch { /* intentional */ }
     finally { setSaving(false); }
   };
 
@@ -340,7 +339,7 @@ function StarRating({
 // ── MediaGallery ──────────────────────────────────────────────────────────────
 
 function MediaGallery({
-  locationId, media, isAdmin, onApprove, onReject,
+  locationId: _locationId, media, isAdmin, onApprove: _onApprove, onReject,
 }: {
   locationId: number; media: LocationMedia[];
   isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void;
@@ -450,7 +449,7 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
   return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16 }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12, direction: 'rtl' }}>📍 מקומות קרובים</div>
-      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' as any }}>
+      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'] }}>
         {nearby.map(place => (
           <div key={place.id} onClick={() => navigate(`/POIDetail?id=${place.id}`)}
             style={{ flexShrink: 0, width: 150, borderRadius: 16, overflow: 'hidden', border: '1px solid #f0f0f0', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'transform 0.15s, box-shadow 0.15s' }}
@@ -554,7 +553,7 @@ export default function POIDetail() {
   const [tab, setTab] = useState<'reports' | 'reviews'>('reports');
   const [showAdminEdit, setShowAdminEdit] = useState(false);
   const [showOwnerEdit, setShowOwnerEdit] = useState(false);
-  const [shareXp, setShareXp] = useState<any>(null);
+  const [shareXp, setShareXp] = useState<unknown>(null);
   const [ownerEditNotice, setOwnerEditNotice] = useState<string | null>(null);
 
   const isAdmin = user?.is_admin ?? false;
@@ -677,7 +676,7 @@ export default function POIDetail() {
             );
             setShowAdminEdit(false);
           }}
-          onDeleted={_id => { navigate(-1); }} />
+          onDeleted={() => { navigate(-1); }} />
       )}
       {showOwnerEdit && poi?.community_poi_id != null && (
         <OwnerPlaceEditModal
@@ -812,7 +811,7 @@ export default function POIDetail() {
               { key: 'reports', label: `דיווחים (${reports.length})` },
               { key: 'reviews', label: `ביקורות (${reviews.length})` },
             ].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key as any)}
+              <button key={t.key} onClick={() => setTab(t.key as 'reports' | 'reviews')}
                 style={{ flex: 1, padding: '12px', borderRadius: 16, border: 'none', background: tab === t.key ? '#0d9e6e' : 'transparent', color: tab === t.key ? '#fff' : '#94a3b8', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>
                 {t.label}
               </button>

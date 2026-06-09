@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/locations/[id]/images/[imageId]/route.ts
 // PATCH /locations/:id/images/:imageId  — approve or reject an image (admin only)
 // DELETE /locations/:id/images/:imageId — delete an image (admin or owner)

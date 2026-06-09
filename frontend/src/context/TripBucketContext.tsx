@@ -97,6 +97,7 @@ export function TripBucketProvider({ children }: { children: React.ReactNode }) 
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTripBucket(): TripBucketContextValue {
   const ctx = useContext(TripBucketContext);
   if (!ctx) {

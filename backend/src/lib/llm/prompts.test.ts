@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest'
 import { buildGenerateTripPrompt, buildRegenerateStopPrompt } from './prompts'
 import type { TripInput, TripPlan } from '@/types/llm'

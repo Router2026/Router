@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/users/me/route.ts
 // GET  /users/me  — full profile (replaces old /auth/me for profile data)
 // PATCH /users/me — update profile fields

@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type CommunityPoiSubmission, fileToBase64 } from '../api';
+import { api, type CommunityPoiSubmission } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { CATEGORIES } from '../utils/constants';
 
@@ -146,8 +146,8 @@ export default function EditMyPlace() {
       }
       setSuccess(true);
       setTimeout(() => navigate('/my-places'), 1200);
-    } catch (err: any) {
-      setError(err?.message || 'שגיאה בשמירה, נסה שוב');
+    } catch (err) {
+      setError((err as Error)?.message || 'שגיאה בשמירה, נסה שוב');
     } finally {
       setSaving(false);
     }

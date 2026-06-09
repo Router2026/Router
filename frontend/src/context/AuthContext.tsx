@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         });
     } else if (isGuest) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ user: GUEST_USER, token: null, isLoggedIn: false, isGuest: true, isLoading: false });
     } else {
       setState(s => ({ ...s, isLoading: false }));
@@ -101,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');

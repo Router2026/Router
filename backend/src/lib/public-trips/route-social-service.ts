@@ -291,7 +291,7 @@ export async function getSocialStatsForRoutes(
   );
 
   let likedSet = new Set<number>();
-  let userRatingMap = new Map<number, number>();
+  const userRatingMap = new Map<number, number>();
 
   if (userId) {
     const { rows: likeRows } = await rawDb.query(
