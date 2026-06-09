@@ -27,6 +27,65 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
   'אקסטרים': { color: '#7c3aed', bg: '#faf5ff' },
 };
 
+// ── fetchPage helpers ─────────────────────────────────────────────────────────
+
+interface FetchQueryOptions {
+  selRegions: string[];
+  selCats: string[];
+  selDiffs: string[];
+  hasWater: boolean;
+  hasShade: boolean;
+  accessible: boolean;
+  isCityFetch: boolean;
+  debouncedSearch: string;
+  pageNum: number;
+  gpsCoords?: { lat: number; lng: number } | null;
+}
+
+function buildFetchQuery(opts: FetchQueryOptions): URLSearchParams {
+  const qs = new URLSearchParams();
+  if (opts.selRegions[0]) qs.set('region', opts.selRegions[0]);
+  if (opts.selCats[0]) qs.set('category', opts.selCats[0]);
+  if (opts.selDiffs[0]) qs.set('difficulty', opts.selDiffs[0]);
+  if (opts.hasWater) qs.set('has_water', 'true');
+  if (opts.hasShade) qs.set('has_shade', 'true');
+  if (opts.accessible) qs.set('accessible', 'true');
+  if (!opts.isCityFetch && opts.debouncedSearch.trim()) qs.set('search', opts.debouncedSearch.trim());
+  const effectivePageSize = opts.isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
+  qs.set('limit', String(effectivePageSize));
+  qs.set('offset', String(opts.pageNum * effectivePageSize));
+  if (opts.gpsCoords) {
+    qs.set('user_lat', String(opts.gpsCoords.lat));
+    qs.set('user_lng', String(opts.gpsCoords.lng));
+  }
+  return qs;
+}
+
+function mapRawToPoi(raw: Record<string, unknown>): POI {
+  return {
+    id: String(raw.id),
+    name: raw.name,
+    description: raw.description ?? '',
+    category: raw.category,
+    region: (raw.region_name ?? raw.region ?? '') as string,
+    region_id: raw.region_id,
+    latitude: raw.latitude,
+    longitude: raw.longitude,
+    images: raw.images ?? [],
+    main_image: raw.main_image ?? '',
+    difficulty: raw.difficulty ?? 'בינוני',
+    duration_minutes: raw.duration_minutes,
+    has_water: raw.has_water,
+    has_shade: raw.has_shade,
+    accessible: raw.accessible,
+    is_featured: raw.is_featured,
+    average_rating: raw.average_rating ?? 4.0,
+    photo_credit: raw.photo_credit,
+    uploaded_by: raw.uploaded_by,
+    distance_meters: raw.distance_meters,
+  } as POI;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -74,24 +133,6 @@ function FilterPanel({
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
 
-  let proximityBorderColor: string;
-  if (sortByProximity) {
-    proximityBorderColor = '#0d9e6e';
-  } else if (geoError) {
-    proximityBorderColor = '#ef4444';
-  } else {
-    proximityBorderColor = '#e2e8f0';
-  }
-
-  let proximityTextColor: string;
-  if (sortByProximity) {
-    proximityTextColor = '#0d9e6e';
-  } else if (geoError) {
-    proximityTextColor = '#ef4444';
-  } else {
-    proximityTextColor = '#64748b';
-  }
-
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'flex-start' }}>
       <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'default', padding: 0 }} />
@@ -113,9 +154,9 @@ function FilterPanel({
         <FilterSection title="מיון">
           <button onClick={handleProximityToggle} disabled={geoLoading} style={{
             width: '100%', padding: '10px 14px', borderRadius: 12,
-            border: `2px solid ${proximityBorderColor}`,
+            border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`,
             background: sortByProximity ? '#f0fdf8' : '#fff',
-            color: proximityTextColor,
+            color: sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#64748b',
             fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'wait' : 'pointer',
             fontFamily: 'Heebo, sans-serif',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -190,24 +231,6 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
     favLock.guardAction(() => toggleFavorite(Number(poi.id)));
   };
 
-  let bucketAriaLabel: string;
-  if (isGuest) {
-    bucketAriaLabel = 'הוספה לסל המסלול — דרוש חשבון';
-  } else if (inBucket) {
-    bucketAriaLabel = 'הסר מסל המסלול';
-  } else {
-    bucketAriaLabel = 'הוסף לסל המסלול';
-  }
-
-  let bucketContent: React.ReactNode;
-  if (isGuest) {
-    bucketContent = <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>;
-  } else if (inBucket) {
-    bucketContent = <>✓ נוסף לסל המסלול</>;
-  } else {
-    bucketContent = <>+ הוספה מהירה למסלול</>;
-  }
-
   return (
     <button type="button" onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
       style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease', border: 'none', padding: 0, textAlign: 'right', display: 'block', width: '100%' }}>
@@ -266,9 +289,12 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
           {poi.has_shade && <div style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>🌿 צל</div>}
         </div>
         <button onClick={handleBucketToggle}
-          aria-label={bucketAriaLabel}
+          aria-label={isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול'}
           style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${isGuest ? '#e2e8f0' : inBucket ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 10, background: isGuest ? '#f8fafc' : inBucket ? '#f0fdf8' : '#f8fafc', color: isGuest ? '#94a3b8' : inBucket ? '#0d9e6e' : '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
-          {bucketContent}
+          {isGuest
+            ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
+            : inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>
+          }
         </button>
         {bucketLock.PromptComponent}
       </div>
@@ -286,64 +312,6 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
  *               so the client-side radius filter can narrow them down.
  */
 type FetchMode = 'normal' | 'city';
-
-// ── Module-level helpers (extracted to keep fetchPage complexity ≤ 15) ────────
-
-function buildFetchQueryParams(
-  selRegions: string[], selCats: string[], selDiffs: string[],
-  hasWater: boolean, hasShade: boolean, accessible: boolean,
-  isCityFetch: boolean, debouncedSearch: string,
-  gpsCoords: { lat: number; lng: number } | null | undefined,
-  pageNum: number, effectivePageSize: number,
-): URLSearchParams {
-  const qs = new URLSearchParams();
-  if (selRegions[0]) qs.set('region', selRegions[0]);
-  if (selCats[0]) qs.set('category', selCats[0]);
-  if (selDiffs[0]) qs.set('difficulty', selDiffs[0]);
-  if (hasWater) qs.set('has_water', 'true');
-  if (hasShade) qs.set('has_shade', 'true');
-  if (accessible) qs.set('accessible', 'true');
-  if (!isCityFetch && debouncedSearch.trim()) qs.set('search', debouncedSearch.trim());
-  qs.set('limit', String(effectivePageSize));
-  qs.set('offset', String(pageNum * effectivePageSize));
-  if (gpsCoords) {
-    qs.set('user_lat', String(gpsCoords.lat));
-    qs.set('user_lng', String(gpsCoords.lng));
-  }
-  return qs;
-}
-
-function parseRawPoi(raw: Record<string, unknown>): POI {
-  return {
-    id: String(raw.id),
-    name: raw.name,
-    description: raw.description ?? '',
-    category: raw.category,
-    region: raw.region_name ?? raw.region ?? '',
-    region_id: raw.region_id,
-    latitude: raw.latitude,
-    longitude: raw.longitude,
-    images: raw.images ?? [],
-    main_image: raw.main_image ?? '',
-    difficulty: raw.difficulty ?? 'בינוני',
-    duration_minutes: raw.duration_minutes,
-    has_water: raw.has_water,
-    has_shade: raw.has_shade,
-    accessible: raw.accessible,
-    is_featured: raw.is_featured,
-    average_rating: raw.average_rating ?? 4,
-    photo_credit: raw.photo_credit,
-    uploaded_by: raw.uploaded_by,
-    distance_meters: raw.distance_meters,
-  };
-}
-
-function mergePois(prev: POI[], newPois: POI[], pageNum: number): POI[] {
-  if (pageNum === 0) return newPois;
-  const seen = new Set(prev.map(p => p.id));
-  const unique = newPois.filter(p => !seen.has(p.id));
-  return unique.length > 0 ? [...prev, ...unique] : prev;
-}
 
 // ── Main Explore page ─────────────────────────────────────────────────────────
 
@@ -456,18 +424,10 @@ export default function Explore() {
     let aborted = false;
 
     try {
-      // FIX 1 (Offset over-fetch in city mode): limit and offset must use the
-      // SAME page-size constant. City pages are CITY_PAGE_SIZE items wide, so
-      // page 1 must start at offset 200, not 40.
-      const effectivePageSize = isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
-      // City fetches omit `search=` so the server returns unfiltered candidates
-      // for the client-side radius pass. Normal fetches pass the search term.
-      const qs = buildFetchQueryParams(
-        selRegions, selCats, selDiffs,
-        hasWater, hasShade, accessible,
-        isCityFetch, debouncedSearch,
-        gpsCoords, pageNum, effectivePageSize,
-      );
+      const qs = buildFetchQuery({
+        selRegions, selCats, selDiffs, hasWater, hasShade, accessible,
+        isCityFetch, debouncedSearch, pageNum, gpsCoords,
+      });
 
       const token = localStorage.getItem('router_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -483,11 +443,16 @@ export default function Explore() {
       if (total) setTotalCount(Number.parseInt(total));
 
       const json = await res.json();
-      const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => parseRawPoi(raw));
+      const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => mapRawToPoi(raw));
 
       // Deduplicate by ID before updating state. Prevents double-appends from
       // concurrent observer triggers or re-renders.
-      setPois(prev => mergePois(prev, newPois, pageNum));
+      setPois(prev => {
+        if (pageNum === 0) return newPois;
+        const seen = new Set(prev.map(p => p.id));
+        const unique = newPois.filter(p => !seen.has(p.id));
+        return unique.length > 0 ? [...prev, ...unique] : prev;
+      });
 
       // FIX 4 (City-mode infinite pagination): if the server returned fewer
       // items than requested, there are no more server pages to fetch. Mark the
@@ -632,14 +597,9 @@ export default function Explore() {
         if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
 
         pageRef.current += 1;
-        let coords: { lat: number; lng: number } | null;
-        if (fetchModeRef.current === 'city') {
-          coords = cityResultRef.current
-            ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng }
-            : null;
-        } else {
-          coords = userCoords;
-        }
+        const coords = fetchModeRef.current === 'city'
+          ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
+          : userCoords;
         fetchPage(pageRef.current, coords);
       }
     });
@@ -703,24 +663,6 @@ export default function Explore() {
   const activeFilterCount =
     selRegions.length + selCats.length + selDiffs.length +
     (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
-
-  // ── Count bar content (extracted to avoid nested ternaries in JSX) ─────────
-  let countBarContent: React.ReactNode;
-  if (loading && pois.length === 0) {
-    countBarContent = <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>;
-  } else if (error) {
-    countBarContent = <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>;
-  } else {
-    let countText: string;
-    if (cityResult) {
-      countText = `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`;
-    } else if (sortByProximity) {
-      countText = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`;
-    } else {
-      countText = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`;
-    }
-    countBarContent = <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countText}</span>;
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -794,7 +736,19 @@ export default function Explore() {
       </div>
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
-        {countBarContent}
+        {loading && pois.length === 0
+          ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
+          : error
+            ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
+            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
+              {cityResult
+                ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
+                : sortByProximity
+                  ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
+                  : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`
+              }
+            </span>
+        }
       </div>
 
       {/* Grid */}

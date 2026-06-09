@@ -72,19 +72,21 @@ function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; select
     const dim = selected ? 52 : 44;
     const noDim = selected ? 44 : 36;
     const anchor = selected ? 26 : 22;
+    const imgBorderColor = selected ? '#0d9e6e' : '#fff';
+    const fallbackBorderColor = selected ? '#fff' : '#e2e8f0';
     return L.divIcon({
       html: poi.main_image
-        ? `<div style="
+        ? String.raw`<div style="
             position:relative;
             width:${dim}px;
             height:${dim}px;
             border-radius:12px;
             overflow:hidden;
-            border:3px solid ${selected ? '#0d9e6e' : '#fff'};
+            border:3px solid ${imgBorderColor};
             box-shadow:0 3px 12px rgba(0,0,0,0.35);
             cursor:pointer;
           ">
-            <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900\\'>${index + 1}</div>'"/>
+            <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900\'>${index + 1}</div>'"/>
             <div style="
               position:absolute;bottom:0;left:0;right:0;
               background:linear-gradient(transparent,rgba(0,0,0,0.6));
@@ -98,7 +100,7 @@ function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; select
             height:${noDim}px;
             border-radius:12px;
             background:linear-gradient(135deg,#0d9e6e,#0bba7e);
-            border:3px solid ${selected ? '#fff' : '#e2e8f0'};
+            border:3px solid ${fallbackBorderColor};
             display:flex;align-items:center;justify-content:center;
             color:#fff;font-size:14px;font-weight:900;
             box-shadow:0 3px 10px rgba(13,158,110,0.4);
@@ -143,7 +145,7 @@ function FitBoundsToSelection({ pois, startPoint, region }: {
   return null;
 }
 
-function RegionLabel({ region, count }: { region: Region | null; count: number }) {
+function RegionLabel({ region, count }: Readonly<{ region: Region | null; count: number }>) {
   if (!region) return null;
   return (
     <div style={{
@@ -307,7 +309,7 @@ export default function RouteGenerator() {
       }
 
       setStep('route');
-      window.history.replaceState({}, '');
+      globalThis.history.replaceState({}, '');
     }
      
   }, [routerLocation.state]);
@@ -350,7 +352,7 @@ export default function RouteGenerator() {
 
   const togglePOI = useCallback((poi: POI) => {
     setSelectedPois(prev =>
-      prev.find(p => p.id === poi.id)
+      prev.some(p => p.id === poi.id)
         ? prev.filter(p => p.id !== poi.id)
         : [...prev, poi]
     );
@@ -724,7 +726,7 @@ export default function RouteGenerator() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {filteredPois.map(poi => {
-                  const sel = !!selectedPois.find(p => p.id === poi.id);
+                  const sel = selectedPois.some(p => p.id === poi.id);
                   return (
                     <button key={poi.id} onClick={() => togglePOI(poi)}
                       style={{

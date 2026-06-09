@@ -33,8 +33,8 @@ const GROUP_ICON: Record<string, string> = {
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
-    if (points.length > 1) { map.fitBounds(L.latLngBounds(points).pad(0.2)); }
-    else if (points.length === 1) { map.setView(points[0], 13); }
+    if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.2));
+    else if (points.length === 1) map.setView(points[0], 13);
   }, [points, map]);
   return null;
 }
@@ -79,10 +79,17 @@ function StarRating({ value, onChange, readonly, size = 26 }: { value: number; o
   );
 }
 
+function filterOutExistingStops(
+  results: any[],
+  editStops: Array<{ id: number }>,
+): any[] {
+  return results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id)));
+}
+
 function toBase64(file: File): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
-    r.onload = () => res(String(r.result));
+    r.onload = () => res(r.result as string);
     r.onerror = rej;
     r.readAsDataURL(file);
   });
@@ -149,7 +156,7 @@ export default function PublicTripDetail() {
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tripId = Number.parseInt(id ?? '', 10);
-  const isOwner = user && Number(user.id) === trip?.user_id;
+  const isOwner = user && trip && Number(user.id) === trip.user_id;
 
   useEffect(() => {
     if (!id) return;
@@ -244,7 +251,7 @@ export default function PublicTripDetail() {
     stopSearchTimeout.current = setTimeout(async () => {
       try {
         const results = await api.locations.list({ search: q, limit: 8 });
-        setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
+        setStopSearchResults(filterOutExistingStops(results, editStops));
       } catch { /* intentional */ } finally { setSearchingStops(false); }
     }, 300);
   };
@@ -939,7 +946,7 @@ export default function PublicTripDetail() {
         {/* ── Comments ──────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '18px 20px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>💬 תגובות</span> {comments.length > 0 && <span style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 20, padding: '2px 10px', fontSize: 13, fontWeight: 700 }}>{comments.length}</span>}
+            💬 תגובות {comments.length > 0 && <span style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 20, padding: '2px 10px', fontSize: 13, fontWeight: 700 }}>{comments.length}</span>}
           </div>
 
           {/* Add comment */}

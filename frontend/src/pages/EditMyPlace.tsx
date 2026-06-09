@@ -10,6 +10,27 @@ import { CATEGORIES } from '../utils/constants';
 
 const DIFFICULTIES = ['קל - משפחות', 'קל', 'בינוני', 'קשה', 'מאתגר'];
 
+// ── Toggle props helper ───────────────────────────────────────────────────────
+
+interface ToggleProps {
+  nextVal: boolean | null;
+  toggleTitle: string;
+  borderColor: string;
+  bgColor: string;
+  textColor: string;
+  indicator: string;
+}
+
+function computeToggleProps(val: boolean | null): ToggleProps {
+  const nextVal = val === true ? null : val === false ? true : false;
+  const toggleTitle = val === null ? 'לא ידוע' : val ? 'כן' : 'לא';
+  const borderColor = val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#e2e8f0';
+  const bgColor = val === true ? '#f0fdf4' : val === false ? '#fef2f2' : '#fff';
+  const textColor = val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#94a3b8';
+  const indicator = val === true ? '✓' : val === false ? '✗' : '?';
+  return { nextVal, toggleTitle, borderColor, bgColor, textColor, indicator };
+}
+
 // ── Status badge helper ──────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
@@ -279,24 +300,7 @@ export default function EditMyPlace() {
               { key: 'hasShade', label: '🌳 יש צל', val: hasShade, set: setHasShade },
               { key: 'accessible', label: '♿ נגיש', val: accessible, set: setAccessible },
             ] as const).map(({ key, label, val, set }) => {
-              let nextVal: boolean | null;
-              if (val === true) { nextVal = null; } else if (val === false) { nextVal = true; } else { nextVal = false; }
-
-              let toggleTitle: string;
-              if (val === null) { toggleTitle = 'לא ידוע'; } else if (val) { toggleTitle = 'כן'; } else { toggleTitle = 'לא'; }
-
-              let borderColor: string;
-              if (val === true) { borderColor = '#0d9e6e'; } else if (val === false) { borderColor = '#ef4444'; } else { borderColor = '#e2e8f0'; }
-
-              let bgColor: string;
-              if (val === true) { bgColor = '#f0fdf4'; } else if (val === false) { bgColor = '#fef2f2'; } else { bgColor = '#fff'; }
-
-              let textColor: string;
-              if (val === true) { textColor = '#0d9e6e'; } else if (val === false) { textColor = '#ef4444'; } else { textColor = '#94a3b8'; }
-
-              let indicator: string;
-              if (val === true) { indicator = '✓'; } else if (val === false) { indicator = '✗'; } else { indicator = '?'; }
-
+              const { nextVal, toggleTitle, borderColor, bgColor, textColor, indicator } = computeToggleProps(val);
               return (
               <button
                 key={key}
@@ -312,7 +316,7 @@ export default function EditMyPlace() {
                 }}>
                 {label} {indicator}
               </button>
-              );
+            );
             })}
           </div>
 
@@ -427,7 +431,7 @@ function input(disabled: boolean): React.CSSProperties {
   };
 }
 
-function Label({ children }: Readonly<{ children: React.ReactNode }>) {
+function Label({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
       {children}
@@ -435,7 +439,7 @@ function Label({ children }: Readonly<{ children: React.ReactNode }>) {
   );
 }
 
-function Spinner({ label }: Readonly<{ label: string }>) {
+function Spinner({ label }: { label: string }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', fontFamily: 'Heebo, sans-serif' }}>
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>

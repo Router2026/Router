@@ -222,13 +222,7 @@ function CommunityPoisTab() {
         display: 'flex', gap: 4, marginBottom: 16,
         boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
       }}>
-        {(['all', 'pending', 'approved', 'rejected'] as const).map(f => {
-          let filterLabel: string;
-          if (f === 'all') { filterLabel = 'הכל'; }
-          else if (f === 'pending') { filterLabel = `ממתין (${counts.pending})`; }
-          else if (f === 'approved') { filterLabel = `אושר (${counts.approved})`; }
-          else { filterLabel = `נדחה (${counts.rejected})`; }
-          return (
+        {(['all', 'pending', 'approved', 'rejected'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             style={{
               flex: 1, padding: '10px 4px', border: 'none', borderRadius: 10,
@@ -237,21 +231,21 @@ function CommunityPoisTab() {
               fontWeight: 800, fontSize: 12, cursor: 'pointer',
               fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
             }}>
-            {filterLabel}
+            {f === 'all' ? `הכל` :
+              f === 'pending' ? `ממתין (${counts.pending})` :
+                f === 'approved' ? `אושר (${counts.approved})` :
+                  `נדחה (${counts.rejected})`}
           </button>
-          );
-        })}
+        ))}
       </div>
 
-      {loading && (
+      {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>טוען...</div>
-      )}
-      {!loading && pois.length === 0 && (
+      ) : pois.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
           אין מיקומים להצגה
         </div>
-      )}
-      {!loading && pois.length > 0 && (
+      ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {pois.map(poi => (
             <div key={poi.id} style={{
@@ -436,9 +430,46 @@ function CommunityPoisTab() {
   );
 }
 
+// ── TabBtn — module-level named component ─────────────────────────────────────
+
+interface TabBtnProps {
+  t: Tab;
+  label: string;
+  urgent?: boolean;
+  tab: Tab;
+  stats: { users: number; routes: number; pending_pois: number };
+  navigate: (path: string) => void;
+  setTab: (t: Tab) => void;
+}
+
+function TabBtn({ t, label, urgent, tab, stats, navigate, setTab }: Readonly<TabBtnProps>) {
+  return (
+    <button onClick={() => { if (t === 'places') { navigate('/Admin/places'); return; } setTab(t); }}
+      style={{
+        flex: 1, padding: '12px 6px', border: 'none', borderRadius: 12,
+        background: tab === t ? '#0d9e6e' : 'transparent',
+        color: tab === t ? '#fff' : '#64748b',
+        fontWeight: 800, fontSize: 12, cursor: 'pointer',
+        fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
+        position: 'relative',
+      }}>
+      {label}
+      {urgent && stats.pending_pois > 0 && tab !== t && (
+        <span style={{
+          position: 'absolute', top: 4, right: 4,
+          width: 18, height: 18, borderRadius: '50%',
+          background: '#ef4444', color: '#fff',
+          fontSize: 10, fontWeight: 900,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>{stats.pending_pois}</span>
+      )}
+    </button>
+  );
+}
+
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
-export default function AdminPanel(_: Readonly<Record<never, never>>) {
+export default function AdminPanel() {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const [tab, setTab] = useState<Tab>('community_pois');
@@ -501,29 +532,6 @@ export default function AdminPanel(_: Readonly<Record<never, never>>) {
     return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען...</div>;
   }
 
-  const TAB_BTN = (t: Tab, label: string, urgent?: boolean) => (
-    <button onClick={() => { if (t === 'places') { navigate('/Admin/places'); return; } setTab(t); }}
-      style={{
-        flex: 1, padding: '12px 6px', border: 'none', borderRadius: 12,
-        background: tab === t ? '#0d9e6e' : 'transparent',
-        color: tab === t ? '#fff' : '#64748b',
-        fontWeight: 800, fontSize: 12, cursor: 'pointer',
-        fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
-        position: 'relative',
-      }}>
-      {label}
-      {urgent && stats.pending_pois > 0 && tab !== t && (
-        <span style={{
-          position: 'absolute', top: 4, right: 4,
-          width: 18, height: 18, borderRadius: '50%',
-          background: '#ef4444', color: '#fff',
-          fontSize: 10, fontWeight: 900,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>{stats.pending_pois}</span>
-      )}
-    </button>
-  );
-
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl' }}>
 
@@ -585,10 +593,10 @@ export default function AdminPanel(_: Readonly<Record<never, never>>) {
           display: 'flex', gap: 4, marginBottom: 20,
           boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
         }}>
-          {TAB_BTN('community_pois', '📍 מיקומי קהילה', true)}
-          {TAB_BTN('places', '🗺️ כל המקומות')}
-          {TAB_BTN('users', `👥 משתמשים (${users.length})`)}
-          {TAB_BTN('routes', `🗺️ מסלולים (${routes.length})`)}
+          <TabBtn t="community_pois" label="📍 מיקומי קהילה" urgent tab={tab} stats={stats} navigate={navigate} setTab={setTab} />
+          <TabBtn t="places" label="🗺️ כל המקומות" tab={tab} stats={stats} navigate={navigate} setTab={setTab} />
+          <TabBtn t="users" label={`👥 משתמשים (${users.length})`} tab={tab} stats={stats} navigate={navigate} setTab={setTab} />
+          <TabBtn t="routes" label={`🗺️ מסלולים (${routes.length})`} tab={tab} stats={stats} navigate={navigate} setTab={setTab} />
         </div>
 
         {/* Community POIs tab */}
@@ -597,18 +605,7 @@ export default function AdminPanel(_: Readonly<Record<never, never>>) {
         {/* Users tab */}
         {tab === 'users' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {users.map(u => {
-              let toggleAdminLabel: string;
-              if (busy === String(u.id)) { toggleAdminLabel = '...'; }
-              else if (u.is_admin) { toggleAdminLabel = 'הסר Admin'; }
-              else { toggleAdminLabel = 'הפוך Admin'; }
-
-              let deleteUserLabel: string;
-              if (busy === String(u.id)) { deleteUserLabel = '...'; }
-              else if (confirmDelete === String(u.id)) { deleteUserLabel = 'מחק?'; }
-              else { deleteUserLabel = '🗑'; }
-
-              return (
+            {users.map(u => (
               <div key={u.id} style={{
                 background: '#fff', borderRadius: 16, padding: '16px 18px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
@@ -646,7 +643,7 @@ export default function AdminPanel(_: Readonly<Record<never, never>>) {
                       cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {toggleAdminLabel}
+                    {busy === String(u.id) ? '...' : u.is_admin ? 'הסר Admin' : 'הפוך Admin'}
                   </button>
                   <button disabled={busy === String(u.id)} onClick={() => handleDeleteUser(String(u.id))}
                     style={{
@@ -657,12 +654,11 @@ export default function AdminPanel(_: Readonly<Record<never, never>>) {
                       color: confirmDelete === String(u.id) ? '#fff' : '#ef4444',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {deleteUserLabel}
+                    {busy === String(u.id) ? '...' : confirmDelete === String(u.id) ? 'מחק?' : '🗑'}
                   </button>
                 </div>
               </div>
-              );
-            })}
+            ))}
             {users.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>אין משתמשים</div>
             )}
@@ -672,13 +668,7 @@ export default function AdminPanel(_: Readonly<Record<never, never>>) {
         {/* Routes tab */}
         {tab === 'routes' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {routes.map(r => {
-              let deleteRouteLabel: string;
-              if (busy === String(r.id)) { deleteRouteLabel = '...'; }
-              else if (confirmDelete === String(r.id)) { deleteRouteLabel = 'מחק?'; }
-              else { deleteRouteLabel = '🗑'; }
-
-              return (
+            {routes.map(r => (
               <div key={r.id} style={{
                 background: '#fff', borderRadius: 16, padding: '16px 18px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
@@ -707,11 +697,10 @@ export default function AdminPanel(_: Readonly<Record<never, never>>) {
                     color: confirmDelete === String(r.id) ? '#fff' : '#ef4444',
                     fontFamily: 'Heebo, sans-serif',
                   }}>
-                  {deleteRouteLabel}
+                  {busy === String(r.id) ? '...' : confirmDelete === String(r.id) ? 'מחק?' : '🗑'}
                 </button>
               </div>
-              );
-            })}
+            ))}
             {routes.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>אין מסלולים</div>
             )}

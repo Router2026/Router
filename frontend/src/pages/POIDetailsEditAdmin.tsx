@@ -517,8 +517,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{geoError}</div>}
                                 {geoResults.length > 0 && (
                                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        {geoResults.map((r, i) => (
-                                            <button key={i} onClick={() => {
+                                        {geoResults.map((r) => (
+                                            <button key={`${r.lat},${r.lon}`} onClick={() => {
                                                 set('latitude', Number.parseFloat(r.lat).toFixed(6));
                                                 set('longitude', Number.parseFloat(r.lon).toFixed(6));
                                                 setGeoResults([]);
