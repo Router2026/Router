@@ -108,12 +108,7 @@ function makeClusterIcon(count: number, color: string, size = 48): L.DivIcon {
 
 function clusterPOIs(pois: POI[], zoom: number) {
   if (zoom >= 13) return pois.map(poi => ({ pois: [poi], lat: poi.latitude, lng: poi.longitude }));
-  let gridSizeDeg: number;
-  if (zoom < 7) { gridSizeDeg = 1.5; }
-  else if (zoom < 9) { gridSizeDeg = 0.8; }
-  else if (zoom < 11) { gridSizeDeg = 0.3; }
-  else if (zoom < 13) { gridSizeDeg = 0.1; }
-  else { gridSizeDeg = 0.05; }
+  const gridSizeDeg = zoom < 7 ? 1.5 : zoom < 9 ? 0.8 : zoom < 11 ? 0.3 : zoom < 13 ? 0.1 : 0.05;
   const cells = new Map<string, POI[]>();
   for (const poi of pois) {
     const key = `${Math.floor(poi.latitude / gridSizeDeg)},${Math.floor(poi.longitude / gridSizeDeg)}`;
@@ -127,35 +122,6 @@ function clusterPOIs(pois: POI[], zoom: number) {
   }));
 }
 
-// ── Marker creation helpers ───────────────────────────────────────────────────
-
-function createSingleMarker(
-  g: { pois: POI[]; lat: number; lng: number },
-  onClickRef: { current: (poi: POI) => void },
-): L.Marker {
-  const marker = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
-  marker.on('click', e => { L.DomEvent.stopPropagation(e); onClickRef.current(g.pois[0]); });
-  return marker;
-}
-
-function createClusterMarker(
-  g: { pois: POI[]; lat: number; lng: number },
-  map: L.Map,
-  zoom: number,
-): L.Marker {
-  const color = CAT_COLOR[g.pois[0].category] || '#0d9e6e';
-  let size: number;
-  if (g.pois.length > 50) { size = 60; }
-  else if (g.pois.length > 10) { size = 52; }
-  else { size = 44; }
-  const marker = L.marker([g.lat, g.lng], { icon: makeClusterIcon(g.pois.length, color, size) });
-  marker.on('click', e => {
-    L.DomEvent.stopPropagation(e);
-    map.setView([g.lat, g.lng], Math.min(zoom + 2, 14), { animate: true });
-  });
-  return marker;
-}
-
 // ── MarkersLayer — keyed diff, no full rebuild ────────────────────────────────
 
 interface MarkersLayerProps {
@@ -165,7 +131,7 @@ interface MarkersLayerProps {
   zoom: number;
 }
 
-function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: Readonly<MarkersLayerProps>) {
+function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerProps) {
   const map = useMap();
   const markerMapRef = useRef<Map<string, L.Marker>>(new Map());
   const onClickRef = useRef(onMarkerClick);
@@ -181,9 +147,19 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: Readonly<Marker
       nextKeys.add(key);
       if (markerMapRef.current.has(key)) continue;
 
-      const marker = g.pois.length === 1
-        ? createSingleMarker(g, onClickRef)
-        : createClusterMarker(g, map, zoom);
+      let marker: L.Marker;
+      if (g.pois.length === 1) {
+        marker = L.marker([g.lat, g.lng], { icon: makePhotoIcon(g.pois[0]) });
+        marker.on('click', e => { L.DomEvent.stopPropagation(e); onClickRef.current(g.pois[0]); });
+      } else {
+        const color = CAT_COLOR[g.pois[0].category] || '#0d9e6e';
+        const size = g.pois.length > 50 ? 60 : g.pois.length > 10 ? 52 : 44;
+        marker = L.marker([g.lat, g.lng], { icon: makeClusterIcon(g.pois.length, color, size) });
+        marker.on('click', e => {
+          L.DomEvent.stopPropagation(e);
+          map.setView([g.lat, g.lng], Math.min(zoom + 2, 14), { animate: true });
+        });
+      }
       marker.addTo(map);
       markerMapRef.current.set(key, marker);
     }
@@ -213,7 +189,7 @@ interface ViewTarget {
   id: number;
 }
 
-function PanController({ target }: Readonly<{ target: ViewTarget | null }>) {
+function PanController({ target }: { target: ViewTarget | null }) {
   const map = useMap();
   const prev = useRef<number>(0);
   useEffect(() => {
@@ -227,7 +203,7 @@ function PanController({ target }: Readonly<{ target: ViewTarget | null }>) {
   return null;
 }
 
-function MapStateTracker({ onChange }: Readonly<{ onChange: (lat: number, lng: number, zoom: number) => void }>) {
+function MapStateTracker({ onChange }: { onChange: (lat: number, lng: number, zoom: number) => void }) {
   const map = useMap();
   const cbRef = useRef(onChange);
   useEffect(() => { cbRef.current = onChange; }, [onChange]);
@@ -247,7 +223,7 @@ interface OverlayFilterProps {
   accessible: boolean; setAccessible: (v: boolean) => void;
 }
 
-function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiffs, setSelDiffs, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible }: Readonly<OverlayFilterProps>) {
+function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiffs, setSelDiffs, hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible }: OverlayFilterProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open && containerRef.current) {
@@ -297,25 +273,110 @@ function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiff
   );
 }
 
-// ── Filter helpers ────────────────────────────────────────────────────────────
+// ── POI popup card ────────────────────────────────────────────────────────────
 
-interface FilterState {
-  selCats: string[];
-  selDiffs: string[];
-  hasWater: boolean;
-  hasShade: boolean;
-  accessible: boolean;
+interface PoiPopupCardProps {
+  poi: POI;
+  inBucket: boolean;
+  onClose: () => void;
+  onNavigate: (id: number) => void;
+  onToggleBucket: (e: React.MouseEvent) => void;
 }
 
-function applyPoiFilters(pois: POI[], filters: FilterState): POI[] {
-  return pois.filter(p => {
-    if (filters.selCats.length && !filters.selCats.includes(p.category)) return false;
-    if (filters.selDiffs.length && !filters.selDiffs.includes(p.difficulty ?? '')) return false;
-    if (filters.hasWater && !p.has_water) return false;
-    if (filters.hasShade && !p.has_shade) return false;
-    if (filters.accessible && !p.accessible) return false;
-    return true;
-  });
+function PoiPopupCard({ poi, inBucket, onClose, onNavigate, onToggleBucket }: Readonly<PoiPopupCardProps>) {
+  return (
+    <div style={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 1200, width: 330, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden', direction: 'rtl' }}>
+      <button onClick={onClose} style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+      </button>
+      <button onClick={onToggleBucket}
+        style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : '0 2px 8px rgba(0,0,0,0.1)', transition: 'all 0.18s ease' }}>
+        {inBucket
+          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        }
+      </button>
+      {poi.main_image && (
+        <div style={{ height: 140, position: 'relative' }}>
+          <img src={getImageUrl(poi.main_image, 'card')} alt={poi.name}
+            loading="lazy" decoding="async"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
+          {poi.photo_credit && (
+            <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', lineHeight: 1.4 }}>
+              צילום: {poi.photo_credit}
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{ padding: '14px 16px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b' }}>{poi.average_rating}</span>
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{poi.name}</div>
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginBottom: 14 }}>{poi.category}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <button onClick={() => onNavigate(poi.id)} style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 12, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>פרטים נוספים</button>
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${poi.latitude},${poi.longitude}`} target="_blank" rel="noopener noreferrer"
+            style={{ textDecoration: 'none', width: '100%', padding: '10px', border: '2px solid #e2e8f0', borderRadius: 12, background: '#fff', color: '#1e293b', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, boxSizing: 'border-box' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
+            ניווט
+          </a>
+        </div>
+        <button onClick={onToggleBucket}
+          style={{ width: '100%', padding: '10px', border: `2px solid ${inBucket ? '#0d9e6e' : '#f1f5f9'}`, borderRadius: 12, background: inBucket ? '#f0fdf8' : '#f8fafc', color: inBucket ? '#0d9e6e' : '#64748b', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
+          {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Map top bar ───────────────────────────────────────────────────────────────
+
+interface MapTopBarProps {
+  isError: boolean;
+  isLoading: boolean;
+  selectedRegion: Region | null;
+  pois: POI[];
+  activeFilterCount: number;
+  onToggleFilter: () => void;
+  onResetView: () => void;
+}
+
+function MapTopBar({ isError, isLoading, selectedRegion, pois, activeFilterCount, onToggleFilter, onResetView }: Readonly<MapTopBarProps>) {
+  return (
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1100, background: '#fff', padding: 'calc(var(--safe-top) + 12px) 20px 10px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', direction: 'rtl', display: 'flex', alignItems: 'center', gap: 12 }}>
+      {isError && <div style={{ width: '100%', textAlign: 'center', color: '#dc2626', fontSize: 13, fontWeight: 700 }}>שגיאה בטעינת אזורים</div>}
+      {!isError && selectedRegion ? (
+        <>
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: selectedRegion.color, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{selectedRegion.name}</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
+              {isLoading ? 'טוען...' : `${pois.length} אתרים`}
+              {activeFilterCount > 0 ? ` (${activeFilterCount} פילטרים)` : ''}
+            </div>
+          </div>
+          <button onClick={onToggleFilter} style={{ background: activeFilterCount > 0 ? '#0d9e6e' : '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: activeFilterCount > 0 ? '#fff' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600, position: 'relative' }}>
+            {activeFilterCount > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>}
+            סינון
+          </button>
+          <button onClick={onResetView} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
+            ← כל האזורים
+          </button>
+        </>
+      ) : !isError && (
+        <div style={{ width: '100%', textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>בחר אזור לצפייה באתרים</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>לחץ על אזור במפה או בתפריט התחתון</div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -342,7 +403,7 @@ export default function MapView() {
   const [accessible, setAccessible] = useState(false);
 
   const mapCenterRef = useRef<[number, number]>(
-    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35],
+    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0],
   );
   const urlWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (urlWriteTimerRef.current) clearTimeout(urlWriteTimerRef.current); }, []);
@@ -378,10 +439,14 @@ export default function MapView() {
     writeUrl(lat, lng, zoom, selectedRegion?.name ?? '');
   }, [writeUrl, selectedRegion?.name]);
 
-  const pois = useMemo(
-    () => applyPoiFilters(allPois, { selCats, selDiffs, hasWater, hasShade, accessible }),
-    [allPois, selCats, selDiffs, hasWater, hasShade, accessible],
-  );
+  const pois = useMemo(() => allPois.filter(p => {
+    if (selCats.length && !selCats.includes(p.category)) return false;
+    if (selDiffs.length && !selDiffs.includes(p.difficulty ?? '')) return false;
+    if (hasWater && !p.has_water) return false;
+    if (hasShade && !p.has_shade) return false;
+    if (accessible && !p.accessible) return false;
+    return true;
+  }), [allPois, selCats, selDiffs, hasWater, hasShade, accessible]);
 
   const categories = useMemo(
     () => [...new Set(allPois.map(p => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -395,7 +460,7 @@ export default function MapView() {
   const resetView = useCallback(() => {
     setSelectedRegion(null);
     setMapZoom(7);
-    setPanTarget({ center: [31.5, 35], zoom: 7, id: Date.now() });
+    setPanTarget({ center: [31.5, 35.0], zoom: 7, id: Date.now() });
   }, []);
 
   const handleRegionClick = useCallback((region: Region) => {
@@ -412,40 +477,22 @@ export default function MapView() {
   return (
     <div style={{ position: 'relative', width: '100%', height: 'calc(100dvh - 72px - var(--safe-top))', overflow: 'hidden', direction: 'rtl' }}>
       {/* Top bar */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1100, background: '#fff', padding: 'calc(var(--safe-top) + 12px) 20px 10px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', direction: 'rtl', display: 'flex', alignItems: 'center', gap: 12 }}>
-        {isError && <div style={{ width: '100%', textAlign: 'center', color: '#dc2626', fontSize: 13, fontWeight: 700 }}>שגיאה בטעינת אזורים</div>}
-        {!isError && selectedRegion ? (
-          <>
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: selectedRegion.color, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{selectedRegion.name}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
-                {isLoading ? 'טוען...' : `${pois.length} אתרים`}
-                {activeFilterCount > 0 ? ` (${activeFilterCount} פילטרים)` : ''}
-              </div>
-            </div>
-            <button onClick={() => setFilterOpen(!filterOpen)} style={{ background: activeFilterCount > 0 ? '#0d9e6e' : '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: activeFilterCount > 0 ? '#fff' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600, position: 'relative' }}>
-              {activeFilterCount > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>}
-              סינון
-            </button>
-            <button onClick={resetView} style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: 600 }}>
-              ← כל האזורים
-            </button>
-          </>
-        ) : !isError && (
-          <div style={{ width: '100%', textAlign: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>בחר אזור לצפייה באתרים</div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>לחץ על אזור במפה או בתפריט התחתון</div>
-          </div>
-        )}
-      </div>
+      <MapTopBar
+        isError={isError}
+        isLoading={isLoading}
+        selectedRegion={selectedRegion}
+        pois={pois}
+        activeFilterCount={activeFilterCount}
+        onToggleFilter={() => setFilterOpen(!filterOpen)}
+        onResetView={resetView}
+      />
 
       <OverlayFilter open={filterOpen} onClose={() => setFilterOpen(false)} categories={categories}
         selCats={selCats} setSelCats={setSelCats} selDiffs={selDiffs} setSelDiffs={setSelDiffs}
         hasWater={hasWater} setHasWater={setHasWater} hasShade={hasShade} setHasShade={setHasShade}
         accessible={accessible} setAccessible={setAccessible} />
 
-      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
+      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
         maxBounds={[[29.0, 34.0], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         <TileLayer
@@ -462,7 +509,7 @@ export default function MapView() {
           if (!region.polygon_coords) return null;
           return (
             <Polygon key={region.id}
-              positions={region.polygon_coords}
+              positions={region.polygon_coords as [number, number][]}
               pathOptions={{ color: region.color, fillColor: region.color, fillOpacity: 0.15, weight: 2 }}
               eventHandlers={{ click: () => handleRegionClick(region) }}>
               <Tooltip permanent direction="center" opacity={1} className="region-label">{region.name}</Tooltip>
@@ -472,7 +519,7 @@ export default function MapView() {
 
         {selectedRegion?.polygon_coords && (
           <Polygon
-            positions={selectedRegion.polygon_coords}
+            positions={selectedRegion.polygon_coords as [number, number][]}
             pathOptions={{ color: selectedRegion.color, fillColor: selectedRegion.color, fillOpacity: 0.08, weight: 3, dashArray: '6,4' }}>
             <Tooltip permanent direction="center" opacity={1} className="region-label">{selectedRegion.name}</Tooltip>
           </Polygon>
@@ -487,58 +534,15 @@ export default function MapView() {
       </MapContainer>
 
       {/* POI popup card */}
-      {selectedPOI && (() => {
-        const inBucket = hasPoi(selectedPOI.id);
-        return (
-          <div style={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 1200, width: 330, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden', direction: 'rtl' }}>
-            <button onClick={() => setSelectedPOI(null)} style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-            </button>
-            <button onClick={e => { e.stopPropagation(); if (inBucket) { removePoi(selectedPOI.id); } else { addPoi(selectedPOI); } }}
-              style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : '0 2px 8px rgba(0,0,0,0.1)', transition: 'all 0.18s ease' }}>
-              {inBucket
-                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              }
-            </button>
-            {selectedPOI.main_image && (
-              <div style={{ height: 140, position: 'relative' }}>
-                <img src={getImageUrl(selectedPOI.main_image, 'card')} alt={selectedPOI.name}
-                  loading="lazy" decoding="async"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
-                {selectedPOI.photo_credit && (
-                  <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', lineHeight: 1.4 }}>
-                    צילום: {selectedPOI.photo_credit}
-                  </div>
-                )}
-              </div>
-            )}
-            <div style={{ padding: '14px 16px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b' }}>{selectedPOI.average_rating}</span>
-                </div>
-                <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{selectedPOI.name}</div>
-              </div>
-              <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginBottom: 14 }}>{selectedPOI.category}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                <button onClick={() => navigate(`/POIDetail?id=${selectedPOI.id}`)} style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 12, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>פרטים נוספים</button>
-                <a href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPOI.latitude},${selectedPOI.longitude}`} target="_blank" rel="noopener noreferrer"
-                  style={{ textDecoration: 'none', width: '100%', padding: '10px', border: '2px solid #e2e8f0', borderRadius: 12, background: '#fff', color: '#1e293b', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, boxSizing: 'border-box' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
-                  ניווט
-                </a>
-              </div>
-              <button onClick={e => { e.stopPropagation(); if (inBucket) { removePoi(selectedPOI.id); } else { addPoi(selectedPOI); } }}
-                style={{ width: '100%', padding: '10px', border: `2px solid ${inBucket ? '#0d9e6e' : '#f1f5f9'}`, borderRadius: 12, background: inBucket ? '#f0fdf8' : '#f8fafc', color: inBucket ? '#0d9e6e' : '#64748b', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
-                {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+      {selectedPOI && (
+        <PoiPopupCard
+          poi={selectedPOI}
+          inBucket={hasPoi(selectedPOI.id)}
+          onClose={() => setSelectedPOI(null)}
+          onNavigate={id => navigate(`/POIDetail?id=${id}`)}
+          onToggleBucket={e => { e.stopPropagation(); if (hasPoi(selectedPOI.id)) { removePoi(selectedPOI.id); } else { addPoi(selectedPOI); } }}
+        />
+      )}
 
       {/* Bottom region bar */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1100, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(12px)', padding: '10px 16px 12px', boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>

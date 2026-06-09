@@ -252,7 +252,7 @@ export default function Register() {
               {agreedToTerms && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
             </button>
             <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
-              קראתי ואני מסכים/ה ל
+              <span>קראתי ואני מסכים/ה ל</span>
               <a href="/privacy.html" target="_blank" rel="noopener noreferrer"
                 style={{ color: '#0d9e6e', fontWeight: 700, textDecoration: 'underline' }}>
                 מדיניות הפרטיות

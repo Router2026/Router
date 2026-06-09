@@ -29,7 +29,7 @@ const GROUP_ICON: Record<string, string> = {
 };
 
 // ── Map fit bounds helper ─────────────────────────────────────────────────────
-function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
+function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
     if (points.length > 1) {
@@ -42,7 +42,7 @@ function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
 }
 
 // ── Leaflet map for card ──────────────────────────────────────────────────────
-function RouteMapCard({ trip }: Readonly<{ trip: PublicTrip }>) {
+function RouteMapCard({ trip }: { trip: PublicTrip }) {
   const stops = trip.locations.filter(l => l.latitude && l.longitude);
   if (!stops.length) return (
     <div style={{ height: 240, background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
@@ -74,7 +74,7 @@ function RouteMapCard({ trip }: Readonly<{ trip: PublicTrip }>) {
             html: `<div style="width:28px;height:28px;border-radius:50%;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.35);font-family:Heebo,Arial;">${i + 1}</div>`,
             className: '', iconSize: [28, 28], iconAnchor: [14, 14],
           });
-          return <Marker key={loc.location_id ?? i} position={[loc.latitude, loc.longitude]} icon={icon} />;
+          return <Marker key={i} position={[loc.latitude, loc.longitude]} icon={icon} />;
         })}
         <FitBounds points={points} />
       </MapContainer>
@@ -88,7 +88,7 @@ function RouteMapCard({ trip }: Readonly<{ trip: PublicTrip }>) {
 }
 
 // ── Star rating ───────────────────────────────────────────────────────────────
-function StarRating({ value, onChange, readonly, size = 22 }: Readonly<{ value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }>) {
+function StarRating({ value, onChange, readonly, size = 22 }: { value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }) {
   const [hover, setHover] = useState(0);
   return (
     <div style={{ display: 'flex', gap: 2 }}>
@@ -110,9 +110,9 @@ function StarRating({ value, onChange, readonly, size = 22 }: Readonly<{ value: 
 }
 
 // ── Comments bottom sheet ─────────────────────────────────────────────────────
-function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: Readonly<{
+function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: {
   tripId: number; isOpen: boolean; onClose: () => void; currentUser: any; onCountChange?: (n: number) => void;
-}>) {
+}) {
   const [comments, setComments] = useState<RouteComment[]>([]);
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState('');
@@ -232,10 +232,10 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
 }
 
 // ── Rating modal ──────────────────────────────────────────────────────────────
-function RatingModal({ tripId, isOpen, onClose, currentRating, onRated }: Readonly<{
+function RatingModal({ tripId, isOpen, onClose, currentRating, onRated }: {
   tripId: number; isOpen: boolean; onClose: () => void; currentRating: number;
   onRated: (avg: number, count: number, user: number) => void;
-}>) {
+}) {
   const [selected, setSelected] = useState(currentRating);
   const [submitting, setSubmitting] = useState(false);
 
@@ -360,7 +360,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('image'); }}
                 onDragLeave={() => setDragOver(null)}
-                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) handleImage(f); }}
+                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) handleImage(f); }}
                 onClick={() => imageRef.current?.click()}
                 style={{ border: `2px dashed ${dragOver === 'image' ? '#0d9e6e' : '#d1d5db'}`, borderRadius: 16, padding: '32px 20px', textAlign: 'center', background: dragOver === 'image' ? '#f0fdf4' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
@@ -388,7 +388,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('video'); }}
                 onDragLeave={() => setDragOver(null)}
-                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('video/')) handleVideo(f); }}
+                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('video/')) handleVideo(f); }}
                 onClick={() => videoRef.current?.click()}
                 style={{ border: `2px dashed ${dragOver === 'video' ? '#7c3aed' : '#d1d5db'}`, borderRadius: 16, padding: '28px 20px', textAlign: 'center', background: dragOver === 'video' ? '#faf5ff' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>🎬</div>
@@ -408,10 +408,26 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
   );
 }
 
+// ── Trip card helpers ────────────────────────────────────────────────────────
+
+function getRankBorder(rank: number): string {
+  if (rank === 1) return '#f59e0b';
+  if (rank === 2) return '#94a3b8';
+  if (rank === 3) return '#b45309';
+  return 'transparent';
+}
+
+function getRankEmoji(rank: number): string | null {
+  if (rank === 1) return '🥇';
+  if (rank === 2) return '🥈';
+  if (rank === 3) return '🥉';
+  return null;
+}
+
 // ── Trip Card ─────────────────────────────────────────────────────────────────
-function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
+function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
   trip: PublicTrip; rank: number; currentUser: any; navigate: (path: string) => void;
-}>) {
+}) {
   const [trip, setTrip] = useState(initialTrip);
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(trip.likes_count ?? 0);
@@ -450,14 +466,8 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
     } catch { /* intentional */ } finally { setLikeLoading(false); }
   };
 
-  let rankBorder = 'transparent';
-  if (rank === 1) rankBorder = '#f59e0b';
-  else if (rank === 2) rankBorder = '#94a3b8';
-  else if (rank === 3) rankBorder = '#b45309';
-  let rankEmoji: string | null = null;
-  if (rank === 1) rankEmoji = '🥇';
-  else if (rank === 2) rankEmoji = '🥈';
-  else if (rank === 3) rankEmoji = '🥉';
+  const rankBorder = getRankBorder(rank);
+  const rankEmoji = getRankEmoji(rank);
   const isOwner = currentUser && !currentUser.isGuest && Number(currentUser.id) === trip.user_id;
   const hasImage = !!trip.image_url;
   const hasVideo = !!trip.video_url;
@@ -536,11 +546,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
             {mediaTabs.map(tab => (
               <button key={tab} onClick={() => setMediaTab(tab)}
                 style={{ flex: 1, padding: '7px 0', border: 'none', background: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: mediaTab === tab ? '#0d9e6e' : '#94a3b8', borderBottom: mediaTab === tab ? '2px solid #0d9e6e' : '2px solid transparent', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}>
-                {(() => {
-                  if (tab === 'map') return '🗺️ מפה';
-                  if (tab === 'image') return '🖼️ תמונה';
-                  return '🎥 סרטון';
-                })()}
+                {tab === 'map' ? '🗺️ מפה' : tab === 'image' ? '🖼️ תמונה' : '🎥 סרטון'}
               </button>
             ))}
           </div>
@@ -576,12 +582,17 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
           {/* Like */}
           <button onClick={toggleLike} disabled={likeLoading}
             style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: currentUser && !currentUser.isGuest ? 'pointer' : 'default', padding: 4, borderRadius: 8 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24"
-              fill={liked ? '#ef4444' : 'none'}
-              stroke={liked ? '#ef4444' : '#64748b'} strokeWidth="2"
-              style={{ transition: 'all 0.25s', transform: (() => { if (likeAnim) return 'scale(1.4)'; if (liked) return 'scale(1.1)'; return 'scale(1)'; })() }}>
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
+            {(() => {
+              const heartScale = likeAnim ? 'scale(1.4)' : liked ? 'scale(1.1)' : 'scale(1)';
+              return (
+                <svg width="24" height="24" viewBox="0 0 24 24"
+                  fill={liked ? '#ef4444' : 'none'}
+                  stroke={liked ? '#ef4444' : '#64748b'} strokeWidth="2"
+                  style={{ transition: 'all 0.25s', transform: heartScale }}>
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+              );
+            })()}
             <span style={{ fontSize: 14, fontWeight: 700, color: liked ? '#ef4444' : '#64748b' }}>{likesCount}</span>
           </button>
 
@@ -656,7 +667,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<{
         {trip.locations.length > 0 && (
           <div style={{ display: 'flex', gap: 6, paddingInline: 15, paddingBottom: 10, flexWrap: 'wrap' }}>
             {trip.locations.slice(0, 4).map((loc, i) => (
-              <span key={loc.location_id ?? i} style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 10, padding: '3px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #d1fae5' }}>
+              <span key={loc.id ?? i} style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 10, padding: '3px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #d1fae5' }}>
                 {i + 1}. {loc.name}
               </span>
             ))}

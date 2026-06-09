@@ -25,12 +25,12 @@ function PhotoStopMarker({ stop, index }: Readonly<{ stop: any; index: number }>
   const map = useMap();
   const icon = L.divIcon({
     html: stop.main_image
-      ? `<div style="
+      ? String.raw`<div style="
             position:relative;width:52px;height:52px;border-radius:12px;
             overflow:hidden;border:3px solid #0d9e6e;
             box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
           <img src="${stop.main_image}" style="width:100%;height:100%;object-fit:cover;"
-            onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900\\'>${index + 1}</div>'"/>
+            onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900\'>${index + 1}</div>'"/>
           <div style="
             position:absolute;bottom:0;left:0;right:0;
             background:linear-gradient(transparent,rgba(0,0,0,0.65));

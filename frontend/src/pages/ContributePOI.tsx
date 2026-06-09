@@ -37,23 +37,23 @@ const MAX_FILE_MB = 50;
 const extractLatLngFromGoogle = (input: string): LatLng | null => {
   const s = input.trim();
 
-  const rawCoord = /^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/.exec(s);
+  const rawCoord = s.match(/^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/);
   if (rawCoord) {
     const lat = Number.parseFloat(rawCoord[1]);
     const lng = Number.parseFloat(rawCoord[2]);
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
   }
 
-  const atCoord = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
+  const atCoord = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (atCoord) return { lat: Number.parseFloat(atCoord[1]), lng: Number.parseFloat(atCoord[2]) };
 
-  const embCoord = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/.exec(s);
+  const embCoord = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
   if (embCoord) return { lat: Number.parseFloat(embCoord[1]), lng: Number.parseFloat(embCoord[2]) };
 
-  const qParam = /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
+  const qParam = s.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (qParam) return { lat: Number.parseFloat(qParam[1]), lng: Number.parseFloat(qParam[2]) };
 
-  const llParam = /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
+  const llParam = s.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (llParam) return { lat: Number.parseFloat(llParam[1]), lng: Number.parseFloat(llParam[2]) };
 
   return null;
@@ -159,7 +159,7 @@ function MapRecenter({ position }: { position: LatLng | null }) {
   return null;
 }
 
-function PickedMarker({ position }: Readonly<{ position: LatLng }>) {
+function PickedMarker({ position }: { position: LatLng }) {
   const icon = L.divIcon({
     html: `<div style="width:40px;height:40px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#0d9e6e,#0bba7e);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;box-shadow:0 3px 12px rgba(13,158,110,0.45);transform:rotate(-45deg)"><span style="transform:rotate(45deg)">📍</span></div>`,
     className: '',
@@ -167,6 +167,78 @@ function PickedMarker({ position }: Readonly<{ position: LatLng }>) {
     iconAnchor: [20, 40],
   });
   return <Marker position={[position.lat, position.lng]} icon={icon} />;
+}
+
+// ── Submit helpers ────────────────────────────────────────────────────────────
+
+async function uploadFileItems(fileItems: MediaItem[], token: string | null, apiBase: string): Promise<string[]> {
+  const results = await Promise.allSettled(
+    fileItems.map(async (item) => {
+      const base64 = await fileToBase64(item.file!);
+      const res = await fetch(`${apiBase}/api/media/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ media_data: base64, mime_type: item.file!.type }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json?.error?.message ?? `Upload error ${res.status}`);
+      }
+      const json = await res.json();
+      const publicUrl: string = json?.data?.url;
+      if (!publicUrl) { throw new Error('No URL returned from upload API'); }
+      return publicUrl;
+    })
+  );
+  return results
+    .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+    .map(r => r.value);
+}
+
+interface PoiSubmitPayload {
+  name: string;
+  category: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+  photos: string[];
+  difficulty: string;
+  durationMinutes: string;
+  hasWater: boolean;
+  hasShade: boolean;
+  accessible: boolean;
+  photoCredit: string;
+}
+
+async function postCommunityPoi(payload: PoiSubmitPayload, token: string | null, apiBase: string): Promise<void> {
+  const res = await fetch(`${apiBase}/api/community-pois`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      name: payload.name.trim(),
+      category: payload.category,
+      description: payload.description.trim() || undefined,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      photos: payload.photos,
+      difficulty: payload.difficulty,
+      duration_minutes: payload.durationMinutes ? Number.parseInt(payload.durationMinutes, 10) : undefined,
+      has_water: payload.hasWater,
+      has_shade: payload.hasShade,
+      accessible: payload.accessible,
+      photo_credit: payload.photoCredit.trim() || undefined,
+    }),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
+  }
 }
 
 // ── Main Page ────────────────────────────────────────────────────────────────
@@ -319,56 +391,6 @@ export default function ContributePOI() {
     });
   };
 
-  // ── Submit helpers ────────────────────────────────────────────
-
-  const uploadMediaFile = async (item: MediaItem, apiBase: string, token: string | null): Promise<string> => {
-    const base64 = await fileToBase64(item.file!);
-    const res = await fetch(`${apiBase}/api/media/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ media_data: base64, mime_type: item.file!.type }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      throw new Error(json?.error?.message ?? `Upload error ${res.status}`);
-    }
-    const json = await res.json();
-    const publicUrl: string = json?.data?.url;
-    if (!publicUrl) throw new Error('No URL returned from upload API');
-    return publicUrl;
-  };
-
-  const submitPoiToApi = async (apiBase: string, token: string | null, photos: string[], point: LatLng) => {
-    const res = await fetch(`${apiBase}/api/community-pois`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        name: name.trim(),
-        category,
-        description: description.trim() || undefined,
-        latitude: point.lat,
-        longitude: point.lng,
-        photos,
-        difficulty,
-        duration_minutes: durationMinutes ? Number.parseInt(durationMinutes, 10) : undefined,
-        has_water: hasWater,
-        has_shade: hasShade,
-        accessible,
-        photo_credit: photoCredit.trim() || undefined,
-      }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      throw new Error(json?.error?.message ?? `שגיאה ${res.status}`);
-    }
-  };
-
   // ── Submit ────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
@@ -381,25 +403,20 @@ export default function ContributePOI() {
     try {
       const fileItems = mediaItems.filter(m => m.file && m.type === 'image');
       const urlItems = mediaItems.filter(m => m.url && m.type === 'image').map(m => m.url!);
-
       const token = localStorage.getItem('router_auth_token');
       const apiBase = (import.meta.env.VITE_API_URL ?? '');
 
-      // Upload files to Supabase Storage
-      const uploadResults = await Promise.allSettled(
-        fileItems.map(item => uploadMediaFile(item, apiBase, token))
-      );
-
-      const uploadedUrls = uploadResults
-        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
-        .map(r => r.value);
-
-      // Combine all URLs into a proper JSON array structure
+      const uploadedUrls = await uploadFileItems(fileItems, token, apiBase);
       const photos: string[] = [...urlItems, ...uploadedUrls];
 
-      await submitPoiToApi(apiBase, token, photos, pickedPoint);
-      setSubmitted(true);
+      await postCommunityPoi({
+        name, category, description,
+        latitude: pickedPoint.lat, longitude: pickedPoint.lng,
+        photos, difficulty, durationMinutes,
+        hasWater, hasShade, accessible, photoCredit,
+      }, token, apiBase);
 
+      setSubmitted(true);
     } catch (err) {
       setError((err as Error).message ?? 'אירעה שגיאה בשמירה');
     } finally {

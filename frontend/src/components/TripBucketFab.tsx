@@ -15,7 +15,7 @@ export default function TripBucketFab() {
     <button
       onClick={openSheet}
       data-tour="trip-bucket-fab"
-      aria-label={`Trip Bucket — ${count} item${count !== 1 ? 's' : ''}`}
+      aria-label={`Trip Bucket — ${count} item${count === 1 ? '' : 's'}`}
       style={{
         position: 'fixed',
         bottom: 88, // above the bottom nav bar (~72px) + 16px gap
@@ -34,10 +34,10 @@ export default function TripBucketFab() {
         transition: 'transform 0.15s ease, box-shadow 0.15s ease',
       }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)';
+        e.currentTarget.style.transform = 'scale(1.08)';
       }}
       onMouseLeave={e => {
-        (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+        e.currentTarget.style.transform = 'scale(1)';
       }}
     >
       {/* Backpack icon */}

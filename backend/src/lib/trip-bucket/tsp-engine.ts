@@ -82,85 +82,64 @@ export function buildHaversineMatrix(nodes: TspNode[]): DistanceMatrix {
 // ── Held-Karp DP TSP with fixed start ────────────────────────────────────────
 
 /**
- * Held-Karp exact TSP.
- *
- * @param matrix     Full (n×n) travel-time matrix including the start node at index 0.
- * @param fixedStart When true, node 0 is treated as a fixed origin (user location).
- *                   The DP permutes only nodes [1..n-1] to find the optimal order.
- *                   When false (default), the algorithm finds the globally optimal
- *                   starting node as well.
- * @returns          Ordered visiting sequence as node indices (includes 0 only when
- *                   fixedStart=true, as the first element).
+ * Held-Karp with a FIXED start node (node 0 is the origin).
+ * Permutes only nodes [1..n-1].
  */
-export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
+function heldKarpFixedStart(matrix: DistanceMatrix): number[] {
   const n = matrix.length;
-  if (n === 1) return [0];
-  if (n === 2) return [0, 1];
-
   const INF = Number.MAX_SAFE_INTEGER / 2;
+  const m = n - 1; // number of POI nodes
+  const FULL = (1 << m) - 1;
 
-  if (fixedStart) {
-    // ── Fixed-origin variant ─────────────────────────────────────────────────
-    // We optimise only over the POI nodes [1..n-1], starting from node 0.
-    // dp[mask][i] = min cost to visit exactly the nodes in mask (subset of [1..n-1]),
-    //               starting from 0, currently at node i.
-    // mask uses bits 0..n-2 to represent nodes 1..n-1.
+  const dp: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(INF));
+  const parent: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(-1));
 
-    const m = n - 1; // number of POI nodes
-    const FULL = (1 << m) - 1;
+  for (let v = 1; v < n; v++) {
+    dp[1 << (v - 1)][v] = matrix[0][v];
+  }
 
-    const dp: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(INF));
-    const parent: number[][] = Array.from({ length: 1 << m }, () => new Array(n).fill(-1));
-
-    // Initialise: travel from fixed start (0) to each POI directly
-    for (let v = 1; v < n; v++) {
-      const bit = v - 1; // bit index for node v
-      dp[1 << bit][v] = matrix[0][v];
-    }
-
-    for (let mask = 1; mask <= FULL; mask++) {
-      for (let u = 1; u < n; u++) {
-        const uBit = u - 1;
-        if (!(mask & (1 << uBit))) continue;
-        if (dp[mask][u] === INF) continue;
-
-        for (let v = 1; v < n; v++) {
-          const vBit = v - 1;
-          if (mask & (1 << vBit)) continue; // already visited
-
-          const nextMask = mask | (1 << vBit);
-          const cost = dp[mask][u] + matrix[u][v];
-          if (cost < dp[nextMask][v]) {
-            dp[nextMask][v] = cost;
-            parent[nextMask][v] = u;
-          }
+  for (let mask = 1; mask <= FULL; mask++) {
+    for (let u = 1; u < n; u++) {
+      if (!(mask & (1 << (u - 1)))) continue;
+      if (dp[mask][u] === INF) continue;
+      for (let v = 1; v < n; v++) {
+        if (mask & (1 << (v - 1))) continue;
+        const nextMask = mask | (1 << (v - 1));
+        const cost = dp[mask][u] + matrix[u][v];
+        if (cost < dp[nextMask][v]) {
+          dp[nextMask][v] = cost;
+          parent[nextMask][v] = u;
         }
       }
     }
-
-    // Find best last node
-    let lastNode = 1;
-    let minCost = INF;
-    for (let u = 1; u < n; u++) {
-      if (dp[FULL][u] < minCost) { minCost = dp[FULL][u]; lastNode = u; }
-    }
-
-    // Reconstruct path through POI nodes
-    const path: number[] = [];
-    let mask = FULL;
-    let cur = lastNode;
-    while (cur !== -1 && cur !== 0) {
-      path.unshift(cur);
-      const prev = parent[mask][cur];
-      mask ^= 1 << (cur - 1);
-      cur = prev;
-    }
-
-    return [0, ...path]; // prepend fixed start
   }
 
-  // ── Standard variant (no fixed start) ────────────────────────────────────
+  let lastNode = 1;
+  let minCost = INF;
+  for (let u = 1; u < n; u++) {
+    if (dp[FULL][u] < minCost) { minCost = dp[FULL][u]; lastNode = u; }
+  }
+
+  const path: number[] = [];
+  let mask = FULL;
+  let cur = lastNode;
+  while (cur !== -1 && cur !== 0) {
+    path.unshift(cur);
+    const prev = parent[mask][cur];
+    mask ^= 1 << (cur - 1);
+    cur = prev;
+  }
+  return [0, ...path];
+}
+
+/**
+ * Standard Held-Karp (no fixed start — finds globally optimal starting node).
+ */
+function heldKarpStandard(matrix: DistanceMatrix): number[] {
+  const n = matrix.length;
+  const INF = Number.MAX_SAFE_INTEGER / 2;
   const FULL_MASK = (1 << n) - 1;
+
   const dp: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(INF));
   const parent: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(-1));
 
@@ -198,6 +177,24 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
     cur = prev;
   }
   return path;
+}
+
+/**
+ * Held-Karp exact TSP.
+ *
+ * @param matrix     Full (n×n) travel-time matrix including the start node at index 0.
+ * @param fixedStart When true, node 0 is treated as a fixed origin (user location).
+ *                   The DP permutes only nodes [1..n-1] to find the optimal order.
+ *                   When false (default), the algorithm finds the globally optimal
+ *                   starting node as well.
+ * @returns          Ordered visiting sequence as node indices (includes 0 only when
+ *                   fixedStart=true, as the first element).
+ */
+export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
+  const n = matrix.length;
+  if (n === 1) return [0];
+  if (n === 2) return [0, 1];
+  return fixedStart ? heldKarpFixedStart(matrix) : heldKarpStandard(matrix);
 }
 
 // ── Greedy Nearest-Neighbor fallback ─────────────────────────────────────────

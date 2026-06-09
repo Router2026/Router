@@ -10,19 +10,6 @@ import { useAuth } from '../context/AuthContext';
 
 const REGIONS = ['גליל', 'גולן', 'כרמל', 'שרון', 'שפלה', 'ירושלים', 'יהודה', 'נגב', 'ערבה', 'אילת'];
 
-function buildFormFromProfile(profile: Record<string, unknown>) {
-  return {
-    username:         (profile.username         as string) || '',
-    full_name:        (profile.full_name         as string) || '',
-    bio:              (profile.bio               as string) || '',
-    avatar_url:       (profile.avatar_url        as string) || '',
-    cover_image:      (profile.cover_image       as string) || '',
-    favorite_regions: (profile.favorite_regions  as string[]) || [],
-    instagram:        (profile.instagram         as string) || '',
-    website:          (profile.website           as string) || '',
-  };
-}
-
 export default function ProfileEdit() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -47,8 +34,31 @@ export default function ProfileEdit() {
     if (!user) { navigate('/Login', { replace: true }); return; }
     // Feature 6: always fetch fresh profile from DB
     api.users.me()
-      .then(profile => setForm(buildFormFromProfile(profile as Record<string, unknown>)))
-      .catch(() => setForm(buildFormFromProfile(user as unknown as Record<string, unknown>)))
+      .then(profile => {
+        setForm({
+          username:         profile.username         || '',
+          full_name:        profile.full_name         || '',
+          bio:              profile.bio               || '',
+          avatar_url:       profile.avatar_url        || '',
+          cover_image:      profile.cover_image       || '',
+          favorite_regions: profile.favorite_regions  || [],
+          instagram:        profile.instagram         || '',
+          website:          profile.website           || '',
+        });
+      })
+      .catch(() => {
+        // Fallback to AuthContext user data
+        setForm({
+          username:         user.username         || '',
+          full_name:        user.full_name         || '',
+          bio:              (user as any).bio      || '',
+          avatar_url:       (user as any).avatar_url || '',
+          cover_image:      (user as any).cover_image || '',
+          favorite_regions: (user as any).favorite_regions || [],
+          instagram:        (user as any).instagram || '',
+          website:          (user as any).website  || '',
+        });
+      })
       .finally(() => setLoadingProfile(false));
   }, [user]);
 
@@ -136,7 +146,7 @@ export default function ProfileEdit() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', flexShrink: 0, background: form.avatar_url ? 'none' : 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#fff', fontWeight: 800, border: '3px solid #e2e8f0' }}>
               {form.avatar_url
-                ? <img src={form.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="avatar" onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
+                ? <img src={form.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="avatar" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
                 : (form.full_name || form.username || '?').charAt(0).toUpperCase()}
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -183,7 +193,7 @@ export default function ProfileEdit() {
             {REGIONS.map(r => {
               const active = form.favorite_regions.includes(r);
               const atLimit = form.favorite_regions.length >= 5 && !active;
-              const regionColor = active ? '#0d9e6e' : atLimit ? '#cbd5e1' : '#64748b';
+              const regionColor = active ? '#0d9e6e' : (atLimit ? '#cbd5e1' : '#64748b');
               return (
                 <button key={r} onClick={() => !atLimit && toggleRegion(r)} disabled={atLimit}
                   style={{ padding: '7px 14px', borderRadius: 20, border: `1.5px solid ${active ? '#0d9e6e' : '#e2e8f0'}`, background: active ? '#ecfdf5' : '#f8fafc', color: regionColor, fontFamily: 'Heebo, sans-serif', fontWeight: active ? 700 : 500, fontSize: 13, cursor: atLimit ? 'default' : 'pointer', transition: 'all 0.15s' }}>
@@ -221,7 +231,7 @@ export default function ProfileEdit() {
             placeholder="https://example.com/cover.jpg" style={{ ...inputStyle, direction: 'ltr' }} />
           {form.cover_image && (
             <img src={form.cover_image} alt="cover preview"
-              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }}
+              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }}
               style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 10, marginTop: 10 }} />
           )}
         </div>

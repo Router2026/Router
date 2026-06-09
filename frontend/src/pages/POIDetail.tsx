@@ -152,9 +152,9 @@ function RouteLayer({
 
 function HeroImage({
   poi, galleryImages, photoCredit,
-}: Readonly<{
+}: {
   poi: POI; galleryImages: LocationImage[]; photoCredit?: string;
-}>) {
+}) {
   const [imgIdx, setImgIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
 
@@ -173,7 +173,7 @@ function HeroImage({
     const link = document.createElement('link');
     link.rel = 'preload'; link.as = 'image'; link.href = href;
     document.head.appendChild(link);
-    return () => { link.remove(); };
+    return () => { document.head.removeChild(link); };
   }, [images]);
 
   const currentSrc = !imgError && images[imgIdx] ? getImageUrl(images[imgIdx], 'hero') : null;
@@ -209,8 +209,8 @@ function HeroImage({
           <button onClick={() => setImgIdx(i => Math.min(images.length - 1, i + 1))} aria-label="תמונה הבאה"
             style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '30%', background: 'transparent', border: 'none', cursor: 'pointer', zIndex: 11 }} />
           <div style={{ position: 'absolute', bottom: 72, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 12 }}>
-            {images.map((imgUrl, i) => (
-              <button key={imgUrl} onClick={() => setImgIdx(i)}
+            {images.map((_, i) => (
+              <button key={i} onClick={() => setImgIdx(i)}
                 style={{ width: i === imgIdx ? 20 : 6, height: 6, borderRadius: 3, background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.5)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.2s ease' }} />
             ))}
           </div>
@@ -222,7 +222,7 @@ function HeroImage({
 
 // ── MiniMap ───────────────────────────────────────────────────────────────────
 
-function MiniMap({ poi }: Readonly<{ poi: POI }>) {
+function MiniMap({ poi }: { poi: POI }) {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMin: number } | null>(null);
@@ -269,7 +269,7 @@ function MiniMap({ poi }: Readonly<{ poi: POI }>) {
       <div style={{ padding: '12px 16px', direction: 'rtl' }}>
         {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8, textAlign: 'center' }}>{geoError}</div>}
         {userCoords ? (
-          <button onClick={() => globalThis.open(`https://waze.com/ul?q=${poi.latitude},${poi.longitude}`, '_blank')}
+          <button onClick={() => window.open(`https://waze.com/ul?q=${poi.latitude},${poi.longitude}`, '_blank')}
             style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             פתח ב-Waze
           </button>
@@ -288,9 +288,9 @@ function MiniMap({ poi }: Readonly<{ poi: POI }>) {
 
 function StarRating({
   locationId, initialSummary, isLoggedIn,
-}: Readonly<{
+}: {
   locationId: number; initialSummary: RatingSummary | null; isLoggedIn: boolean;
-}>) {
+}) {
   const [summary, setSummary] = useState<RatingSummary | null>(initialSummary);
   const [hovered, setHovered] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -317,18 +317,14 @@ function StarRating({
     <div style={{ direction: 'rtl' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <div style={{ display: 'flex', gap: 3 }}>
-          {[1, 2, 3, 4, 5].map(star => {
-            const dimmedColor = star <= displayRating ? '#fcd34d' : '#d1d5db';
-            const starColor = star <= activeStars ? '#f59e0b' : dimmedColor;
-            return (
+          {[1, 2, 3, 4, 5].map(star => (
             <button key={star} onClick={() => handleRate(star)}
               onMouseEnter={() => isLoggedIn && setHovered(star)} onMouseLeave={() => setHovered(0)}
               disabled={saving || !isLoggedIn}
-              style={{ background: 'none', border: 'none', padding: '2px', cursor: isLoggedIn ? 'pointer' : 'default', fontSize: 22, lineHeight: 1, color: starColor, transition: 'color 0.1s, transform 0.1s', transform: hovered === star ? 'scale(1.2)' : 'scale(1)' }}>
+              style={{ background: 'none', border: 'none', padding: '2px', cursor: isLoggedIn ? 'pointer' : 'default', fontSize: 22, lineHeight: 1, color: star <= activeStars ? '#f59e0b' : star <= displayRating ? '#fcd34d' : '#d1d5db', transition: 'color 0.1s, transform 0.1s', transform: hovered === star ? 'scale(1.2)' : 'scale(1)' }}>
               ★
             </button>
-            );
-          })}
+          ))}
         </div>
         <span style={{ fontWeight: 900, color: '#1a2e2a', fontSize: 18 }}>{displayRating.toFixed(1)}</span>
         <span style={{ fontSize: 12, color: '#94a3b8' }}>({ratingCount} דירוגים)</span>
@@ -344,10 +340,10 @@ function StarRating({
 
 function MediaGallery({
   locationId: _locationId, media, isAdmin, onApprove: _onApprove, onReject,
-}: Readonly<{
+}: {
   locationId: number; media: LocationMedia[];
   isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void;
-}>) {
+}) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   if (!media.length) return null;
 
@@ -377,7 +373,7 @@ function MediaGallery({
             ) : (
               <img src={getImageUrl(item.media_url, 'card')} alt={item.caption || 'gallery'} loading="lazy" decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { e.currentTarget.style.opacity = '0.3'; e.currentTarget.onerror = null; }} />
+                onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
             )}
             {item.media_type === 'video' && (
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '2px 5px', fontSize: 9, color: '#fff', fontWeight: 700 }}>▶ סרטון</div>
@@ -429,7 +425,7 @@ function MediaGallery({
 
 // ── NearbyPlaces ──────────────────────────────────────────────────────────────
 
-function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
+function NearbyPlaces({ locationId }: { locationId: number }) {
   const navigate = useNavigate();
   // NearbyPlaces keeps its own useQuery so it can load in parallel with (and
   // independently of) the main POI data — it's a PostGIS spatial query that can
@@ -440,14 +436,16 @@ function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
     staleTime: 5 * 60 * 1000,
   });
 
-  if (isLoading) return (
-    <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16, direction: 'rtl' }}>
-      <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>📍 מקומות קרובים</div>
-      <div style={{ display: 'flex', gap: 10, overflowX: 'hidden' }}>
-        {[1, 2, 3].map(i => <div key={i} style={{ flexShrink: 0, width: 140, height: 120, borderRadius: 14, background: '#f0f0f0' }} />)}
+  if (isLoading) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16, direction: 'rtl' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>📍 מקומות קרובים</div>
+        <div style={{ display: 'flex', gap: 10, overflowX: 'hidden' }}>
+          {[1, 2, 3].map(i => <div key={i} style={{ flexShrink: 0, width: 140, height: 120, borderRadius: 14, background: '#f0f0f0' }} />)}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   if (!nearby.length) return null;
 
@@ -466,7 +464,7 @@ function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
               {place.main_image ? (
                 <img src={getImageUrl(place.main_image, 'thumb')} alt={place.name} loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                   <span style={{ fontSize: 28, opacity: 0.5 }}>🏞️</span>
@@ -525,7 +523,7 @@ function POIDetailSkeleton() {
 
 // ── Error state ───────────────────────────────────────────────────────────────
 
-function POIDetailError({ message, onBack, onRetry }: Readonly<{ message: string; onBack: () => void; onRetry: () => void }>) {
+function POIDetailError({ message, onBack, onRetry }: { message: string; onBack: () => void; onRetry: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12, padding: '0 24px', textAlign: 'center' }}>
       <div style={{ fontSize: 52 }}>😕</div>
@@ -629,7 +627,7 @@ export default function POIDetail() {
 
   const openGoogleMaps = () => {
     if (!poi) return;
-    globalThis.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
+    window.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
   };
 
   // ── Render guards ──────────────────────────────────────────────────────────
@@ -719,7 +717,7 @@ export default function POIDetail() {
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 'calc(var(--safe-top) + 12px) 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => navigator.share?.({ title: poi.name, url: globalThis.location.href })}
+                <button onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 </button>
@@ -837,15 +835,13 @@ export default function POIDetail() {
                   <p style={{ fontSize: 14, color: '#475569', textAlign: 'right', margin: 0 }}>{r.content}</p>
                 </div>
               ))}
-              {isLoggedIn && (
+              {isLoggedIn ? (
                 <button onClick={() => navigate(`/AddReport?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ הוסף דיווח</button>
-              )}
-              {!isLoggedIn && isGuest && (
+              ) : isGuest ? (
                 <><button onClick={() => reportLock.guardAction(() => { })}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 הוסף דיווח — דרוש חשבון</button>{reportLock.PromptComponent}</>
-              )}
-              {!isLoggedIn && !isGuest && (
+              ) : (
                 <button onClick={() => navigate('/Login')}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי להוסיף דיווח</button>
               )}
@@ -864,15 +860,13 @@ export default function POIDetail() {
                   <p style={{ fontSize: 14, color: '#475569', textAlign: 'right', margin: 0 }}>{r.content}</p>
                 </div>
               ))}
-              {isLoggedIn && (
+              {isLoggedIn ? (
                 <button onClick={() => navigate(`/AddReview?poi_name=${encodeURIComponent(poi.name)}&location_id=${poiId}`)}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #0d9e6e', borderRadius: 18, background: '#f0fdf8', color: '#0d9e6e', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>+ כתוב ביקורת</button>
-              )}
-              {!isLoggedIn && isGuest && (
+              ) : isGuest ? (
                 <><button onClick={() => reviewLock.guardAction(() => { })}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #fbbf24', borderRadius: 18, background: '#fffbeb', color: '#92400e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>🔒 כתוב ביקורת — דרוש חשבון</button>{reviewLock.PromptComponent}</>
-              )}
-              {!isLoggedIn && !isGuest && (
+              ) : (
                 <button onClick={() => navigate('/Login')}
                   style={{ width: '100%', padding: '16px', border: '2px dashed #94a3b8', borderRadius: 18, background: '#f8fafc', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', marginBottom: 16 }}>🔑 התחבר כדי לכתוב ביקורת</button>
               )}
@@ -880,7 +874,7 @@ export default function POIDetail() {
           )}
 
           <Disclaimer />
-          <button onClick={() => globalThis.open(`https://waze.com/ul?ll=${poi.latitude},${poi.longitude}&navigate=yes`, '_blank')}
+          <button onClick={() => window.open(`https://waze.com/ul?ll=${poi.latitude},${poi.longitude}&navigate=yes`, '_blank')}
             style={{ width: '100%', padding: '18px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 18, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 24px rgba(13,158,110,0.25)', marginTop: 8 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
             נווט לשם

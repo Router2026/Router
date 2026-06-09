@@ -16,7 +16,7 @@ function levelLabel(xp: number) {
   if (l < 15) return 'נווט';
   return 'אלוף המסלולים';
 }
-function LevelBar({ xp }: { xp: number }) {
+function LevelBar({ xp }: Readonly<{ xp: number }>) {
   const level    = computeLevel(xp);
   const nextXp   = (level + 1) * (level + 1) * 50;
   const curXp    = level * level * 50;
@@ -38,7 +38,7 @@ const DIFF_COLOR: Record<string, string> = {
   'בינוני': '#d97706', 'קשה': '#dc2626', 'מאתגר': '#7c3aed',
 };
 
-function TripMiniCard({ trip, onClick }: { trip: PublicTrip; onClick: () => void }) {
+function TripMiniCard({ trip, onClick }: Readonly<{ trip: PublicTrip; onClick: () => void }>) {
   return (
     <button type="button" onClick={onClick} style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', cursor: 'pointer', border: '1px solid #f1f5f9', transition: 'transform 0.15s, box-shadow 0.15s', padding: 0, textAlign: 'right', width: '100%' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; }}

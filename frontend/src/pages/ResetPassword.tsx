@@ -3,6 +3,29 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
+async function submitReset(
+  accessToken: string,
+  password: string,
+  confirm: string,
+  navigate: (path: string) => void,
+  setError: (msg: string | null) => void,
+  setLoading: (v: boolean) => void,
+  setSuccess: (v: boolean) => void,
+) {
+  if (password.length < 6) { setError('הסיסמה חייבת להכיל לפחות 6 תווים'); return; }
+  if (password !== confirm) { setError('הסיסמאות אינן תואמות'); return; }
+  setError(null);
+  setLoading(true);
+  try {
+    await api.auth.resetPassword(accessToken, password);
+    setSuccess(true);
+    setTimeout(() => navigate('/Login?reset=true'), 2000);
+  } catch (e) {
+    setError((e instanceof Error ? e : new Error(String(e))).message);
+    setLoading(false);
+  }
+}
+
 function StrengthBar({ password }: Readonly<{ password: string }>) {
   const score = [/.{6,}/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length;
   const labels = ['', 'חלשה', 'בינונית', 'חזקה', 'מצוינת'];
@@ -38,38 +61,33 @@ export default function ResetPassword() {
   const accessToken = hash.get('access_token') || params.get('access_token');
   const refreshToken = hash.get('refresh_token') || params.get('refresh_token');
 
-  if (!accessToken || !refreshToken) return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl' }}>
-      <div style={{ fontSize: 64 }}>❌</div>
-      <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>קישור לא תקין</div>
-      <button onClick={() => navigate('/ForgotPassword')} style={{ padding: '12px 24px', background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
-        בקש קישור חדש
-      </button>
-    </div>
-  );
+  if (!accessToken || !refreshToken) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl' }}>
+        <div style={{ fontSize: 64 }}>❌</div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a' }}>קישור לא תקין</div>
+        <button onClick={() => navigate('/ForgotPassword')} style={{ padding: '12px 24px', background: '#0d9e6e', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>
+          בקש קישור חדש
+        </button>
+      </div>
+    );
+  }
 
-  if (success) return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl' }}>
-      <div style={{ fontSize: 64 }}>✅</div>
-      <div style={{ fontSize: 22, fontWeight: 900, color: '#0d9e6e' }}>הסיסמה עודכנה!</div>
-      <div style={{ color: '#64748b' }}>מועבר לדף הבית...</div>
-    </div>
-  );
+  if (success) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl' }}>
+        <div style={{ fontSize: 64 }}>✅</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: '#0d9e6e' }}>הסיסמה עודכנה!</div>
+        <div style={{ color: '#64748b' }}>מועבר לדף הבית...</div>
+      </div>
+    );
+  }
 
-  const handleSubmit = async () => {
-    if (password.length < 6) { setError('הסיסמה חייבת להכיל לפחות 6 תווים'); return; }
-    if (password !== confirm) { setError('הסיסמאות אינן תואמות'); return; }
-    setError(null);
-    setLoading(true);
-    try {
-      await api.auth.resetPassword(accessToken!, password);
-      setSuccess(true);
-      setTimeout(() => navigate('/Login?reset=true'), 2000);
-    } catch (e) {
-      setError((e as Error).message);
-      setLoading(false);
-    }
-  };
+  let confirmBorderColor = '#e2e8f0';
+  if (confirm && confirm !== password) confirmBorderColor = '#ef4444';
+  else if (confirm && confirm === password) confirmBorderColor = '#0d9e6e';
+
+  const handleSubmit = () => submitReset(accessToken, password, confirm, navigate, setError, setLoading, setSuccess);
 
   const inputBase: React.CSSProperties = {
     width: '100%', padding: '14px 16px', border: '2px solid #e2e8f0',
@@ -111,7 +129,7 @@ export default function ResetPassword() {
             <div style={{ position: 'relative' }}>
               <input id="rp-confirm-password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
                 type={showPass ? 'text' : 'password'}
-                style={{ ...inputBase, paddingRight: 44, borderColor: (() => { if (confirm && confirm !== password) return '#ef4444'; if (confirm && confirm === password) return '#0d9e6e'; return '#e2e8f0'; })() }}
+                style={{ ...inputBase, paddingRight: 44, borderColor: confirmBorderColor }}
               />
               {confirm && <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>{confirm === password ? '✅' : '❌'}</div>}
             </div>

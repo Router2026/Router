@@ -56,7 +56,7 @@ async function patchAdminPoi(
 
 
 
-function EditModal({ poi, onClose, onSaved }: Readonly<EditModalProps>) {
+function EditModal({ poi, onClose, onSaved }: EditModalProps) {
   const [name, setName] = useState(poi.name);
   const [category, setCategory] = useState(poi.category);
   const [description, setDescription] = useState(poi.description ?? '');
@@ -160,7 +160,7 @@ function CommunityPoisTab() {
     setBusy(poi.id);
     try {
       const updated = await patchAdminPoi(poi.id, { action: 'approve' });
-      if (updated?.status) {
+      if (updated && updated.status) {
         setPois(prev => prev.map(p => p.id === poi.id ? updated : p));
       } else {
         // Refetch to get latest state if response was malformed
@@ -178,7 +178,7 @@ function CommunityPoisTab() {
     setBusy(id);
     try {
       const updated = await patchAdminPoi(id, { action: 'reject', admin_note: note || undefined });
-      if (updated?.status) {
+      if (updated && updated.status) {
         setPois(prev => prev.map(p => p.id === id ? updated : p));
       } else {
         const fresh = await fetchAdminPois(filter === 'all' ? undefined : filter);
@@ -231,23 +231,23 @@ function CommunityPoisTab() {
               fontWeight: 800, fontSize: 12, cursor: 'pointer',
               fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
             }}>
-            {(() => {
-              if (f === 'all') return 'הכל';
-              if (f === 'pending') return `ממתין (${counts.pending})`;
-              if (f === 'approved') return `אושר (${counts.approved})`;
-              return `נדחה (${counts.rejected})`;
-            })()}
+            {f === 'all' ? `הכל` :
+              f === 'pending' ? `ממתין (${counts.pending})` :
+                f === 'approved' ? `אושר (${counts.approved})` :
+                  `נדחה (${counts.rejected})`}
           </button>
         ))}
       </div>
 
-      {loading ? (
+      {loading && (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>טוען...</div>
-      ) : pois.length === 0 ? (
+      )}
+      {!loading && pois.length === 0 && (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
           אין מיקומים להצגה
         </div>
-      ) : (
+      )}
+      {!loading && pois.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {pois.map(poi => (
             <div key={poi.id} style={{
@@ -432,6 +432,42 @@ function CommunityPoisTab() {
   );
 }
 
+// ── Tab button (outside component to avoid S6478) ────────────────────────────
+
+interface TabBtnProps {
+  t: Tab;
+  label: string;
+  urgent?: boolean;
+  activeTab: Tab;
+  pendingPois: number;
+  onSelect: (t: Tab) => void;
+}
+
+function TabBtn({ t, label, urgent, activeTab, pendingPois, onSelect }: Readonly<TabBtnProps>) {
+  return (
+    <button onClick={() => onSelect(t)}
+      style={{
+        flex: 1, padding: '12px 6px', border: 'none', borderRadius: 12,
+        background: activeTab === t ? '#0d9e6e' : 'transparent',
+        color: activeTab === t ? '#fff' : '#64748b',
+        fontWeight: 800, fontSize: 12, cursor: 'pointer',
+        fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
+        position: 'relative',
+      }}>
+      {label}
+      {urgent && pendingPois > 0 && activeTab !== t && (
+        <span style={{
+          position: 'absolute', top: 4, right: 4,
+          width: 18, height: 18, borderRadius: '50%',
+          background: '#ef4444', color: '#fff',
+          fontSize: 10, fontWeight: 900,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>{pendingPois}</span>
+      )}
+    </button>
+  );
+}
+
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
 export default function AdminPanel() {
@@ -497,28 +533,10 @@ export default function AdminPanel() {
     return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>טוען...</div>;
   }
 
-  const TAB_BTN = (t: Tab, label: string, urgent?: boolean) => (
-    <button onClick={() => { if (t === 'places') { navigate('/Admin/places'); return; } setTab(t); }}
-      style={{
-        flex: 1, padding: '12px 6px', border: 'none', borderRadius: 12,
-        background: tab === t ? '#0d9e6e' : 'transparent',
-        color: tab === t ? '#fff' : '#64748b',
-        fontWeight: 800, fontSize: 12, cursor: 'pointer',
-        fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s',
-        position: 'relative',
-      }}>
-      {label}
-      {urgent && stats.pending_pois > 0 && tab !== t && (
-        <span style={{
-          position: 'absolute', top: 4, right: 4,
-          width: 18, height: 18, borderRadius: '50%',
-          background: '#ef4444', color: '#fff',
-          fontSize: 10, fontWeight: 900,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>{stats.pending_pois}</span>
-      )}
-    </button>
-  );
+  const handleTabSelect = (t: Tab) => {
+    if (t === 'places') { navigate('/Admin/places'); return; }
+    setTab(t);
+  };
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl' }}>
@@ -581,10 +599,10 @@ export default function AdminPanel() {
           display: 'flex', gap: 4, marginBottom: 20,
           boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
         }}>
-          {TAB_BTN('community_pois', '📍 מיקומי קהילה', true)}
-          {TAB_BTN('places', '🗺️ כל המקומות')}
-          {TAB_BTN('users', `👥 משתמשים (${users.length})`)}
-          {TAB_BTN('routes', `🗺️ מסלולים (${routes.length})`)}
+          <TabBtn t="community_pois" label="📍 מיקומי קהילה" urgent activeTab={tab} pendingPois={stats.pending_pois} onSelect={handleTabSelect} />
+          <TabBtn t="places" label="🗺️ כל המקומות" activeTab={tab} pendingPois={stats.pending_pois} onSelect={handleTabSelect} />
+          <TabBtn t="users" label={`👥 משתמשים (${users.length})`} activeTab={tab} pendingPois={stats.pending_pois} onSelect={handleTabSelect} />
+          <TabBtn t="routes" label={`🗺️ מסלולים (${routes.length})`} activeTab={tab} pendingPois={stats.pending_pois} onSelect={handleTabSelect} />
         </div>
 
         {/* Community POIs tab */}
@@ -631,10 +649,7 @@ export default function AdminPanel() {
                       cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {(() => {
-                      if (busy === String(u.id)) return '...';
-                      return u.is_admin ? 'הסר Admin' : 'הפוך Admin';
-                    })()}
+                    {busy === String(u.id) ? '...' : u.is_admin ? 'הסר Admin' : 'הפוך Admin'}
                   </button>
                   <button disabled={busy === String(u.id)} onClick={() => handleDeleteUser(String(u.id))}
                     style={{
@@ -645,10 +660,7 @@ export default function AdminPanel() {
                       color: confirmDelete === String(u.id) ? '#fff' : '#ef4444',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {(() => {
-                      if (busy === String(u.id)) return '...';
-                      return confirmDelete === String(u.id) ? 'מחק?' : '🗑';
-                    })()}
+                    {busy === String(u.id) ? '...' : confirmDelete === String(u.id) ? 'מחק?' : '🗑'}
                   </button>
                 </div>
               </div>
@@ -691,10 +703,7 @@ export default function AdminPanel() {
                     color: confirmDelete === String(r.id) ? '#fff' : '#ef4444',
                     fontFamily: 'Heebo, sans-serif',
                   }}>
-                  {(() => {
-                    if (busy === String(r.id)) return '...';
-                    return confirmDelete === String(r.id) ? 'מחק?' : '🗑';
-                  })()}
+                  {busy === String(r.id) ? '...' : confirmDelete === String(r.id) ? 'מחק?' : '🗑'}
                 </button>
               </div>
             ))}

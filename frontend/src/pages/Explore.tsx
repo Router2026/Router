@@ -29,7 +29,7 @@ const DIFF_COLORS: Record<string, { color: string; bg: string }> = {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function FilterSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
+function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>{title}</div>
@@ -38,9 +38,9 @@ function FilterSection({ title, children }: Readonly<{ title: string; children: 
   );
 }
 
-function TagGrid({ items, selected, onToggle }: Readonly<{
+function TagGrid({ items, selected, onToggle }: {
   items: string[]; selected: string[]; onToggle: (v: string) => void;
-}>) {
+}) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {items.map(item => {
@@ -203,7 +203,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
         {favLock.PromptComponent}
 
         {user?.is_admin && onDelete && (
-          <button onClick={e => { e.stopPropagation(); if (globalThis.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
+          <button onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
             style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
           </button>
@@ -268,6 +268,74 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
  */
 type FetchMode = 'normal' | 'city';
 
+// ── fetchPage helpers (module level to reduce cognitive complexity) ───────────
+
+interface FetchFilters {
+  selRegions: string[];
+  selCats: string[];
+  selDiffs: string[];
+  hasWater: boolean;
+  hasShade: boolean;
+  accessible: boolean;
+  debouncedSearch: string;
+}
+
+function buildLocationQueryString(
+  pageNum: number,
+  isCityFetch: boolean,
+  filters: FetchFilters,
+  gpsCoords?: { lat: number; lng: number } | null,
+): URLSearchParams {
+  const qs = new URLSearchParams();
+  if (filters.selRegions[0]) qs.set('region', filters.selRegions[0]);
+  if (filters.selCats[0]) qs.set('category', filters.selCats[0]);
+  if (filters.selDiffs[0]) qs.set('difficulty', filters.selDiffs[0]);
+  if (filters.hasWater) qs.set('has_water', 'true');
+  if (filters.hasShade) qs.set('has_shade', 'true');
+  if (filters.accessible) qs.set('accessible', 'true');
+  if (!isCityFetch && filters.debouncedSearch.trim()) qs.set('search', filters.debouncedSearch.trim());
+  const effectivePageSize = isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
+  qs.set('limit', String(effectivePageSize));
+  qs.set('offset', String(pageNum * effectivePageSize));
+  if (gpsCoords) {
+    qs.set('user_lat', String(gpsCoords.lat));
+    qs.set('user_lng', String(gpsCoords.lng));
+  }
+  return qs;
+}
+
+function mapRawToPoi(raw: Record<string, unknown>): POI {
+  return {
+    id: String(raw.id),
+    name: raw.name,
+    description: raw.description ?? '',
+    category: raw.category,
+    region: (raw.region_name ?? raw.region ?? '') as string,
+    region_id: raw.region_id,
+    latitude: raw.latitude,
+    longitude: raw.longitude,
+    images: raw.images ?? [],
+    main_image: raw.main_image ?? '',
+    difficulty: raw.difficulty ?? 'בינוני',
+    duration_minutes: raw.duration_minutes,
+    has_water: raw.has_water,
+    has_shade: raw.has_shade,
+    accessible: raw.accessible,
+    is_featured: raw.is_featured,
+    average_rating: raw.average_rating ?? 4,
+    photo_credit: raw.photo_credit,
+    uploaded_by: raw.uploaded_by,
+    distance_meters: raw.distance_meters,
+  } as POI;
+}
+
+function appendPoisDedup(prev: POI[], newPois: POI[], pageNum: number): POI[] {
+  if (pageNum === 0) return newPois;
+  const seen = new Set(prev.map(p => p.id));
+  const unique = newPois.filter(p => !seen.has(p.id));
+  return unique.length > 0 ? [...prev, ...unique] : prev;
+}
+
 // ── Main Explore page ─────────────────────────────────────────────────────────
 
 export default function Explore() {
@@ -292,7 +360,7 @@ export default function Explore() {
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const hasMore = totalCount !== null ? pois.length < totalCount : true;
+  const hasMore = totalCount === null ? true : pois.length < totalCount;
 
   // ── Filter dropdown data ──────────────────────────────────────────────────
   const [regions, setRegions] = useState<string[]>([]);
@@ -379,28 +447,11 @@ export default function Explore() {
     let aborted = false;
 
     try {
-      const qs = new URLSearchParams();
-      if (selRegions[0]) qs.set('region', selRegions[0]);
-      if (selCats[0]) qs.set('category', selCats[0]);
-      if (selDiffs[0]) qs.set('difficulty', selDiffs[0]);
-      if (hasWater) qs.set('has_water', 'true');
-      if (hasShade) qs.set('has_shade', 'true');
-      if (accessible) qs.set('accessible', 'true');
-      // City fetches omit `search=` so the server returns unfiltered candidates
-      // for the client-side radius pass. Normal fetches pass the search term.
-      if (!isCityFetch && debouncedSearch.trim()) qs.set('search', debouncedSearch.trim());
-
-      // FIX 1 (Offset over-fetch in city mode): limit and offset must use the
-      // SAME page-size constant. City pages are CITY_PAGE_SIZE items wide, so
-      // page 1 must start at offset 200, not 40.
-      const effectivePageSize = isCityFetch ? CITY_PAGE_SIZE : PAGE_SIZE;
-      qs.set('limit', String(effectivePageSize));
-      qs.set('offset', String(pageNum * effectivePageSize));
-
-      if (gpsCoords) {
-        qs.set('user_lat', String(gpsCoords.lat));
-        qs.set('user_lng', String(gpsCoords.lng));
-      }
+      const qs = buildLocationQueryString(
+        pageNum, isCityFetch,
+        { selRegions, selCats, selDiffs, hasWater, hasShade, accessible, debouncedSearch },
+        gpsCoords,
+      );
 
       const token = localStorage.getItem('router_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -416,37 +467,10 @@ export default function Explore() {
       if (total) setTotalCount(Number.parseInt(total));
 
       const json = await res.json();
-      const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => ({
-        id: String(raw.id),
-        name: raw.name,
-        description: raw.description ?? '',
-        category: raw.category,
-        region: raw.region_name ?? raw.region ?? '',
-        region_id: raw.region_id,
-        latitude: raw.latitude,
-        longitude: raw.longitude,
-        images: raw.images ?? [],
-        main_image: raw.main_image ?? '',
-        difficulty: raw.difficulty ?? 'בינוני',
-        duration_minutes: raw.duration_minutes,
-        has_water: raw.has_water,
-        has_shade: raw.has_shade,
-        accessible: raw.accessible,
-        is_featured: raw.is_featured,
-        average_rating: raw.average_rating ?? 4,
-        photo_credit: raw.photo_credit,
-        uploaded_by: raw.uploaded_by,
-        distance_meters: raw.distance_meters,
-      }));
+      const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => mapRawToPoi(raw));
 
-      // Deduplicate by ID before updating state. Prevents double-appends from
-      // concurrent observer triggers or re-renders.
-      setPois(prev => {
-        if (pageNum === 0) return newPois;
-        const seen = new Set(prev.map(p => p.id));
-        const unique = newPois.filter(p => !seen.has(p.id));
-        return unique.length > 0 ? [...prev, ...unique] : prev;
-      });
+      // Deduplicate by ID before updating state.
+      setPois(prev => appendPoisDedup(prev, newPois, pageNum));
 
       // FIX 4 (City-mode infinite pagination): if the server returned fewer
       // items than requested, there are no more server pages to fetch. Mark the
@@ -507,7 +531,7 @@ export default function Explore() {
       // --- Standard POI fetch (always runs first) ---
       fetchModeRef.current = 'normal';
       setPois([]);
-      setPage(0);
+      pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
       const normalResults = await fetchPage(0, userCoords);
@@ -548,7 +572,7 @@ export default function Explore() {
       cityResultRef.current = result;
       setCityResult(result);
       setPois([]);
-      setPage(0);
+      pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
       // Pass the city's coordinates so the server sorts its 200-item batch by
@@ -580,26 +604,23 @@ export default function Explore() {
     return () => { observer.current?.disconnect(); };
   }, []);
 
+  const handleIntersection = useCallback(() => {
+    if (!hasMore || fetchingRef.current) return;
+    if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
+    pageRef.current += 1;
+    const coords = fetchModeRef.current === 'city'
+      ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
+      : userCoords;
+    fetchPage(pageRef.current, coords);
+  }, [hasMore, fetchPage, userCoords]);
+
   const lastPoiRef = useCallback((node: HTMLDivElement | null) => {
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !fetchingRef.current) {
-        // FIX 4 (City-mode infinite pagination): in city mode the server's
-        // totalCount may be in the thousands while the radius filter yields
-        // only a handful of visible cards. Don't keep paging once the server
-        // has confirmed it has no more candidates (short-page signal).
-        if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
-
-        pageRef.current += 1;
-        const cityCoords = cityResultRef.current
-          ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng }
-          : null;
-        const coords = fetchModeRef.current === 'city' ? cityCoords : userCoords;
-        fetchPage(pageRef.current, coords);
-      }
+      if (entries[0].isIntersecting) handleIntersection();
     });
     if (node) observer.current.observe(node);
-  }, [hasMore, fetchPage, userCoords]);
+  }, [handleIntersection]);
 
   // ── Client-side city-radius filter ───────────────────────────────────────
   // Pure display transform — never triggers a fetch.
@@ -652,7 +673,7 @@ export default function Explore() {
   const handleDeletePoi = useCallback(async (id: string) => {
     await api.locations.delete(id);
     setPois(prev => prev.filter(p => p.id !== id));
-    setTotalCount(prev => prev !== null ? prev - 1 : null);
+    setTotalCount(prev => prev === null ? null : prev - 1);
   }, []);
 
   const activeFilterCount =
@@ -664,7 +685,7 @@ export default function Explore() {
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
-          <button onClick={() => { setSelCats([]); globalThis.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
+          <button onClick={() => { setSelCats([]); window.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
           <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>קטגוריה: {urlCategory}</span>
         </div>
       )}
@@ -731,21 +752,19 @@ export default function Explore() {
       </div>
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
-        {(() => {
-          if (loading && pois.length === 0) {
-            return <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>;
-          }
-          if (error) {
-            return <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>;
-          }
-          const proximityLabel = sortByProximity
-            ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
-            : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`;
-          const countLabel = cityResult
-            ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
-            : proximityLabel;
-          return <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countLabel}</span>;
-        })()}
+        {loading && pois.length === 0
+          ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
+          : error
+            ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
+            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
+              {cityResult
+                ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
+                : sortByProximity
+                  ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
+                  : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`
+              }
+            </span>
+        }
       </div>
 
       {/* Grid */}
