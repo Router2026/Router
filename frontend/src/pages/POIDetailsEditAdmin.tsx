@@ -91,7 +91,7 @@ function LocationPickerMap({ lat, lng, onChange }: { lat: number; lng: number; o
     };
     return (
         <div style={{ height: 220, width: '100%', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0' }}>
-            <MapContainer center={[lat || 31.5, lng || 35]} zoom={11} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={[lat || 31.5, lng || 35.0]} zoom={11} style={{ height: '100%', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 {!!(lat && lng) && <Marker position={[lat, lng]} />}
                 <MapEvents />
@@ -389,16 +389,22 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: 4, padding: '8px 12px', background: '#fff', borderBottom: '1px solid #f1f5f9', overflowX: 'auto', flexShrink: 0 }}>
-                    {SECTIONS.map(s => (
+                    {SECTIONS.map(s => {
+                        let tabBg: string;
+                        if (activeSection === s.id) { tabBg = s.id === 'danger' ? '#dc2626' : '#0d9e6e'; } else { tabBg = 'transparent'; }
+                        let tabColor: string;
+                        if (activeSection === s.id) { tabColor = '#fff'; } else if (s.id === 'danger') { tabColor = '#dc2626'; } else { tabColor = '#64748b'; }
+                        return (
                         <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
                             padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
-                            background: activeSection === s.id ? (s.id === 'danger' ? '#dc2626' : '#0d9e6e') : 'transparent',
-                            color: activeSection === s.id ? '#fff' : (s.id === 'danger' ? '#dc2626' : '#64748b'),
+                            background: tabBg,
+                            color: tabColor,
                             fontWeight: 700, fontSize: 12, cursor: 'pointer',
                             fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap',
                             transition: 'all 0.15s',
                         }}>{s.label}</button>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* Content */}
@@ -511,8 +517,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{geoError}</div>}
                                 {geoResults.length > 0 && (
                                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        {geoResults.map((r) => (
-                                            <button key={`${r.lat},${r.lon}`} onClick={() => {
+                                        {geoResults.map((r, i) => (
+                                            <button key={i} onClick={() => {
                                                 set('latitude', Number.parseFloat(r.lat).toFixed(6));
                                                 set('longitude', Number.parseFloat(r.lon).toFixed(6));
                                                 setGeoResults([]);
@@ -559,7 +565,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 <FieldLabel>בחר מיקום על המפה (לחץ לעדכון)</FieldLabel>
                                 <LocationPickerMap
                                     lat={Number.parseFloat(edit.latitude) || 31.5}
-                                    lng={Number.parseFloat(edit.longitude) || 35}
+                                    lng={Number.parseFloat(edit.longitude) || 35.0}
                                     onChange={(lat, lng) => { set('latitude', lat.toFixed(6)); set('longitude', lng.toFixed(6)); }}
                                 />
                             </div>

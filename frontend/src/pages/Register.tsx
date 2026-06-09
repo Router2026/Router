@@ -57,7 +57,7 @@ function validateRegistrationForm(fields: RegistrationFields): string | null {
  */
 function scheduleUsernameCheck(
   username: string,
-  debounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+  debounceRef: { current: ReturnType<typeof setTimeout> | null },
   setStatus: (s: UsernameStatus) => void,
 ): () => void {
   if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -135,6 +135,16 @@ export default function Register() {
   const usernameColor = { idle: '#e2e8f0', checking: '#f59e0b', available: '#0d9e6e', taken: '#ef4444', invalid: '#ef4444' }[usernameStatus];
   const usernameHint = { idle: '', checking: 'בודק זמינות...', available: '✓ שם משתמש פנוי', taken: '✗ שם משתמש תפוס', invalid: '✗ 3-20 תווים: אנגלית, מספרים, _ בלבד' }[usernameStatus];
 
+  let usernameStatusIcon: string;
+  if (usernameStatus === 'checking') { usernameStatusIcon = '⏳'; }
+  else if (usernameStatus === 'available') { usernameStatusIcon = '✅'; }
+  else { usernameStatusIcon = '❌'; }
+
+  let confirmBorderColor: string;
+  if (confirm && confirm !== password) { confirmBorderColor = '#ef4444'; }
+  else if (confirm && confirm === password) { confirmBorderColor = '#0d9e6e'; }
+  else { confirmBorderColor = '#e2e8f0'; }
+
   if (success) return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f0f4f3', gap: 16, direction: 'rtl', padding: 24 }}>
       <div style={{ fontSize: 72 }}>📧</div>
@@ -204,7 +214,7 @@ export default function Register() {
               />
               {usernameStatus !== 'idle' && (
                 <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>
-                  {usernameStatus === 'checking' ? '⏳' : usernameStatus === 'available' ? '✅' : '❌'}
+                  {usernameStatusIcon}
                 </div>
               )}
             </div>
@@ -250,9 +260,9 @@ export default function Register() {
             <div style={{ position: 'relative' }}>
               <input id="register-confirm" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="הכנס סיסמה שוב"
                 type={showPass ? 'text' : 'password'}
-                style={{ ...inputBase, paddingRight: 44, borderColor: confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0' }}
+                style={{ ...inputBase, paddingRight: 44, borderColor: confirmBorderColor }}
                 onFocus={e => { if (!confirm || confirm === password) e.target.style.borderColor = '#0d9e6e'; }}
-                onBlur={e => { e.target.style.borderColor = confirm && confirm !== password ? '#ef4444' : confirm && confirm === password ? '#0d9e6e' : '#e2e8f0'; }} />
+                onBlur={e => { e.target.style.borderColor = confirmBorderColor; }} />
               {confirm && <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>{confirm === password ? '✅' : '❌'}</div>}
             </div>
             {confirm && confirm !== password && <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'right', marginTop: 4 }}>הסיסמאות אינן תואמות</div>}
@@ -266,7 +276,7 @@ export default function Register() {
               {agreedToTerms && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
             </button>
             <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
-              קראתי ואני מסכים/ה ל
+              <span>קראתי ואני מסכים/ה ל</span>
               <a href="/privacy.html" target="_blank" rel="noopener noreferrer"
                 style={{ color: '#0d9e6e', fontWeight: 700, textDecoration: 'underline' }}>
                 מדיניות הפרטיות

@@ -74,7 +74,7 @@ export default function EditMyPlace() {
         setCategory(p.category);
         setDescription(p.description ?? '');
         setDifficulty(p.difficulty ?? '');
-        setDurationMinutes(p.duration_minutes === null || p.duration_minutes === undefined ? '' : String(p.duration_minutes));
+        setDurationMinutes(p.duration_minutes != null ? String(p.duration_minutes) : '');
         setHasWater(p.has_water ?? null);
         setHasShade(p.has_shade ?? null);
         setAccessible(p.accessible ?? null);
@@ -179,14 +179,6 @@ export default function EditMyPlace() {
 
   if (!poi) return null;
 
-  let saveButtonLabel: string;
-  if (saving) {
-    saveButtonLabel = '⏳ שומר...';
-  } else if (success) {
-    saveButtonLabel = '✅ נשמר!';
-  } else {
-    saveButtonLabel = '💾 שמור שינויים';
-  }
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl', fontFamily: 'Heebo, sans-serif', paddingBottom: 80 }}>
@@ -286,22 +278,42 @@ export default function EditMyPlace() {
               { key: 'hasWater', label: '💧 יש מים', val: hasWater, set: setHasWater },
               { key: 'hasShade', label: '🌳 יש צל', val: hasShade, set: setHasShade },
               { key: 'accessible', label: '♿ נגיש', val: accessible, set: setAccessible },
-            ] as const).map(({ key, label, val, set }) => (
+            ] as const).map(({ key, label, val, set }) => {
+              let nextVal: boolean | null;
+              if (val === true) { nextVal = null; } else if (val === false) { nextVal = true; } else { nextVal = false; }
+
+              let toggleTitle: string;
+              if (val === null) { toggleTitle = 'לא ידוע'; } else if (val) { toggleTitle = 'כן'; } else { toggleTitle = 'לא'; }
+
+              let borderColor: string;
+              if (val === true) { borderColor = '#0d9e6e'; } else if (val === false) { borderColor = '#ef4444'; } else { borderColor = '#e2e8f0'; }
+
+              let bgColor: string;
+              if (val === true) { bgColor = '#f0fdf4'; } else if (val === false) { bgColor = '#fef2f2'; } else { bgColor = '#fff'; }
+
+              let textColor: string;
+              if (val === true) { textColor = '#0d9e6e'; } else if (val === false) { textColor = '#ef4444'; } else { textColor = '#94a3b8'; }
+
+              let indicator: string;
+              if (val === true) { indicator = '✓'; } else if (val === false) { indicator = '✗'; } else { indicator = '?'; }
+
+              return (
               <button
                 key={key}
-                onClick={() => set(val === true ? null : val === false ? true : false)}
-                    title={val === null ? 'לא ידוע' : val ? 'כן' : 'לא'}
+                onClick={() => set(nextVal)}
+                    title={toggleTitle}
                 style={{
                   padding: '8px 14px', borderRadius: 20, border: '1.5px solid',
-                  borderColor: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#e2e8f0',
-                  background: val === true ? '#f0fdf4' : val === false ? '#fef2f2' : '#fff',
-                  color: val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#94a3b8',
+                  borderColor,
+                  background: bgColor,
+                  color: textColor,
                   fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 13,
                   cursor: 'pointer',
                 }}>
-                {label} {val === true ? '✓' : val === false ? '✗' : '?'}
+                {label} {indicator}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           <Label>קרדיט לצלם</Label>
@@ -378,7 +390,7 @@ export default function EditMyPlace() {
                 color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer',
                 fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
               }}>
-              {saveButtonLabel}
+              {saving ? '⏳ שומר...' : success ? '✅ נשמר!' : '💾 שמור שינויים'}
             </button>
           </div>
       </div>
@@ -415,7 +427,7 @@ function input(disabled: boolean): React.CSSProperties {
   };
 }
 
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
       {children}
@@ -423,7 +435,7 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Spinner({ label }: { label: string }) {
+function Spinner({ label }: Readonly<{ label: string }>) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', fontFamily: 'Heebo, sans-serif' }}>
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>

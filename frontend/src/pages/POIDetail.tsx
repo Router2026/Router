@@ -340,16 +340,16 @@ function StarRating({
 
 function MediaGallery({
   locationId: _locationId, media, isAdmin, onApprove: _onApprove, onReject,
-}: Readonly<{
+}: {
   locationId: number; media: LocationMedia[];
   isAdmin: boolean; onApprove: (id: number) => void; onReject: (id: number) => void;
-}>) {
+}) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   if (!media.length) return null;
 
   const closeLightbox = () => setLightboxIdx(null);
-  const prevItem = () => setLightboxIdx(i => i === null ? null : Math.max(0, i - 1));
-  const nextItem = () => setLightboxIdx(i => i === null ? null : Math.min(media.length - 1, i + 1));
+  const prevItem = () => setLightboxIdx(i => i !== null ? Math.max(0, i - 1) : null);
+  const nextItem = () => setLightboxIdx(i => i !== null ? Math.min(media.length - 1, i + 1) : null);
 
   return (
     <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', padding: '16px 18px', marginBottom: 16 }}>
@@ -425,7 +425,7 @@ function MediaGallery({
 
 // ── NearbyPlaces ──────────────────────────────────────────────────────────────
 
-function NearbyPlaces({ locationId }: Readonly<{ locationId: number }>) {
+function NearbyPlaces({ locationId }: { locationId: number }) {
   const navigate = useNavigate();
   // NearbyPlaces keeps its own useQuery so it can load in parallel with (and
   // independently of) the main POI data — it's a PostGIS spatial query that can
@@ -521,7 +521,7 @@ function POIDetailSkeleton() {
 
 // ── Error state ───────────────────────────────────────────────────────────────
 
-function POIDetailError({ message, onBack, onRetry }: Readonly<{ message: string; onBack: () => void; onRetry: () => void }>) {
+function POIDetailError({ message, onBack, onRetry }: { message: string; onBack: () => void; onRetry: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8', gap: 12, padding: '0 24px', textAlign: 'center' }}>
       <div style={{ fontSize: 52 }}>😕</div>
@@ -625,7 +625,7 @@ export default function POIDetail() {
 
   const openGoogleMaps = () => {
     if (!poi) return;
-    globalThis.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
+    window.open(`https://maps.google.com/?q=${poi.latitude},${poi.longitude}`, '_blank', 'noopener,noreferrer');
   };
 
   // ── Render guards ──────────────────────────────────────────────────────────
@@ -715,7 +715,7 @@ export default function POIDetail() {
           <div style={{ maxWidth: 600, margin: '0 auto', height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 'calc(var(--safe-top) + 12px) 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 12 }}>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => navigator.share?.({ title: poi.name, url: window.location.href })}
+                <button onClick={() => navigator.share?.({ title: poi.name, url: globalThis.location.href })}
                   style={{ background: 'rgba(255,255,255,0.88)', border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a2e2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 </button>

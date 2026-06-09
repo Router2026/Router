@@ -33,13 +33,13 @@ const GROUP_ICON: Record<string, string> = {
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
-    if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.2));
-    else if (points.length === 1) map.setView(points[0], 13);
+    if (points.length > 1) { map.fitBounds(L.latLngBounds(points).pad(0.2)); }
+    else if (points.length === 1) { map.setView(points[0], 13); }
   }, [points, map]);
   return null;
 }
 
-function StopMarker({ loc, index }: Readonly<{ loc: any; index: number }>) {
+function StopMarker({ loc, index }: { loc: any; index: number }) {
   const map = useMap();
   const icon = L.divIcon({
     html: loc.main_image
@@ -58,7 +58,7 @@ function StopMarker({ loc, index }: Readonly<{ loc: any; index: number }>) {
   );
 }
 
-function StarRating({ value, onChange, readonly, size = 26 }: Readonly<{ value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }>) {
+function StarRating({ value, onChange, readonly, size = 26 }: { value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }) {
   const [hover, setHover] = useState(0);
   return (
     <div style={{ display: 'flex', gap: 3 }}>
@@ -86,18 +86,6 @@ function toBase64(file: File): Promise<string> {
     r.onerror = rej;
     r.readAsDataURL(file);
   });
-}
-
-async function fetchStopSearchResults(
-  q: string,
-  editStops: Array<{ id: number }>,
-  setStopSearchResults: (r: any[]) => void,
-  setSearchingStops: (v: boolean) => void,
-): Promise<void> {
-  try {
-    const results = await api.locations.list({ search: q, limit: 8 });
-    setStopSearchResults(results.filter(r => !editStops.some(s => s.id === Number.parseInt(r.id))));
-  } catch { /* intentional */ } finally { setSearchingStops(false); }
 }
 
 export default function PublicTripDetail() {
@@ -161,7 +149,7 @@ export default function PublicTripDetail() {
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tripId = Number.parseInt(id ?? '', 10);
-  const isOwner = user && trip && Number(user.id) === trip.user_id;
+  const isOwner = user && Number(user.id) === trip?.user_id;
 
   useEffect(() => {
     if (!id) return;
@@ -253,10 +241,12 @@ export default function PublicTripDetail() {
     if (stopSearchTimeout.current) clearTimeout(stopSearchTimeout.current);
     if (!q.trim()) { setStopSearchResults([]); return; }
     setSearchingStops(true);
-    stopSearchTimeout.current = setTimeout(
-      () => fetchStopSearchResults(q, editStops, setStopSearchResults, setSearchingStops),
-      300,
-    );
+    stopSearchTimeout.current = setTimeout(async () => {
+      try {
+        const results = await api.locations.list({ search: q, limit: 8 });
+        setStopSearchResults(results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id))));
+      } catch { /* intentional */ } finally { setSearchingStops(false); }
+    }, 300);
   };
 
   const addStop = (poi: any) => {
@@ -408,7 +398,7 @@ export default function PublicTripDetail() {
             {pts.length > 1 && (
               <Polyline positions={pts} pathOptions={{ color: '#0d9e6e', weight: 3.5, opacity: 0.9, dashArray: '10,6' }} />
             )}
-            {validStops.map((loc, i) => <StopMarker key={loc.location_id ?? loc.name ?? i} loc={loc} index={i} />)}
+            {validStops.map((loc, i) => <StopMarker key={i} loc={loc} index={i} />)}
             <FitBounds points={pts} />
           </MapContainer>
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
@@ -842,24 +832,12 @@ export default function PublicTripDetail() {
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'image'); e.target.value = ''; }} />
               <input ref={communityVideoRef} type="file" accept="video/*" style={{ display: 'none' }}
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'video'); e.target.value = ''; }} />
-              {(() => {
-                let uploadLabel: string;
-                if (addingMedia) {
-                  uploadLabel = '⏳ מעלה...';
-                } else if (communityMediaTab === 'image') {
-                  uploadLabel = '📤 העלה תמונה (+10 XP)';
-                } else {
-                  uploadLabel = '📤 העלה סרטון (+10 XP)';
-                }
-                return (
-                  <button
-                    onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
-                    disabled={addingMedia}
-                    style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
-                    {uploadLabel}
-                  </button>
-                );
-              })()}
+              <button
+                onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
+                disabled={addingMedia}
+                style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
+                {addingMedia ? '⏳ מעלה...' : `📤 העלה ${communityMediaTab === 'image' ? 'תמונה' : 'סרטון'} (+10 XP)`}
+              </button>
             </div>
           )}
 
@@ -919,7 +897,7 @@ export default function PublicTripDetail() {
             </div>
           ) : (
             <div style={{ fontSize: 13, color: '#94a3b8' }}>
-              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 13 }}>התחבר</button><span> כדי לדרג</span>
+              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 13 }}>התחבר</button> כדי לדרג
             </div>
           )}
         </div>
@@ -961,7 +939,7 @@ export default function PublicTripDetail() {
         {/* ── Comments ──────────────────────────────────────────────────── */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '18px 20px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            💬 תגובות {comments.length > 0 && <span style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 20, padding: '2px 10px', fontSize: 13, fontWeight: 700 }}>{comments.length}</span>}
+            <span>💬 תגובות</span> {comments.length > 0 && <span style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 20, padding: '2px 10px', fontSize: 13, fontWeight: 700 }}>{comments.length}</span>}
           </div>
 
           {/* Add comment */}
@@ -993,7 +971,7 @@ export default function PublicTripDetail() {
             </div>
           ) : (
             <div style={{ marginBottom: 16, textAlign: 'center', padding: '14px', background: '#f8fafc', borderRadius: 13, fontSize: 14, color: '#94a3b8' }}>
-              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 800, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>התחבר</button><span> כדי להגיב על המסלול</span>
+              <button onClick={() => navigate('/login')} style={{ color: '#0d9e6e', fontWeight: 800, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>התחבר</button> כדי להגיב על המסלול
             </div>
           )}
 

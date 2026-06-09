@@ -273,9 +273,9 @@ function OverlayFilter({ open, onClose, categories, selCats, setSelCats, selDiff
   );
 }
 
-// ── POI filter helper — module-level to keep MapView complexity below 15 ──────
+// ── Module-level helpers ──────────────────────────────────────────────────────
 
-interface PoiFilterOptions {
+interface FilterState {
   selCats: string[];
   selDiffs: string[];
   hasWater: boolean;
@@ -283,15 +283,74 @@ interface PoiFilterOptions {
   accessible: boolean;
 }
 
-function filterPois(pois: POI[], opts: PoiFilterOptions): POI[] {
-  return pois.filter(p => {
-    if (opts.selCats.length && !opts.selCats.includes(p.category)) return false;
-    if (opts.selDiffs.length && !opts.selDiffs.includes(p.difficulty ?? '')) return false;
-    if (opts.hasWater && !p.has_water) return false;
-    if (opts.hasShade && !p.has_shade) return false;
-    if (opts.accessible && !p.accessible) return false;
-    return true;
-  });
+function matchesFilter(p: POI, f: FilterState): boolean {
+  if (f.selCats.length && !f.selCats.includes(p.category)) return false;
+  if (f.selDiffs.length && !f.selDiffs.includes(p.difficulty ?? '')) return false;
+  if (f.hasWater && !p.has_water) return false;
+  if (f.hasShade && !p.has_shade) return false;
+  if (f.accessible && !p.accessible) return false;
+  return true;
+}
+
+interface PoiCardProps {
+  poi: POI;
+  onClose: () => void;
+  onAdd: (poi: POI) => void;
+  onRemove: (id: number) => void;
+  inBucket: boolean;
+  onNavigate: (path: string) => void;
+}
+
+function PoiCard({ poi, onClose, onAdd, onRemove, inBucket, onNavigate }: PoiCardProps) {
+  return (
+    <div style={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 1200, width: 330, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden', direction: 'rtl' }}>
+      <button onClick={onClose} style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+      </button>
+      <button onClick={e => { e.stopPropagation(); if (inBucket) { onRemove(poi.id); } else { onAdd(poi); } }}
+        style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : '0 2px 8px rgba(0,0,0,0.1)', transition: 'all 0.18s ease' }}>
+        {inBucket
+          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        }
+      </button>
+      {poi.main_image && (
+        <div style={{ height: 140, position: 'relative' }}>
+          <img src={getImageUrl(poi.main_image, 'card')} alt={poi.name}
+            loading="lazy" decoding="async"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
+          {poi.photo_credit && (
+            <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', lineHeight: 1.4 }}>
+              צילום: {poi.photo_credit}
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{ padding: '14px 16px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b' }}>{poi.average_rating}</span>
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{poi.name}</div>
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginBottom: 14 }}>{poi.category}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <button onClick={() => onNavigate(`/POIDetail?id=${poi.id}`)} style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 12, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>פרטים נוספים</button>
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${poi.latitude},${poi.longitude}`} target="_blank" rel="noopener noreferrer"
+            style={{ textDecoration: 'none', width: '100%', padding: '10px', border: '2px solid #e2e8f0', borderRadius: 12, background: '#fff', color: '#1e293b', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, boxSizing: 'border-box' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
+            ניווט
+          </a>
+        </div>
+        <button onClick={e => { e.stopPropagation(); if (inBucket) { onRemove(poi.id); } else { onAdd(poi); } }}
+          style={{ width: '100%', padding: '10px', border: `2px solid ${inBucket ? '#0d9e6e' : '#f1f5f9'}`, borderRadius: 12, background: inBucket ? '#f0fdf8' : '#f8fafc', color: inBucket ? '#0d9e6e' : '#64748b', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
+          {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -318,7 +377,7 @@ export default function MapView() {
   const [accessible, setAccessible] = useState(false);
 
   const mapCenterRef = useRef<[number, number]>(
-    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35],
+    urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0],
   );
   const urlWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (urlWriteTimerRef.current) clearTimeout(urlWriteTimerRef.current); }, []);
@@ -355,7 +414,7 @@ export default function MapView() {
   }, [writeUrl, selectedRegion?.name]);
 
   const pois = useMemo(
-    () => filterPois(allPois, { selCats, selDiffs, hasWater, hasShade, accessible }),
+    () => allPois.filter(p => matchesFilter(p, { selCats, selDiffs, hasWater, hasShade, accessible })),
     [allPois, selCats, selDiffs, hasWater, hasShade, accessible],
   );
 
@@ -371,7 +430,7 @@ export default function MapView() {
   const resetView = useCallback(() => {
     setSelectedRegion(null);
     setMapZoom(7);
-    setPanTarget({ center: [31.5, 35], zoom: 7, id: Date.now() });
+    setPanTarget({ center: [31.5, 35.0], zoom: 7, id: Date.now() });
   }, []);
 
   const handleRegionClick = useCallback((region: Region) => {
@@ -421,8 +480,8 @@ export default function MapView() {
         hasWater={hasWater} setHasWater={setHasWater} hasShade={hasShade} setHasShade={setHasShade}
         accessible={accessible} setAccessible={setAccessible} />
 
-      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
-        maxBounds={[[29, 34], [33.8, 36.3]]} maxBoundsViscosity={0.85}
+      <MapContainer center={urlLat && urlLng ? [urlLat, urlLng] : [31.5, 35.0]} zoom={urlZoom || 7} minZoom={7} maxZoom={18}
+        maxBounds={[[29.0, 34.0], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
@@ -438,7 +497,7 @@ export default function MapView() {
           if (!region.polygon_coords) return null;
           return (
             <Polygon key={region.id}
-              positions={region.polygon_coords!}
+              positions={region.polygon_coords}
               pathOptions={{ color: region.color, fillColor: region.color, fillOpacity: 0.15, weight: 2 }}
               eventHandlers={{ click: () => handleRegionClick(region) }}>
               <Tooltip permanent direction="center" opacity={1} className="region-label">{region.name}</Tooltip>
@@ -448,7 +507,7 @@ export default function MapView() {
 
         {selectedRegion?.polygon_coords && (
           <Polygon
-            positions={selectedRegion.polygon_coords!}
+            positions={selectedRegion.polygon_coords}
             pathOptions={{ color: selectedRegion.color, fillColor: selectedRegion.color, fillOpacity: 0.08, weight: 3, dashArray: '6,4' }}>
             <Tooltip permanent direction="center" opacity={1} className="region-label">{selectedRegion.name}</Tooltip>
           </Polygon>
@@ -463,58 +522,16 @@ export default function MapView() {
       </MapContainer>
 
       {/* POI popup card */}
-      {selectedPOI && (() => {
-        const inBucket = hasPoi(selectedPOI.id);
-        return (
-          <div style={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 1200, width: 330, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden', direction: 'rtl' }}>
-            <button onClick={() => setSelectedPOI(null)} style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-            </button>
-            <button onClick={e => { e.stopPropagation(); if (inBucket) { removePoi(selectedPOI.id); } else { addPoi(selectedPOI); } }}
-              style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: inBucket ? '#0d9e6e' : 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: inBucket ? '0 2px 8px rgba(13,158,110,0.4)' : '0 2px 8px rgba(0,0,0,0.1)', transition: 'all 0.18s ease' }}>
-              {inBucket
-                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              }
-            </button>
-            {selectedPOI.main_image && (
-              <div style={{ height: 140, position: 'relative' }}>
-                <img src={getImageUrl(selectedPOI.main_image, 'card')} alt={selectedPOI.name}
-                  loading="lazy" decoding="async"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />
-                {selectedPOI.photo_credit && (
-                  <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: 'Heebo, sans-serif', direction: 'rtl', pointerEvents: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', lineHeight: 1.4 }}>
-                    צילום: {selectedPOI.photo_credit}
-                  </div>
-                )}
-              </div>
-            )}
-            <div style={{ padding: '14px 16px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b' }}>{selectedPOI.average_rating}</span>
-                </div>
-                <div style={{ fontSize: 17, fontWeight: 900, color: '#1a2e2a' }}>{selectedPOI.name}</div>
-              </div>
-              <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginBottom: 14 }}>{selectedPOI.category}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                <button onClick={() => navigate(`/POIDetail?id=${selectedPOI.id}`)} style={{ width: '100%', padding: '10px', border: 'none', borderRadius: 12, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>פרטים נוספים</button>
-                <a href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPOI.latitude},${selectedPOI.longitude}`} target="_blank" rel="noopener noreferrer"
-                  style={{ textDecoration: 'none', width: '100%', padding: '10px', border: '2px solid #e2e8f0', borderRadius: 12, background: '#fff', color: '#1e293b', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, boxSizing: 'border-box' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
-                  ניווט
-                </a>
-              </div>
-              <button onClick={e => { e.stopPropagation(); if (inBucket) { removePoi(selectedPOI.id); } else { addPoi(selectedPOI); } }}
-                style={{ width: '100%', padding: '10px', border: `2px solid ${inBucket ? '#0d9e6e' : '#f1f5f9'}`, borderRadius: 12, background: inBucket ? '#f0fdf8' : '#f8fafc', color: inBucket ? '#0d9e6e' : '#64748b', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
-                {inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>}
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+      {selectedPOI && (
+        <PoiCard
+          poi={selectedPOI}
+          onClose={() => setSelectedPOI(null)}
+          onAdd={addPoi}
+          onRemove={removePoi}
+          inBucket={hasPoi(selectedPOI.id)}
+          onNavigate={navigate}
+        />
+      )}
 
       {/* Bottom region bar */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1100, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(12px)', padding: '10px 16px 12px', boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
