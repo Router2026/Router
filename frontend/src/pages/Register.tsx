@@ -56,7 +56,7 @@ export default function Register() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!username) { setUsernameStatus('idle'); return; }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     if (!USERNAME_RE.test(username)) { setUsernameStatus('invalid'); return; }
     setUsernameStatus('checking');
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -229,17 +229,15 @@ export default function Register() {
           </div>
 
           {/* Privacy policy agreement */}
-          <div
-            onClick={() => setAgreedToTerms(v => !v)}
-            style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, cursor: 'pointer', direction: 'rtl' }}
-          >
-            <div style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, border: `2px solid ${agreedToTerms ? '#0d9e6e' : '#cbd5e1'}`, background: agreedToTerms ? '#0d9e6e' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', marginTop: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20, direction: 'rtl' }}>
+            <button type="button"
+              onClick={() => setAgreedToTerms(v => !v)}
+              style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, border: `2px solid ${agreedToTerms ? '#0d9e6e' : '#cbd5e1'}`, background: agreedToTerms ? '#0d9e6e' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', marginTop: 1, cursor: 'pointer', padding: 0 }}>
               {agreedToTerms && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
-            </div>
+            </button>
             <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
               קראתי ואני מסכים/ה ל
               <a href="/privacy.html" target="_blank" rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
                 style={{ color: '#0d9e6e', fontWeight: 700, textDecoration: 'underline' }}>
                 מדיניות הפרטיות
               </a>

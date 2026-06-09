@@ -93,15 +93,17 @@ function StarRating({ value, onChange, readonly, size = 22 }: { value: number; o
   return (
     <div style={{ display: 'flex', gap: 2 }}>
       {[1, 2, 3, 4, 5].map(i => (
-        <svg key={i} width={size} height={size} viewBox="0 0 24 24"
-          fill={i <= (hover || value) ? '#f59e0b' : 'none'}
-          stroke={i <= (hover || value) ? '#f59e0b' : '#d1d5db'} strokeWidth="2"
-          style={{ cursor: readonly ? 'default' : 'pointer', transition: 'transform 0.12s', transform: !readonly && i <= hover ? 'scale(1.3)' : 'scale(1)' }}
+        <button key={i} type="button" onClick={() => !readonly && onChange?.(i)}
           onMouseEnter={() => !readonly && setHover(i)}
           onMouseLeave={() => !readonly && setHover(0)}
-          onClick={() => !readonly && onChange?.(i)}>
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
+          style={{ background: 'none', border: 'none', padding: 0, cursor: readonly ? 'default' : 'pointer', lineHeight: 0 }}>
+          <svg width={size} height={size} viewBox="0 0 24 24"
+            fill={i <= (hover || value) ? '#f59e0b' : 'none'}
+            stroke={i <= (hover || value) ? '#f59e0b' : '#d1d5db'} strokeWidth="2"
+            style={{ transition: 'transform 0.12s', transform: !readonly && i <= hover ? 'scale(1.3)' : 'scale(1)' }}>
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </button>
       ))}
     </div>
   );
@@ -147,9 +149,9 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
   if (!isOpen) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.6)', direction: 'rtl' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 640, margin: '0 auto', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 48px rgba(0,0,0,0.22)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-end', direction: 'rtl' }}>
+      <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'default', padding: 0 }} />
+      <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 640, margin: '0 auto', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 48px rgba(0,0,0,0.22)', position: 'relative', zIndex: 1 }}>
 
         {/* Handle */}
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
@@ -252,9 +254,9 @@ function RatingModal({ tripId, isOpen, onClose, currentRating, onRated }: {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', direction: 'rtl', padding: 20 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#fff', borderRadius: 24, padding: '28px 32px', width: '100%', maxWidth: 340, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 20 }}>
+      <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'default', padding: 0 }} />
+      <div style={{ background: '#fff', borderRadius: 24, padding: '28px 32px', width: '100%', maxWidth: 340, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative', zIndex: 1 }}>
         <div style={{ fontSize: 36, marginBottom: 8 }}>⭐</div>
         <div style={{ fontWeight: 800, fontSize: 18, color: '#111', marginBottom: 4 }}>דרג את המסלול</div>
         <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 24 }}>כמה כוכבים מגיע למסלול הזה?</div>
@@ -308,9 +310,9 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', direction: 'rtl', padding: 16 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}>
+      <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', border: 'none', cursor: 'default', padding: 0 }} />
+      <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.28)', position: 'relative', zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 10, borderRadius: '24px 24px 0 0' }}>
@@ -354,16 +356,16 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: {
                 </button>
               </div>
             ) : (
-              <div
+              <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('image'); }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) handleImage(f); }}
                 onClick={() => imageRef.current?.click()}
-                style={{ border: `2px dashed ${dragOver === 'image' ? '#0d9e6e' : '#d1d5db'}`, borderRadius: 16, padding: '32px 20px', textAlign: 'center', background: dragOver === 'image' ? '#f0fdf4' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s' }}>
+                style={{ border: `2px dashed ${dragOver === 'image' ? '#0d9e6e' : '#d1d5db'}`, borderRadius: 16, padding: '32px 20px', textAlign: 'center', background: dragOver === 'image' ? '#f0fdf4' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
                 <div style={{ fontWeight: 700, color: '#374151', fontSize: 14 }}>גרור תמונה או לחץ להעלאה</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>JPG, PNG, WEBP עד 10MB</div>
-              </div>
+              </button>
             )}
           </div>
 
@@ -380,16 +382,16 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: {
                 </button>
               </div>
             ) : (
-              <div
+              <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('video'); }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('video/')) handleVideo(f); }}
                 onClick={() => videoRef.current?.click()}
-                style={{ border: `2px dashed ${dragOver === 'video' ? '#7c3aed' : '#d1d5db'}`, borderRadius: 16, padding: '28px 20px', textAlign: 'center', background: dragOver === 'video' ? '#faf5ff' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s' }}>
+                style={{ border: `2px dashed ${dragOver === 'video' ? '#7c3aed' : '#d1d5db'}`, borderRadius: 16, padding: '28px 20px', textAlign: 'center', background: dragOver === 'video' ? '#faf5ff' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>🎬</div>
                 <div style={{ fontWeight: 700, color: '#374151', fontSize: 14 }}>גרור סרטון או לחץ להעלאה</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>MP4, MOV עד 100MB</div>
-              </div>
+              </button>
             )}
           </div>
 
@@ -472,20 +474,20 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
         {/* ── Card Header ─────────────────────────────────────────────── */}
         <div style={{ padding: '13px 15px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Avatar */}
-          <div onClick={() => navigate(`/profile/${trip.user_id}`)}
+          <button type="button" onClick={() => navigate(`/profile/${trip.user_id}`)}
             style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#fff', fontWeight: 800, cursor: 'pointer', border: '2px solid #e2e8f0' }}>
             {trip.creator_avatar
               ? <img src={trip.creator_avatar} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
               : trip.creator_username.charAt(0).toUpperCase()}
-          </div>
+          </button>
 
           {/* Username + date */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-              <span onClick={() => navigate(`/profile/${trip.user_id}`)}
-                style={{ fontWeight: 800, fontSize: 14, color: '#111827', cursor: 'pointer' }}>
+              <button type="button" onClick={() => navigate(`/profile/${trip.user_id}`)}
+                style={{ fontWeight: 800, fontSize: 14, color: '#111827', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
                 {trip.creator_username}
-              </span>
+              </button>
               {rankEmoji && avgRating > 0 && (
                 <span style={{ fontSize: 16 }} title={`מקום #${rank}`}>{rankEmoji}</span>
               )}
@@ -532,7 +534,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
         )}
 
         {/* ── Media area ──────────────────────────────────────────────── */}
-        <div style={{ cursor: 'pointer', position: 'relative' }} onClick={() => navigate(`/trips/${trip.id}`)}>
+        <button type="button" style={{ cursor: 'pointer', position: 'relative', background: 'none', border: 'none', padding: 0, width: '100%', display: 'block' }} onClick={() => navigate(`/trips/${trip.id}`)}>
           {(!hasMedia || mediaTab === 'map') && <RouteMapCard trip={trip} />}
           {hasImage && mediaTab === 'image' && (
             <div style={{ height: 260, overflow: 'hidden', position: 'relative' }}>
@@ -541,7 +543,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
             </div>
           )}
           {hasVideo && mediaTab === 'video' && (
-            <div style={{ background: '#0f172a' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: '#0f172a' }}>
               <video src={trip.video_url!} controls style={{ width: '100%', maxHeight: 300, display: 'block' }} />
             </div>
           )}
@@ -551,7 +553,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: {
               לחץ לצפייה במסלול ›
             </div>
           )}
-        </div>
+        </button>
 
         {/* ── Social action bar ───────────────────────────────────────── */}
         <div style={{ padding: '10px 15px', display: 'flex', alignItems: 'center', gap: 14 }}>

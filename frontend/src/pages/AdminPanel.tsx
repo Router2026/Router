@@ -76,13 +76,14 @@ function EditModal({ poi, onClose, onSaved }: EditModalProps) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200,
+      position: 'fixed', inset: 0, zIndex: 200,
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    }} onClick={onClose}>
+    }}>
+      <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', border: 'none', cursor: 'default', padding: 0 }} />
       <div style={{
         background: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 420,
-        direction: 'rtl',
-      }} onClick={e => e.stopPropagation()}>
+        direction: 'rtl', position: 'relative', zIndex: 1,
+      }}>
         <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a', marginBottom: 16 }}>
           ✏️ ערוך מיקום
         </h3>
@@ -376,13 +377,14 @@ function CommunityPoisTab() {
       {/* Reject modal */}
       {rejectNote && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200,
+          position: 'fixed', inset: 0, zIndex: 200,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-        }} onClick={() => setRejectNote(null)}>
+        }}>
+          <button type="button" aria-label="סגור" onClick={() => setRejectNote(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', border: 'none', cursor: 'default', padding: 0 }} />
           <div style={{
             background: '#fff', borderRadius: 20, padding: 24,
-            width: '100%', maxWidth: 380, direction: 'rtl',
-          }} onClick={e => e.stopPropagation()}>
+            width: '100%', maxWidth: 380, direction: 'rtl', position: 'relative', zIndex: 1,
+          }}>
             <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1a2e2a', marginBottom: 12 }}>
               דחיית מיקום
             </h3>
@@ -664,13 +666,13 @@ export default function AdminPanel() {
                   background: '#f0fdf8', display: 'flex',
                   alignItems: 'center', justifyContent: 'center', fontSize: 20,
                 }}>🗺️</div>
-                <div style={{ flex: 1, textAlign: 'right', cursor: 'pointer' }}
+                <button type="button" style={{ flex: 1, textAlign: 'right', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
                   onClick={() => navigate(`/TripDetail?id=${r.id}`)}>
                   <div style={{ fontWeight: 800, fontSize: 15, color: '#1a2e2a' }}>{r.name}</div>
                   <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
                     {r.region} · {r.stops?.length || 0} עצירות · {r.total_duration_hours} שעות
                   </div>
-                </div>
+                </button>
                 <button disabled={busy === String(r.id)} onClick={() => handleDeleteRoute(String(r.id))}
                   style={{
                     padding: '6px 12px', borderRadius: 8, flexShrink: 0,

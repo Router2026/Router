@@ -75,10 +75,16 @@ export default function GuestUpgradePrompt({ feature, onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="guest-upgrade-title"
-      style={{ position: 'fixed', inset: 0, zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', direction: 'rtl' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose?.(); }}
+      style={{ position: 'fixed', inset: 0, zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl' }}
     >
-      <div style={{ background: '#fff', borderRadius: 24, padding: '28px 22px 22px', maxWidth: 360, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.22)' }}>
+      {/* Backdrop */}
+      <button
+        type="button"
+        aria-label="סגור"
+        onClick={() => onClose?.()}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', border: 'none', cursor: 'default', padding: 0 }}
+      />
+      <div style={{ position: 'relative', zIndex: 1, background: '#fff', borderRadius: 24, padding: '28px 22px 22px', maxWidth: 360, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.22)' }}>
         {/* Icon */}
         <div style={{ width: 56, height: 56, borderRadius: 18, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 14px', boxShadow: '0 8px 20px rgba(13,158,110,0.25)' }}>
           {icon}

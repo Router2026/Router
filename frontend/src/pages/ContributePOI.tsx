@@ -641,9 +641,9 @@ export default function ContributePOI() {
               { key: 'accessible', label: '♿ נגיש לעגלות ולנכים', val: accessible, set: setAccessible },
             ] as const).map(({ key, label, val, set }) => (
               <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                <div onClick={() => set(!val)} style={{ width: 44, height: 24, borderRadius: 12, background: val ? '#0d9e6e' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                <button type="button" onClick={() => set(!val)} style={{ width: 44, height: 24, borderRadius: 12, background: val ? '#0d9e6e' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0, border: 'none', padding: 0, cursor: 'pointer' }}>
                   <div style={{ position: 'absolute', top: 2, left: val ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-                </div>
+                </button>
                 <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
               </label>
             ))}

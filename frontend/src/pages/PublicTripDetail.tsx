@@ -63,15 +63,17 @@ function StarRating({ value, onChange, readonly, size = 26 }: { value: number; o
   return (
     <div style={{ display: 'flex', gap: 3 }}>
       {[1, 2, 3, 4, 5].map(i => (
-        <svg key={i} width={size} height={size} viewBox="0 0 24 24"
-          fill={i <= (hover || value) ? '#f59e0b' : 'none'}
-          stroke={i <= (hover || value) ? '#f59e0b' : '#d1d5db'} strokeWidth="2"
-          style={{ cursor: readonly ? 'default' : 'pointer', transition: 'transform 0.12s', transform: !readonly && i <= hover ? 'scale(1.25)' : 'scale(1)' }}
+        <button key={i} type="button" onClick={() => !readonly && onChange?.(i)}
           onMouseEnter={() => !readonly && setHover(i)}
           onMouseLeave={() => !readonly && setHover(0)}
-          onClick={() => !readonly && onChange?.(i)}>
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
+          style={{ background: 'none', border: 'none', padding: 0, cursor: readonly ? 'default' : 'pointer', lineHeight: 0 }}>
+          <svg width={size} height={size} viewBox="0 0 24 24"
+            fill={i <= (hover || value) ? '#f59e0b' : 'none'}
+            stroke={i <= (hover || value) ? '#f59e0b' : '#d1d5db'} strokeWidth="2"
+            style={{ transition: 'transform 0.12s', transform: !readonly && i <= hover ? 'scale(1.25)' : 'scale(1)' }}>
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </button>
       ))}
     </div>
   );
@@ -432,17 +434,17 @@ export default function PublicTripDetail() {
 
           {/* Creator row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
-            <div
+            <button type="button"
               onClick={() => navigate(`/profile/${trip.user_id}`)}
               style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', border: '2px solid #e2e8f0' }}>
               {trip.creator_avatar ? <img src={trip.creator_avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : trip.creator_username.charAt(0).toUpperCase()}
-            </div>
+            </button>
             <div style={{ flex: 1 }}>
-              <div
+              <button type="button"
                 onClick={() => navigate(`/profile/${trip.user_id}`)}
-                style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', cursor: 'pointer' }}>
+                style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
                 {trip.creator_username}
-              </div>
+              </button>
               <div style={{ fontSize: 12, color: '#94a3b8' }}>⚡ {trip.creator_xp} XP · {new Date(trip.created_at).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
             </div>
             <button
@@ -605,14 +607,14 @@ export default function PublicTripDetail() {
                           </button>
                         </div>
                       ) : (
-                        <div onClick={() => imageInputRef.current?.click()}
+                        <button type="button" onClick={() => imageInputRef.current?.click()}
                           onDragOver={e => { e.preventDefault(); setDragOverImage(true); }}
                           onDragLeave={() => setDragOverImage(false)}
                           onDrop={e => { e.preventDefault(); setDragOverImage(false); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) handleImageUpload(f); }}
-                          style={{ border: `2px dashed ${dragOverImage ? '#0d9e6e' : '#d1d5db'}`, borderRadius: 13, padding: '22px 16px', textAlign: 'center', background: dragOverImage ? '#f0fdf4' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s' }}>
+                          style={{ border: `2px dashed ${dragOverImage ? '#0d9e6e' : '#d1d5db'}`, borderRadius: 13, padding: '22px 16px', textAlign: 'center', background: dragOverImage ? '#f0fdf4' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                           <div style={{ fontSize: 26, marginBottom: 6 }}>📷</div>
                           <div style={{ fontWeight: 700, color: '#374151', fontSize: 13 }}>{uploadingImage ? '⏳ מעלה...' : 'גרור תמונה או לחץ'}</div>
-                        </div>
+                        </button>
                       )}
 
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>🎥 סרטון מסלול</div>
@@ -627,14 +629,14 @@ export default function PublicTripDetail() {
                           </button>
                         </div>
                       ) : (
-                        <div onClick={() => videoInputRef.current?.click()}
+                        <button type="button" onClick={() => videoInputRef.current?.click()}
                           onDragOver={e => { e.preventDefault(); setDragOverVideo(true); }}
                           onDragLeave={() => setDragOverVideo(false)}
                           onDrop={e => { e.preventDefault(); setDragOverVideo(false); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('video/')) handleVideoUpload(f); }}
-                          style={{ border: `2px dashed ${dragOverVideo ? '#7c3aed' : '#d1d5db'}`, borderRadius: 13, padding: '22px 16px', textAlign: 'center', background: dragOverVideo ? '#faf5ff' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s' }}>
+                          style={{ border: `2px dashed ${dragOverVideo ? '#7c3aed' : '#d1d5db'}`, borderRadius: 13, padding: '22px 16px', textAlign: 'center', background: dragOverVideo ? '#faf5ff' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                           <div style={{ fontSize: 26, marginBottom: 6 }}>🎬</div>
                           <div style={{ fontWeight: 700, color: '#374151', fontSize: 13 }}>{uploadingVideo ? '⏳ מעלה...' : 'גרור סרטון או לחץ'}</div>
-                        </div>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -662,8 +664,8 @@ export default function PublicTripDetail() {
                       {stopSearchResults.length > 0 && (
                         <div style={{ marginTop: 6, borderRadius: 13, border: '1.5px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
                           {stopSearchResults.map(poi => (
-                            <div key={poi.id} onClick={() => addStop(poi)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: '#fff', transition: 'background 0.15s' }}
+                            <button type="button" key={poi.id} onClick={() => addStop(poi)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: '#fff', transition: 'background 0.15s', width: '100%', border: 'none', textAlign: 'right' }}
                               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0fdf4'}
                               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff'}>
                               {poi.main_image ? (
@@ -676,7 +678,7 @@ export default function PublicTripDetail() {
                                 <div style={{ fontSize: 12, color: '#94a3b8' }}>{poi.category} · {poi.region}</div>
                               </div>
                               <span style={{ fontSize: 20, color: '#0d9e6e', fontWeight: 900, flexShrink: 0 }}>+</span>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -752,20 +754,22 @@ export default function PublicTripDetail() {
             </div>
 
             {routeImages.length === 0 && isOwner && (
-              <div style={{ border: '2px dashed #d1d5db', borderRadius: 14, padding: '28px 20px', textAlign: 'center', cursor: 'pointer', background: '#fafafa' }}
+              <button type="button" style={{ border: '2px dashed #d1d5db', borderRadius: 14, padding: '28px 20px', textAlign: 'center', cursor: 'pointer', background: '#fafafa', width: '100%' }}
                 onClick={() => routeImageInputRef.current?.click()}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>📷</div>
                 <div style={{ fontWeight: 700, color: '#374151', fontSize: 14 }}>הוסף תמונות מהמסלול</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>שתף את חוויות הטיול עם הקהילה</div>
-              </div>
+              </button>
             )}
 
             {routeImages.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {routeImages.map((img) => (
-                  <div key={img.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', aspectRatio: '1', cursor: 'pointer' }}
-                    onClick={() => setSelectedGalleryImg(img.image_url)}>
-                    <img src={img.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  <div key={img.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', aspectRatio: '1' }}>
+                    <button type="button" onClick={() => setSelectedGalleryImg(img.image_url)}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', height: '100%', display: 'block' }}>
+                      <img src={img.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    </button>
                     {isOwner && (
                       <button onClick={e => { e.stopPropagation(); handleDeleteRouteImage(img.id); }}
                         style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>
@@ -781,11 +785,11 @@ export default function PublicTripDetail() {
 
         {/* ── Lightbox ──────────────────────────────────────────────────── */}
         {selectedGalleryImg && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onClick={() => setSelectedGalleryImg(null)}>
-            <img src={selectedGalleryImg} alt="" style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 12 }} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button type="button" aria-label="סגור" onClick={() => setSelectedGalleryImg(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.9)', border: 'none', cursor: 'default', padding: 0 }} />
+            <img src={selectedGalleryImg} alt="" style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 12, position: 'relative', zIndex: 1 }} />
             <button onClick={() => setSelectedGalleryImg(null)}
-              style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 40, height: 40, color: '#fff', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
               ×
             </button>
           </div>
@@ -861,8 +865,10 @@ export default function PublicTripDetail() {
                   )}
                 </div>
                 {m.media_type === 'image'
-                  ? <img src={m.url} alt={m.caption || ''} onClick={() => setSelectedGalleryImg(m.url)}
-                      style={{ width: '100%', maxHeight: 280, objectFit: 'cover', display: 'block', cursor: 'pointer' }} />
+                  ? <button type="button" onClick={() => setSelectedGalleryImg(m.url)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', display: 'block' }}>
+                      <img src={m.url} alt={m.caption || ''}
+                        style={{ width: '100%', maxHeight: 280, objectFit: 'cover', display: 'block' }} />
+                    </button>
                   : <video src={m.url} controls style={{ width: '100%', maxHeight: 280, display: 'block', background: '#000' }} />
                 }
               </div>
@@ -895,9 +901,9 @@ export default function PublicTripDetail() {
           <div style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>📍 {trip.locations.length} עצירות במסלול</div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {trip.locations.map((loc, i) => (
-              <div key={i}
+              <button type="button" key={`${loc.location_id ?? loc.name ?? i}`}
                 onClick={() => loc.location_id && navigate(`/POIDetail?id=${loc.location_id}`)}
-                style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderBottom: i < trip.locations.length - 1 ? '1px solid #f1f5f9' : 'none', cursor: loc.location_id ? 'pointer' : 'default', transition: 'background 0.15s', borderRadius: 8 }}>
+                style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderBottom: i < trip.locations.length - 1 ? '1px solid #f1f5f9' : 'none', cursor: loc.location_id ? 'pointer' : 'default', transition: 'background 0.15s', borderRadius: 8, background: 'none', border: 'none', width: '100%', textAlign: 'right' }}>
                 <div style={{ minWidth: 30, height: 30, borderRadius: '50%', background: CAT_COLOR[loc.category] || '#0d9e6e', color: '#fff', fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>{i + 1}</div>
                 {loc.main_image && <img src={getImageUrl(loc.main_image, 'thumb')} alt="" loading="lazy" decoding="async" style={{ width: 52, height: 52, borderRadius: 11, objectFit: 'cover', flexShrink: 0 }} />}
                 <div style={{ flex: 1 }}>
@@ -908,7 +914,7 @@ export default function PublicTripDetail() {
                   </div>
                 </div>
                 {!!loc.location_id && <div style={{ fontSize: 20, color: '#cbd5e1', alignSelf: 'center' }}>›</div>}
-              </div>
+              </button>
             ))}
           </div>
 
@@ -974,19 +980,19 @@ export default function PublicTripDetail() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {comments.map(c => (
               <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <div
+                <button type="button"
                   onClick={() => navigate(`/profile/${c.user_id}`)}
-                  style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>
+                  style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#fff', fontWeight: 800, cursor: 'pointer', border: 'none', padding: 0 }}>
                   {c.avatar_url ? <img src={c.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : c.username.charAt(0).toUpperCase()}
-                </div>
+                </button>
                 <div style={{ flex: 1 }}>
                   <div style={{ background: '#f8fafc', borderRadius: '4px 14px 14px 14px', padding: '10px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-                      <span
+                      <button type="button"
                         onClick={() => navigate(`/profile/${c.user_id}`)}
-                        style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', cursor: 'pointer' }}>
+                        style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
                         {c.username}
-                      </span>
+                      </button>
                       <span style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(c.created_at).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       {user && (user.id === c.user_id || (user as any).is_admin) && (
                         <button onClick={() => handleDeleteComment(c.id)} style={{ marginRight: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#ef4444', fontFamily: 'Heebo, sans-serif', padding: '2px 6px', borderRadius: 6 }}>מחק</button>

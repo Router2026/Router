@@ -76,7 +76,7 @@ function FilterPanel({
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'flex-start' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'default', padding: 0 }} />
       <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 300, background: '#fff', overflowY: 'auto', padding: '24px 20px', direction: 'rtl' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <button onClick={() => {
@@ -134,9 +134,9 @@ function FilterPanel({
           ].map(f => (
             <label key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, cursor: 'pointer', justifyContent: 'flex-end' }}>
               <span style={{ fontSize: 14, color: '#1a2e2a' }}>{f.label}</span>
-              <div onClick={() => f.set(!f.state)} style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${f.state ? '#0d9e6e' : '#cbd5e1'}`, background: f.state ? '#0d9e6e' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+              <button type="button" onClick={() => f.set(!f.state)} style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${f.state ? '#0d9e6e' : '#cbd5e1'}`, background: f.state ? '#0d9e6e' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', padding: 0 }}>
                 {f.state && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
-              </div>
+              </button>
             </label>
           ))}
         </FilterSection>
@@ -173,8 +173,8 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
   };
 
   return (
-    <div onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
-      style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease' }}>
+    <button type="button" onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
+      style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease', border: 'none', padding: 0, textAlign: 'right', display: 'block', width: '100%' }}>
       <div style={{ position: 'relative', height: 160 }}>
         <img src={poi.thumbnail || poi.main_image || RouterLogo} alt={poi.name}
           loading="lazy" decoding="async"
@@ -239,7 +239,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
         </button>
         {bucketLock.PromptComponent}
       </div>
-    </div>
+    </button>
   );
 });
 
@@ -549,7 +549,7 @@ export default function Explore() {
     return () => { cancelled = true; };
     // fetchPage identity changes when filters change, which correctly triggers
     // a re-run of this effect even in city mode — fixing Bug 2.
-  }, [debouncedSearch, fetchPage, userCoords]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, fetchPage, userCoords]);  
 
   // ── URL category param ────────────────────────────────────────────────────
   useEffect(() => {

@@ -371,14 +371,14 @@ export default function TripPlanner() {
                     cursor: 'pointer', justifyContent: 'flex-end',
                   }}>
                     <span style={{ fontSize: 15, color: '#334155', fontWeight: 700 }}>{item.label}</span>
-                    <div
+                    <button type="button"
                       onClick={() => item.setState(!item.state)}
                       style={{
                         width: 24, height: 24, borderRadius: 6, flexShrink: 0,
                         border: `2px solid ${item.state ? '#0d9e6e' : '#cbd5e1'}`,
                         background: item.state ? '#0d9e6e' : '#fff',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', transition: 'all 0.15s ease',
+                        cursor: 'pointer', transition: 'all 0.15s ease', padding: 0,
                       }}
                     >
                       {item.state && (
@@ -386,7 +386,7 @@ export default function TripPlanner() {
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       )}
-                    </div>
+                    </button>
                   </label>
                 ))}
               </div>

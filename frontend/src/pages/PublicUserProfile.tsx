@@ -40,7 +40,7 @@ const DIFF_COLOR: Record<string, string> = {
 
 function TripMiniCard({ trip, onClick }: { trip: PublicTrip; onClick: () => void }) {
   return (
-    <div onClick={onClick} style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', cursor: 'pointer', border: '1px solid #f1f5f9', transition: 'transform 0.15s, box-shadow 0.15s' }}
+    <button type="button" onClick={onClick} style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', cursor: 'pointer', border: '1px solid #f1f5f9', transition: 'transform 0.15s, box-shadow 0.15s', padding: 0, textAlign: 'right', width: '100%' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.07)'; }}>
 
@@ -74,7 +74,7 @@ function TripMiniCard({ trip, onClick }: { trip: PublicTrip; onClick: () => void
           </span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 

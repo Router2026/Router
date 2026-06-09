@@ -359,7 +359,7 @@ function MediaGallery({
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
         {media.map((item, idx) => (
-          <div key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', cursor: 'pointer', aspectRatio: '1' }} onClick={() => setLightboxIdx(idx)}>
+          <button type="button" key={item.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #0d9e6e', cursor: 'pointer', aspectRatio: '1', background: 'none', padding: 0, display: 'block', width: '100%' }} onClick={() => setLightboxIdx(idx)}>
             {item.media_type === 'video' ? (
               <div style={{ width: '100%', height: '100%', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 {item.thumbnail_url && (
@@ -382,17 +382,18 @@ function MediaGallery({
               {item.username || 'משתמש'}
             </div>
             {isAdmin && (
-              <div style={{ display: 'flex', gap: 4, padding: '4px', background: 'rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
-                <button onClick={() => onReject(item.id)}
+              <div style={{ display: 'flex', gap: 4, padding: '4px', background: 'rgba(0,0,0,0.5)' }}>
+                <button onClick={e => { e.stopPropagation(); onReject(item.id); }}
                   style={{ flex: 1, padding: '3px', fontSize: 9, border: 'none', borderRadius: 5, background: '#f87171', color: '#fff', cursor: 'pointer', fontFamily: 'Heebo, sans-serif', fontWeight: 700 }}>הסר</button>
               </div>
             )}
-          </div>
+          </button>
         ))}
       </div>
       {lightboxIdx !== null && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closeLightbox}>
-          <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button type="button" aria-label="סגור" onClick={closeLightbox} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.92)', border: 'none', cursor: 'default', padding: 0 }} />
+          <div style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
             <button onClick={closeLightbox} style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', fontSize: 28, cursor: 'pointer', zIndex: 1 }}>✕</button>
             {media[lightboxIdx].media_type === 'video' ? (
               <video src={media[lightboxIdx].media_url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12 }} playsInline />
@@ -451,10 +452,10 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12, direction: 'rtl' }}>📍 מקומות קרובים</div>
       <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'] }}>
         {nearby.map(place => (
-          <div key={place.id} onClick={() => navigate(`/POIDetail?id=${place.id}`)}
-            style={{ flexShrink: 0, width: 150, borderRadius: 16, overflow: 'hidden', border: '1px solid #f0f0f0', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'transform 0.15s, box-shadow 0.15s' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}>
+          <button type="button" key={place.id} onClick={() => navigate(`/POIDetail?id=${place.id}`)}
+            style={{ flexShrink: 0, width: 150, borderRadius: 16, overflow: 'hidden', border: '1px solid #f0f0f0', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'transform 0.15s, box-shadow 0.15s', background: 'none', padding: 0, textAlign: 'right' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}>
             <div style={{ height: 90, position: 'relative', background: 'linear-gradient(135deg, #0d9e6e, #34d399)' }}>
               {place.main_image ? (
                 <img src={getImageUrl(place.main_image, 'thumb')} alt={place.name} loading="lazy" decoding="async"
@@ -476,7 +477,7 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
                 <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700 }}>★ {place.average_rating.toFixed(1)}</span>
               </div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

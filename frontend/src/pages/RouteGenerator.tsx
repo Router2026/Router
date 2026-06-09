@@ -103,7 +103,7 @@ function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; select
     className: '',
     iconSize: [selected ? 52 : 44, selected ? 52 : 44],
     iconAnchor: [selected ? 26 : 22, selected ? 26 : 22],
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }), [poi.main_image, index, selected]);
 
   return (
@@ -272,6 +272,7 @@ export default function RouteGenerator() {
     } | null;
     if (state?.bucketPois && state.bucketPois.length >= 2) {
       const incoming = state.bucketPois;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPois(incoming);
       setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
 
@@ -304,7 +305,7 @@ export default function RouteGenerator() {
       setStep('route');
       window.history.replaceState({}, '');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [routerLocation.state]);
 
   const requestGeolocation = useCallback(() => {
@@ -1025,9 +1026,9 @@ export default function RouteGenerator() {
 
       {/* ── Publish Modal ───────────────────────────────────────────── */}
       {showPublishModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', direction: 'rtl', padding: 16 }}
-          onClick={e => e.target === e.currentTarget && setShowPublishModal(false)}>
-          <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}>
+          <button type="button" aria-label="סגור" onClick={() => setShowPublishModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'default', padding: 0 }} />
+          <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', position: 'relative', zIndex: 1 }}>
 
             {/* Header */}
             <div style={{ padding: '20px 22px 16px', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', zIndex: 10, borderRadius: '24px 24px 0 0' }}>

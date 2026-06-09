@@ -37,10 +37,10 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean | nu
       <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 12, color: '#94a3b8' }}>{value === null ? 'לא ידוע' : value ? 'כן' : 'לא'}</span>
-        <div onClick={() => onChange(next)}
-          style={{ width: 44, height: 24, borderRadius: 12, background: bg, position: 'relative', cursor: 'pointer', transition: 'background 0.18s', flexShrink: 0 }}>
+        <button type="button" onClick={() => onChange(next)} aria-label={label}
+          style={{ width: 44, height: 24, borderRadius: 12, background: bg, position: 'relative', cursor: 'pointer', transition: 'background 0.18s', flexShrink: 0, border: 'none', padding: 0 }}>
           <div style={{ position: 'absolute', top: 2, left: knobLeft, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.18s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-        </div>
+        </button>
       </div>
     </div>
   );
@@ -185,7 +185,7 @@ export default function OwnerPlaceEditModal({ poi, communityPoiId, onClose, onSa
   return (
     <>
       {/* Backdrop */}
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)' }} />
+      <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)', border: 'none', cursor: 'default', padding: 0 }} />
 
       {/* Sheet */}
       <div style={{

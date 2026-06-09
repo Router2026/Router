@@ -130,8 +130,8 @@ export default function MyTrips() {
                 const hasShared = sharedIds.has(id);
 
                 return (
-                  <div key={id} onClick={() => navigate(`/TripDetail?id=${id}`)}
-                    style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', cursor: 'pointer', border: `1px solid ${isConfirming ? '#fecaca' : '#f0fdf8'}`, transition: 'all 0.2s ease', position: 'relative' }}>
+                  <button type="button" key={id} onClick={() => navigate(`/TripDetail?id=${id}`)}
+                    style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', cursor: 'pointer', border: `1px solid ${isConfirming ? '#fecaca' : '#f0fdf8'}`, transition: 'all 0.2s ease', position: 'relative', padding: 0, textAlign: 'right', width: '100%' }}>
                     <div style={{ height: 100, background: isConfirming ? 'linear-gradient(160deg, #ef4444 0%, #f87171 100%)' : 'linear-gradient(160deg, #0d9e6e 0%, #34d399 100%)', display: 'flex', alignItems: 'flex-end', padding: '16px', transition: 'background 0.2s ease' }}>
                       <div>
                         <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.3 }}>{trip.name}</div>
@@ -189,7 +189,7 @@ export default function MyTrips() {
                         <span style={{ fontSize: 16 }}>{GROUP_ICONS[trip.group_type] || '🚶'}</span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -212,9 +212,9 @@ export default function MyTrips() {
 
       {/* ── Publish Modal ─────────────────────────────────────────────── */}
       {showPublishModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}
-          onClick={e => e.target === e.currentTarget && setShowPublishModal(null)}>
-          <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}>
+          <button type="button" aria-label="סגור" onClick={() => setShowPublishModal(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'default', padding: 0 }} />
+          <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', position: 'relative', zIndex: 1 }}>
             <div style={{ padding: '20px 22px 16px', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, background: '#fff', zIndex: 10, borderRadius: '24px 24px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontWeight: 900, fontSize: 18, color: '#0f172a' }}>🌐 פרסם מסלול ציבורי</div>

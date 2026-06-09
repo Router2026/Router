@@ -118,10 +118,10 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
     return (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
-            <div onClick={() => onChange(!checked)}
-                style={{ width: 44, height: 24, borderRadius: 12, background: checked ? '#0d9e6e' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+            <button type="button" onClick={() => onChange(!checked)}
+                style={{ width: 44, height: 24, borderRadius: 12, background: checked ? '#0d9e6e' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0, border: 'none', padding: 0, cursor: 'pointer' }}>
                 <div style={{ position: 'absolute', top: 2, left: checked ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-            </div>
+            </button>
         </label>
     );
 }
@@ -355,7 +355,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {/* Backdrop */}
-            <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)' }} />
+            <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', border: 'none', cursor: 'default', padding: 0 }} />
 
             {/* Modal */}
             <div style={{
