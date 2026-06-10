@@ -32,6 +32,9 @@ import ProfileEdit from './pages/ProfileEdit';
 import MyPlaces from './pages/MyPlaces';
 import EditMyPlace from './pages/EditMyPlace';
 import AuthCallback from './pages/AuthCallback';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import LegalDisclaimer from './pages/LegalDisclaimer';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TripBucketProvider } from './context/TripBucketContext';
@@ -108,6 +111,9 @@ function AppRoutes() {
         <Route path="/ResetPassword" element={<Wrap name="ResetPassword"><ResetPassword /></Wrap>} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/ContributePOI" element={<ContributePOI />} />
+        <Route path="/terms" element={<Wrap name="TermsOfService"><TermsOfService /></Wrap>} />
+        <Route path="/privacy" element={<Wrap name="PrivacyPolicy"><PrivacyPolicy /></Wrap>} />
+        <Route path="/disclaimer" element={<Wrap name="LegalDisclaimer"><LegalDisclaimer /></Wrap>} />
 
         {/* ── Fully public (no auth needed) ────────────────── */}
         <Route path="/trips" element={<Wrap name="Trips"><PublicTrips /></Wrap>} />

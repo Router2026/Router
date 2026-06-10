@@ -5,6 +5,7 @@ import { getImageUrl } from '../utils/imageUtils';
 import { useFeaturedLocations, useRegions, useNearbyUserLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock, LockBadge } from '../components/LockedFeature';
+import Disclaimer from '../components/Disclaimer';
 
 const CATEGORIES = [
   { name: 'מסלולי מים', icon: '💧', color: '#0891b2', bg: '#eff6ff', key: 'נחל' },
@@ -437,6 +438,7 @@ export default function Home() {
             )}
           </div>
         </div>
+          <Disclaimer />
 
       </div>
     </div>

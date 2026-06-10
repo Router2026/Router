@@ -7,7 +7,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia } from '../api';
 import { useAuth } from '../context/AuthContext';
-import Disclaimer from '../components/Disclaimer';
 import { getImageUrl } from '../utils/imageUtils';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -1025,7 +1024,6 @@ export default function PublicTripDetail() {
             ))}
           </div>
         </div>
-        <Disclaimer />
       </div>
     </div>
   );

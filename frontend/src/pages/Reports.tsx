@@ -3,7 +3,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Disclaimer from '../components/Disclaimer';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
@@ -112,7 +111,6 @@ export default function Reports() {
       </div>
 
       <div style={{ maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
-        <Disclaimer />
         {/* Filter chips */}
         <div style={{ padding: '16px 16px 8px', overflowX: 'auto' }}>
           <div style={{ display: 'flex', gap: 8, paddingBottom: 4, scrollbarWidth: 'none', direction: 'rtl' }}>

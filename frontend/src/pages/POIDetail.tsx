@@ -36,7 +36,6 @@ import UploadPhotoButton from '../components/UploadPhotoButton';
 import XpToast from '../components/XpToast';
 import POIDetailsEditAdmin from './POIDetailsEditAdmin';
 import OwnerPlaceEditModal from '../components/OwnerPlaceEditModal';
-import Disclaimer from '../components/Disclaimer';
 import { getImageUrl } from '../utils/imageUtils';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -871,7 +870,6 @@ export default function POIDetail() {
             </div>
           )}
 
-          <Disclaimer />
           <button onClick={() => window.open(`https://waze.com/ul?ll=${poi.latitude},${poi.longitude}&navigate=yes`, '_blank')}
             style={{ width: '100%', padding: '18px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 18, fontWeight: 900, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 24px rgba(13,158,110,0.25)', marginTop: 8 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>

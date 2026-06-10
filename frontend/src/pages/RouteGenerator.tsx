@@ -9,7 +9,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type POI, type Region } from '../api';
 import { useRegions } from '../hooks/useLocations';
-import Disclaimer from '../components/Disclaimer';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -984,7 +983,6 @@ export default function RouteGenerator() {
               </div>
             </div>
 
-            <Disclaimer />
             {/* Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button onClick={handleSave} disabled={saving}
