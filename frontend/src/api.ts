@@ -1,5 +1,4 @@
 // src/api.ts — UPDATED: media upload (images+video), ratings, nearby locations
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
@@ -22,7 +21,22 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let code: string | undefined;
-    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
+    throw new ApiError(message, code);
+  }
+  return res.json();
+}
+
+// For multipart/form-data uploads — no Content-Type header so browser sets boundary automatically
+async function apiFetchForm<T>(path: string, formData: FormData): Promise<T> {
+  const token = _token ?? localStorage.getItem(TOKEN_KEY);
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    let code: string | undefined;
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
     throw new ApiError(message, code);
   }
   return res.json();
@@ -210,25 +224,17 @@ import { getImageUrl } from './utils/imageUtils';
 
 function mapLocation(r: any): POI {
   const mainImage: string = r.main_image || '';
-  let images: string[];
-  if (Array.isArray(r.images)) {
-    images = r.images;
-  } else if (typeof r.images === 'string') {
-    images = JSON.parse(r.images);
-  } else {
-    images = [];
-  }
   return {
     id: String(r.id), name: r.name, description: r.description || '',
     category: r.category, region: r.region_name || r.region || '',
     region_id: r.region_id, latitude: Number.parseFloat(r.latitude),
     longitude: Number.parseFloat(r.longitude),
-    images,
+    images: Array.isArray(r.images) ? r.images : (typeof r.images === 'string' ? JSON.parse(r.images) : []),
     main_image: mainImage, thumbnail: getImageUrl(mainImage, 'card'), difficulty: r.difficulty || 'בינוני',
     duration_minutes: r.duration_minutes, has_water: r.has_water,
     has_shade: r.has_shade, accessible: r.accessible,
     is_featured: r.is_featured ?? false,
-    average_rating: Number.parseFloat(r.average_rating) || 4,
+    average_rating: Number.parseFloat(r.average_rating) || 4.0,
     photo_credit: r.photo_credit || r.credit || undefined,
     uploaded_by: r.uploaded_by || undefined,
     distance_meters: r.distance_meters !== undefined && r.distance_meters !== null
@@ -403,11 +409,10 @@ export const api = {
         method: 'POST', body: JSON.stringify({ image_url: imageUrl }),
       })).data,
     uploadImageFile: async (locationId: string | number, file: File): Promise<UploadImageResponse> => {
-      const base64 = await fileToBase64(file);
-      return (await apiFetch<{ data: UploadImageResponse }>(`/locations/${locationId}/images`, {
-        method: 'POST',
-        body: JSON.stringify({ image_data: base64, mime_type: file.type }),
-      })).data;
+      // FIX: FormData instead of base64 JSON — same size limit issue.
+      const form = new FormData();
+      form.append('file', file);
+      return (await apiFetchForm<{ data: UploadImageResponse }>(`/locations/${locationId}/images`, form)).data;
     },
     approveImage: async (locationId: string | number, imageId: number): Promise<LocationImage> =>
       (await apiFetch<{ data: LocationImage }>(`/locations/${locationId}/images/${imageId}`, {
@@ -428,25 +433,23 @@ export const api = {
         `/locations/${locationId}/media${approvedOnly ? '?approved=true' : ''}`
       )).data,
     uploadMedia: async (locationId: string | number, file: File, caption?: string): Promise<UploadMediaResponse> => {
-      const base64 = await fileToBase64(file);
-      return (await apiFetch<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, {
-        method: 'POST',
-        body: JSON.stringify({
-          media_data: base64,
-          mime_type: file.type,
-          ...(caption ? { caption } : {}),
-        }),
-      })).data;
+      // FIX: Use FormData (multipart) instead of base64 JSON.
+      // base64 inflates file size by ~33% and the JSON body hits Next.js's
+      // default 4 MB limit — causing "Failed to fetch" for photos over ~3 MB.
+      // FormData streams the raw binary with no size overhead and no body limit.
+      const form = new FormData();
+      form.append('file', file);
+      if (caption) form.append('caption', caption);
+      return (await apiFetchForm<{ data: UploadMediaResponse }>(`/locations/${locationId}/media`, form)).data;
     },
     // Upload a file to Supabase Storage without attaching it to a location yet.
     // Used by ContributePOI so photos are stored before the community_pois row exists.
     // Returns the public https:// Storage URL to include in community_pois.photos.
     uploadPendingMedia: async (file: File): Promise<string> => {
-      const base64 = await fileToBase64(file);
-      const res = await apiFetch<{ data: { url: string } }>('/media/upload', {
-        method: 'POST',
-        body: JSON.stringify({ media_data: base64, mime_type: file.type }),
-      });
+      // FIX: Same — FormData instead of base64 JSON.
+      const form = new FormData();
+      form.append('file', file);
+      const res = await apiFetchForm<{ data: { url: string } }>('/media/upload', form);
       return res.data.url;
     },
     uploadMediaUrl: async (locationId: string | number, url: string, mediaType: 'image' | 'video' = 'image', caption?: string): Promise<UploadMediaResponse> =>
@@ -766,13 +769,13 @@ export const base44 = {
     POI: { list: () => api.locations.list(), filter: (p?: { region?: string }) => api.locations.list(p), get: (id: string) => api.locations.get(id) },
     Trip: { filter: () => api.trips.list(), create: (data: any) => api.trips.create(data) },
     Review: { filter: () => api.reviews.list(), create: (data: any) => api.reviews.create(data) },
-    CommunityReport: { filter: () => api.reports.list(), create: (data: any) => api.reports.create(data), update: (id: string, _: any) => api.reports.upvote(id) },
-    UserProfile: { filter: () => api.users.me().then(u => [u]), list: () => api.users.leaderboard(), create: (d: any) => Promise.resolve(d), update: (_: string, d: any) => Promise.resolve(d) },
-    VideoPost: { list: () => api.videos.list(), filter: () => api.videos.list(), create: (data: any) => api.videos.create(data), update: (id: string, _: any) => api.videos.like(id) },
+    CommunityReport: { filter: () => api.reports.list(), create: (data: any) => api.reports.create(data), update: (id: string, _data: any) => api.reports.upvote(id) },
+    UserProfile: { filter: () => api.users.me().then(u => [u]), list: () => api.users.leaderboard(), create: (d: any) => Promise.resolve(d), update: (_id: string, d: any) => Promise.resolve(d) },
+    VideoPost: { list: () => api.videos.list(), filter: () => api.videos.list(), create: (data: any) => api.videos.create(data), update: (id: string, _data: any) => api.videos.like(id) },
   },
   integrations: {
     Core: {
-      UploadFile: async (_: { file: File }) => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
+      UploadFile: async (_a: { file: File }) => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
       InvokeLLM: async ({ body }: { body: string }) => {
         const req = JSON.parse(body);
         const GROUP_TYPE_MAP: Record<string, string> = { 'יחיד': 'solo', 'זוג': 'couple', 'משפחה': 'family', 'חברים': 'friends' };

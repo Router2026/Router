@@ -38,23 +38,14 @@ export interface SaveMediaResult {
 }
 
 const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  // BUG FIX (mobile): iPhones shoot in HEIC/HEIF by default.
-  // iOS Safari reports these as "image/heic" or "image/heif" when the user
-  // picks from the camera roll without conversion. Without these entries
-  // the server returns a 400 VALIDATION_ERROR that the client sees as
-  // "Failed to fetch".
-  "image/heic",
-  "image/heif",
+  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "image/heic", "image/heif", // iPhone default formats
 ];
+
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"];
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
-  // HEIC/HEIF from iPhone — store as heic so the file extension is correct
   "image/heic": "heic", "image/heif": "heif",
   "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-msvideo": "avi",
 };
@@ -63,17 +54,20 @@ export function getMediaType(mimeType: string): MediaType {
   if (ALLOWED_IMAGE_TYPES.includes(mimeType)) return "image";
   if (ALLOWED_VIDEO_TYPES.includes(mimeType)) return "video";
   throw Object.assign(
-    new Error(`Unsupported file type: ${mimeType}. Supported: JPEG, PNG, WEBP, GIF, MP4, WEBM, MOV`),
+    new Error(`Unsupported file type: ${mimeType}. Supported: JPEG, PNG, WEBP, GIF, HEIC, MP4, WEBM, MOV`),
     { code: "VALIDATION_ERROR" }
   );
 }
 
-export function validateMediaSize(base64Data: string, mimeType: string) {
-  const estimatedBytes = (base64Data.length * 3) / 4;
+/**
+ * Validate raw file size in bytes (accurate — no base64 estimation error).
+ * Use this instead of validateMediaSize when you have the actual Buffer.
+ */
+export function validateMediaSizeBytes(byteLength: number, mimeType: string) {
   const limit = ALLOWED_VIDEO_TYPES.includes(mimeType)
     ? MAX_MEDIA_SIZE_BYTES
     : MAX_IMAGE_SIZE_BYTES;
-  if (estimatedBytes > limit) {
+  if (byteLength > limit) {
     const mb = Math.round(limit / 1024 / 1024);
     throw Object.assign(
       new Error(`File too large (max ${mb} MB)`),
@@ -82,25 +76,31 @@ export function validateMediaSize(base64Data: string, mimeType: string) {
   }
 }
 
+/** @deprecated Use validateMediaSizeBytes — base64 length estimation is inaccurate */
+export function validateMediaSize(base64Data: string, mimeType: string) {
+  // base64: every 4 chars = 3 bytes, minus up to 2 padding chars
+  const byteLength = Math.floor((base64Data.length * 3) / 4);
+  validateMediaSizeBytes(byteLength, mimeType);
+}
+
 /**
- * Upload a base64-encoded file to Supabase Storage and return its public URL.
- * Throws if the upload fails so the caller can surface the error properly.
+ * Upload a Buffer to Supabase Storage and return its public URL.
+ * Accepts raw binary Buffer — callers convert from FormData or base64 before calling.
  */
 export async function uploadToStorage(
-  base64Data: string,
+  fileData: Buffer,
   mimeType: string,
   folder: string,
 ): Promise<string> {
   const ext = MIME_TO_EXT[mimeType] ?? "bin";
   const fileName = `${folder}/${Date.now()}-${randomBytes(8).toString("hex")}.${ext}`;
-  const buffer = Buffer.from(base64Data, "base64");
 
   const { error } = await supabaseAdmin.storage
     .from(MEDIA_BUCKET)
-    .upload(fileName, buffer, {
+    .upload(fileName, fileData, {
       contentType: mimeType,
       upsert: false,
-      cacheControl: "31536000", // 1 year — files are immutable (content-addressed by timestamp)
+      cacheControl: "31536000",
     });
 
   if (error) {

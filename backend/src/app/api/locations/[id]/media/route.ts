@@ -1,14 +1,10 @@
 // src/app/api/locations/[id]/media/route.ts
-// POST /locations/:id/media — receives base64 media_data, uploads to Supabase Storage,
-// then stores the resulting public URL in location_media.media_url.
+// POST /locations/:id/media — upload a file to Supabase Storage,
+// then store the resulting public URL in location_media.media_url.
 //
-// Previously stored raw data URIs in the DB (broken: bloated rows, CSP issues,
-// no Supabase image transforms). Now stores proper https:// Storage URLs.
-
-// BUG FIX (mobile "Failed to fetch"):
-// Same body size fix as /api/media/upload — mobile images exceed the default 4 MB limit.
-export const runtime = "nodejs";
-export const maxRequestBodySize = "20mb";
+// FIX: Accepts multipart/form-data (FormData) instead of base64 JSON.
+// Same root cause as /api/media/upload — base64 JSON exceeds Next.js's
+// 4 MB default body limit for images over ~3 MB, causing "Failed to fetch".
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth/tokens";
@@ -21,7 +17,7 @@ import {
   rejectMedia,
   deleteMedia,
   getMediaType,
-  validateMediaSize,
+  validateMediaSizeBytes,
 } from "@/lib/location-images/location-media-service";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -47,8 +43,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 }
 
 // POST /locations/:id/media
-// Body: { media_data: string (base64 data URI or raw base64), mime_type: string, caption?: string }
-//    OR { media_url: string (already-public https URL), media_type?: string }
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
@@ -62,35 +56,45 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
-    const body = await req.json();
+    const contentType = req.headers.get("content-type") ?? "";
+
     let mediaUrl: string;
     let mediaType: "image" | "video";
     let thumbnailUrl: string | undefined;
+    let caption: string | undefined;
 
-    if (body.media_data && body.mime_type) {
-      // ── Base64 upload path ────────────────────────────────────────────────
+    if (contentType.includes("multipart/form-data")) {
+      // ── FormData path (new default) ─────────────────────────────────────
+      const form = await req.formData();
+      const file = form.get("file");
+      caption = form.get("caption")?.toString() || undefined;
+
+      if (!file || typeof file === "string") {
+        return NextResponse.json(
+          errorResponse("'file' field is required in FormData", "VALIDATION_ERROR"),
+          { status: 400 }
+        );
+      }
+
+      const mimeType = file.type;
+
       try {
-        mediaType = getMediaType(body.mime_type);
+        mediaType = getMediaType(mimeType);
       } catch (err: any) {
         return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
       }
 
-      // Strip the data URI prefix if present (FileReader.readAsDataURL includes it)
-      const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
+      const arrayBuffer = await file.arrayBuffer();
+      const fileBuffer = Buffer.from(arrayBuffer);
 
       try {
-        validateMediaSize(base64Data, body.mime_type);
+        validateMediaSizeBytes(fileBuffer.length, mimeType);
       } catch (err: any) {
         return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
       }
 
-      // Upload to Supabase Storage — get back a proper public https:// URL
       try {
-        mediaUrl = await uploadToStorage(
-          base64Data,
-          body.mime_type,
-          `locations/${locationId}`,
-        );
+        mediaUrl = await uploadToStorage(fileBuffer, mimeType, `locations/${locationId}`);
       } catch (err: any) {
         console.error("[POST /api/locations/:id/media] storage upload failed:", err);
         return NextResponse.json(
@@ -99,28 +103,60 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         );
       }
 
-      thumbnailUrl = body.thumbnail_url || undefined;
+    } else {
+      // ── JSON path: either a pre-uploaded URL or legacy base64 ────────────
+      const body = await req.json();
 
-    } else if (body.media_url) {
-      // ── Already-public URL path (e.g. from external CDN) ─────────────────
-      mediaUrl = (body.media_url as string).trim();
-      if (!mediaUrl.startsWith("http")) {
+      if (body.media_url) {
+        // Already-public URL (e.g. pasted from external CDN)
+        mediaUrl = (body.media_url as string).trim();
+        if (!mediaUrl.startsWith("http")) {
+          return NextResponse.json(
+            errorResponse("media_url must be a valid URL", "VALIDATION_ERROR"),
+            { status: 400 }
+          );
+        }
+        mediaType = body.media_type === "video" || /\.(mp4|webm|mov|avi)(\?|$)/i.test(mediaUrl)
+          ? "video"
+          : "image";
+        thumbnailUrl = body.thumbnail_url || undefined;
+        caption = body.caption || undefined;
+
+      } else if (body.media_data && body.mime_type) {
+        // Legacy base64 JSON — still supported for backward compat
+        try {
+          mediaType = getMediaType(body.mime_type);
+        } catch (err: any) {
+          return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+        }
+
+        const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
+        const fileBuffer = Buffer.from(base64Data, "base64");
+
+        try {
+          validateMediaSizeBytes(fileBuffer.length, body.mime_type);
+        } catch (err: any) {
+          return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
+        }
+
+        try {
+          mediaUrl = await uploadToStorage(fileBuffer, body.mime_type, `locations/${locationId}`);
+        } catch (err: any) {
+          console.error("[POST /api/locations/:id/media] storage upload failed:", err);
+          return NextResponse.json(
+            errorResponse("Failed to upload file to storage", "STORAGE_ERROR"),
+            { status: 502 }
+          );
+        }
+
+        thumbnailUrl = body.thumbnail_url || undefined;
+        caption = body.caption || undefined;
+      } else {
         return NextResponse.json(
-          errorResponse("media_url must be a valid URL", "VALIDATION_ERROR"),
+          errorResponse("Provide 'file' in FormData, 'media_url' in JSON, or 'media_data'+'mime_type' in JSON", "VALIDATION_ERROR"),
           { status: 400 }
         );
       }
-      if (body.media_type === "video" || /\.(mp4|webm|mov|avi)(\?|$)/i.test(mediaUrl)) {
-        mediaType = "video";
-      } else {
-        mediaType = "image";
-      }
-      thumbnailUrl = body.thumbnail_url || undefined;
-    } else {
-      return NextResponse.json(
-        errorResponse("media_url or media_data+mime_type is required", "VALIDATION_ERROR"),
-        { status: 400 }
-      );
     }
 
     const result = await saveLocationMedia(
@@ -129,7 +165,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       mediaUrl,
       mediaType,
       thumbnailUrl,
-      body.caption || undefined,
+      caption,
     );
 
     return NextResponse.json(successResponse({
@@ -149,7 +185,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PATCH /locations/:id/media  — approve or reject (admin only)
+// PATCH /locations/:id/media — approve or reject (admin only)
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
@@ -180,7 +216,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /locations/:id/media  — delete own media (or admin)
+// DELETE /locations/:id/media — delete own media (or admin)
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);

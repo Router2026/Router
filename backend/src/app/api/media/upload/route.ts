@@ -1,19 +1,16 @@
 // src/app/api/media/upload/route.ts
 // POST /api/media/upload
 //
-// Uploads a base64-encoded file directly to Supabase Storage and returns its
-// public URL. This is used by the "Contribute POI" flow so that images can be
-// stored in proper object storage *before* the community_pois row is created —
-// avoiding the ID-mismatch bug where ContributePOI tried to attach media to a
-// /locations/:id route using a community_pois.id that had no matching locations row.
-
-// BUG FIX (mobile "Failed to fetch"):
-// Next.js App Router defaults to a 4 MB JSON body limit.
-// A mobile photo at 8 MB encodes to ~10.7 MB in base64 — exceeding the limit
-// and causing a silent 413 that the client sees as "Failed to fetch".
-// Raising to 20 MB covers the 8 MB image cap with headroom for base64 overhead.
-export const runtime = "nodejs";
-export const maxRequestBodySize = "20mb";
+// Uploads a file to Supabase Storage and returns its public URL.
+// Used by ContributePOI before a community_pois row exists.
+//
+// FIX: Accepts multipart/form-data (FormData) instead of base64 JSON.
+// base64 JSON was causing "Failed to fetch" for images over ~3 MB because:
+//   1. base64 inflates file size by ~33% (3 MB file = 4 MB JSON body)
+//   2. Next.js App Router has a 4 MB default JSON body limit
+//   3. maxRequestBodySize is NOT a real Next.js export — it is silently ignored
+// FormData streams raw binary bytes, has no practical size limit, and is the
+// correct transport for file uploads in HTTP.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth/tokens";
@@ -21,7 +18,7 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 import {
     uploadToStorage,
     getMediaType,
-    validateMediaSize,
+    validateMediaSizeBytes,
 } from "@/lib/location-images/location-media-service";
 
 export async function POST(req: NextRequest) {
@@ -31,33 +28,61 @@ export async function POST(req: NextRequest) {
             return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
         }
 
-        const body = await req.json();
+        const contentType = req.headers.get("content-type") ?? "";
 
-        if (!body.media_data || !body.mime_type) {
-            return NextResponse.json(
-                errorResponse("media_data and mime_type are required", "VALIDATION_ERROR"),
-                { status: 400 }
-            );
+        let fileBuffer: Buffer;
+        let mimeType: string;
+
+        if (contentType.includes("multipart/form-data")) {
+            // ── FormData path (new default) ───────────────────────────────
+            const form = await req.formData();
+            const file = form.get("file");
+
+            if (!file || typeof file === "string") {
+                return NextResponse.json(
+                    errorResponse("'file' field is required in FormData", "VALIDATION_ERROR"),
+                    { status: 400 }
+                );
+            }
+
+            mimeType = file.type;
+            const arrayBuffer = await file.arrayBuffer();
+            fileBuffer = Buffer.from(arrayBuffer);
+
+        } else {
+            // ── Legacy base64 JSON path (kept for backward compatibility) ─
+            const body = await req.json();
+
+            if (!body.media_data || !body.mime_type) {
+                return NextResponse.json(
+                    errorResponse("'file' in FormData or 'media_data'+'mime_type' in JSON required", "VALIDATION_ERROR"),
+                    { status: 400 }
+                );
+            }
+
+            mimeType = body.mime_type;
+            const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
+            fileBuffer = Buffer.from(base64Data, "base64");
         }
 
+        // Validate MIME type
         try {
-            getMediaType(body.mime_type); // validates type
+            getMediaType(mimeType);
         } catch (err: any) {
             return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
         }
 
-        const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
-
+        // Validate file size against raw bytes (accurate — no base64 estimation error)
         try {
-            validateMediaSize(base64Data, body.mime_type);
+            validateMediaSizeBytes(fileBuffer.length, mimeType);
         } catch (err: any) {
             return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
         }
 
         const publicUrl = await uploadToStorage(
-            base64Data,
-            body.mime_type,
-            `pending/${auth.id}`, // scoped per user; easy to audit/clean up
+            fileBuffer,
+            mimeType,
+            `pending/${auth.id}`,
         );
 
         return NextResponse.json(successResponse({ url: publicUrl }), { status: 201 });
