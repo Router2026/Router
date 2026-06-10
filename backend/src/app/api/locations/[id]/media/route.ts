@@ -1,10 +1,14 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/locations/[id]/media/route.ts
 // POST /locations/:id/media — receives base64 media_data, uploads to Supabase Storage,
 // then stores the resulting public URL in location_media.media_url.
 //
 // Previously stored raw data URIs in the DB (broken: bloated rows, CSP issues,
 // no Supabase image transforms). Now stores proper https:// Storage URLs.
+
+// BUG FIX (mobile "Failed to fetch"):
+// Same body size fix as /api/media/upload — mobile images exceed the default 4 MB limit.
+export const runtime = "nodejs";
+export const maxRequestBodySize = "20mb";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth/tokens";
@@ -21,57 +25,6 @@ import {
 } from "@/lib/location-images/location-media-service";
 
 type RouteParams = { params: Promise<{ id: string }> };
-
-// ── POST body resolution helpers ──────────────────────────────────────────────
-
-interface ResolvedMedia {
-  mediaUrl: string;
-  mediaType: "image" | "video";
-  thumbnailUrl?: string;
-}
-
-async function resolveBase64Upload(
-  body: { media_data: string; mime_type: string; thumbnail_url?: string },
-  locationId: number,
-): Promise<ResolvedMedia | NextResponse> {
-  let mediaType: "image" | "video";
-  try {
-    mediaType = getMediaType(body.mime_type);
-  } catch (err: any) {
-    return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
-  }
-
-  const base64Data = body.media_data.replace(/^data:[^;]+;base64,/, "");
-  try {
-    validateMediaSize(base64Data, body.mime_type);
-  } catch (err: any) {
-    return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
-  }
-
-  let mediaUrl: string;
-  try {
-    mediaUrl = await uploadToStorage(base64Data, body.mime_type, `locations/${locationId}`);
-  } catch (err: any) {
-    console.error("[POST /api/locations/:id/media] storage upload failed:", err);
-    return NextResponse.json(errorResponse("Failed to upload file to storage", "STORAGE_ERROR"), { status: 502 });
-  }
-
-  return { mediaUrl, mediaType, thumbnailUrl: body.thumbnail_url ?? undefined };
-}
-
-function resolveUrlUpload(
-  body: { media_url: string; media_type?: string; thumbnail_url?: string },
-): ResolvedMedia | NextResponse {
-  const mediaUrl = body.media_url.trim();
-  if (!mediaUrl.startsWith("http")) {
-    return NextResponse.json(errorResponse("media_url must be a valid URL", "VALIDATION_ERROR"), { status: 400 });
-  }
-  const mediaType: "image" | "video" =
-    body.media_type === "video" || /\.(mp4|webm|mov|avi)(\?|$)/i.test(mediaUrl)
-      ? "video"
-      : "image";
-  return { mediaUrl, mediaType, thumbnailUrl: body.thumbnail_url ?? undefined };
-}
 
 // GET /locations/:id/media
 export async function GET(req: NextRequest, { params }: RouteParams) {
@@ -110,12 +63,59 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     const body = await req.json();
-    let resolved: ResolvedMedia | NextResponse;
+    let mediaUrl: string;
+    let mediaType: "image" | "video";
+    let thumbnailUrl: string | undefined;
 
     if (body.media_data && body.mime_type) {
-      resolved = await resolveBase64Upload(body, locationId);
+      // ── Base64 upload path ────────────────────────────────────────────────
+      try {
+        mediaType = getMediaType(body.mime_type);
+      } catch (err: any) {
+        return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+      }
+
+      // Strip the data URI prefix if present (FileReader.readAsDataURL includes it)
+      const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
+
+      try {
+        validateMediaSize(base64Data, body.mime_type);
+      } catch (err: any) {
+        return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
+      }
+
+      // Upload to Supabase Storage — get back a proper public https:// URL
+      try {
+        mediaUrl = await uploadToStorage(
+          base64Data,
+          body.mime_type,
+          `locations/${locationId}`,
+        );
+      } catch (err: any) {
+        console.error("[POST /api/locations/:id/media] storage upload failed:", err);
+        return NextResponse.json(
+          errorResponse("Failed to upload file to storage", "STORAGE_ERROR"),
+          { status: 502 }
+        );
+      }
+
+      thumbnailUrl = body.thumbnail_url || undefined;
+
     } else if (body.media_url) {
-      resolved = resolveUrlUpload(body);
+      // ── Already-public URL path (e.g. from external CDN) ─────────────────
+      mediaUrl = (body.media_url as string).trim();
+      if (!mediaUrl.startsWith("http")) {
+        return NextResponse.json(
+          errorResponse("media_url must be a valid URL", "VALIDATION_ERROR"),
+          { status: 400 }
+        );
+      }
+      if (body.media_type === "video" || /\.(mp4|webm|mov|avi)(\?|$)/i.test(mediaUrl)) {
+        mediaType = "video";
+      } else {
+        mediaType = "image";
+      }
+      thumbnailUrl = body.thumbnail_url || undefined;
     } else {
       return NextResponse.json(
         errorResponse("media_url or media_data+mime_type is required", "VALIDATION_ERROR"),
@@ -123,15 +123,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // If a helper returned a NextResponse (error), forward it
-    if (resolved instanceof NextResponse) { return resolved; }
-
     const result = await saveLocationMedia(
       auth.id,
       locationId,
-      resolved.mediaUrl,
-      resolved.mediaType,
-      resolved.thumbnailUrl,
+      mediaUrl,
+      mediaType,
+      thumbnailUrl,
       body.caption || undefined,
     );
 

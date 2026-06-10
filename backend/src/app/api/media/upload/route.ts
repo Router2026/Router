@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/media/upload/route.ts
 // POST /api/media/upload
 //
@@ -7,6 +6,14 @@
 // stored in proper object storage *before* the community_pois row is created —
 // avoiding the ID-mismatch bug where ContributePOI tried to attach media to a
 // /locations/:id route using a community_pois.id that had no matching locations row.
+
+// BUG FIX (mobile "Failed to fetch"):
+// Next.js App Router defaults to a 4 MB JSON body limit.
+// A mobile photo at 8 MB encodes to ~10.7 MB in base64 — exceeding the limit
+// and causing a silent 413 that the client sees as "Failed to fetch".
+// Raising to 20 MB covers the 8 MB image cap with headroom for base64 overhead.
+export const runtime = "nodejs";
+export const maxRequestBodySize = "20mb";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth/tokens";

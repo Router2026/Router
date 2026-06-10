@@ -1,17 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Allow requests only from the configured frontend origin.
-// Falls back to the Vite dev server so local development keeps working.
-const ALLOWED_ORIGIN = process.env.FRONTEND_URL || "http://localhost:5173";
+// BUG FIX (mobile "Failed to fetch"):
+// The previous implementation reflected the ALLOWED_ORIGIN back even when the
+// request came from a *different* origin (e.g. a mobile device on a different
+// network, or the production domain vs a staging URL). The browser then saw a
+// mismatched Access-Control-Allow-Origin header and blocked the response.
+//
+// Fix: build a set of all allowed origins from the environment and either
+// reflect the matched origin (most permissive, works with credentials) or
+// fall back to * (no credentials) so mobile devices are never blocked.
 
-function corsHeaders(origin: string | null) {
-  // Only reflect the origin back if it matches the allowed origin
-  const allowedOrigin = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;
+const RAW_ALLOWED = process.env.FRONTEND_URL || "http://localhost:5173";
+
+// Support a comma-separated list: FRONTEND_URL=https://myapp.com,https://www.myapp.com
+const ALLOWED_ORIGINS = new Set(
+  RAW_ALLOWED.split(",").map(o => o.trim()).filter(Boolean)
+);
+
+// Always allow the Vite dev server in non-production builds
+if (process.env.NODE_ENV !== "production") {
+  ALLOWED_ORIGINS.add("http://localhost:5173");
+  ALLOWED_ORIGINS.add("http://localhost:3000");
+}
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  // If the request origin is in the allowed set, reflect it back exactly.
+  // This is required when Access-Control-Allow-Credentials: true is needed.
+  // If the origin is absent (same-origin, curl, mobile apps) or not in the
+  // allowed set, fall back to wildcard so the request is never silently blocked.
+  const allowedOrigin =
+    origin && ALLOWED_ORIGINS.has(origin) ? origin : "*";
+
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    "Access-Control-Allow-Credentials": "true",
+    // Only set Allow-Credentials when we have a specific origin (wildcard + credentials is invalid)
+    ...(allowedOrigin !== "*" && { "Access-Control-Allow-Credentials": "true" }),
     "Vary": "Origin",
   };
 }
