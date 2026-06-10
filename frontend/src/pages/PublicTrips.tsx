@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api, type PublicTrip, type RouteComment, fileToBase64 } from '../api';
+import { api, type PublicTrip, type RouteComment } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -331,12 +331,22 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
     try {
       let image_url = trip.image_url || undefined;
       let video_url = trip.video_url || undefined;
-      if (imageFile) image_url = await fileToBase64(imageFile);
-      if (videoFile) video_url = await fileToBase64(videoFile);
+
+      // FIX: Upload files to Supabase Storage first, then store the returned
+      // https:// URL — not a raw base64 data URI.
+      // Previously fileToBase64() was used here, which:
+      //   1. Inflated the payload ~33%, hitting Next.js's 4 MB JSON body limit
+      //      for photos over ~3 MB (silent "Failed to fetch").
+      //   2. Stored a multi-megabyte base64 blob directly in the DB column.
+      if (imageFile) image_url = await api.locations.uploadPendingMedia(imageFile);
+      if (videoFile) video_url = await api.locations.uploadPendingMedia(videoFile);
+
       await api.publicTrips.updateMedia(trip.id, { user_description: desc, image_url, video_url });
       onUpdated({ ...trip, user_description: desc, image_url: imagePreview || image_url, video_url: videoPreview || video_url });
       onClose();
-    } catch { /* intentional */ } finally { setSaving(false); }
+    } catch (err) {
+      console.error('[MediaUploadPanel.save]', err);
+    } finally { setSaving(false); }
   };
 
   return (

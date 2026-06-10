@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { getPublicTripById, updateRouteStops, publishRoute } from "@/lib/public-trips/public-trips-service";
+import { updateRouteMedia } from "@/lib/public-trips/route-social-service";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 
 export async function GET(
@@ -38,14 +39,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const body = await req.json();
 
-    // Publish: flip is_public flag and award XP
+    // Branch 1 — Publish: flip is_public flag and award XP
     if (body.is_public === true) {
       const { trip, xp } = await publishRoute(tripId, auth.id);
       return NextResponse.json(successResponse({ ...trip, xp_awarded: xp }));
     }
 
+    // Branch 2 — Media / description update: any of these fields present
+    const MEDIA_FIELDS = ["user_description", "image_url", "video_url", "points_of_interest", "recommended_stops"];
+    if (MEDIA_FIELDS.some(f => f in body)) {
+      await updateRouteMedia(tripId, auth.id, {
+        user_description:   body.user_description,
+        image_url:          body.image_url,
+        video_url:          body.video_url,
+        points_of_interest: body.points_of_interest,
+        recommended_stops:  body.recommended_stops,
+      });
+      const updated = await getPublicTripById(tripId);
+      return NextResponse.json(successResponse(updated));
+    }
+
+    // Branch 3 — Stop reordering
     if (!Array.isArray(body.location_ids)) {
-      return NextResponse.json(errorResponse("location_ids array or is_public required", "VALIDATION_ERROR"), { status: 400 });
+      return NextResponse.json(errorResponse("location_ids array, is_public flag, or media fields required", "VALIDATION_ERROR"), { status: 400 });
     }
     await updateRouteStops(tripId, auth.id, body.location_ids);
     const updated = await getPublicTripById(tripId);

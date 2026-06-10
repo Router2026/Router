@@ -481,6 +481,8 @@ export const api = {
     list: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
     get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`)).data),
     create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
+    update: async (id: string, data: Partial<Trip>): Promise<Trip> =>
+      mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`, { method: 'PATCH', body: JSON.stringify(data) })).data),
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
     share: async (id: string): Promise<ShareTripResult> =>
       (await apiFetch<{ data: ShareTripResult }>(`/routes/${id}/share`, { method: 'POST' })).data,
@@ -523,8 +525,12 @@ export const api = {
       (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`)).data,
     setRating: async (id: number, rating: number): Promise<{ average_rating: number; ratings_count: number; user_rating: number }> =>
       (await apiFetch<{ data: any }>(`/trips/public/${id}/rating`, { method: 'POST', body: JSON.stringify({ rating }) })).data,
+    // NOTE: intentionally targets /trips/public/:id (not /trips/public/:id/media).
+    // /trips/public/:id/media PATCH is a moderation-only endpoint that expects
+    // { media_id, action } — it does not handle description/image/video updates.
+    // The correct route is PATCH /trips/public/:id which dispatches on field presence.
     updateMedia: async (id: number, data: { user_description?: string; image_url?: string; video_url?: string; points_of_interest?: string; recommended_stops?: string }): Promise<void> => {
-      await apiFetch(`/trips/public/${id}/media`, { method: 'PATCH', body: JSON.stringify(data) });
+      await apiFetch(`/trips/public/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
     },
     getImages: async (id: number): Promise<RouteImage[]> =>
       (await apiFetch<{ data: RouteImage[] }>(`/trips/public/${id}/images`)).data,

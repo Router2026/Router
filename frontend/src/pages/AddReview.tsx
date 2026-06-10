@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import type { LocationSelectorProps } from '../utils/types';
 
 // ── Location Selector ──────────────────────────────────────────────────────────
-function LocationSelector({ initialName, onSelect }: Readonly<LocationSelectorProps>) {
+function LocationSelector({ initialName, initialId, onSelect }: Readonly<LocationSelectorProps & { initialId?: string }>) {
   const [query, setQuery] = useState(initialName ?? '');
   const [results, setResults] = useState<POI[]>([]);
   const [selected, setSelected] = useState<POI | null>(null);
@@ -18,9 +18,22 @@ function LocationSelector({ initialName, onSelect }: Readonly<LocationSelectorPr
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-search when the page arrives with a poi_name query param
+  // If a location_id was passed in the URL, fetch the POI directly and pre-select it.
+  // Otherwise fall back to a name-based search so the user can confirm the match.
   useEffect(() => {
-    if (initialName && !selected) {
+    if (initialId) {
+      setLoading(true);
+      api.locations.get(initialId)
+        .then(poi => {
+          setSelected(poi);
+          setQuery(poi.name);
+          onSelect(poi);
+        })
+        .catch(() => {
+          if (initialName) searchLocations(initialName);
+        })
+        .finally(() => setLoading(false));
+    } else if (initialName && !selected) {
       searchLocations(initialName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,6 +150,7 @@ export default function AddReview() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const poiNameFromUrl = searchParams.get('poi_name') ?? '';
+  const locationIdFromUrl = searchParams.get('location_id') ?? '';
 
   const [selectedPoi, setSelectedPoi] = useState<POI | null>(null);
   const [rating, setRating] = useState(0);
@@ -159,7 +173,7 @@ export default function AddReview() {
         rating,
         content,
       });
-      navigate('/Explore');
+      navigate(-1);
     } catch (err) {
       setError((err as Error).message ?? 'שגיאה בשמירת הביקורת');
       setLoading(false);
@@ -199,6 +213,7 @@ export default function AddReview() {
           </h3>
           <LocationSelector
             initialName={poiNameFromUrl}
+            initialId={locationIdFromUrl || undefined}
             onSelect={setSelectedPoi}
           />
           {selectedPoi && (

@@ -86,14 +86,7 @@ function filterOutExistingStops(
   return results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id)));
 }
 
-function toBase64(file: File): Promise<string> {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result as string);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-}
+
 
 export default function PublicTripDetail() {
   const { id } = useParams<{ id: string }>();
@@ -287,21 +280,29 @@ export default function PublicTripDetail() {
   const handleRouteImageUpload = async (file: File) => {
     setUploadingRouteImage(true);
     try {
-      const base64 = await toBase64(file);
-      const img = await api.publicTrips.addImage(tripId, base64);
+      // FIX: Upload to Supabase Storage first, then save the returned URL.
+      // Previously this sent a raw base64 data URI as image_url, stuffing
+      // megabytes of base64 directly into the database.
+      const storageUrl = await api.locations.uploadPendingMedia(file);
+      const img = await api.publicTrips.addImage(tripId, storageUrl);
       setRouteImages(prev => [...prev, img]);
-    } catch { /* intentional */ } finally { setUploadingRouteImage(false); }
+    } catch (err) {
+      console.error('[handleRouteImageUpload]', err);
+    } finally { setUploadingRouteImage(false); }
   };
 
   const handleAddCommunityMedia = async (file: File, type: 'image' | 'video') => {
     setAddingMedia(true);
     try {
-      const base64 = await toBase64(file);
-      const result = await api.publicTrips.addCommunityMedia(tripId, base64, type, mediaCaption || undefined);
+      // FIX: Upload to Supabase Storage first, then save the URL.
+      const storageUrl = await api.locations.uploadPendingMedia(file);
+      const result = await api.publicTrips.addCommunityMedia(tripId, storageUrl, type, mediaCaption || undefined);
       setCommunityMedia(prev => [result, ...prev]);
       setShowAddMedia(false);
       setMediaCaption('');
-    } catch { /* intentional */ } finally { setAddingMedia(false); }
+    } catch (err) {
+      console.error('[handleAddCommunityMedia]', err);
+    } finally { setAddingMedia(false); }
   };
 
   const handleDeleteCommunityMedia = async (mediaId: number) => {
@@ -321,19 +322,25 @@ export default function PublicTripDetail() {
   const handleImageUpload = async (file: File) => {
     setUploadingImage(true);
     try {
-      const base64 = await toBase64(file);
-      await api.publicTrips.updateMedia(tripId, { image_url: base64 });
-      setTrip(prev => prev ? { ...prev, image_url: base64 } : prev);
-    } catch { /* intentional */ } finally { setUploadingImage(false); }
+      // FIX: Upload to Supabase Storage first, then save the URL.
+      const storageUrl = await api.locations.uploadPendingMedia(file);
+      await api.publicTrips.updateMedia(tripId, { image_url: storageUrl });
+      setTrip(prev => prev ? { ...prev, image_url: storageUrl } : prev);
+    } catch (err) {
+      console.error('[handleImageUpload]', err);
+    } finally { setUploadingImage(false); }
   };
 
   const handleVideoUpload = async (file: File) => {
     setUploadingVideo(true);
     try {
-      const base64 = await toBase64(file);
-      await api.publicTrips.updateMedia(tripId, { video_url: base64 });
-      setTrip(prev => prev ? { ...prev, video_url: base64 } : prev);
-    } catch { /* intentional */ } finally { setUploadingVideo(false); }
+      // FIX: Upload to Supabase Storage first, then save the URL.
+      const storageUrl = await api.locations.uploadPendingMedia(file);
+      await api.publicTrips.updateMedia(tripId, { video_url: storageUrl });
+      setTrip(prev => prev ? { ...prev, video_url: storageUrl } : prev);
+    } catch (err) {
+      console.error('[handleVideoUpload]', err);
+    } finally { setUploadingVideo(false); }
   };
 
   if (loading) return (

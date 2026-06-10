@@ -16,7 +16,6 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { fileToBase64 } from '../api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,22 +100,24 @@ export function useMultiImageUpload(): UseMultiImageUploadReturn {
 
       // Upload every file concurrently — Promise.all waits for all to settle.
       // If any single upload rejects, the whole Promise.all rejects.
+      //
+      // FIX: Use FormData (multipart) instead of base64 JSON.
+      // base64 inflates each file ~33% and Next.js JSON body limit is 4 MB,
+      // causing "Failed to fetch" silently for photos over ~3 MB.
       const publicUrls = await Promise.all(
         selectedFiles.map(async ({ file }) => {
-          // Step A: File → base64 data URI (required format for the API route)
-          const base64 = await fileToBase64(file);
+          // Step A: Wrap in FormData — browser sets the multipart boundary automatically
+          const form = new FormData();
+          form.append('file', file);
 
           // Step B: POST to /api/media/upload
           const res = await fetch(`${apiBase}/api/media/upload`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
+              // No Content-Type header — browser sets it with the multipart boundary
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            body: JSON.stringify({
-              media_data: base64,    // includes "data:image/jpeg;base64," prefix — backend strips it
-              mime_type: file.type,
-            }),
+            body: form,
           });
 
           if (!res.ok) {

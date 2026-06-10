@@ -49,29 +49,31 @@ export function useImageUpload(): UseImageUploadReturn {
         setUploadError(null);
 
         try {
-            const base64 = await fileToBase64(selectedFile);
+            // FIX: Use FormData (multipart) instead of base64 JSON.
+            // base64 inflates file size ~33% and Next.js JSON body limit is 4 MB,
+            // causing "Failed to fetch" for photos over ~3 MB.
             const token = localStorage.getItem('router_auth_token');
-            const apiBase = import.meta.env.VITE_API_URL ?? '';
+            const apiBase = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+
+            const form = new FormData();
+            form.append('file', selectedFile);
 
             const res = await fetch(`${apiBase}/api/media/upload`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    // No Content-Type header — browser sets it with the multipart boundary
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 },
-                body: JSON.stringify({
-                    media_data: base64,
-                    mime_type: selectedFile.type,
-                }),
+                body: form,
             });
 
             if (!res.ok) {
                 const json = await res.json().catch(() => ({}));
-                throw new Error(json?.error?.message ?? `Upload failed (HTTP ${res.status})`);
+                throw new Error((json as any)?.error?.message ?? `Upload failed (HTTP ${res.status})`);
             }
 
             const json = await res.json();
-            const publicUrl: string = json?.data?.url;
+            const publicUrl: string = (json as any)?.data?.url;
             if (!publicUrl) throw new Error('No URL returned from upload API');
 
             return publicUrl;
@@ -96,13 +98,4 @@ export function useImageUpload(): UseImageUploadReturn {
     }, []);
 
     return { selectedFile, previewUrl, isUploading, uploadError, handleFileChange, uploadFile, reset };
-}
-
-function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error(`FileReader failed for ${file.name}`));
-        reader.readAsDataURL(file);
-    });
 }

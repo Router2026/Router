@@ -122,24 +122,92 @@ export async function createRoute(data: Partial<Route> & { user_id?: number }): 
   const routeId = route.id as number;
 
   const stops = data.stops || [];
-  for (let i = 0; i < stops.length; i++) {
-    const s = stops[i];
-    await rawDb.query(
-      `INSERT INTO route_stops (route_id, location_id, poi_name, order_index, arrival_time, duration_minutes, smart_insight)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
+  // FIX: Bulk-insert all stops in a single query instead of N sequential awaits.
+  // The old loop did one round-trip per stop, making saves with many stops
+  // very slow and prone to partial writes if the connection dropped mid-way.
+  if (stops.length > 0) {
+    const stopValues: unknown[] = [];
+    const stopPlaceholders = stops.map((s, i) => {
+      const base = i * 7;
+      stopValues.push(
         routeId,
         s.location_id || null,
         s.poi_name || null,
         i,
         s.arrival_time || "09:00",
         s.duration_minutes || 60,
-        s.smart_insight || null,
-      ]
+        s.smart_insight || null
+      );
+      return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7})`;
+    });
+    await rawDb.query(
+      `INSERT INTO route_stops
+         (route_id, location_id, poi_name, order_index, arrival_time, duration_minutes, smart_insight)
+       VALUES ${stopPlaceholders.join(",")}`,
+      stopValues
     );
   }
 
   const result = await getRouteById(routeId);
   if (!result) throw new Error("Failed to retrieve created route");
+  return result;
+}
+
+export async function updateRoute(
+  id: number,
+  data: Partial<Route> & { user_id?: number }
+): Promise<Route> {
+  // Only update columns that were actually provided
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (data.name !== undefined)                 { fields.push(`name = $${idx++}`);                   values.push(data.name); }
+  if (data.description !== undefined)          { fields.push(`description = $${idx++}`);            values.push(data.description); }
+  if (data.total_duration_hours !== undefined) { fields.push(`total_duration_hours = $${idx++}`);   values.push(data.total_duration_hours); }
+  if (data.difficulty !== undefined)           { fields.push(`difficulty = $${idx++}`);             values.push(data.difficulty); }
+  if (data.group_type !== undefined)           { fields.push(`group_type = $${idx++}`);             values.push(data.group_type); }
+  if (data.style !== undefined)                { fields.push(`style = $${idx++}`);                  values.push(data.style); }
+  if (data.total_distance_km !== undefined)    { fields.push(`total_distance_km = $${idx++}`);      values.push(data.total_distance_km); }
+
+  if (fields.length > 0) {
+    values.push(id);
+    await rawDb.query(
+      `UPDATE routes SET ${fields.join(", ")} WHERE id = $${idx}`,
+      values
+    );
+  }
+
+  // Replace stops if provided — delete old ones then bulk-insert new ones
+  if (data.stops) {
+    await rawDb.query("DELETE FROM route_stops WHERE route_id = $1", [id]);
+
+    if (data.stops.length > 0) {
+      // Build a single multi-row INSERT for all stops (avoids N round trips)
+      const stopValues: unknown[] = [];
+      const stopPlaceholders = data.stops.map((s, i) => {
+        const base = i * 7;
+        stopValues.push(
+          id,
+          s.location_id || null,
+          s.poi_name || null,
+          i,
+          s.arrival_time || "09:00",
+          s.duration_minutes || 60,
+          s.smart_insight || null
+        );
+        return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7})`;
+      });
+      await rawDb.query(
+        `INSERT INTO route_stops
+           (route_id, location_id, poi_name, order_index, arrival_time, duration_minutes, smart_insight)
+         VALUES ${stopPlaceholders.join(",")}`,
+        stopValues
+      );
+    }
+  }
+
+  const result = await getRouteById(id);
+  if (!result) throw new Error("Route not found after update");
   return result;
 }
