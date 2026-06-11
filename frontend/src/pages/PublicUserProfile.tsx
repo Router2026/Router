@@ -1,10 +1,12 @@
-// src/pages/PublicUserProfile.tsx
-// View any user's public profile and their shared routes
+// src/pages/PublicUserProfile.tsx — UPDATED (caching)
+// Replaced bare useEffect + setState with usePublicUserProfile() from the
+// central hooks layer. Profile data is cached per userId for 5 minutes —
+// navigating back to the same profile is instant with no extra API call.
 
-import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type PublicTrip, type CommunityPoiSubmission } from '../api';
+import { api, type PublicTrip, type CommunityPoiSubmission, type UserProfile } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { usePublicUserProfile } from '../hooks/useUserProfile';
 
 function computeLevel(xp: number) { return Math.floor(Math.sqrt(Math.max(0, xp) / 50)); }
 function levelLabel(xp: number) {
@@ -44,7 +46,6 @@ function TripMiniCard({ trip, onClick }: Readonly<{ trip: PublicTrip; onClick: (
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.07)'; }}>
 
-      {/* Cover */}
       {trip.image_url
         ? <img src={trip.image_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }} />
         : <div style={{ height: 130, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🗺️</div>
@@ -83,26 +84,17 @@ export default function PublicUserProfile() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [profile, setProfile] = useState<unknown>(null);
-  const [trips, setTrips] = useState<PublicTrip[]>([]);
-  const [communityPois, setCommunityPois] = useState<CommunityPoiSubmission[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const userId = Number.parseInt(id || '', 10);
   const isOwnProfile = user && Number(user.id) === userId;
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!userId || Number.isNaN(userId)) { setError('מזהה משתמש לא תקין'); setLoading(false); return; }
-    setLoading(true);
-    api.userProfiles.get(userId)
-      .then(({ profile: p, trips: t, community_pois: cp }) => { setProfile(p); setTrips(t); setCommunityPois(cp ?? []); })
-      .catch(() => setError('לא נמצא פרופיל'))
-      .finally(() => setLoading(false));
-  }, [userId]);
+  // ── Cached fetch ────────────────────────────────────────────────────────
+  // usePublicUserProfile keeps this data in memory for 15 min.
+  // Navigating back from a trip detail to this profile page is instant.
+  const { data, isLoading, isError } = usePublicUserProfile(
+    Number.isNaN(userId) ? null : userId,
+  );
 
-  if (loading) return (
+  if (isLoading) return (
     <div style={{ minHeight: '100vh', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
       <div style={{ textAlign: 'center', color: '#94a3b8' }}>
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
@@ -112,15 +104,18 @@ export default function PublicUserProfile() {
     </div>
   );
 
-  if (error || !profile) return (
+  if (isError || !data?.profile) return (
     <div style={{ minHeight: '100vh', background: '#f1f5f9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', gap: 16 }}>
       <div style={{ fontSize: 52 }}>😕</div>
-      <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a' }}>{error || 'לא נמצא פרופיל'}</div>
+      <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a' }}>לא נמצא פרופיל</div>
       <button onClick={() => navigate(-1)} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: '#0d9e6e', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>חזרה</button>
     </div>
   );
 
-  const xp = profile.xp_points || profile.xp || 0;
+  const profile = data.profile as UserProfile & { cover_image?: string; bio?: string; instagram?: string; website?: string; favorite_regions?: string[]; reports_count?: number; reviews_count?: number };
+  const trips = data.trips as PublicTrip[];
+  const communityPois = (data.community_pois ?? []) as CommunityPoiSubmission[];
+  const xp = profile.xp_points || 0;
 
   return (
     <div style={{ background: '#f1f5f9', minHeight: '100vh', direction: 'rtl', fontFamily: 'Heebo, sans-serif', paddingBottom: 80 }}>
@@ -145,7 +140,6 @@ export default function PublicUserProfile() {
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px' }}>
         <div style={{ background: '#fff', borderRadius: 20, padding: '20px', marginTop: -50, position: 'relative', boxShadow: '0 4px 24px rgba(0,0,0,0.1)', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-            {/* Avatar */}
             <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #fff', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', overflow: 'hidden', flexShrink: 0, background: '#0d9e6e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {profile.avatar_url
                 ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -172,7 +166,6 @@ export default function PublicUserProfile() {
             </div>
           )}
 
-          {/* Stats row */}
           <div style={{ display: 'flex', gap: 0, marginTop: 16, borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
             {[
               { label: 'מסלולים', value: trips.length },
@@ -187,7 +180,6 @@ export default function PublicUserProfile() {
             ))}
           </div>
 
-          {/* Social links */}
           {(profile.instagram || profile.website) && (
             <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
               {profile.instagram && (
@@ -227,8 +219,6 @@ export default function PublicUserProfile() {
           </div>
         </div>
 
-
-
         {/* ── Community Places ── */}
         {communityPois.length > 0 && (
           <div style={{ marginBottom: 16 }}>
@@ -260,8 +250,7 @@ export default function PublicUserProfile() {
           </div>
         )}
 
-        {/* Favorite regions */}
-        {profile.favorite_regions?.length > 0 && (
+        {profile.favorite_regions?.length && profile.favorite_regions.length > 0 ? (
           <div style={{ background: '#fff', borderRadius: 16, padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginBottom: 10 }}>❤️ אזורים אהובים</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -270,7 +259,7 @@ export default function PublicUserProfile() {
               ))}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
