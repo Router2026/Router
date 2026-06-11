@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/pages/PublicTripDetail.tsx — Enhanced detail page with full social features
+// src/pages/PublicTripDetail.tsx — Enhanced detail page with full social features + React Query Cache
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
@@ -8,6 +8,14 @@ import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { getImageUrl } from '../utils/imageUtils';
+import {
+  usePublicTrip,
+  useTripLikes, useToggleTripLike,
+  useTripRating, useSetTripRating,
+  useTripComments, useAddTripComment, useDeleteTripComment,
+  useTripImages,
+  useTripCommunityMedia, useAddTripCommunityMedia, useDeleteTripCommunityMedia,
+} from '../hooks/useTrips';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -85,16 +93,14 @@ function filterOutExistingStops(
   return results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id)));
 }
 
-
-
 export default function PublicTripDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const tripId = Number.parseInt(id ?? '', 10);
   const isGuest = !user || (user as any).isGuest === true;
+
   const [trip, setTrip] = useState<PublicTrip | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
 
   // Social
   const [liked, setLiked] = useState(false);
@@ -147,37 +153,52 @@ export default function PublicTripDetail() {
   const [savingStops, setSavingStops] = useState(false);
   const stopSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const tripId = Number.parseInt(id ?? '', 10);
+  // ── Cached data fetching (replaces separate useEffect + setState) ─────
+  const { data: tripData, isLoading: tripLoading, isError: tripError } = usePublicTrip(tripId);
+
+  // Sync derived display state when trip data loads
+  useEffect(() => {
+    if (!tripData) return;
+    setTrip(tripData);
+    setLikesCount(tripData.likes_count ?? 0);
+    setAvgRating(tripData.average_rating ?? 0);
+    setRatingsCount(tripData.ratings_count ?? 0);
+    setEditDesc(tripData.user_description ?? '');
+    setEditPOI((tripData as any).points_of_interest ?? '');
+    setEditRecommendedStops((tripData as any).recommended_stops ?? '');
+    setEditStops(tripData.locations.map(l => ({
+      id: l.location_id, name: l.name,
+      category: l.category, main_image: l.main_image,
+    })));
+  }, [tripData]);
+
+  const isAuth = !!user && !isGuest;
+
+  const { data: likesData }  = useTripLikes(tripId, isAuth);
+  const { data: ratingData } = useTripRating(tripId, isAuth);
+  const { data: commentsData } = useTripComments(tripId);
+  const { data: routeImagesData } = useTripImages(tripId);
+  const { data: communityMediaData } = useTripCommunityMedia(tripId);
+
+  // Sync state from cache
+  useEffect(() => { if (likesData)  { setLiked(likesData.liked); setLikesCount(likesData.likes_count); } }, [likesData]);
+  useEffect(() => { if (ratingData) { setAvgRating(ratingData.average_rating); setRatingsCount(ratingData.ratings_count); setUserRating(ratingData.user_rating ?? 0); } }, [ratingData]);
+  useEffect(() => { if (commentsData) setComments(commentsData); }, [commentsData]);
+  useEffect(() => { if (routeImagesData) setRouteImages(routeImagesData); }, [routeImagesData]);
+  useEffect(() => { if (communityMediaData) setCommunityMedia(communityMediaData); }, [communityMediaData]);
+
+  // Mutations
+  const toggleLikeMut   = useToggleTripLike(tripId);
+  const setRatingMut    = useSetTripRating(tripId);
+  const addCommentMut   = useAddTripComment(tripId);
+  const delCommentMut   = useDeleteTripComment(tripId);
+  const addMediaMut     = useAddTripCommunityMedia(tripId);
+  const delMediaMut     = useDeleteTripCommunityMedia(tripId);
+
+  const loading  = tripLoading;
+  const notFound = tripError;
+
   const isOwner = user && trip && Number(user.id) === trip.user_id;
-
-  useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    api.publicTrips.get(tripId)
-      .then(t => {
-        setTrip(t);
-        setLikesCount(t.likes_count ?? 0);
-        setAvgRating(t.average_rating ?? 0);
-        setRatingsCount(t.ratings_count ?? 0);
-        setEditDesc(t.user_description ?? '');
-        setEditPOI((t as any).points_of_interest ?? '');
-        setEditRecommendedStops((t as any).recommended_stops ?? '');
-        setEditStops(t.locations.map(l => ({ id: l.location_id, name: l.name, category: l.category, main_image: l.main_image })));
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  useEffect(() => {
-    if (!tripId) return;
-    api.publicTrips.getLikes(tripId).then(r => { setLiked(r.liked); setLikesCount(r.likes_count); }).catch(() => { });
-    api.publicTrips.getComments(tripId).then(setComments).catch(() => { });
-    api.publicTrips.getImages(tripId).then(setRouteImages).catch(() => { });
-    api.publicTrips.getCommunityMedia(tripId).then(setCommunityMedia).catch(() => { });
-    api.publicTrips.getRating(tripId).then(r => {
-      setAvgRating(r.average_rating); setRatingsCount(r.ratings_count); setUserRating(r.user_rating ?? 0);
-    }).catch(() => { });
-  }, [tripId]);
 
   const handleLike = async () => {
     if (!user) { navigate('/login'); return; }
@@ -185,7 +206,7 @@ export default function PublicTripDetail() {
     setLikeAnim(true);
     setTimeout(() => setLikeAnim(false), 400);
     try {
-      const res = await api.publicTrips.toggleLike(tripId);
+      const res = await toggleLikeMut.mutateAsync();
       setLiked(res.liked); setLikesCount(res.likes_count);
     } catch { /* intentional */ } finally { setLikeLoading(false); }
   };
@@ -194,7 +215,7 @@ export default function PublicTripDetail() {
     if (!user) { navigate('/login'); return; }
     setRatingLoading(true);
     try {
-      const res = await api.publicTrips.setRating(tripId, r);
+      const res = await setRatingMut.mutateAsync(r);
       setUserRating(res.user_rating); setAvgRating(res.average_rating); setRatingsCount(res.ratings_count);
     } catch { /* intentional */ } finally { setRatingLoading(false); }
   };
@@ -204,7 +225,7 @@ export default function PublicTripDetail() {
     if (!commentText.trim()) return;
     setCommentLoading(true);
     try {
-      const c = await api.publicTrips.addComment(tripId, commentText);
+      const c = await addCommentMut.mutateAsync(commentText.trim());
       setComments(prev => [...prev, c]);
       setCommentText('');
     } catch { /* intentional */ } finally { setCommentLoading(false); }
@@ -212,7 +233,7 @@ export default function PublicTripDetail() {
 
   const handleDeleteComment = async (commentId: number) => {
     try {
-      await api.publicTrips.deleteComment(tripId, commentId);
+      await delCommentMut.mutateAsync(commentId);
       setComments(prev => prev.filter(c => c.id !== commentId));
     } catch { /* intentional */ }
   };
@@ -279,9 +300,6 @@ export default function PublicTripDetail() {
   const handleRouteImageUpload = async (file: File) => {
     setUploadingRouteImage(true);
     try {
-      // FIX: Upload to Supabase Storage first, then save the returned URL.
-      // Previously this sent a raw base64 data URI as image_url, stuffing
-      // megabytes of base64 directly into the database.
       const storageUrl = await api.locations.uploadPendingMedia(file);
       const img = await api.publicTrips.addImage(tripId, storageUrl);
       setRouteImages(prev => [...prev, img]);
@@ -293,9 +311,8 @@ export default function PublicTripDetail() {
   const handleAddCommunityMedia = async (file: File, type: 'image' | 'video') => {
     setAddingMedia(true);
     try {
-      // FIX: Upload to Supabase Storage first, then save the URL.
       const storageUrl = await api.locations.uploadPendingMedia(file);
-      const result = await api.publicTrips.addCommunityMedia(tripId, storageUrl, type, mediaCaption || undefined);
+      const result = await addMediaMut.mutateAsync({ url: storageUrl, media_type: type, caption: mediaCaption || undefined });
       setCommunityMedia(prev => [result, ...prev]);
       setShowAddMedia(false);
       setMediaCaption('');
@@ -306,7 +323,7 @@ export default function PublicTripDetail() {
 
   const handleDeleteCommunityMedia = async (mediaId: number) => {
     try {
-      await api.publicTrips.deleteCommunityMedia(tripId, mediaId);
+      await delMediaMut.mutateAsync(mediaId);
       setCommunityMedia(prev => prev.filter(m => m.id !== mediaId));
     } catch { /* intentional */ }
   };
@@ -321,7 +338,6 @@ export default function PublicTripDetail() {
   const handleImageUpload = async (file: File) => {
     setUploadingImage(true);
     try {
-      // FIX: Upload to Supabase Storage first, then save the URL.
       const storageUrl = await api.locations.uploadPendingMedia(file);
       await api.publicTrips.updateMedia(tripId, { image_url: storageUrl });
       setTrip(prev => prev ? { ...prev, image_url: storageUrl } : prev);
@@ -333,7 +349,6 @@ export default function PublicTripDetail() {
   const handleVideoUpload = async (file: File) => {
     setUploadingVideo(true);
     try {
-      // FIX: Upload to Supabase Storage first, then save the URL.
       const storageUrl = await api.locations.uploadPendingMedia(file);
       await api.publicTrips.updateMedia(tripId, { video_url: storageUrl });
       setTrip(prev => prev ? { ...prev, video_url: storageUrl } : prev);
@@ -750,7 +765,7 @@ export default function PublicTripDetail() {
           </div>
         )}
 
-                {/* ── Route Images Gallery ─────────────────────────────────────── */}
+        {/* ── Route Images Gallery ─────────────────────────────────────── */}
         {(routeImages.length > 0 || isOwner) && (
           <div style={{ background: '#fff', borderRadius: 20, padding: '18px 20px', marginBottom: 14, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>

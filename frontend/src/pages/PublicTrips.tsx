@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/pages/PublicTrips.tsx — Instagram-style social feed (enhanced)
-import { useState, useEffect, useRef, useCallback } from 'react';
+// src/pages/PublicTrips.tsx — Instagram-style social feed (with React Query Cache)
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { usePublicTrips, type PublicTripFilters, useTripLikes, useTripRating } from '../hooks/useTrips';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -332,12 +333,6 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
       let image_url = trip.image_url || undefined;
       let video_url = trip.video_url || undefined;
 
-      // FIX: Upload files to Supabase Storage first, then store the returned
-      // https:// URL — not a raw base64 data URI.
-      // Previously fileToBase64() was used here, which:
-      //   1. Inflated the payload ~33%, hitting Next.js's 4 MB JSON body limit
-      //      for photos over ~3 MB (silent "Failed to fetch").
-      //   2. Stored a multi-megabyte base64 blob directly in the DB column.
       if (imageFile) image_url = await api.locations.uploadPendingMedia(imageFile);
       if (videoFile) video_url = await api.locations.uploadPendingMedia(videoFile);
 
@@ -473,16 +468,17 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
   const [mediaTab, setMediaTab] = useState<'map' | 'image' | 'video'>('map');
   const [descExpanded, setDescExpanded] = useState(false);
 
+  const isAuth = !!currentUser && !currentUser.isGuest;
+  const { data: likesData }  = useTripLikes(trip.id, isAuth);
+  const { data: ratingData } = useTripRating(trip.id, isAuth);
+
   useEffect(() => {
-    if (currentUser && !currentUser.isGuest) {
-      api.publicTrips.getLikes(trip.id)
-        .then(({ liked: l, likes_count: lc }) => { setLiked(l); setLikesCount(lc); })
-        .catch(() => { });
-      api.publicTrips.getRating(trip.id)
-        .then(r => { setUserRating(r.user_rating ?? 0); setAvgRating(r.average_rating); setRatingsCount(r.ratings_count); })
-        .catch(() => { });
-    }
-  }, [trip.id, currentUser]);
+    if (likesData)  { setLiked(likesData.liked); setLikesCount(likesData.likes_count); }
+  }, [likesData]);
+
+  useEffect(() => {
+    if (ratingData) { setUserRating(ratingData.user_rating ?? 0); setAvgRating(ratingData.average_rating); setRatingsCount(ratingData.ratings_count); }
+  }, [ratingData]);
 
   const toggleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -752,15 +748,12 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
 export default function PublicTrips() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [trips, setTrips] = useState<PublicTrip[]>([]);
-  const [loading, setLoading] = useState(true);
+  
   const [searchText, setSearchText] = useState('');
   const [selRegion, setSelRegion] = useState('');
   const [selDifficulty, setSelDifficulty] = useState('');
   const [selStyle, setSelStyle] = useState('');
   const [selGroupType, setSelGroupType] = useState('');
-  const [allRegions, setAllRegions] = useState<string[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const DIFFICULTIES = ['קל', 'קל - משפחות', 'בינוני', 'קשה', 'מאתגר'];
   const STYLES = ['טבע', 'היסטוריה', 'ספורט', 'רכב שטח', 'אופניים', 'ים', 'הרים'];
@@ -771,45 +764,39 @@ export default function PublicTrips() {
     { key: 'friends', label: '👥 חברים' },
   ];
 
-  const load = useCallback(() => {
-    setLoading(true);
-    api.publicTrips.list({
-      region: selRegion || undefined,
-      difficulty: selDifficulty || undefined,
-      style: selStyle || undefined,
-      group_type: selGroupType || undefined,
-    })
-      .then(data => {
-        let filtered = data;
-        if (searchText.trim()) {
-          const q = searchText.trim().toLowerCase();
-          filtered = data.filter(t =>
-            t.title?.toLowerCase().includes(q) ||
-            t.creator_username?.toLowerCase().includes(q) ||
-            t.region?.toLowerCase().includes(q) ||
-            t.user_description?.toLowerCase().includes(q)
-          );
-        }
-        const sorted = [...filtered].sort((a, b) => {
-          const rA = (a.average_rating ?? 0) * 100 + (a.ratings_count ?? 0);
-          const rB = (b.average_rating ?? 0) * 100 + (b.ratings_count ?? 0);
-          if (rB !== rA) return rB - rA;
-          return (b.likes_count ?? 0) - (a.likes_count ?? 0);
-        });
-        setTrips(sorted);
-        // collect distinct regions for chips
-        const regions = [...new Set(data.map(t => t.region).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b));
-        setAllRegions(regions);
-      })
-      .catch(() => setTrips([]))
-      .finally(() => setLoading(false));
-  }, [selRegion, selDifficulty, selStyle, selGroupType, searchText]);
+  const filters: PublicTripFilters = {
+    region:     selRegion     || undefined,
+    difficulty: selDifficulty || undefined,
+    style:      selStyle      || undefined,
+    group_type: selGroupType  || undefined,
+  };
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(load, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [load]);
+  const { data: rawTrips = [], isLoading: loading } = usePublicTrips(filters);
+
+  // Client-side search + sort (cheap in-memory, no debounce needed)
+  const trips = useMemo(() => {
+    let result = rawTrips;
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      result = result.filter(t =>
+        t.title?.toLowerCase().includes(q) ||
+        t.creator_username?.toLowerCase().includes(q) ||
+        t.region?.toLowerCase().includes(q) ||
+        (t as any).user_description?.toLowerCase().includes(q)
+      );
+    }
+    return [...result].sort((a, b) => {
+      const rA = (a.average_rating ?? 0) * 100 + (a.ratings_count ?? 0);
+      const rB = (b.average_rating ?? 0) * 100 + (b.ratings_count ?? 0);
+      if (rB !== rA) return rB - rA;
+      return (b.likes_count ?? 0) - (a.likes_count ?? 0);
+    });
+  }, [rawTrips, searchText]);
+
+  // Derive allRegions from cached data
+  const allRegions = useMemo(() =>
+    [...new Set(rawTrips.map(t => t.region).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b)),
+  [rawTrips]);
 
   const activeFilters = [selRegion, selDifficulty, selStyle, selGroupType].filter(Boolean).length;
   const clearFilters = () => { setSelRegion(''); setSelDifficulty(''); setSelStyle(''); setSelGroupType(''); setSearchText(''); };

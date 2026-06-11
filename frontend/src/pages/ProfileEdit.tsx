@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/pages/ProfileEdit.tsx — UPDATED
+// src/pages/ProfileEdit.tsx — UPDATED (with React Query Cache)
 // Feature 6: loads existing profile data from DB (not just AuthContext which may be stale).
 // Feature 7: avatar upload from computer via file picker.
 
@@ -7,12 +7,16 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, fileToBase64 } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMe, userKeys } from '../hooks/useUserProfile';
 
 const REGIONS = ['גליל', 'גולן', 'כרמל', 'שרון', 'שפלה', 'ירושלים', 'יהודה', 'נגב', 'ערבה', 'אילת'];
 
 export default function ProfileEdit() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const coverFileRef = useRef<HTMLInputElement>(null);
 
@@ -21,7 +25,7 @@ export default function ProfileEdit() {
     cover_image: '', favorite_regions: [] as string[],
     instagram: '', website: '',
   });
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,37 +34,37 @@ export default function ProfileEdit() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
 
+  // Feature 6: Fetch fresh profile from cache/DB
+  const { data: meData, isLoading: loadingProfile } = useMe(!!user);
+
   useEffect(() => {
     if (!user) { navigate('/Login', { replace: true }); return; }
-    // Feature 6: always fetch fresh profile from DB
-    api.users.me()
-      .then(profile => {
-        setForm({
-          username:         profile.username         || '',
-          full_name:        profile.full_name         || '',
-          bio:              profile.bio               || '',
-          avatar_url:       profile.avatar_url        || '',
-          cover_image:      profile.cover_image       || '',
-          favorite_regions: profile.favorite_regions  || [],
-          instagram:        profile.instagram         || '',
-          website:          profile.website           || '',
-        });
-      })
-      .catch(() => {
-        // Fallback to AuthContext user data
-        setForm({
-          username:         user.username         || '',
-          full_name:        user.full_name         || '',
-          bio:              (user as any).bio      || '',
-          avatar_url:       (user as any).avatar_url || '',
-          cover_image:      (user as any).cover_image || '',
-          favorite_regions: (user as any).favorite_regions || [],
-          instagram:        (user as any).instagram || '',
-          website:          (user as any).website  || '',
-        });
-      })
-      .finally(() => setLoadingProfile(false));
-  }, [user]);
+    
+    if (meData) {
+      setForm({
+        username:         meData.username         || '',
+        full_name:        meData.full_name        || '',
+        bio:              meData.bio              || '',
+        avatar_url:       meData.avatar_url       || '',
+        cover_image:      meData.cover_image      || '',
+        favorite_regions: meData.favorite_regions || [],
+        instagram:        meData.instagram        || '',
+        website:          meData.website          || '',
+      });
+    } else if (!loadingProfile) {
+      // Fallback to AuthContext user data
+      setForm({
+        username:         user.username         || '',
+        full_name:        user.full_name         || '',
+        bio:              (user as any).bio      || '',
+        avatar_url:       (user as any).avatar_url || '',
+        cover_image:      (user as any).cover_image || '',
+        favorite_regions: (user as any).favorite_regions || [],
+        instagram:        (user as any).instagram || '',
+        website:          (user as any).website  || '',
+      });
+    }
+  }, [user, meData, navigate, loadingProfile]);
 
   if (!user) return null;
   if (loadingProfile) {
@@ -112,7 +116,10 @@ export default function ProfileEdit() {
     setError(null);
     setSaving(true);
     try {
-      await api.users.updateMe(form as any);
+      const updated = await api.users.updateMe(form as any);
+      // Write the updated profile directly into the cache.
+      // Profile.tsx will read the cached value and show changes instantly.
+      qc.setQueryData(userKeys.me(), updated);
       setSaved(true);
       setTimeout(() => { setSaved(false); navigate('/Profile'); }, 1500);
     } catch (err: any) {

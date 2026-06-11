@@ -1,11 +1,14 @@
-// src/pages/MyTrips.tsx — UPDATED
-// Feature 9: Share button on each trip card (awards XP).
-// Also includes XpToast on share.
+// src/pages/MyTrips.tsx — UPDATED (caching)
+// Replaced bare useEffect + setState pattern with useMyRoutes() from the
+// central hooks layer. All mutations (delete, share, publish) update the
+// React Query cache directly instead of maintaining a parallel local copy.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { useQueryClient } from '@tanstack/react-query';
+import { api, type Trip } from '../api';
 import XpToast from '../components/XpToast';
+import { useMyRoutes, useDeleteRoute, tripKeys } from '../hooks/useTrips';
 
 const GROUP_ICONS: Record<string, string> = {
   'משפחה עם ילדים': '👨‍👩‍👧‍👦', 'משפחה': '👨‍👩‍👧‍👦',
@@ -26,9 +29,13 @@ function getTripShareIcon(isSharing: boolean, hasShared: boolean) {
 
 export default function MyTrips() {
   const navigate = useNavigate();
-  const [trips, setTrips] = useState<unknown[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const qc = useQueryClient();
+
+  // ── Data from cache ───────────────────────────────────────────────────────
+  const { data: trips = [], isLoading } = useMyRoutes();
+  const deleteRoute = useDeleteRoute();
+
+  // ── Local UI state (not cached — purely presentational) ───────────────────
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [sharingId, setSharingId] = useState<string | null>(null);
   const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
@@ -40,25 +47,16 @@ export default function MyTrips() {
   const [publishPOI, setPublishPOI] = useState('');
   const [publishStops, setPublishStops] = useState('');
 
-  useEffect(() => {
-    api.trips.list()
-      .then(data => setTrips(data))
-      .catch(err => console.error('Failed to fetch trips:', err))
-      .finally(() => setIsLoading(false));
-  }, []);
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirmId !== id) { setConfirmId(id); return; }
-    setDeletingId(id); setConfirmId(null);
-    try {
-      await api.trips.delete(id);
-      setTrips(prev => prev.filter(t => String(t.id) !== id));
-    } catch (err) { console.error('Delete failed:', err); }
-    setDeletingId(null);
+    setConfirmId(null);
+    // useMutation handles removing the trip from the cache on success.
+    deleteRoute.mutate(id);
   };
 
-  // Feature 9: share a trip and earn XP
   const handleShare = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (sharingId === id) return;
@@ -67,7 +65,7 @@ export default function MyTrips() {
       const result = await api.trips.share(id);
       if (result.xp_awarded && result.xp) setShareXp(result.xp);
       setSharedIds(prev => new Set(prev).add(id));
-      const trip = trips.find(t => String(t.id) === id);
+      const trip = trips.find((t: Trip) => String(t.id) === id);
       if (navigator.share && trip) {
         navigator.share({ title: trip.name, url: `${globalThis.location.origin}/TripDetail?id=${id}` }).catch(() => {});
       } else {
@@ -80,14 +78,13 @@ export default function MyTrips() {
   const handlePublish = async (id: string) => {
     setPublishingId(id);
     try {
-      // First create a public trip entry linked to this private route
-      const trip = trips.find(t => String(t.id) === id);
+      const trip = trips.find((t: Trip) => String(t.id) === id);
       if (!trip) return;
       const result = await api.publicTrips.create({
         title: trip.name,
         description: publishDesc || undefined,
         is_public: true,
-        location_ids: (trip as { stops?: { location_id: unknown }[] }).stops?.map(s => s.location_id).filter(Boolean) || [],
+        location_ids: trip.stops?.map((s: { location_id?: number }) => s.location_id).filter(Boolean) || [],
       });
       if (publishPOI || publishStops) {
         await api.publicTrips.updateMedia(result.id, {
@@ -99,6 +96,11 @@ export default function MyTrips() {
       setPublishedIds(prev => new Set(prev).add(id));
       setShowPublishModal(null);
       setPublishDesc(''); setPublishPOI(''); setPublishStops('');
+
+      // Invalidate the public trips feed so it picks up the new entry.
+      qc.invalidateQueries({ queryKey: ['publicTrips', 'list'] });
+      // Refresh the routes list (XP may have changed).
+      qc.invalidateQueries({ queryKey: tripKeys.routes() });
     } catch (err) { console.error('Publish failed:', err); }
     finally { setPublishingId(null); }
   };
@@ -133,10 +135,10 @@ export default function MyTrips() {
 
           {!isLoading && trips.length > 0 && (
             <div style={{ padding: '20px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-              {trips.map(trip => {
+              {trips.map((trip: Trip) => {
                 const id = String(trip.id);
                 const isConfirming = confirmId === id;
-                const isDeleting = deletingId === id;
+                const isDeleting = deleteRoute.isPending && deleteRoute.variables === id;
                 const isSharing = sharingId === id;
                 const hasShared = sharedIds.has(id);
 
@@ -169,16 +171,11 @@ export default function MyTrips() {
                       )}
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0fdf8', paddingTop: 12, gap: 8 }}>
-                        {/* Delete */}
                         <button onClick={e => handleDelete(id, e)} disabled={isDeleting}
                           style={{ background: isConfirming ? '#ef4444' : 'transparent', border: `1.5px solid ${isConfirming ? '#ef4444' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: isConfirming ? '#fff' : '#94a3b8', fontSize: 12, fontWeight: 700, fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>
-                          {(() => {
-                            if (isDeleting) return '...';
-                            return isConfirming ? 'מחיקה?' : '🗑';
-                          })()}
+                          {isDeleting ? '...' : isConfirming ? 'מחיקה?' : '🗑'}
                         </button>
 
-                        {/* Feature 9: Share button */}
                         <button onClick={e => handleShare(id, e)} disabled={isSharing}
                           title={hasShared ? 'שותף! +15 XP' : 'שתף מסלול וקבל +15 XP'}
                           style={{ background: hasShared ? '#f0fdf8' : 'transparent', border: `1.5px solid ${hasShared ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: hasShared ? '#0d9e6e' : '#94a3b8', fontSize: 12, fontWeight: 700, fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s ease' }}>
@@ -186,7 +183,6 @@ export default function MyTrips() {
                           {hasShared ? 'שותף' : 'שתף'}
                         </button>
 
-                        {/* Publish as public */}
                         {!publishedIds.has(id) && (
                           <button onClick={e => { e.stopPropagation(); setShowPublishModal(id); }}
                             title="פרסם כמסלול ציבורי וקבל +25 XP"
@@ -198,7 +194,7 @@ export default function MyTrips() {
                           <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700, background: '#faf5ff', borderRadius: 8, padding: '4px 8px', border: '1.5px solid #7c3aed' }}>✓ ציבורי</span>
                         )}
 
-                        <span style={{ fontSize: 16 }}>{GROUP_ICONS[trip.group_type] || '🚶'}</span>
+                        <span style={{ fontSize: 16 }}>{GROUP_ICONS[trip.group_type ?? ''] || '🚶'}</span>
                       </div>
                     </div>
                   </button>
