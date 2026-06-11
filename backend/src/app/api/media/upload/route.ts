@@ -21,6 +21,19 @@ import {
     validateMediaSizeBytes,
 } from "@/lib/location-images/location-media-service";
 
+
+/** Narrow an unknown caught value to an object with message */
+function asAppError(err: unknown): { message: string; code?: string } {
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>;
+    return {
+      message: typeof e.message === "string" ? e.message : "Unknown error",
+      code: typeof e.code === "string" ? e.code : undefined,
+    };
+  }
+  return { message: String(err) };
+}
+
 export async function POST(req: NextRequest) {
     try {
         const auth = await getUserFromRequest(req);
@@ -68,15 +81,15 @@ export async function POST(req: NextRequest) {
         // Validate MIME type
         try {
             getMediaType(mimeType);
-        } catch (err: any) {
-            return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+        } catch (err: unknown) {
+            return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
         }
 
         // Validate file size against raw bytes (accurate — no base64 estimation error)
         try {
             validateMediaSizeBytes(fileBuffer.length, mimeType);
-        } catch (err: any) {
-            return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
+        } catch (err: unknown) {
+            return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
         }
 
         const publicUrl = await uploadToStorage(
@@ -87,10 +100,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(successResponse({ url: publicUrl }), { status: 201 });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("[POST /api/media/upload]", err);
-        if (err?.code === "STORAGE_ERROR") {
-            return NextResponse.json(errorResponse(err.message, "STORAGE_ERROR"), { status: 502 });
+        if (asAppError(err).code === "STORAGE_ERROR") {
+            return NextResponse.json(errorResponse(asAppError(err).message, "STORAGE_ERROR"), { status: 502 });
         }
         return NextResponse.json(errorResponse("Upload failed", "UPLOAD_ERROR"), { status: 500 });
     }

@@ -23,6 +23,19 @@ import {
 type RouteParams = { params: Promise<{ id: string }> };
 
 // GET /trips/public/:id/media
+
+/** Narrow an unknown caught value to an object with message */
+function asAppError(err: unknown): { message: string; code?: string } {
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>;
+    return {
+      message: typeof e.message === "string" ? e.message : "Unknown error",
+      code: typeof e.code === "string" ? e.code : undefined,
+    };
+  }
+  return { message: String(err) };
+}
+
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
@@ -80,8 +93,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       try {
         mediaType = getMediaType(file.type);
-      } catch (err: any) {
-        return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+      } catch (err: unknown) {
+        return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
       }
 
       // Read file as buffer and convert to base64 data URL for storage
@@ -91,8 +104,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       try {
         validateMediaSize(base64Data, file.type);
-      } catch (err: any) {
-        return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
+      } catch (err: unknown) {
+        return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
       }
 
       mediaUrl = `data:${file.type};base64,${base64Data}`;
@@ -107,16 +120,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         // Legacy base64 JSON upload
         try {
           mediaType = getMediaType(body.mime_type);
-        } catch (err: any) {
-          return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+        } catch (err: unknown) {
+          return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
         }
 
         const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
 
         try {
           validateMediaSize(base64Data, body.mime_type);
-        } catch (err: any) {
-          return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
+        } catch (err: unknown) {
+          return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
         }
 
         mediaUrl = `data:${body.mime_type};base64,${base64Data}`;
@@ -159,20 +172,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       xp: result.xp,
     }), { status: 201 });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[POST /api/trips/public/:id/media]", err);
-    if (err?.code === "LIMIT_REACHED") {
-      return NextResponse.json(errorResponse(err.message, "LIMIT_REACHED"), { status: 429 });
+    if (asAppError(err).code === "LIMIT_REACHED") {
+      return NextResponse.json(errorResponse(asAppError(err).message, "LIMIT_REACHED"), { status: 429 });
     }
-    if (err?.code === "VALIDATION_ERROR") {
-      return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+    if (asAppError(err).code === "VALIDATION_ERROR") {
+      return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
     }
     return NextResponse.json(errorResponse("Failed to upload media", "DB_ERROR"), { status: 500 });
   }
 }
 
 // PATCH /trips/public/:id/media  — approve or reject (admin only)
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
+export async function PATCH(req: NextRequest, _routeCtx: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth?.is_admin) {
@@ -196,14 +209,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       await rejectMedia(media_id);
       return NextResponse.json(successResponse({ rejected: true }));
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[PATCH /api/trips/public/:id/media]", err);
     return NextResponse.json(errorResponse("Failed to update media", "DB_ERROR"), { status: 500 });
   }
 }
 
 // DELETE /trips/public/:id/media  — delete own media (or admin)
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, _routeCtx: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth) {
@@ -218,10 +231,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     await deleteMedia(media_id, auth.id, auth.is_admin ?? false);
     return NextResponse.json(successResponse({ deleted: true }));
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[DELETE /api/trips/public/:id/media]", err);
-    if (err?.code === "NOT_FOUND") {
-      return NextResponse.json(errorResponse(err.message, "NOT_FOUND"), { status: 404 });
+    if (asAppError(err).code === "NOT_FOUND") {
+      return NextResponse.json(errorResponse(asAppError(err).message, "NOT_FOUND"), { status: 404 });
     }
     return NextResponse.json(errorResponse("Failed to delete media", "DB_ERROR"), { status: 500 });
   }

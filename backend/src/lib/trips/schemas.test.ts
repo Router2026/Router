@@ -66,7 +66,7 @@ describe('TripInputSchema', () => {
   })
 
   it('defaults dayStartTime to 09:00 and dayEndTime to 20:00', () => {
-    const { dayStartTime, dayEndTime, ...rest } = validInput
+    const { dayStartTime: _dayStartTime, dayEndTime: _dayEndTime, ...rest } = validInput
     const result = TripInputSchema.parse(rest)
     expect(result.dayStartTime).toBe('09:00')
     expect(result.dayEndTime).toBe('20:00')

@@ -6,6 +6,7 @@
 import { rawDb } from "@/lib/db/raw-client";
 
 /** FCM HTTP v1 send endpoint */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const FCM_URL = "https://fcm.googleapis.com/v1/projects/{projectId}/messages:send";
 
 /** Retrieve all push tokens for a given user */

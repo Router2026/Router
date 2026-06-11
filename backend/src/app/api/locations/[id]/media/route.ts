@@ -22,6 +22,18 @@ import {
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+/** Narrow an unknown caught value to an object with message and optional code */
+function asAppError(err: unknown): { message: string; code?: string } {
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>;
+    return {
+      message: typeof e.message === "string" ? e.message : "Unknown error",
+      code: typeof e.code === "string" ? e.code : undefined,
+    };
+  }
+  return { message: String(err) };
+}
+
 // GET /locations/:id/media
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
@@ -80,8 +92,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       try {
         mediaType = getMediaType(mimeType);
-      } catch (err: any) {
-        return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+      } catch (err: unknown) {
+        return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
       }
 
       const arrayBuffer = await file.arrayBuffer();
@@ -89,13 +101,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       try {
         validateMediaSizeBytes(fileBuffer.length, mimeType);
-      } catch (err: any) {
-        return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
+      } catch (err: unknown) {
+        return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
       }
 
       try {
         mediaUrl = await uploadToStorage(fileBuffer, mimeType, `locations/${locationId}`);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("[POST /api/locations/:id/media] storage upload failed:", err);
         return NextResponse.json(
           errorResponse("Failed to upload file to storage", "STORAGE_ERROR"),
@@ -126,8 +138,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         // Legacy base64 JSON — still supported for backward compat
         try {
           mediaType = getMediaType(body.mime_type);
-        } catch (err: any) {
-          return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+        } catch (err: unknown) {
+          return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
         }
 
         const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
@@ -135,13 +147,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
         try {
           validateMediaSizeBytes(fileBuffer.length, body.mime_type);
-        } catch (err: any) {
-          return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 413 });
+        } catch (err: unknown) {
+          return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
         }
 
         try {
           mediaUrl = await uploadToStorage(fileBuffer, body.mime_type, `locations/${locationId}`);
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("[POST /api/locations/:id/media] storage upload failed:", err);
           return NextResponse.json(
             errorResponse("Failed to upload file to storage", "STORAGE_ERROR"),
@@ -173,20 +185,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       xp: result.xp,
     }), { status: 201 });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[POST /api/locations/:id/media]", err);
-    if (err?.code === "LIMIT_REACHED") {
-      return NextResponse.json(errorResponse(err.message, "LIMIT_REACHED"), { status: 429 });
+    if (asAppError(err).code === "LIMIT_REACHED") {
+      return NextResponse.json(errorResponse(asAppError(err).message, "LIMIT_REACHED"), { status: 429 });
     }
-    if (err?.code === "VALIDATION_ERROR") {
-      return NextResponse.json(errorResponse(err.message, "VALIDATION_ERROR"), { status: 400 });
+    if (asAppError(err).code === "VALIDATION_ERROR") {
+      return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
     }
     return NextResponse.json(errorResponse("Failed to upload media", "DB_ERROR"), { status: 500 });
   }
 }
 
 // PATCH /locations/:id/media — approve or reject (admin only)
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
+export async function PATCH(req: NextRequest, _routeCtx: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth?.is_admin) {
@@ -210,14 +222,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       await rejectMedia(media_id);
       return NextResponse.json(successResponse({ rejected: true }));
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[PATCH /api/locations/:id/media]", err);
     return NextResponse.json(errorResponse("Failed to update media", "DB_ERROR"), { status: 500 });
   }
 }
 
 // DELETE /locations/:id/media — delete own media (or admin)
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, _routeCtx: RouteParams) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth) {
@@ -232,10 +244,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     await deleteMedia(media_id, auth.id, auth.is_admin ?? false);
     return NextResponse.json(successResponse({ deleted: true }));
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[DELETE /api/locations/:id/media]", err);
-    if (err?.code === "NOT_FOUND") {
-      return NextResponse.json(errorResponse(err.message, "NOT_FOUND"), { status: 404 });
+    if (asAppError(err).code === "NOT_FOUND") {
+      return NextResponse.json(errorResponse(asAppError(err).message, "NOT_FOUND"), { status: 404 });
     }
     return NextResponse.json(errorResponse("Failed to delete media", "DB_ERROR"), { status: 500 });
   }

@@ -4,8 +4,6 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is not set");
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
 const connectionString = (() => {
   const url = new URL(process.env.DATABASE_URL);
   // Append search_path as a libpq connection option so it is applied by

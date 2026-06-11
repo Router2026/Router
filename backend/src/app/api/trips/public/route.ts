@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
-import { getPublicTrips, createTrip, publishRoute } from "@/lib/public-trips/public-trips-service";
+import { getPublicTrips, createTrip } from "@/lib/public-trips/public-trips-service";
 
 export async function GET(req: NextRequest) {
   try {
