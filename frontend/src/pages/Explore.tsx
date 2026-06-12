@@ -16,11 +16,11 @@ const PAGE_SIZE = 40;
 const CITY_PAGE_SIZE = 200;
 const CITY_RADIUS_METERS = 30000;
 
-// ── Session-state cache key ───────────────────────────────────────────────────
-// All Explore state is serialised under this key in sessionStorage so that
-// navigating to a POI detail and pressing Back restores the exact list and
-// scroll position rather than re-fetching from scratch.
-const SESSION_KEY = 'explore_cache';
+// ── Module-level snapshot store ──────────────────────────────────────────────
+// Stored OUTSIDE React so it is never affected by React lifecycle, Strict Mode
+// double-invocation, or Concurrent Mode render restarts.
+// A single snapshot is written just before navigating away and consumed
+// (then cleared) the moment Explore mounts again.
 
 interface ExploreCache {
   pois: POI[];
@@ -38,34 +38,27 @@ interface ExploreCache {
   cityResult: GeocodedCity | null;
   scrollY: number;
   fetchMode: FetchMode;
-  // cityFetchExhausted tells the restored session not to keep paging
   cityFetchExhausted: boolean;
 }
 
-function saveCache(cache: ExploreCache) {
-  try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(cache));
-  } catch {
-    // sessionStorage can be unavailable (private mode quota exceeded etc.)
-  }
+// The live snapshot — written synchronously before every outbound navigation.
+let _liveSnapshot: ExploreCache | null = null;
+
+function saveSnapshot(s: ExploreCache) {
+  _liveSnapshot = s;
+  console.log('[Explore] saveSnapshot called', { poisCount: s.pois.length, scrollY: s.scrollY, page: s.page });
 }
 
-function loadCache(): ExploreCache | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as ExploreCache) : null;
-  } catch {
-    return null;
-  }
+// Consume-and-clear: returns the snapshot and immediately nulls it so a hard
+// refresh or a fresh visit never sees stale state.
+function consumeSnapshot(): ExploreCache | null {
+  const s = _liveSnapshot;
+  _liveSnapshot = null;
+  console.log('[Explore] consumeSnapshot called', s ? { poisCount: s.pois.length, scrollY: s.scrollY, page: s.page } : 'null');
+  return s;
 }
 
-function clearCache() {
-  try {
-    sessionStorage.removeItem(SESSION_KEY);
-  } catch {
-    // ignore
-  }
-}
+function clearSnapshot() { _liveSnapshot = null; }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -362,25 +355,20 @@ export default function Explore() {
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
 
-  // ── Restore-from-cache flag ───────────────────────────────────────────────
-  // Set synchronously during initialisation so that the first render and the
-  // first useEffect run know whether to hydrate from cache or fetch fresh.
-  const restoredRef = useRef(false);
-
-  // ── Filter state ──────────────────────────────────────────────────────────
-  // Initialised from cache when the user navigates back, otherwise from URL params / defaults.
-  const cachedInit = useRef<ExploreCache | null>(null);
-  if (!restoredRef.current) {
-    const c = loadCache();
-    // Only reuse the cache when the user is navigating back (no URL overrides).
-    // If the URL carries a fresh category/query we treat this as a new visit.
-    if (c && !urlQuery && !urlCategory) {
-      cachedInit.current = c;
-      restoredRef.current = true;
-    }
+  // ── Restore from module-level snapshot ───────────────────────────────────
+  // consumeSnapshot() is called ONCE — here, synchronously during the first
+  // render — and immediately clears _liveSnapshot so no other mount can
+  // accidentally pick it up. URL params override the snapshot (fresh visit).
+  // Using useRef to ensure the snapshot is only consumed on the initial mount,
+  // not on every re-render of the same instance.
+  const ciRef = useRef<ExploreCache | null | undefined>(undefined);
+  if (ciRef.current === undefined) {
+    const snap = (!urlQuery && !urlCategory) ? consumeSnapshot() : null;
+    ciRef.current = snap; // null means "no cache", non-null means "restore"
+    console.log('[Explore] mount init', { isRestoring: snap !== null, urlQuery, urlCategory });
   }
-
-  const ci = cachedInit.current;
+  const ci = ciRef.current;
+  const isRestoring = ci !== null;
 
   const [search, setSearch] = useState(ci?.search ?? urlQuery);
   const [selRegions, setSelRegions] = useState<string[]>(ci?.selRegions ?? []);
@@ -393,13 +381,16 @@ export default function Explore() {
 
   // ── Server-side pagination ────────────────────────────────────────────────
   const [pois, setPois] = useState<POI[]>(ci?.pois ?? []);
+  // poisRef always holds the latest pois value — updated inside every setPois
+  // call so saveBeforeLeave captures the true current list, not the stale
+  // React state from the previous render.
+  const poisRef = useRef<POI[]>(ci?.pois ?? []);
   const pageRef = useRef(ci?.page ?? 0);
   const [totalCount, setTotalCount] = useState<number | null>(ci?.totalCount ?? null);
-  const [loading, setLoading] = useState(!restoredRef.current); // skip initial load spinner when restored
+  const [loading, setLoading] = useState(!isRestoring); // false when restoring — no initial spinner
   const [error, setError] = useState<string | null>(null);
-  // When restoring from cache, we have pois but totalCount may briefly be null.
-  // Default to false (not true) if pois are already loaded — prevents the IntersectionObserver
-  // from immediately firing a page 0 fetch that would wipe the restored list.
+  // pois.length === 0 fallback: only assume more exists when the list is empty,
+  // preventing the IntersectionObserver from firing immediately on a restored list.
   const hasMore = totalCount !== null ? pois.length < totalCount : pois.length === 0;
 
   // ── Filter dropdown data ──────────────────────────────────────────────────
@@ -419,9 +410,13 @@ export default function Explore() {
   // ── Unified debounced search ──────────────────────────────────────────────
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   useEffect(() => {
+    // Skip the timer when the value is already current (e.g. on restore).
+    // This prevents a spurious setState that would re-fire the search effect
+    // and trigger a spurious fetch on restore.
+    if (search === debouncedSearch) return;
     const t = setTimeout(() => setDebouncedSearch(search), 400);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Guards ────────────────────────────────────────────────────────────────
   const fetchingRef = useRef(false);
@@ -430,49 +425,43 @@ export default function Explore() {
   const cityResultRef = useRef<GeocodedCity | null>(ci?.cityResult ?? null);
   const cityFetchExhaustedRef = useRef(ci?.cityFetchExhausted ?? false);
 
-  // ── Skip the first search-effect run when restoring from cache ────────────
-  // We want the search effect to fire only when the user actively changes
-  // search/filters after restoration. We suppress the very first run.
-  const skipFirstSearchEffect = useRef(restoredRef.current);
+  // ── Suppress fetch-on-restore ────────────────────────────────────────────
+  // suppressFetchRef stays true for as long as we're in a restored session and
+  // the user hasn't deliberately changed search/filters. We never flip it back
+  // to true — once the user acts, normal fetch behaviour resumes permanently.
+  // Using a ref (not a one-shot flag) means StrictMode's double-effect-fire
+  // cannot consume it: both fires see the same ref value.
+  const suppressFetchRef = useRef(isRestoring);
 
   // ── Scroll restoration ────────────────────────────────────────────────────
   // After the cached POIs are rendered we scroll back to where the user was.
-  // We use a double-rAF + fallback setTimeout to ensure the grid has fully
-  // painted (including lazy images affecting layout height) before scrolling.
+  // double-rAF ensures layout is complete (images may affect page height).
   const scrollRestoredRef = useRef(false);
   const targetScrollY = ci?.scrollY ?? 0;
   useEffect(() => {
-    if (restoredRef.current && !scrollRestoredRef.current && pois.length > 0) {
-      scrollRestoredRef.current = true; // mark early to prevent double-firing
-      let raf1: number, raf2: number, timer: ReturnType<typeof setTimeout>;
-      raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => {
-          window.scrollTo({ top: targetScrollY, behavior: 'instant' });
-          // Fallback: if the page isn't tall enough yet (images still loading),
-          // retry once after a short delay.
-          timer = setTimeout(() => {
-            if (Math.abs(window.scrollY - targetScrollY) > 50) {
-              window.scrollTo({ top: targetScrollY, behavior: 'instant' });
-            }
-          }, 300);
-        });
+    if (!isRestoring || scrollRestoredRef.current || pois.length === 0) return;
+    scrollRestoredRef.current = true;
+    let r1: number, r2: number, t: ReturnType<typeof setTimeout>;
+    r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => {
+        window.scrollTo({ top: targetScrollY, behavior: 'instant' });
+        // Retry once after images may have loaded and shifted layout
+        t = setTimeout(() => {
+          if (Math.abs(window.scrollY - targetScrollY) > 60) {
+            window.scrollTo({ top: targetScrollY, behavior: 'instant' });
+          }
+        }, 350);
       });
-      return () => {
-        cancelAnimationFrame(raf1);
-        cancelAnimationFrame(raf2);
-        clearTimeout(timer);
-      };
-    }
-  }, [pois.length, targetScrollY]); // eslint-disable-line react-hooks/exhaustive-deps
+    });
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); clearTimeout(t); };
+  }, [pois.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Save cache before navigating away ────────────────────────────────────
-  // We intercept every navigation away from Explore and persist the current
-  // state so it can be restored when the user comes back.
-  //
-  // Strategy: wrap navigate() so that any call originating inside this page
-  // (e.g. POICard → /POIDetail) saves the cache first. We also listen for
-  // the pagehide / visibilitychange events in case the browser suspends the tab.
-  const currentStateRef = useRef<Omit<ExploreCache, 'scrollY'>>({
+  // ── Snapshot state for outbound navigation ────────────────────────────────
+  // We keep a plain object ref (no useEffect lag) with the latest render values
+  // and write it to the module-level store synchronously before navigating.
+  // This is the ONLY place _liveSnapshot is written; it is never touched by
+  // React lifecycle callbacks, avoiding all timing ambiguity.
+  const stateRef = useRef<Omit<ExploreCache, 'scrollY'>>({
     pois, totalCount, page: pageRef.current,
     search, selRegions, selCats, selDiffs,
     hasWater, hasShade, accessible,
@@ -480,10 +469,10 @@ export default function Explore() {
     fetchMode: fetchModeRef.current,
     cityFetchExhausted: cityFetchExhaustedRef.current,
   });
-
-  // Keep the ref in sync with the latest state on every render (synchronous, no effect lag).
-  currentStateRef.current = {
-    pois, totalCount, page: pageRef.current,
+  // Sync every render (refs don't cause re-renders)
+  stateRef.current = {
+    pois: poisRef.current, // use ref — always the latest, never lags a render
+    totalCount, page: pageRef.current,
     search, selRegions, selCats, selDiffs,
     hasWater, hasShade, accessible,
     sortByProximity, userCoords, cityResult,
@@ -491,46 +480,34 @@ export default function Explore() {
     cityFetchExhausted: cityFetchExhaustedRef.current,
   };
 
-  // Persist state (including live scroll position) to sessionStorage.
-  const persistCache = useCallback(() => {
-    saveCache({ ...currentStateRef.current, scrollY: window.scrollY });
+  // Write snapshot + scrollY synchronously before leaving Explore.
+  const saveBeforeLeave = useCallback(() => {
+    console.log('[Explore] saveBeforeLeave called', { poisCount: poisRef.current.length, scrollY: window.scrollY });
+    saveSnapshot({ ...stateRef.current, scrollY: window.scrollY });
   }, []);
 
-  // Keep a ref to persistCache so the unmount cleanup always calls the latest.
-  const persistCacheRef = useRef(persistCache);
-  persistCacheRef.current = persistCache;
-
-  // Save on unmount (covers most SPA navigations).
-  // Empty dep array ensures the cleanup runs once on unmount with the latest ref.
+  // Also handle hard browser events (tab hide, mobile backgrounding).
   useEffect(() => {
-    return () => { persistCacheRef.current(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Wrapped navigate: saves the cache synchronously BEFORE the route changes.
-  // This is the primary save path — more reliable than the unmount cleanup
-  // because React 18 can defer unmount effects, causing the cleanup to run
-  // after the new route has already mounted.
-  const navigateWithSave = useCallback((to: string, options?: Parameters<typeof navigate>[1]) => {
-    persistCacheRef.current();
-    navigate(to, options);
-  }, [navigate]);
-
-  // Also save on pagehide / visibilitychange for mobile / tab switches.
-  useEffect(() => {
-    const onHide = () => persistCache();
+    const onHide = () => saveBeforeLeave();
     window.addEventListener('pagehide', onHide);
     document.addEventListener('visibilitychange', onHide);
     return () => {
       window.removeEventListener('pagehide', onHide);
       document.removeEventListener('visibilitychange', onHide);
     };
-  }, [persistCache]);
+  }, [saveBeforeLeave]);
 
-  // Clear the cache whenever the user actively starts a fresh search or
-  // changes filters — so stale data is never restored after intentional resets.
+  // Wrapped navigate: saves snapshot BEFORE the route transition.
+  const navigateWithSave = useCallback((to: string, opts?: Parameters<typeof navigate>[1]) => {
+    console.log('[Explore] navigateWithSave ->', to);
+    saveBeforeLeave();
+    navigate(to, opts);
+  }, [navigate, saveBeforeLeave]);
+
+  // Clear the snapshot whenever the user intentionally starts a new search.
   const invalidateCache = useCallback(() => {
-    clearCache();
-    restoredRef.current = false;
+    clearSnapshot();
+    suppressFetchRef.current = false; // user acted — restore suppression lifted
     scrollRestoredRef.current = false;
   }, []);
 
@@ -588,10 +565,15 @@ export default function Explore() {
       const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => mapRawToPoi(raw));
 
       setPois(prev => {
-        if (pageNum === 0) return newPois;
-        const seen = new Set(prev.map(p => p.id));
-        const unique = newPois.filter(p => !seen.has(p.id));
-        return unique.length > 0 ? [...prev, ...unique] : prev;
+        const next = pageNum === 0
+          ? newPois
+          : (() => {
+            const seen = new Set(prev.map(p => p.id));
+            const unique = newPois.filter(p => !seen.has(p.id));
+            return unique.length > 0 ? [...prev, ...unique] : prev;
+          })();
+        poisRef.current = next; console.log('[Explore] poisRef updated, count=', next.length, 'page=', pageNum);
+        return next;
       });
 
       if (isCityFetch && newPois.length < CITY_PAGE_SIZE) {
@@ -612,10 +594,11 @@ export default function Explore() {
   // ── Unified search + geocoding effect ────────────────────────────────────
   useEffect(() => {
     // Skip the very first run when we've just hydrated from cache.
-    if (skipFirstSearchEffect.current) {
-      skipFirstSearchEffect.current = false;
-      return;
+    if (suppressFetchRef.current) {
+      console.log('[Explore] search effect SUPPRESSED (restore)');
+      return; // do NOT flip the flag here — StrictMode fires this twice
     }
+    console.log('[Explore] search effect RUNNING', { debouncedSearch, userCoords });
 
     invalidateCache();
     let cancelled = false;
@@ -628,7 +611,7 @@ export default function Explore() {
         cityResultRef.current = null;
         setCityResult(null);
         setCitySearching(false);
-        setPois([]);
+        setPois([]); poisRef.current = [];
         pageRef.current = 0;
         setTotalCount(null);
         fetchingRef.current = false;
@@ -637,7 +620,7 @@ export default function Explore() {
       }
 
       fetchModeRef.current = 'normal';
-      setPois([]);
+      setPois([]); poisRef.current = [];
       pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
@@ -670,7 +653,7 @@ export default function Explore() {
       fetchModeRef.current = 'city';
       cityResultRef.current = result;
       setCityResult(result);
-      setPois([]);
+      setPois([]); poisRef.current = [];
       pageRef.current = 0;
       setTotalCount(null);
       fetchingRef.current = false;
@@ -680,7 +663,7 @@ export default function Explore() {
     run();
 
     return () => { cancelled = true; };
-  }, [debouncedSearch, userCoords]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, fetchPage, userCoords]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── URL category param ────────────────────────────────────────────────────
   useEffect(() => {
@@ -694,10 +677,20 @@ export default function Explore() {
     return () => { observer.current?.disconnect(); };
   }, []);
 
+  // Block the IntersectionObserver for one rAF after a restore so we don't
+  // immediately fetch the next page while the scroll position is still at 0.
+  const observerReadyRef = useRef(!isRestoring);
+  useEffect(() => {
+    if (!observerReadyRef.current) {
+      const r = requestAnimationFrame(() => { observerReadyRef.current = true; });
+      return () => cancelAnimationFrame(r);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const lastPoiRef = useCallback((node: HTMLDivElement | null) => {
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !fetchingRef.current) {
+      if (entries[0].isIntersecting && hasMore && !fetchingRef.current && observerReadyRef.current) {
         if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
 
         pageRef.current += 1;
@@ -758,7 +751,11 @@ export default function Explore() {
 
   const handleDeletePoi = useCallback(async (id: string) => {
     await api.locations.delete(id);
-    setPois(prev => prev.filter(p => p.id !== id));
+    setPois(prev => {
+      const next = prev.filter(p => p.id !== id);
+      poisRef.current = next;
+      return next;
+    });
     setTotalCount(prev => prev !== null ? prev - 1 : null);
   }, []);
 
