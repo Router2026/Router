@@ -472,7 +472,7 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
               </div>
             </div>
             <div style={{ padding: '8px 10px', direction: 'rtl' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#1a2e2a', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#1a2e2a', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Heebo' }}>{place.name}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>{place.category}</span>
                 <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700 }}>★ {place.average_rating.toFixed(1)}</span>
@@ -581,13 +581,13 @@ export default function POIDetail() {
   });
 
   // Destructure with safe defaults so TypeScript is happy below
-  const poi           = data?.poi ?? null;
-  const reviews       = data?.reviews ?? [];
-  const reports       = data?.reports ?? [];
+  const poi = data?.poi ?? null;
+  const reviews = data?.reviews ?? [];
+  const reports = data?.reports ?? [];
   const galleryImages = data?.galleryImages ?? [];
-  const media         = data?.media ?? [];
+  const media = data?.media ?? [];
   const ratingSummary = data?.ratingSummary ?? null;
-  const regions       = data?.regions ?? [];
+  const regions = data?.regions ?? [];
 
   const isOwner = !!(user && poi?.owner_user_id && String(poi.owner_user_id) === String(user.id));
 

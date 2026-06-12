@@ -260,7 +260,7 @@ function formatDistance(m: number): string {
 
 // ── POICard ───────────────────────────────────────────────────────────────────
 
-const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
+const POICard = React.memo(function POICard({ poi, onDelete, onNavigate }: { poi: POI; onDelete?: (id: string) => void; onNavigate?: (to: string) => void }) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
@@ -280,7 +280,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
   };
 
   return (
-    <button type="button" onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
+    <button type="button" onClick={() => (onNavigate ?? navigate)(`/POIDetail?id=${poi.id}`)}
       style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease', border: 'none', padding: 0, textAlign: 'right', display: 'block', width: '100%' }}>
       <div style={{ position: 'relative', height: 160 }}>
         <img src={poi.thumbnail || poi.main_image || RouterLogo} alt={poi.name}
@@ -397,7 +397,10 @@ export default function Explore() {
   const [totalCount, setTotalCount] = useState<number | null>(ci?.totalCount ?? null);
   const [loading, setLoading] = useState(!restoredRef.current); // skip initial load spinner when restored
   const [error, setError] = useState<string | null>(null);
-  const hasMore = totalCount !== null ? pois.length < totalCount : true;
+  // When restoring from cache, we have pois but totalCount may briefly be null.
+  // Default to false (not true) if pois are already loaded — prevents the IntersectionObserver
+  // from immediately firing a page 0 fetch that would wipe the restored list.
+  const hasMore = totalCount !== null ? pois.length < totalCount : pois.length === 0;
 
   // ── Filter dropdown data ──────────────────────────────────────────────────
   const [regions, setRegions] = useState<string[]>([]);
@@ -434,17 +437,33 @@ export default function Explore() {
 
   // ── Scroll restoration ────────────────────────────────────────────────────
   // After the cached POIs are rendered we scroll back to where the user was.
+  // We use a double-rAF + fallback setTimeout to ensure the grid has fully
+  // painted (including lazy images affecting layout height) before scrolling.
   const scrollRestoredRef = useRef(false);
+  const targetScrollY = ci?.scrollY ?? 0;
   useEffect(() => {
-    if (restoredRef.current && !scrollRestoredRef.current && ci?.scrollY != null && pois.length > 0) {
-      // Use requestAnimationFrame to wait for layout before scrolling.
-      const raf = requestAnimationFrame(() => {
-        window.scrollTo({ top: ci.scrollY, behavior: 'instant' });
-        scrollRestoredRef.current = true;
+    if (restoredRef.current && !scrollRestoredRef.current && pois.length > 0) {
+      scrollRestoredRef.current = true; // mark early to prevent double-firing
+      let raf1: number, raf2: number, timer: ReturnType<typeof setTimeout>;
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          window.scrollTo({ top: targetScrollY, behavior: 'instant' });
+          // Fallback: if the page isn't tall enough yet (images still loading),
+          // retry once after a short delay.
+          timer = setTimeout(() => {
+            if (Math.abs(window.scrollY - targetScrollY) > 50) {
+              window.scrollTo({ top: targetScrollY, behavior: 'instant' });
+            }
+          }, 300);
+        });
       });
-      return () => cancelAnimationFrame(raf);
+      return () => {
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
+        clearTimeout(timer);
+      };
     }
-  }, [pois.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pois.length, targetScrollY]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Save cache before navigating away ────────────────────────────────────
   // We intercept every navigation away from Explore and persist the current
@@ -462,27 +481,39 @@ export default function Explore() {
     cityFetchExhausted: cityFetchExhaustedRef.current,
   });
 
-  // Keep the ref in sync with the latest state on every render.
-  useEffect(() => {
-    currentStateRef.current = {
-      pois, totalCount, page: pageRef.current,
-      search, selRegions, selCats, selDiffs,
-      hasWater, hasShade, accessible,
-      sortByProximity, userCoords, cityResult,
-      fetchMode: fetchModeRef.current,
-      cityFetchExhausted: cityFetchExhaustedRef.current,
-    };
-  });
+  // Keep the ref in sync with the latest state on every render (synchronous, no effect lag).
+  currentStateRef.current = {
+    pois, totalCount, page: pageRef.current,
+    search, selRegions, selCats, selDiffs,
+    hasWater, hasShade, accessible,
+    sortByProximity, userCoords, cityResult,
+    fetchMode: fetchModeRef.current,
+    cityFetchExhausted: cityFetchExhaustedRef.current,
+  };
 
   // Persist state (including live scroll position) to sessionStorage.
   const persistCache = useCallback(() => {
     saveCache({ ...currentStateRef.current, scrollY: window.scrollY });
   }, []);
 
+  // Keep a ref to persistCache so the unmount cleanup always calls the latest.
+  const persistCacheRef = useRef(persistCache);
+  persistCacheRef.current = persistCache;
+
   // Save on unmount (covers most SPA navigations).
+  // Empty dep array ensures the cleanup runs once on unmount with the latest ref.
   useEffect(() => {
-    return () => { persistCache(); };
-  }, [persistCache]);
+    return () => { persistCacheRef.current(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wrapped navigate: saves the cache synchronously BEFORE the route changes.
+  // This is the primary save path — more reliable than the unmount cleanup
+  // because React 18 can defer unmount effects, causing the cleanup to run
+  // after the new route has already mounted.
+  const navigateWithSave = useCallback((to: string, options?: Parameters<typeof navigate>[1]) => {
+    persistCacheRef.current();
+    navigate(to, options);
+  }, [navigate]);
 
   // Also save on pagehide / visibilitychange for mobile / tab switches.
   useEffect(() => {
@@ -649,7 +680,7 @@ export default function Explore() {
     run();
 
     return () => { cancelled = true; };
-  }, [debouncedSearch, fetchPage, userCoords]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, userCoords]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── URL category param ────────────────────────────────────────────────────
   useEffect(() => {
@@ -755,7 +786,7 @@ export default function Explore() {
             {activeFilterCount > 0 && <div style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</div>}
           </div>
 
-          <button onClick={() => navigate('/ContributePOI')}
+          <button onClick={() => navigateWithSave('/ContributePOI')}
             style={{ width: 44, height: 44, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 10px rgba(13,158,110,0.2)' }} title="הוסף אתר חדש">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
@@ -829,7 +860,7 @@ export default function Explore() {
           const isLast = index === displayedPois.length - 1;
           return (
             <div key={poi.id} ref={isLast ? lastPoiRef : null}>
-              <POICard poi={poi} onDelete={handleDeletePoi} />
+              <POICard poi={poi} onDelete={handleDeletePoi} onNavigate={navigateWithSave} />
             </div>
           );
         })}
