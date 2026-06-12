@@ -261,7 +261,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
           </button>
         )}
-        <span style={{ position: 'absolute', bottom: 10, left: 10, background: '#fff', color: diff.color, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>{poi.difficulty}</span>
+        <span style={{ position: 'absolute', bottom: 10, left: 10, background: '#fff', color: diff.color, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: 'Heebo, sans-serif' }}>{poi.difficulty}</span>
       </div>
 
       <div style={{ padding: '14px 14px 16px', direction: 'rtl' }}>
