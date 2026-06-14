@@ -79,11 +79,51 @@ function mapRawToPoi(raw: Record<string, unknown>): POI {
     has_shade: raw.has_shade,
     accessible: raw.accessible,
     is_featured: raw.is_featured,
-    average_rating: raw.average_rating ?? 4.0,
+    average_rating: raw.average_rating ?? 4,
     photo_credit: raw.photo_credit,
     uploaded_by: raw.uploaded_by,
     distance_meters: raw.distance_meters,
   } as POI;
+}
+
+// ── Module-level fetch helper ─────────────────────────────────────────────────
+
+interface FetchPageParams {
+  qs: URLSearchParams;
+  signal: AbortSignal;
+  isCityFetch: boolean;
+  pageNum: number;
+}
+
+interface FetchPageResult {
+  pois: POI[];
+  total: number | null;
+}
+
+async function executeFetch(params: FetchPageParams): Promise<FetchPageResult | null> {
+  const token = localStorage.getItem('router_auth_token');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(
+    `${import.meta.env.VITE_API_URL ?? ''}/api/locations?${params.qs}`,
+    { headers, signal: params.signal },
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const totalHeader = res.headers.get('X-Total-Count');
+  const total = totalHeader ? Number.parseInt(totalHeader) : null;
+
+  const json = await res.json();
+  const pois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => mapRawToPoi(raw));
+  return { pois, total };
+}
+
+function mergePois(prev: POI[], pageNum: number, newPois: POI[]): POI[] {
+  if (pageNum === 0) return newPois;
+  const seen = new Set(prev.map(p => p.id));
+  const unique = newPois.filter(p => !seen.has(p.id));
+  return unique.length > 0 ? [...prev, ...unique] : prev;
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -133,6 +173,16 @@ function FilterPanel({
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
 
+  let proximityBorderColor: string;
+  if (sortByProximity) { proximityBorderColor = '#0d9e6e'; }
+  else if (geoError) { proximityBorderColor = '#ef4444'; }
+  else { proximityBorderColor = '#e2e8f0'; }
+
+  let proximityTextColor: string;
+  if (sortByProximity) { proximityTextColor = '#0d9e6e'; }
+  else if (geoError) { proximityTextColor = '#ef4444'; }
+  else { proximityTextColor = '#64748b'; }
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'flex-start' }}>
       <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'default', padding: 0 }} />
@@ -154,9 +204,9 @@ function FilterPanel({
         <FilterSection title="מיון">
           <button onClick={handleProximityToggle} disabled={geoLoading} style={{
             width: '100%', padding: '10px 14px', borderRadius: 12,
-            border: `2px solid ${sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#e2e8f0'}`,
+            border: `2px solid ${proximityBorderColor}`,
             background: sortByProximity ? '#f0fdf8' : '#fff',
-            color: sortByProximity ? '#0d9e6e' : geoError ? '#ef4444' : '#64748b',
+            color: proximityTextColor,
             fontSize: 14, fontWeight: 700, cursor: geoLoading ? 'wait' : 'pointer',
             fontFamily: 'Heebo, sans-serif',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -231,6 +281,26 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
     favLock.guardAction(() => toggleFavorite(Number(poi.id)));
   };
 
+  let bucketAriaLabel: string;
+  if (isGuest) { bucketAriaLabel = 'הוספה לסל המסלול — דרוש חשבון'; }
+  else if (inBucket) { bucketAriaLabel = 'הסר מסל המסלול'; }
+  else { bucketAriaLabel = 'הוסף לסל המסלול'; }
+
+  let bucketBorder: string;
+  if (isGuest) { bucketBorder = '1.5px solid #e2e8f0'; }
+  else if (inBucket) { bucketBorder = '1.5px solid #0d9e6e'; }
+  else { bucketBorder = '1.5px solid #e2e8f0'; }
+
+  let bucketBg: string;
+  if (isGuest) { bucketBg = '#f8fafc'; }
+  else if (inBucket) { bucketBg = '#f0fdf8'; }
+  else { bucketBg = '#f8fafc'; }
+
+  let bucketColor: string;
+  if (isGuest) { bucketColor = '#94a3b8'; }
+  else if (inBucket) { bucketColor = '#0d9e6e'; }
+  else { bucketColor = '#64748b'; }
+
   return (
     <button type="button" onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
       style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease', border: 'none', padding: 0, textAlign: 'right', display: 'block', width: '100%' }}>
@@ -256,10 +326,11 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
         {favLock.PromptComponent}
 
         {user?.is_admin && onDelete && (
-          <button onClick={e => { e.stopPropagation(); if (window.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
+          <button onClick={e => { e.stopPropagation(); if (globalThis.confirm(`למחוק את "${poi.name}"?`)) onDelete(poi.id); }}
             style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" /></svg>
           </button>
+
         )}
         <span style={{ position: 'absolute', bottom: 10, left: 10, background: '#fff', color: diff.color, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: 'Heebo, sans-serif' }}>{poi.difficulty}</span>
       </div>
@@ -289,8 +360,8 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
           {poi.has_shade && <div style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>🌿 צל</div>}
         </div>
         <button onClick={handleBucketToggle}
-          aria-label={isGuest ? 'הוספה לסל המסלול — דרוש חשבון' : inBucket ? 'הסר מסל המסלול' : 'הוסף לסל המסלול'}
-          style={{ marginTop: 10, width: '100%', padding: '7px', border: `1.5px solid ${isGuest ? '#e2e8f0' : inBucket ? '#0d9e6e' : '#e2e8f0'}`, borderRadius: 10, background: isGuest ? '#f8fafc' : inBucket ? '#f0fdf8' : '#f8fafc', color: isGuest ? '#94a3b8' : inBucket ? '#0d9e6e' : '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
+          aria-label={bucketAriaLabel}
+          style={{ marginTop: 10, width: '100%', padding: '7px', border: bucketBorder, borderRadius: 10, background: bucketBg, color: bucketColor, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
           {isGuest
             ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
             : inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>
@@ -337,7 +408,7 @@ export default function Explore() {
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const hasMore = totalCount !== null ? pois.length < totalCount : true;
+  const hasMore = totalCount === null ? true : pois.length < totalCount;
 
   // ── Filter dropdown data ──────────────────────────────────────────────────
   const [regions, setRegions] = useState<string[]>([]);
@@ -410,7 +481,6 @@ export default function Explore() {
     if (pageNum > 0 && fetchingRef.current) return null;
     if (pageNum === 0) {
       abortRef.current?.abort();
-      // Reset the city-exhaustion flag whenever we start a fresh fetch sequence.
       cityFetchExhaustedRef.current = false;
     }
     const controller = new AbortController();
@@ -419,7 +489,6 @@ export default function Explore() {
     setLoading(true);
     setError(null);
 
-    // Snapshot the mode at the moment this fetch was initiated.
     const isCityFetch = fetchModeRef.current === 'city';
     let aborted = false;
 
@@ -429,40 +498,17 @@ export default function Explore() {
         isCityFetch, debouncedSearch, pageNum, gpsCoords,
       });
 
-      const token = localStorage.getItem('router_auth_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const result = await executeFetch({ qs, signal: controller.signal, isCityFetch, pageNum });
+      if (!result) return null;
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL ?? ''}/api/locations?${qs}`,
-        { headers, signal: controller.signal },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { pois: newPois, total } = result;
+      if (total !== null) setTotalCount(total);
+      setPois(prev => mergePois(prev, pageNum, newPois));
 
-      const total = res.headers.get('X-Total-Count');
-      if (total) setTotalCount(Number.parseInt(total));
-
-      const json = await res.json();
-      const newPois: POI[] = (json.data ?? []).map((raw: Record<string, unknown>) => mapRawToPoi(raw));
-
-      // Deduplicate by ID before updating state. Prevents double-appends from
-      // concurrent observer triggers or re-renders.
-      setPois(prev => {
-        if (pageNum === 0) return newPois;
-        const seen = new Set(prev.map(p => p.id));
-        const unique = newPois.filter(p => !seen.has(p.id));
-        return unique.length > 0 ? [...prev, ...unique] : prev;
-      });
-
-      // FIX 4 (City-mode infinite pagination): if the server returned fewer
-      // items than requested, there are no more server pages to fetch. Mark the
-      // city sequence as exhausted so the IntersectionObserver halts.
       if (isCityFetch && newPois.length < CITY_PAGE_SIZE) {
         cityFetchExhaustedRef.current = true;
       }
 
-      // FIX 2 (setPois-as-getter anti-pattern): return the data directly so
-      // the search effect can inspect it without a no-op setState trick.
       return newPois;
     } catch (err) {
       if ((err as Error).name === 'AbortError') { aborted = true; return null; }
@@ -597,9 +643,12 @@ export default function Explore() {
         if (fetchModeRef.current === 'city' && cityFetchExhaustedRef.current) return;
 
         pageRef.current += 1;
-        const coords = fetchModeRef.current === 'city'
-          ? (cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null)
-          : userCoords;
+        let coords: { lat: number; lng: number } | null;
+        if (fetchModeRef.current === 'city') {
+          coords = cityResultRef.current ? { lat: cityResultRef.current.lat, lng: cityResultRef.current.lng } : null;
+        } else {
+          coords = userCoords;
+        }
         fetchPage(pageRef.current, coords);
       }
     });
@@ -657,19 +706,24 @@ export default function Explore() {
   const handleDeletePoi = useCallback(async (id: string) => {
     await api.locations.delete(id);
     setPois(prev => prev.filter(p => p.id !== id));
-    setTotalCount(prev => prev !== null ? prev - 1 : null);
+    setTotalCount(prev => prev === null ? null : prev - 1);
   }, []);
 
   const activeFilterCount =
     selRegions.length + selCats.length + selDiffs.length +
     (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
 
+  let countLabel: string;
+  if (cityResult) { countLabel = `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`; }
+  else if (sortByProximity) { countLabel = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`; }
+  else { countLabel = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`; }
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', paddingBottom: 40, direction: 'rtl' }}>
       {urlCategory && (
         <div style={{ background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl' }}>
-          <button onClick={() => { setSelCats([]); window.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
+          <button onClick={() => { setSelCats([]); globalThis.history.replaceState({}, '', '/Explore'); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}>נקה</button>
           <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>קטגוריה: {urlCategory}</span>
         </div>
       )}
@@ -740,14 +794,7 @@ export default function Explore() {
           ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
           : error
             ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
-            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
-              {cityResult
-                ? `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`
-                : sortByProximity
-                  ? `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`
-                  : `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`
-              }
-            </span>
+            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countLabel}</span>
         }
       </div>
 

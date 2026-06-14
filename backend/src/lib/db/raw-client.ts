@@ -15,9 +15,9 @@ const connectionString = (() => {
 const safePool = new Pool({ connectionString });
 
 export const rawDb = {
-  query: async (query: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }> => {
+  query: async <T = Record<string, unknown>>(query: string, params?: unknown[]): Promise<{ rows: T[] }> => {
     const result = await safePool.query(query, params ?? []);
-    return { rows: result.rows };
+    return { rows: result.rows as T[] };
   },
 
   /** Acquire a client for multi-statement transactions. Always release in finally. */

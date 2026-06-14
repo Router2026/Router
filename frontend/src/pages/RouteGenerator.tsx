@@ -1112,7 +1112,7 @@ export default function RouteGenerator() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 10 }}>📍 עצירות במסלול</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {optimized.map((p, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0d9e6e', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
                       <div style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>{p.name}</div>
                       <div style={{ fontSize: 11, color: '#94a3b8', marginRight: 'auto' }}>{p.category}</div>

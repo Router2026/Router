@@ -37,12 +37,12 @@ export interface SaveMediaResult {
   xp: XpResult;
 }
 
-const ALLOWED_IMAGE_TYPES = [
+const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif",
   "image/heic", "image/heif", // iPhone default formats
-];
+]);
 
-const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"];
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"]);
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
@@ -51,8 +51,8 @@ const MIME_TO_EXT: Record<string, string> = {
 };
 
 export function getMediaType(mimeType: string): MediaType {
-  if (ALLOWED_IMAGE_TYPES.includes(mimeType)) return "image";
-  if (ALLOWED_VIDEO_TYPES.includes(mimeType)) return "video";
+  if (ALLOWED_IMAGE_TYPES.has(mimeType)) return "image";
+  if (ALLOWED_VIDEO_TYPES.has(mimeType)) return "video";
   throw Object.assign(
     new Error(`Unsupported file type: ${mimeType}. Supported: JPEG, PNG, WEBP, GIF, HEIC, MP4, WEBM, MOV`),
     { code: "VALIDATION_ERROR" }
@@ -64,7 +64,7 @@ export function getMediaType(mimeType: string): MediaType {
  * Use this instead of validateMediaSize when you have the actual Buffer.
  */
 export function validateMediaSizeBytes(byteLength: number, mimeType: string) {
-  const limit = ALLOWED_VIDEO_TYPES.includes(mimeType)
+  const limit = ALLOWED_VIDEO_TYPES.has(mimeType)
     ? MAX_MEDIA_SIZE_BYTES
     : MAX_IMAGE_SIZE_BYTES;
   if (byteLength > limit) {
@@ -129,7 +129,7 @@ export async function saveLocationMedia(
   thumbnailUrl?: string,
   caption?: string,
 ): Promise<SaveMediaResult> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<LocationMedia>(
     `INSERT INTO location_media (user_id, location_id, media_type, media_url, thumbnail_url, caption, is_approved, approved_at)
      SELECT $1, $2, $3, $4, $5, $6, TRUE, NOW()
      WHERE (
@@ -148,7 +148,7 @@ export async function saveLocationMedia(
   }
 
   const xpResult = await awardXp(userId, XP_REWARDS.PHOTO_UPLOAD);
-  return { media: rows[0] as unknown as LocationMedia, xp: xpResult };
+  return { media: rows[0], xp: xpResult };
 }
 
 /**
@@ -158,7 +158,7 @@ export async function getLocationMedia(
   locationId: number,
   approvedOnly = false,
 ): Promise<LocationMedia[]> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<LocationMedia>(
     `SELECT
        m.id, m.location_id, m.user_id, m.media_type, m.media_url,
        m.thumbnail_url, m.caption,
@@ -172,11 +172,11 @@ export async function getLocationMedia(
      ORDER BY m.created_at DESC`,
     [locationId]
   );
-  return rows as unknown as LocationMedia[];
+  return rows;
 }
 
 export async function approveMedia(mediaId: number, adminId: number): Promise<LocationMedia> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<LocationMedia>(
     `UPDATE location_media
      SET is_approved = TRUE, approved_by = $2, approved_at = NOW()
      WHERE id = $1
@@ -184,7 +184,7 @@ export async function approveMedia(mediaId: number, adminId: number): Promise<Lo
     [mediaId, adminId]
   );
   if (!rows.length) throw Object.assign(new Error("Media not found"), { code: "NOT_FOUND" });
-  return rows[0] as unknown as LocationMedia;
+  return rows[0];
 }
 
 export async function rejectMedia(mediaId: number): Promise<void> {

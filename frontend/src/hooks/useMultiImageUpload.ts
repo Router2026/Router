@@ -123,13 +123,13 @@ export function useMultiImageUpload(): UseMultiImageUploadReturn {
           if (!res.ok) {
             const json = await res.json().catch(() => ({}));
             throw new Error(
-              (json as any)?.error?.message ?? `Upload failed: HTTP ${res.status}`,
+              json?.error?.message ?? `Upload failed: HTTP ${res.status}`,
             );
           }
 
           // Step C: Extract the Supabase Storage public URL
           const json = await res.json();
-          const publicUrl: string | undefined = (json as any)?.data?.url;
+          const publicUrl: string | undefined = json?.data?.url;
           if (!publicUrl) throw new Error(`No URL returned for file: ${file.name}`);
 
           return publicUrl;
