@@ -35,9 +35,11 @@
     <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin />
     <link rel="dns-prefetch" href="https://basemaps.cartocdn.com" />
 
-    <!-- Google Fonts (Heebo) — if loaded from Google CDN -->
+    <!-- Google Fonts (Heebo) — preload to eliminate render-blocking FOIT -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800;900&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800;900&display=swap" />
 
     <!-- OSRM routing (used by MiniMap route feature) -->
     <link rel="dns-prefetch" href="https://router.project-osrm.org" />

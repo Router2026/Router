@@ -1,40 +1,49 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
-import Home from './pages/Home';
-import Explore from './pages/Explore';
-import MapView from './pages/MapView';
-import TripPlanner from './pages/TripPlanner';
-import POIDetail from './pages/POIDetail';
-import TripDetail from './pages/TripDetail';
-import Profile from './pages/Profile';
-import PublicUserProfile from './pages/PublicUserProfile';
-import Reports from './pages/Reports';
-import CommunityVideos from './pages/CommunityVideos';
-import Leaderboard from './pages/Leaderboard';
-import AddReport from './pages/AddReport';
-import AddReview from './pages/AddReview';
-import UploadVideo from './pages/UploadVideo';
-import MyTrips from './pages/MyTrips';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import RouteGenerator from './pages/RouteGenerator';
-import AdminPanel from './pages/AdminPanel';
-import AdminPlaces from './pages/AdminPlaces';
-import ContributePOI from './pages/ContributePOI';
-import PublicTrips from './pages/PublicTrips';
-import PublicTripDetail from './pages/PublicTripDetail';
-import Favorites from './pages/Favorites';
-import ProfileEdit from './pages/ProfileEdit';
-import MyPlaces from './pages/MyPlaces';
-import EditMyPlace from './pages/EditMyPlace';
-import AuthCallback from './pages/AuthCallback';
-import TermsOfService from './pages/TermsOfService';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import LegalDisclaimer from './pages/LegalDisclaimer';
+
+const Home            = lazy(() => import('./pages/Home'));
+const Explore         = lazy(() => import('./pages/Explore'));
+const MapView         = lazy(() => import('./pages/MapView'));
+const TripPlanner     = lazy(() => import('./pages/TripPlanner'));
+const POIDetail       = lazy(() => import('./pages/POIDetail'));
+const TripDetail      = lazy(() => import('./pages/TripDetail'));
+const Profile         = lazy(() => import('./pages/Profile'));
+const PublicUserProfile = lazy(() => import('./pages/PublicUserProfile'));
+const Reports         = lazy(() => import('./pages/Reports'));
+const CommunityVideos = lazy(() => import('./pages/CommunityVideos'));
+const Leaderboard     = lazy(() => import('./pages/Leaderboard'));
+const AddReport       = lazy(() => import('./pages/AddReport'));
+const AddReview       = lazy(() => import('./pages/AddReview'));
+const UploadVideo     = lazy(() => import('./pages/UploadVideo'));
+const MyTrips         = lazy(() => import('./pages/MyTrips'));
+const Login           = lazy(() => import('./pages/Login'));
+const Register        = lazy(() => import('./pages/Register'));
+const VerifyEmail     = lazy(() => import('./pages/VerifyEmail'));
+const ForgotPassword  = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword   = lazy(() => import('./pages/ResetPassword'));
+const RouteGenerator  = lazy(() => import('./pages/RouteGenerator'));
+const AdminPanel      = lazy(() => import('./pages/AdminPanel'));
+const AdminPlaces     = lazy(() => import('./pages/AdminPlaces'));
+const ContributePOI   = lazy(() => import('./pages/ContributePOI'));
+const PublicTrips     = lazy(() => import('./pages/PublicTrips'));
+const PublicTripDetail = lazy(() => import('./pages/PublicTripDetail'));
+const Favorites       = lazy(() => import('./pages/Favorites'));
+const ProfileEdit     = lazy(() => import('./pages/ProfileEdit'));
+const MyPlaces        = lazy(() => import('./pages/MyPlaces'));
+const EditMyPlace     = lazy(() => import('./pages/EditMyPlace'));
+const AuthCallback    = lazy(() => import('./pages/AuthCallback'));
+const TermsOfService  = lazy(() => import('./pages/TermsOfService'));
+const PrivacyPolicy   = lazy(() => import('./pages/PrivacyPolicy'));
+const LegalDisclaimer = lazy(() => import('./pages/LegalDisclaimer'));
+
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>
+      טוען...
+    </div>
+  );
+}
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TripBucketProvider } from './context/TripBucketContext';
@@ -102,6 +111,7 @@ function AppRoutes() {
       <InstallPrompt />
       {(!!user || isGuest) && showTour && <OnboardingTour onComplete={markDone} />}
 
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* ── Auth & callback ───────────────────────────────── */}
         <Route path="/Login" element={<Wrap name="Login"><Login /></Wrap>} />
@@ -146,6 +156,7 @@ function AppRoutes() {
         <Route path="/favorites" element={<RequireAuth><Wrap name="Favorites"><Favorites /></Wrap></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><Wrap name="ProfileEdit"><ProfileEdit /></Wrap></RequireAuth>} />
       </Routes>
+      </Suspense>
     </>
   );
 }
