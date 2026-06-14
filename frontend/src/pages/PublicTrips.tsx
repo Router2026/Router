@@ -339,6 +339,11 @@ async function saveMediaUpload(opts: SaveMediaUploadOpts) {
   } finally { setSaving(false); }
 }
 
+function onFileInputChange(e: React.ChangeEvent<HTMLInputElement>, onFile: (f: File) => void) {
+  const f = e.target.files?.[0];
+  if (f) onFile(f);
+}
+
 function handleImageDrop(
   e: React.DragEvent,
   setDragOver: (v: DragOverState) => void,
@@ -418,7 +423,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
           {/* Image upload */}
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🖼️ תמונה ראשית</div>
-            <input ref={imageRef} type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleImage(f); }} style={{ display: 'none' }} />
+            <input ref={imageRef} type="file" accept="image/*" onChange={e => onFileInputChange(e, handleImage)} style={{ display: 'none' }} />
             {imagePreview ? (
               <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden' }}>
                 <img src={imagePreview} style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }} alt="" />
@@ -445,7 +450,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
           {/* Video upload */}
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🎥 סרטון מסלול</div>
-            <input ref={videoRef} type="file" accept="video/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleVideo(f); }} style={{ display: 'none' }} />
+            <input ref={videoRef} type="file" accept="video/*" onChange={e => onFileInputChange(e, handleVideo)} style={{ display: 'none' }} />
             {videoPreview ? (
               <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: '#000' }}>
                 <video src={videoPreview} controls style={{ width: '100%', maxHeight: 200, display: 'block' }}>
@@ -568,6 +573,60 @@ function TripMediaViewer({ trip, mediaTab, setMediaTab, hasMedia, hasImage, hasV
   );
 }
 
+// ── Trip Social Bar ───────────────────────────────────────────────────────────
+
+interface TripSocialBarProps {
+  liked: boolean; likesCount: number; likeLoading: boolean; likeTransform: string;
+  toggleLike: (e: React.MouseEvent) => void;
+  commentsCount: number; onShowComments: () => void;
+  userRating: number; avgRating: number; ratingsCount: number;
+  currentUser: any; onShowRatingModal: () => void;
+  locationCount: number; totalDurationHours?: number | null;
+}
+
+function TripSocialBar({ liked, likesCount, likeLoading, likeTransform, toggleLike, commentsCount, onShowComments, userRating, avgRating, ratingsCount, currentUser, onShowRatingModal, locationCount, totalDurationHours }: Readonly<TripSocialBarProps>) {
+  const isInteractive = currentUser && !currentUser.isGuest;
+  return (
+    <div style={{ padding: '10px 15px', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <button onClick={toggleLike} disabled={likeLoading}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: isInteractive ? 'pointer' : 'default', padding: 4, borderRadius: 8 }}>
+        <svg width="24" height="24" viewBox="0 0 24 24"
+          fill={liked ? '#ef4444' : 'none'}
+          stroke={liked ? '#ef4444' : '#64748b'} strokeWidth="2"
+          style={{ transition: 'all 0.25s', transform: likeTransform }}>
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
+        <span style={{ fontSize: 14, fontWeight: 700, color: liked ? '#ef4444' : '#64748b' }}>{likesCount}</span>
+      </button>
+      <button onClick={onShowComments}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 4, borderRadius: 8 }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#64748b' }}>{commentsCount}</span>
+      </button>
+      <button onClick={() => isInteractive && onShowRatingModal()}
+        style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: isInteractive ? 'pointer' : 'default', padding: 4, borderRadius: 8 }}>
+        <svg width="22" height="22" viewBox="0 0 24 24"
+          fill={userRating > 0 ? '#f59e0b' : 'none'}
+          stroke={userRating > 0 ? '#f59e0b' : '#94a3b8'} strokeWidth="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+        <span style={{ fontSize: 13, fontWeight: 700, color: avgRating > 0 ? '#f59e0b' : '#94a3b8' }}>
+          {avgRating > 0 ? avgRating.toFixed(1) : '—'}
+        </span>
+        {ratingsCount > 0 && <span style={{ fontSize: 11, color: '#94a3b8' }}>({ratingsCount})</span>}
+      </button>
+      <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>📍 {locationCount} עצירות</span>
+        {totalDurationHours && (
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>· ⏱ {totalDurationHours} שע'</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface TripCardProps {
   trip: PublicTrip;
   rank: number;
@@ -682,51 +741,13 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
         <TripMediaViewer trip={trip} mediaTab={mediaTab} setMediaTab={setMediaTab} hasMedia={hasMedia} hasImage={hasImage} hasVideo={hasVideo} navigate={navigate} />
 
         {/* ── Social action bar ───────────────────────────────────────── */}
-        <div style={{ padding: '10px 15px', display: 'flex', alignItems: 'center', gap: 14 }}>
-
-          {/* Like */}
-          <button onClick={toggleLike} disabled={likeLoading}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: currentUser && !currentUser.isGuest ? 'pointer' : 'default', padding: 4, borderRadius: 8 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24"
-              fill={liked ? '#ef4444' : 'none'}
-              stroke={liked ? '#ef4444' : '#64748b'} strokeWidth="2"
-              style={{ transition: 'all 0.25s', transform: likeTransform }}>
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-            <span style={{ fontSize: 14, fontWeight: 700, color: liked ? '#ef4444' : '#64748b' }}>{likesCount}</span>
-          </button>
-
-          {/* Comment */}
-          <button onClick={() => setShowComments(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 4, borderRadius: 8 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#64748b' }}>{commentsCount}</span>
-          </button>
-
-          {/* Rate */}
-          <button onClick={() => currentUser && !currentUser.isGuest && setShowRatingModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: currentUser && !currentUser.isGuest ? 'pointer' : 'default', padding: 4, borderRadius: 8 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24"
-              fill={userRating > 0 ? '#f59e0b' : 'none'}
-              stroke={userRating > 0 ? '#f59e0b' : '#94a3b8'} strokeWidth="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            <span style={{ fontSize: 13, fontWeight: 700, color: avgRating > 0 ? '#f59e0b' : '#94a3b8' }}>
-              {avgRating > 0 ? avgRating.toFixed(1) : '—'}
-            </span>
-            {ratingsCount > 0 && <span style={{ fontSize: 11, color: '#94a3b8' }}>({ratingsCount})</span>}
-          </button>
-
-          {/* Spacer + stops count */}
-          <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>📍 {trip.location_count} עצירות</span>
-            {trip.total_duration_hours && (
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>· ⏱ {trip.total_duration_hours} שע'</span>
-            )}
-          </div>
-        </div>
+        <TripSocialBar
+          liked={liked} likesCount={likesCount} likeLoading={likeLoading} likeTransform={likeTransform}
+          toggleLike={toggleLike} commentsCount={commentsCount} onShowComments={() => setShowComments(true)}
+          userRating={userRating} avgRating={avgRating} ratingsCount={ratingsCount}
+          currentUser={currentUser} onShowRatingModal={() => setShowRatingModal(true)}
+          locationCount={trip.location_count} totalDurationHours={trip.total_duration_hours}
+        />
 
         {/* ── Description ─────────────────────────────────────────────── */}
         {displayDescription && (

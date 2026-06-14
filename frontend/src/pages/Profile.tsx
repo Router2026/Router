@@ -33,6 +33,8 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const { available: installAvailable, isIos: installIsIos, triggerInstall } = useInstallPrompt();
   const [showIosInstructions, setShowIosInstructions] = useState(false);
+  let installToggleIcon = '›';
+  if (installIsIos) { installToggleIcon = showIosInstructions ? '▲' : '▼'; }
 
   // Keyed by user.id — a new user login is a cache miss; re-logins with the
   // same account are instant (staleTime allows 5-min background trips).
@@ -211,7 +213,7 @@ export default function Profile() {
                   boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
                 }}
               >
-                <span style={{ fontSize: 18 }}>{installIsIos ? (showIosInstructions ? '▲' : '▼') : '›'}</span>
+                <span style={{ fontSize: 18 }}>{installToggleIcon}</span>
                 <span>📲 התקנת האפליקציה</span>
               </button>
 

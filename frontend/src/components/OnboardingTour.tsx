@@ -19,7 +19,7 @@ const GREEN_LIGHT = '#e8f9f3';
 const GREEN_GRAD = 'linear-gradient(135deg, #0d9e6e, #0bba7e)';
 
 // ── Shared illustration wrapper ───────────────────────────────────────────────
-function IllustrationCard({ children }: { children: React.ReactNode }) {
+function IllustrationCard({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div style={{
       background: `linear-gradient(135deg, #f0fdf8, ${GREEN_LIGHT})`,
@@ -259,7 +259,7 @@ export default function OnboardingTour({ onComplete }: Readonly<{ onComplete?: (
   const [step, setStep] = useState(0);
   const [visible, setVisible] = useState(true);
   const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDialogElement>(null);
 
   const steps = ALL_STEPS.filter(s => {
     if (s.guestOnly && !isGuest) return false;
@@ -372,14 +372,14 @@ export default function OnboardingTour({ onComplete }: Readonly<{ onComplete?: (
         }}
       >
         {/* Card */}
-        <div
+        <dialog
           ref={cardRef}
-          role="dialog"
-          aria-modal="true"
+          open
           aria-label={`סיור הדרכה — שלב ${step + 1} מתוך ${steps.length}: ${current.title}`}
           tabIndex={-1}
           style={{
             pointerEvents: 'auto',   // re-enable for the card itself
+            margin: 0, padding: '20px 18px 16px', border: 'none',
             width: '100%',
             maxWidth: 380,
             // Never taller than the visible viewport with 32px breathing room
@@ -387,7 +387,6 @@ export default function OnboardingTour({ onComplete }: Readonly<{ onComplete?: (
             overflowY: 'auto',
             background: '#fff',
             borderRadius: 22,
-            padding: '20px 18px 16px',
             boxShadow: '0 24px 64px rgba(0,0,0,0.28)',
             direction: 'rtl',
             outline: 'none',
@@ -493,19 +492,19 @@ export default function OnboardingTour({ onComplete }: Readonly<{ onComplete?: (
             <a
               href="/Register"
               style={{
-                display: 'block', marginTop: 10, padding: '11px',
+                marginTop: 10, padding: '11px',
                 borderRadius: 12, background: '#fff',
                 border: `2px solid ${GREEN}`, color: GREEN,
                 fontSize: 13, fontWeight: 800,
                 fontFamily: 'Heebo, sans-serif',
                 textAlign: 'center', textDecoration: 'none',
                 minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              } as React.CSSProperties}
+              }}
             >
               🚀 הרשמה חינמית עכשיו
             </a>
           )}
-        </div>
+        </dialog>
       </div>
     </>
   );
