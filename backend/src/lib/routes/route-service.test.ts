@@ -23,7 +23,7 @@ const sampleStop = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
 })
 
 describe('getRoutes', () => {
@@ -149,14 +149,15 @@ describe('createRoute', () => {
     ]
     mockDb.query
       .mockResolvedValueOnce({ rows: [newRoute] })  // INSERT route
-      .mockResolvedValueOnce({ rows: [] })           // INSERT stop 0
-      .mockResolvedValueOnce({ rows: [] })           // INSERT stop 1
+      .mockResolvedValueOnce({ rows: [] })           // Bulk INSERT both stops (single query)
       .mockResolvedValueOnce({ rows: [newRoute] })   // getRouteById routes
       .mockResolvedValueOnce({ rows: [] })           // getRouteById stops
     await createRoute({ name: 'Multi-stop', stops })
-    // call 0 = INSERT route, calls 1+2 = INSERT stops
-    expect(mockDb.query.mock.calls[1][1][3]).toBe(0)  // first stop order_index
-    expect(mockDb.query.mock.calls[2][1][3]).toBe(1)  // second stop order_index
+    // call 0 = INSERT route, call 1 = single bulk INSERT for all stops
+    // params layout per stop (7 each): [routeId, loc_id, poi_name, order_index, arrival, duration, insight]
+    const bulkParams = mockDb.query.mock.calls[1][1] as unknown[]
+    expect(bulkParams[3]).toBe(0)   // first stop order_index (param index 3)
+    expect(bulkParams[10]).toBe(1)  // second stop order_index (param index 10)
   })
 })
 
