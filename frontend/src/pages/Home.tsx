@@ -360,6 +360,31 @@ export default function Home() {
               </div>
             </div>
           )}
+          {!nearbyLoading && nearby.length === 0 && !locationError && (
+            <div style={{
+              margin: '0 16px', background: '#fff', borderRadius: 18,
+              padding: '20px 20px', display: 'flex', alignItems: 'center', gap: 14,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+            }}>
+              <div style={{ fontSize: 32 }}>🔭</div>
+              <div style={{ textAlign: 'right', flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', marginBottom: 4 }}>לא נמצאו מקומות קרובים</div>
+                <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>נסה להרחיב את טווח החיפוש או לגלות אתרים נוספים</div>
+                <button
+                  onClick={() => navigate('/Explore')}
+                  style={{
+                    marginTop: 10, padding: '7px 16px',
+                    background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
+                    border: 'none', borderRadius: 10, cursor: 'pointer',
+                    color: '#fff', fontSize: 12, fontWeight: 700,
+                    fontFamily: 'Heebo, sans-serif',
+                  }}
+                >
+                  גילוי אתרים →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Recommended Regions ── */}
@@ -438,7 +463,7 @@ export default function Home() {
             )}
           </div>
         </div>
-          <Disclaimer />
+        <Disclaimer />
 
       </div>
     </div>

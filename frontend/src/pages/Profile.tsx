@@ -3,10 +3,12 @@
 // Feature 8: "My Trips" link added to actions.
 // Added loading state matching PublicTrips.tsx
 
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, type UserProfile, type CommunityReport, type Review } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useInstallPrompt } from '../components/InstallPrompt';
 
 function LevelBar({ xp }: Readonly<{ xp: number }>) {
   const level = Math.floor(Math.sqrt(xp / 50));
@@ -29,6 +31,8 @@ function LevelBar({ xp }: Readonly<{ xp: number }>) {
 export default function Profile() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { available: installAvailable, isIos: installIsIos, triggerInstall } = useInstallPrompt();
+  const [showIosInstructions, setShowIosInstructions] = useState(false);
 
   // Keyed by user.id — a new user login is a cache miss; re-logins with the
   // same account are instant (staleTime allows 5-min background trips).
@@ -191,6 +195,55 @@ export default function Profile() {
           <button onClick={handleLogout} style={{ width: '100%', padding: '14px 18px', border: '1.5px solid #fecaca', borderRadius: 14, background: '#fff', color: '#ef4444', fontFamily: 'Heebo, sans-serif', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 8 }}>
             🚪 התנתקות
           </button>
+
+          {/* ── Install App ── always visible when installation is available */}
+          {installAvailable && (
+            <div style={{ marginTop: 4 }}>
+              <button
+                onClick={() => installIsIos ? setShowIosInstructions(v => !v) : triggerInstall()}
+                style={{
+                  width: '100%', padding: '14px 18px',
+                  border: 'none', borderRadius: 14,
+                  background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
+                  color: '#fff', fontFamily: 'Heebo, sans-serif',
+                  fontWeight: 800, fontSize: 15, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{installIsIos ? (showIosInstructions ? '▲' : '▼') : '›'}</span>
+                <span>📲 התקנת האפליקציה</span>
+              </button>
+
+              {/* iOS step-by-step instructions (toggled) */}
+              {installIsIos && showIosInstructions && (
+                <div style={{
+                  marginTop: 8, background: '#fff', borderRadius: 14,
+                  padding: '14px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
+                  direction: 'rtl',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a2e2a', marginBottom: 10 }}>
+                    הוספה למסך הבית ב-iOS:
+                  </div>
+                  {[
+                    { icon: '⬆️', text: 'לחץ על כפתור השיתוף בסרגל התחתון' },
+                    { icon: '➕', text: 'גלול למטה ובחר "הוסף למסך הבית"' },
+                    { icon: '✅', text: 'לחץ "הוסף" לאישור' },
+                  ].map((step, i) => (
+                    <div key={step.text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#0d9e6e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ fontSize: 13, color: '#374151', flex: 1 }}>
+                        <span style={{ marginLeft: 4 }}>{step.icon}</span>{step.text}
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 8, fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>
+                    פועל ב-Safari — Chrome ב-iOS אינו תומך בהתקנה
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
