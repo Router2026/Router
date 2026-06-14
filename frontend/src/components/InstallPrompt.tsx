@@ -20,48 +20,6 @@ function markDismissed() {
   try { localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch { /* */ }
 }
 
-function isAlreadyInstalled(): boolean {
-  return (
-    globalThis.matchMedia?.('(display-mode: standalone)').matches ||
-    (globalThis.navigator as Record<string, unknown>).standalone === true
-  );
-}
-
-/** Shared hook — used by both the floating banner and the Profile inline button. */
-export function useInstallPrompt() {
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isIos, setIsIos] = useState(false);
-  const [available, setAvailable] = useState(false);
-
-  useEffect(() => {
-    if (isAlreadyInstalled()) return;
-
-    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    if (ios) {
-      setIsIos(true);
-      setAvailable(true);
-      return;
-    }
-
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as BeforeInstallPromptEvent);
-      setAvailable(true);
-    };
-    globalThis.addEventListener('beforeinstallprompt', handler);
-    return () => globalThis.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const triggerInstall = async () => {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    const { outcome } = await installEvent.userChoice;
-    if (outcome === 'accepted') setAvailable(false);
-  };
-
-  return { available, isIos, triggerInstall };
-}
-
 export default function InstallPrompt() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosPrompt, setShowIosPrompt] = useState(false);

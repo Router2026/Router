@@ -99,13 +99,10 @@ export default function Register() {
   const totalRegions = stats?.total_regions ?? regions.length;
   const avgRating = stats?.average_rating ?? 4.8;
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!username) { setUsernameStatus('idle'); return; }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!USERNAME_RE.test(username)) { setUsernameStatus('invalid'); return; }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUsernameStatus('checking');
     scheduleUsernameCheck(username, debounceRef, setUsernameStatus);
     return () => { if (debounceRef.current) { clearTimeout(debounceRef.current); } };
