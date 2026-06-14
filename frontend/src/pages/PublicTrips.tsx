@@ -344,6 +344,15 @@ function onFileInputChange(e: React.ChangeEvent<HTMLInputElement>, onFile: (f: F
   if (f) onFile(f);
 }
 
+function UploadSaveButton({ saving, onSave }: Readonly<{ saving: boolean; onSave: () => void }>) {
+  return (
+    <button onClick={onSave} disabled={saving}
+      style={{ width: '100%', padding: '15px 0', borderRadius: 16, border: 'none', background: saving ? '#94a3b8' : 'linear-gradient(135deg,#0d9e6e,#059669)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: saving ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: saving ? 'none' : '0 4px 14px rgba(13,158,110,0.3)', transition: 'all 0.2s' }}>
+      {saving ? '⏳ שומר...' : '💾 שמור שינויים'}
+    </button>
+  );
+}
+
 function handleImageDrop(
   e: React.DragEvent,
   setDragOver: (v: DragOverState) => void,
@@ -475,10 +484,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
             )}
           </div>
 
-          <button onClick={save} disabled={saving}
-            style={{ width: '100%', padding: '15px 0', borderRadius: 16, border: 'none', background: saving ? '#94a3b8' : 'linear-gradient(135deg,#0d9e6e,#059669)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: saving ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: saving ? 'none' : '0 4px 14px rgba(13,158,110,0.3)', transition: 'all 0.2s' }}>
-            {saving ? '⏳ שומר...' : '💾 שמור שינויים'}
-          </button>
+          <UploadSaveButton saving={saving} onSave={save} />
         </div>
       </div>
     </div>
