@@ -23,7 +23,7 @@ function StrengthBar({ password }: { password: string }) {
   );
 }
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const USERNAME_RE = /^\w{3,20}$/;
 
 // ── Module-level validation helpers ──────────────────────────────────────────
 
@@ -59,7 +59,7 @@ function getConfirmBorderColor(confirm: string, password: string): string {
 
 function scheduleUsernameCheck(
   username: string,
-  debounceRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+  debounceRef: React.RefObject<ReturnType<typeof setTimeout> | null>,
   setUsernameStatus: (s: UsernameStatus) => void,
 ) {
   if (debounceRef.current) { clearTimeout(debounceRef.current); }

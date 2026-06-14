@@ -268,7 +268,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 region_id: edit.region_id ? Number.parseInt(edit.region_id) : poi.region_id,
                 region: regions.find(r => String(r.id) === edit.region_id)?.name || poi.region,
                 uploaded_by: edit.uploaded_by || undefined,
-                ...(res?.data ?? {}),
+                ...(res?.data),
                 is_featured: edit.is_featured,
                 source: edit.source,
                 source_id: edit.source_id,

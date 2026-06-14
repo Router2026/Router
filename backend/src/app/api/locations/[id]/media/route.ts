@@ -48,7 +48,8 @@ async function parseFormDataUpload(
 ): Promise<ParsedMedia | NextResponse> {
   const form = await req.formData();
   const file = form.get("file");
-  const caption = String(form.get("caption") ?? "") || undefined;
+  const captionRaw = form.get("caption");
+  const caption = (typeof captionRaw === 'string' ? captionRaw : '') || undefined;
 
   if (!file || typeof file === "string") {
     return NextResponse.json(
@@ -102,8 +103,8 @@ function parseJsonPublicUrl(body: Record<string, unknown>): ParsedMedia | NextRe
   return {
     mediaUrl,
     mediaType,
-    thumbnailUrl: body.thumbnail_url ? String(body.thumbnail_url) : undefined,
-    caption: body.caption ? String(body.caption) : undefined,
+    thumbnailUrl: typeof body.thumbnail_url === 'string' ? body.thumbnail_url : undefined,
+    caption: typeof body.caption === 'string' ? body.caption : undefined,
   };
 }
 
@@ -142,8 +143,8 @@ async function parseJsonBase64Upload(
   return {
     mediaUrl,
     mediaType,
-    thumbnailUrl: body.thumbnail_url ? String(body.thumbnail_url) : undefined,
-    caption: body.caption ? String(body.caption) : undefined,
+    thumbnailUrl: typeof body.thumbnail_url === 'string' ? body.thumbnail_url : undefined,
+    caption: typeof body.caption === 'string' ? body.caption : undefined,
   };
 }
 

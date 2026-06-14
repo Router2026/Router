@@ -21,6 +21,7 @@ import {
 } from "@/lib/location-images/location-media-service";
 
 type RouteParams = { params: Promise<{ id: string }> };
+type ParsedMedia = { mediaUrl: string; mediaType: 'image' | 'video'; thumbnailUrl?: string; caption?: string };
 
 // GET /trips/public/:id/media
 
@@ -34,6 +35,84 @@ function asAppError(err: unknown): { message: string; code?: string } {
     };
   }
   return { message: String(err) };
+}
+
+async function handleMultipartPost(req: NextRequest): Promise<ParsedMedia | NextResponse> {
+  const formData = await req.formData();
+  const file = formData.get("file") as File | null;
+  const caption = (formData.get("caption") as string) || undefined;
+
+  if (!file) {
+    return NextResponse.json(errorResponse("file field is required for multipart upload", "VALIDATION_ERROR"), { status: 400 });
+  }
+
+  let mediaType: "image" | "video";
+  try {
+    mediaType = getMediaType(file.type);
+  } catch (err: unknown) {
+    return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const base64Data = buffer.toString("base64");
+
+  try {
+    validateMediaSize(base64Data, file.type);
+  } catch (err: unknown) {
+    return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
+  }
+
+  return { mediaUrl: `data:${file.type};base64,${base64Data}`, mediaType, caption };
+}
+
+function handleBase64Json(body: Record<string, unknown>): ParsedMedia | NextResponse {
+  let mediaType: "image" | "video";
+  try {
+    mediaType = getMediaType(body.mime_type as string);
+  } catch (err: unknown) {
+    return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
+  }
+
+  const base64Data: string = (body.media_data as string).replace(/^data:[^;]+;base64,/, "");
+
+  try {
+    validateMediaSize(base64Data, body.mime_type as string);
+  } catch (err: unknown) {
+    return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
+  }
+
+  return {
+    mediaUrl: `data:${body.mime_type};base64,${base64Data}`,
+    mediaType,
+    thumbnailUrl: typeof body.thumbnail_url === 'string' ? body.thumbnail_url : undefined,
+    caption: typeof body.caption === 'string' ? body.caption : undefined,
+  };
+}
+
+function handleUrlJson(body: Record<string, unknown>): ParsedMedia | NextResponse {
+  const mediaUrl = (body.media_url as string).trim();
+  if (!mediaUrl.startsWith("http")) {
+    return NextResponse.json(errorResponse("media_url must be a valid URL", "VALIDATION_ERROR"), { status: 400 });
+  }
+  const mediaType: "image" | "video" =
+    body.media_type === "video" || /\.(mp4|webm|mov|avi)(\?|$)/i.test(mediaUrl) ? "video" : "image";
+  return {
+    mediaUrl,
+    mediaType,
+    thumbnailUrl: typeof body.thumbnail_url === 'string' ? body.thumbnail_url : undefined,
+    caption: typeof body.caption === 'string' ? body.caption : undefined,
+  };
+}
+
+async function handleJsonPost(req: NextRequest): Promise<ParsedMedia | NextResponse> {
+  const body = await req.json() as Record<string, unknown>;
+  if (body.media_data && body.mime_type) return handleBase64Json(body);
+  if (body.media_url) return handleUrlJson(body);
+  return NextResponse.json(
+    errorResponse("file (multipart), media_url, or media_data+mime_type is required", "VALIDATION_ERROR"),
+    { status: 400 }
+  );
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
@@ -74,97 +153,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json(errorResponse("Invalid location id", "VALIDATION_ERROR"), { status: 400 });
     }
 
-    let mediaUrl: string;
-    let mediaType: "image" | "video";
-    let thumbnailUrl: string | undefined;
-    let caption: string | undefined;
-
     const contentType = req.headers.get("content-type") || "";
+    const parsed = contentType.includes("multipart/form-data")
+      ? await handleMultipartPost(req)
+      : await handleJsonPost(req);
 
-    if (contentType.includes("multipart/form-data")) {
-      // ── Multipart file upload (used for actual file uploads to avoid base64 overhead) ──
-      const formData = await req.formData();
-      const file = formData.get("file") as File | null;
-      caption = (formData.get("caption") as string) || undefined;
-
-      if (!file) {
-        return NextResponse.json(errorResponse("file field is required for multipart upload", "VALIDATION_ERROR"), { status: 400 });
-      }
-
-      try {
-        mediaType = getMediaType(file.type);
-      } catch (err: unknown) {
-        return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
-      }
-
-      // Read file as buffer and convert to base64 data URL for storage
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const base64Data = buffer.toString("base64");
-
-      try {
-        validateMediaSize(base64Data, file.type);
-      } catch (err: unknown) {
-        return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
-      }
-
-      mediaUrl = `data:${file.type};base64,${base64Data}`;
-      thumbnailUrl = undefined;
-
-    } else {
-      // ── JSON body (URL submission or legacy base64) ──
-      const body = await req.json();
-      caption = body.caption || undefined;
-
-      if (body.media_data && body.mime_type) {
-        // Legacy base64 JSON upload
-        try {
-          mediaType = getMediaType(body.mime_type);
-        } catch (err: unknown) {
-          return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
-        }
-
-        const base64Data: string = body.media_data.replace(/^data:[^;]+;base64,/, "");
-
-        try {
-          validateMediaSize(base64Data, body.mime_type);
-        } catch (err: unknown) {
-          return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
-        }
-
-        mediaUrl = `data:${body.mime_type};base64,${base64Data}`;
-        thumbnailUrl = body.thumbnail_url || undefined;
-
-      } else if (body.media_url) {
-        mediaUrl = (body.media_url as string).trim();
-        if (!mediaUrl.startsWith("http")) {
-          return NextResponse.json(
-            errorResponse("media_url must be a valid URL", "VALIDATION_ERROR"),
-            { status: 400 }
-          );
-        }
-        if (body.media_type === "video" || /\.(mp4|webm|mov|avi)(\?|$)/i.test(mediaUrl)) {
-          mediaType = "video";
-        } else {
-          mediaType = "image";
-        }
-        thumbnailUrl = body.thumbnail_url || undefined;
-
-      } else {
-        return NextResponse.json(
-          errorResponse("file (multipart), media_url, or media_data+mime_type is required", "VALIDATION_ERROR"),
-          { status: 400 }
-        );
-      }
-    }
+    if (parsed instanceof NextResponse) return parsed;
 
     const result = await saveLocationMedia(
       auth.id,
       locationId,
-      mediaUrl,
-      mediaType,
-      thumbnailUrl,
-      caption,
+      parsed.mediaUrl,
+      parsed.mediaType,
+      parsed.thumbnailUrl,
+      parsed.caption,
     );
 
     return NextResponse.json(successResponse({
@@ -174,11 +176,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   } catch (err: unknown) {
     console.error("[POST /api/trips/public/:id/media]", err);
-    if (asAppError(err).code === "LIMIT_REACHED") {
-      return NextResponse.json(errorResponse(asAppError(err).message, "LIMIT_REACHED"), { status: 429 });
+    const { code, message } = asAppError(err);
+    if (code === "LIMIT_REACHED") {
+      return NextResponse.json(errorResponse(message, "LIMIT_REACHED"), { status: 429 });
     }
-    if (asAppError(err).code === "VALIDATION_ERROR") {
-      return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 400 });
+    if (code === "VALIDATION_ERROR") {
+      return NextResponse.json(errorResponse(message, "VALIDATION_ERROR"), { status: 400 });
     }
     return NextResponse.json(errorResponse("Failed to upload media", "DB_ERROR"), { status: 500 });
   }

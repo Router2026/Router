@@ -31,8 +31,12 @@ interface ApiError {
   _earlyExit?: boolean;
 }
 
+function isApiError(err: unknown): err is ApiError {
+  return typeof err === 'object' && err !== null;
+}
+
 function toApiError(err: unknown): ApiError {
-  return (typeof err === 'object' && err !== null) ? (err as ApiError) : {};
+  return isApiError(err) ? err : {};
 }
 
 function buildFileError(err: unknown): string {
@@ -184,9 +188,10 @@ export default function UploadPhotoButton({ locationId, onUploaded }: Props) {
           display: showModal ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center',
           padding: 20, border: 'none', maxWidth: '100vw', maxHeight: '100vh', width: '100%',
         }}
-        onClick={e => e.target === e.currentTarget && closeModal()}
       >
-        <div style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 440, direction: 'rtl', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <button type="button" aria-hidden="true" onClick={closeModal} tabIndex={-1}
+          style={{ position: 'fixed', inset: 0, background: 'transparent', border: 'none', cursor: 'default' }} />
+        <div style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 440, direction: 'rtl', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto', position: 'relative', zIndex: 1 }}>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#1a2e2a', marginBottom: 6 }}>📷 העלה תמונה / סרטון</div>
           <div style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
             שתף את המיקום עם הקהילה וקבל <strong>+10 XP</strong>

@@ -293,6 +293,7 @@ function getRankEmoji(rank: number): string | null {
 }
 
 type MediaTab = 'map' | 'image' | 'video';
+type DragOverState = 'image' | 'video' | null;
 
 function buildMediaTabs(hasImage: boolean, hasVideo: boolean): MediaTab[] {
   const tabs: MediaTab[] = ['map'];
@@ -303,6 +304,11 @@ function buildMediaTabs(hasImage: boolean, hasVideo: boolean): MediaTab[] {
 
 // ── Media Upload Panel ────────────────────────────────────────────────────────
 
+function isOwnerOfTrip(user: unknown, tripUserId: number): boolean {
+  const u = user as { id?: unknown; isGuest?: boolean } | null;
+  return !!(u?.id && !u.isGuest && Number(u.id) === tripUserId);
+}
+
 interface MediaUploadPanelProps {
   trip: PublicTrip;
   isOpen: boolean;
@@ -311,17 +317,14 @@ interface MediaUploadPanelProps {
   currentUser: any;
 }
 
-async function saveMediaUpload(
-  trip: PublicTrip,
-  desc: string,
-  imageFile: File | null,
-  videoFile: File | null,
-  imagePreview: string,
-  videoPreview: string,
-  setSaving: (v: boolean) => void,
-  onUpdated: (t: PublicTrip) => void,
-  onClose: () => void,
-) {
+interface SaveMediaUploadOpts {
+  trip: PublicTrip; desc: string; imageFile: File | null; videoFile: File | null;
+  imagePreview: string; videoPreview: string;
+  setSaving: (v: boolean) => void; onUpdated: (t: PublicTrip) => void; onClose: () => void;
+}
+
+async function saveMediaUpload(opts: SaveMediaUploadOpts) {
+  const { trip, desc, imageFile, videoFile, imagePreview, videoPreview, setSaving, onUpdated, onClose } = opts;
   setSaving(true);
   try {
     let image_url = trip.image_url || undefined;
@@ -338,7 +341,7 @@ async function saveMediaUpload(
 
 function handleImageDrop(
   e: React.DragEvent,
-  setDragOver: (v: 'image' | 'video' | null) => void,
+  setDragOver: (v: DragOverState) => void,
   onFile: (f: File) => void,
 ) {
   e.preventDefault();
@@ -349,7 +352,7 @@ function handleImageDrop(
 
 function handleVideoDrop(
   e: React.DragEvent,
-  setDragOver: (v: 'image' | 'video' | null) => void,
+  setDragOver: (v: DragOverState) => void,
   onFile: (f: File) => void,
 ) {
   e.preventDefault();
@@ -365,18 +368,18 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
   const [imagePreview, setImagePreview] = useState(trip.image_url || '');
   const [videoPreview, setVideoPreview] = useState(trip.video_url || '');
   const [saving, setSaving] = useState(false);
-  const [dragOver, setDragOver] = useState<'image' | 'video' | null>(null);
+  const [dragOver, setDragOver] = useState<DragOverState>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
-  const isOwner = currentUser?.id && !currentUser.isGuest && Number(currentUser.id) === trip.user_id;
+  const isOwner = isOwnerOfTrip(currentUser, trip.user_id);
   if (!isOwner) return null;
 
   const handleImage = (f: File) => { setImageFile(f); setImagePreview(URL.createObjectURL(f)); };
   const handleVideo = (f: File) => { setVideoFile(f); setVideoPreview(URL.createObjectURL(f)); };
 
-  const save = () => saveMediaUpload(trip, desc, imageFile, videoFile, imagePreview, videoPreview, setSaving, onUpdated, onClose);
+  const save = () => saveMediaUpload({ trip, desc, imageFile, videoFile, imagePreview, videoPreview, setSaving, onUpdated, onClose });
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}>
@@ -511,6 +514,60 @@ async function performToggleLike(
   } catch { /* intentional */ } finally { setLikeLoading(false); }
 }
 
+// ── Trip Media Viewer ─────────────────────────────────────────────────────────
+
+interface TripMediaViewerProps {
+  trip: PublicTrip;
+  mediaTab: MediaTab;
+  setMediaTab: (t: MediaTab) => void;
+  hasMedia: boolean;
+  hasImage: boolean;
+  hasVideo: boolean;
+  navigate: (path: string) => void;
+}
+
+function TripMediaViewer({ trip, mediaTab, setMediaTab, hasMedia, hasImage, hasVideo, navigate }: Readonly<TripMediaViewerProps>) {
+  const mediaTabs = buildMediaTabs(hasImage, hasVideo);
+  return (
+    <>
+      {/* ── Media tabs ──────────────────────────────────────────────── */}
+      {hasMedia && (
+        <div style={{ display: 'flex', paddingInline: 15, paddingBottom: 6, gap: 0, borderBottom: '1px solid #f1f5f9' }}>
+          {mediaTabs.map(tab => (
+            <button key={tab} onClick={() => setMediaTab(tab)}
+              style={{ flex: 1, padding: '7px 0', border: 'none', background: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: mediaTab === tab ? '#0d9e6e' : '#94a3b8', borderBottom: mediaTab === tab ? '2px solid #0d9e6e' : '2px solid transparent', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}>
+              {getTabLabel(tab)}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* ── Media area ──────────────────────────────────────────────── */}
+      <button type="button" style={{ cursor: 'pointer', position: 'relative', background: 'none', border: 'none', padding: 0, width: '100%', display: 'block' }} onClick={() => navigate(`/trips/${trip.id}`)}>
+        {(!hasMedia || mediaTab === 'map') && <RouteMapCard trip={trip} />}
+        {hasImage && mediaTab === 'image' && (
+          <div style={{ height: 260, overflow: 'hidden', position: 'relative' }}>
+            <img src={trip.image_url!} alt={trip.title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.3))' }} />
+          </div>
+        )}
+        {hasVideo && mediaTab === 'video' && (
+          <div style={{ background: '#0f172a' }}>
+            <video src={trip.video_url!} controls style={{ width: '100%', maxHeight: 300, display: 'block' }}>
+              <track kind="captions" />
+            </video>
+          </div>
+        )}
+        {/* View full trip overlay hint */}
+        {(!hasMedia || mediaTab === 'map') && (
+          <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', zIndex: 600, whiteSpace: 'nowrap' }}>
+            לחץ לצפייה במסלול ›
+          </div>
+        )}
+      </button>
+    </>
+  );
+}
+
 interface TripCardProps {
   trip: PublicTrip;
   rank: number;
@@ -550,12 +607,11 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
 
   const rankBorder = getRankBorder(rank);
   const rankEmoji = getRankEmoji(rank);
-  const isOwner = currentUser?.id && !currentUser.isGuest && Number(currentUser.id) === trip.user_id;
+  const isOwner = isOwnerOfTrip(currentUser, trip.user_id);
   const hasImage = !!trip.image_url;
   const hasVideo = !!trip.video_url;
   const hasMedia = hasImage || hasVideo;
   const displayDescription = trip.user_description || trip.description;
-  const mediaTabs = buildMediaTabs(hasImage, hasVideo);
   const likeTransform = getLikeTransform(likeAnim, liked);
 
   return (
@@ -623,41 +679,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
           <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', lineHeight: 1.3 }}>{trip.title}</div>
         </div>
 
-        {/* ── Media tabs ──────────────────────────────────────────────── */}
-        {hasMedia && (
-          <div style={{ display: 'flex', paddingInline: 15, paddingBottom: 6, gap: 0, borderBottom: '1px solid #f1f5f9' }}>
-            {mediaTabs.map(tab => (
-              <button key={tab} onClick={() => setMediaTab(tab)}
-                style={{ flex: 1, padding: '7px 0', border: 'none', background: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: mediaTab === tab ? '#0d9e6e' : '#94a3b8', borderBottom: mediaTab === tab ? '2px solid #0d9e6e' : '2px solid transparent', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}>
-                {getTabLabel(tab)}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* ── Media area ──────────────────────────────────────────────── */}
-        <button type="button" style={{ cursor: 'pointer', position: 'relative', background: 'none', border: 'none', padding: 0, width: '100%', display: 'block' }} onClick={() => navigate(`/trips/${trip.id}`)}>
-          {(!hasMedia || mediaTab === 'map') && <RouteMapCard trip={trip} />}
-          {hasImage && mediaTab === 'image' && (
-            <div style={{ height: 260, overflow: 'hidden', position: 'relative' }}>
-              <img src={trip.image_url!} alt={trip.title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.3))' }} />
-            </div>
-          )}
-          {hasVideo && mediaTab === 'video' && (
-            <div style={{ background: '#0f172a' }}>
-              <video src={trip.video_url!} controls style={{ width: '100%', maxHeight: 300, display: 'block' }}>
-                <track kind="captions" />
-              </video>
-            </div>
-          )}
-          {/* View full trip overlay hint */}
-          {(!hasMedia || mediaTab === 'map') && (
-            <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', zIndex: 600, whiteSpace: 'nowrap' }}>
-              לחץ לצפייה במסלול ›
-            </div>
-          )}
-        </button>
+        <TripMediaViewer trip={trip} mediaTab={mediaTab} setMediaTab={setMediaTab} hasMedia={hasMedia} hasImage={hasImage} hasVideo={hasVideo} navigate={navigate} />
 
         {/* ── Social action bar ───────────────────────────────────────── */}
         <div style={{ padding: '10px 15px', display: 'flex', alignItems: 'center', gap: 14 }}>

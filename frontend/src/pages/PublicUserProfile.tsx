@@ -4,7 +4,7 @@
 // navigating back to the same profile is instant with no extra API call.
 
 import { useParams, useNavigate } from 'react-router-dom';
-import { type PublicTrip, type CommunityPoiSubmission } from '../api';
+import { type PublicTrip } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { usePublicUserProfile } from '../hooks/useUserProfile';
 
@@ -113,8 +113,8 @@ export default function PublicUserProfile() {
   );
 
   const profile = data.profile;
-  const trips = data.trips as PublicTrip[];
-  const communityPois = (data.community_pois ?? []) as CommunityPoiSubmission[];
+  const trips = data.trips;
+  const communityPois = data.community_pois ?? [];
   const xp = profile.xp_points || 0;
 
   return (

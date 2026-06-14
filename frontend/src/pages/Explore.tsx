@@ -359,14 +359,19 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
           {poi.has_water && <div style={{ color: '#0284c7', fontSize: 11, fontWeight: 600 }}>💧 מים</div>}
           {poi.has_shade && <div style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>🌿 צל</div>}
         </div>
-        <button onClick={handleBucketToggle}
-          aria-label={bucketAriaLabel}
-          style={{ marginTop: 10, width: '100%', padding: '7px', border: bucketBorder, borderRadius: 10, background: bucketBg, color: bucketColor, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
-          {isGuest
-            ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
-            : inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>
-          }
-        </button>
+        {(() => {
+          const addLabel = inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>;
+          return (
+            <button onClick={handleBucketToggle}
+              aria-label={bucketAriaLabel}
+              style={{ marginTop: 10, width: '100%', padding: '7px', border: bucketBorder, borderRadius: 10, background: bucketBg, color: bucketColor, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
+              {isGuest
+                ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
+                : addLabel
+              }
+            </button>
+          );
+        })()}
         {bucketLock.PromptComponent}
       </div>
     </button>
@@ -383,6 +388,14 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
  * so the client-side radius filter can narrow them down.
  */
 type FetchMode = 'normal' | 'city';
+
+// ── Status label helper ───────────────────────────────────────────────────────
+
+function renderStatusLabel(loading: boolean, poisLength: number, error: string | null, countLabel: string) {
+  if (loading && poisLength === 0) return <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>;
+  if (error) return <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>;
+  return <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countLabel}</span>;
+}
 
 // ── Main Explore page ─────────────────────────────────────────────────────────
 
@@ -790,12 +803,7 @@ export default function Explore() {
       </div>
       {/* Count bar */}
       <div style={{ padding: '14px 20px 8px', textAlign: 'right' }}>
-        {loading && pois.length === 0
-          ? <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>טוען אתרים...</span>
-          : error
-            ? <span style={{ fontSize: 14, color: '#dc2626', fontWeight: 600 }}>שגיאה: {error}</span>
-            : <span style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>{countLabel}</span>
-        }
+        {renderStatusLabel(loading, pois.length, error, countLabel)}
       </div>
 
       {/* Grid */}
