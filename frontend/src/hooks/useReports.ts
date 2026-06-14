@@ -109,7 +109,7 @@ export function useCreateReport(activeType?: string) {
         );
       }
       // Always prepend to the "all" list too.
-      qc.setQueryData<CommunityReport[]>(reportKeys.list(undefined), prev =>
+      qc.setQueryData<CommunityReport[]>(reportKeys.list(), prev =>
         prev ? [newReport, ...prev] : [newReport],
       );
       // Invalidate my-reports so the Profile page refreshes.

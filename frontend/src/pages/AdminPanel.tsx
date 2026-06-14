@@ -239,13 +239,15 @@ function CommunityPoisTab() {
         ))}
       </div>
 
-      {loading ? (
+      {loading && (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>טוען...</div>
-      ) : pois.length === 0 ? (
+      )}
+      {!loading && pois.length === 0 && (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
           אין מיקומים להצגה
         </div>
-      ) : (
+      )}
+      {!loading && pois.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {pois.map(poi => (
             <div key={poi.id} style={{
@@ -605,7 +607,18 @@ export default function AdminPanel() {
         {/* Users tab */}
         {tab === 'users' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {users.map(u => (
+            {users.map(u => {
+              let adminBtnLabel: string;
+              if (busy === String(u.id)) { adminBtnLabel = '...'; }
+              else if (u.is_admin) { adminBtnLabel = 'הסר Admin'; }
+              else { adminBtnLabel = 'הפוך Admin'; }
+
+              let deleteUserBtnLabel: string;
+              if (busy === String(u.id)) { deleteUserBtnLabel = '...'; }
+              else if (confirmDelete === String(u.id)) { deleteUserBtnLabel = 'מחק?'; }
+              else { deleteUserBtnLabel = '🗑'; }
+
+              return (
               <div key={u.id} style={{
                 background: '#fff', borderRadius: 16, padding: '16px 18px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
@@ -643,7 +656,7 @@ export default function AdminPanel() {
                       cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#475569',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {busy === String(u.id) ? '...' : u.is_admin ? 'הסר Admin' : 'הפוך Admin'}
+                    {adminBtnLabel}
                   </button>
                   <button disabled={busy === String(u.id)} onClick={() => handleDeleteUser(String(u.id))}
                     style={{
@@ -654,11 +667,12 @@ export default function AdminPanel() {
                       color: confirmDelete === String(u.id) ? '#fff' : '#ef4444',
                       fontFamily: 'Heebo, sans-serif',
                     }}>
-                    {busy === String(u.id) ? '...' : confirmDelete === String(u.id) ? 'מחק?' : '🗑'}
+                    {deleteUserBtnLabel}
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {users.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>אין משתמשים</div>
             )}
@@ -668,7 +682,13 @@ export default function AdminPanel() {
         {/* Routes tab */}
         {tab === 'routes' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {routes.map(r => (
+            {routes.map(r => {
+              let deleteRouteBtnLabel: string;
+              if (busy === String(r.id)) { deleteRouteBtnLabel = '...'; }
+              else if (confirmDelete === String(r.id)) { deleteRouteBtnLabel = 'מחק?'; }
+              else { deleteRouteBtnLabel = '🗑'; }
+
+              return (
               <div key={r.id} style={{
                 background: '#fff', borderRadius: 16, padding: '16px 18px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
@@ -697,10 +717,11 @@ export default function AdminPanel() {
                     color: confirmDelete === String(r.id) ? '#fff' : '#ef4444',
                     fontFamily: 'Heebo, sans-serif',
                   }}>
-                  {busy === String(r.id) ? '...' : confirmDelete === String(r.id) ? 'מחק?' : '🗑'}
+                  {deleteRouteBtnLabel}
                 </button>
               </div>
-            ))}
+              );
+            })}
             {routes.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>אין מסלולים</div>
             )}

@@ -51,7 +51,7 @@ export async function listAllCommunityPois(
   const statusClause = status ? `WHERE cp.status = $1` : "";
   const params = status ? [status] : [];
 
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<CommunityPoiRow>(
     `SELECT cp.*,
             u.username  AS submitter_username,
             u.email     AS submitter_email
@@ -61,11 +61,11 @@ export async function listAllCommunityPois(
      ORDER BY cp.created_at DESC`,
     params
   );
-  return rows as unknown as CommunityPoiRow[];
+  return rows;
 }
 
 export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | null> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<CommunityPoiRow>(
     `SELECT cp.*,
             u.username AS submitter_username,
             u.email    AS submitter_email
@@ -74,7 +74,7 @@ export async function getCommunityPoi(id: number): Promise<CommunityPoiRow | nul
      WHERE  cp.id = $1`,
     [id]
   );
-  return (rows[0] as unknown as CommunityPoiRow) ?? null;
+  return rows[0] ?? null;
 }
 
 // ── Create ─────────────────────────────────────────────────────────────────────
@@ -329,7 +329,7 @@ export async function editCommunityPoi(
     Pick<CommunityPoiRow, "name" | "category" | "description" | "latitude" | "longitude" | "photos">
   >
 ): Promise<CommunityPoiRow> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<CommunityPoiRow>(
     `UPDATE community_pois
      SET name        = COALESCE($2, name),
          category    = COALESCE($3, category),
@@ -350,5 +350,5 @@ export async function editCommunityPoi(
       updates.photos ? JSON.stringify(updates.photos) : null,
     ]
   );
-  return rows[0] as unknown as CommunityPoiRow;
+  return rows[0];
 }

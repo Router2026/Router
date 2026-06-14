@@ -40,8 +40,8 @@ const GROUP_ICON: Record<string, string> = {
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
-    if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.2));
-    else if (points.length === 1) map.setView(points[0], 13);
+    if (points.length > 1) { map.fitBounds(L.latLngBounds(points).pad(0.2)); }
+    else if (points.length === 1) { map.setView(points[0], 13); }
   }, [points, map]);
   return null;
 }
@@ -90,7 +90,7 @@ function filterOutExistingStops(
   results: any[],
   editStops: Array<{ id: number }>,
 ): any[] {
-  return results.filter(r => !editStops.find(s => s.id === Number.parseInt(r.id)));
+  return results.filter(r => !editStops.some(s => s.id === Number.parseInt(r.id)));
 }
 
 export default function PublicTripDetail() {
@@ -198,7 +198,7 @@ export default function PublicTripDetail() {
   const loading  = tripLoading;
   const notFound = tripError;
 
-  const isOwner = user && trip && Number(user.id) === trip.user_id;
+  const isOwner = !!user && Number(user.id) === trip?.user_id;
 
   const handleLike = async () => {
     if (!user) { navigate('/login'); return; }
@@ -426,7 +426,7 @@ export default function PublicTripDetail() {
             {pts.length > 1 && (
               <Polyline positions={pts} pathOptions={{ color: '#0d9e6e', weight: 3.5, opacity: 0.9, dashArray: '10,6' }} />
             )}
-            {validStops.map((loc, i) => <StopMarker key={i} loc={loc} index={i} />)}
+            {validStops.map((loc, i) => <StopMarker key={`${loc.latitude}-${loc.longitude}`} loc={loc} index={i} />)}
             <FitBounds points={pts} />
           </MapContainer>
           <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
@@ -719,7 +719,7 @@ export default function PublicTripDetail() {
                     {/* Current stops list (draggable order) */}
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>
-                        📍 עצירות נוכחיות
+                        <span>📍 עצירות נוכחיות</span>
                         <span style={{ fontWeight: 400, color: '#94a3b8', marginRight: 6 }}>({editStops.length})</span>
                       </div>
                       {editStops.length === 0 && (
@@ -857,15 +857,23 @@ export default function PublicTripDetail() {
                 placeholder="כיתוב אופציונלי..."
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, fontFamily: 'Heebo, sans-serif', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
               <input ref={communityImageRef} type="file" accept="image/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'image'); e.target.value = ''; }} />
+                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'image'); } e.target.value = ''; }} />
               <input ref={communityVideoRef} type="file" accept="video/*" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleAddCommunityMedia(f, 'video'); e.target.value = ''; }} />
-              <button
-                onClick={() => communityMediaTab === 'image' ? communityImageRef.current?.click() : communityVideoRef.current?.click()}
-                disabled={addingMedia}
-                style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
-                {addingMedia ? '⏳ מעלה...' : `📤 העלה ${communityMediaTab === 'image' ? 'תמונה' : 'סרטון'} (+10 XP)`}
-              </button>
+                onChange={e => { const f = e.target.files?.[0]; if (f) { handleAddCommunityMedia(f, 'video'); } e.target.value = ''; }} />
+              {(() => {
+                const uploadMediaType = communityMediaTab === 'image' ? 'תמונה' : 'סרטון';
+                const uploadLabel = addingMedia ? '⏳ מעלה...' : `📤 העלה ${uploadMediaType} (+10 XP)`;
+                const handleUploadClick = () => {
+                  if (communityMediaTab === 'image') { communityImageRef.current?.click(); }
+                  else { communityVideoRef.current?.click(); }
+                };
+                return (
+                  <button onClick={handleUploadClick} disabled={addingMedia}
+                    style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', background: addingMedia ? '#94a3b8' : '#7c3aed', color: '#fff', fontWeight: 700, cursor: addingMedia ? 'default' : 'pointer', fontFamily: 'Heebo, sans-serif', fontSize: 14 }}>
+                    {uploadLabel}
+                  </button>
+                );
+              })()}
             </div>
           )}
 
@@ -954,7 +962,7 @@ export default function PublicTripDetail() {
 
           {validStops.length > 0 && (
             <button
-              onClick={() => window.open(`https://waze.com/ul?ll=${validStops[0].latitude},${validStops[0].longitude}&navigate=yes`, '_blank')}
+              onClick={() => globalThis.open(`https://waze.com/ul?ll=${validStops[0].latitude},${validStops[0].longitude}&navigate=yes`, '_blank')}
               style={{ width: '100%', marginTop: 18, padding: '14px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg,#0d9e6e,#059669)', color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(13,158,110,0.25)', transition: 'opacity 0.2s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.9'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>

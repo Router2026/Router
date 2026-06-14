@@ -141,6 +141,10 @@ export default function MyTrips() {
                 const isDeleting = deleteRoute.isPending && deleteRoute.variables === id;
                 const isSharing = sharingId === id;
                 const hasShared = sharedIds.has(id);
+                let deleteLabel: string;
+                if (isDeleting) { deleteLabel = '...'; }
+                else if (isConfirming) { deleteLabel = 'מחיקה?'; }
+                else { deleteLabel = '🗑'; }
 
                 return (
                   <button type="button" key={id} onClick={() => navigate(`/TripDetail?id=${id}`)}
@@ -173,7 +177,7 @@ export default function MyTrips() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0fdf8', paddingTop: 12, gap: 8 }}>
                         <button onClick={e => handleDelete(id, e)} disabled={isDeleting}
                           style={{ background: isConfirming ? '#ef4444' : 'transparent', border: `1.5px solid ${isConfirming ? '#ef4444' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: isConfirming ? '#fff' : '#94a3b8', fontSize: 12, fontWeight: 700, fontFamily: 'Heebo, sans-serif', transition: 'all 0.2s ease' }}>
-                          {isDeleting ? '...' : isConfirming ? 'מחיקה?' : '🗑'}
+                          {deleteLabel}
                         </button>
 
                         <button onClick={e => handleShare(id, e)} disabled={isSharing}

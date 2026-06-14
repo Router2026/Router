@@ -1,4 +1,5 @@
 // src/api.ts — UPDATED: media upload (images+video), ratings, nearby locations
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
@@ -21,7 +22,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let code: string | undefined;
-    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
     throw new ApiError(message, code);
   }
   return res.json();
@@ -36,7 +37,7 @@ async function apiFetchForm<T>(path: string, formData: FormData): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let code: string | undefined;
-    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { }
+    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
     throw new ApiError(message, code);
   }
   return res.json();
@@ -224,17 +225,21 @@ import { getImageUrl } from './utils/imageUtils';
 
 function mapLocation(r: any): POI {
   const mainImage: string = r.main_image || '';
+  let images: string[];
+  if (Array.isArray(r.images)) { images = r.images; }
+  else if (typeof r.images === 'string') { images = JSON.parse(r.images) as string[]; }
+  else { images = []; }
   return {
     id: String(r.id), name: r.name, description: r.description || '',
     category: r.category, region: r.region_name || r.region || '',
     region_id: r.region_id, latitude: Number.parseFloat(r.latitude),
     longitude: Number.parseFloat(r.longitude),
-    images: Array.isArray(r.images) ? r.images : (typeof r.images === 'string' ? JSON.parse(r.images) : []),
+    images,
     main_image: mainImage, thumbnail: getImageUrl(mainImage, 'card'), difficulty: r.difficulty || 'בינוני',
     duration_minutes: r.duration_minutes, has_water: r.has_water,
     has_shade: r.has_shade, accessible: r.accessible,
     is_featured: r.is_featured ?? false,
-    average_rating: Number.parseFloat(r.average_rating) || 4.0,
+    average_rating: Number.parseFloat(r.average_rating) || 4,
     photo_credit: r.photo_credit || r.credit || undefined,
     uploaded_by: r.uploaded_by || undefined,
     distance_meters: r.distance_meters !== undefined && r.distance_meters !== null

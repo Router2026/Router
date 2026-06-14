@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const BRAND = 'Router';
 
 export default function PrivacyPolicy() {
   const navigate = useNavigate();

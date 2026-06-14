@@ -21,14 +21,44 @@ interface ToggleProps {
   indicator: string;
 }
 
+function getNextToggle(val: boolean | null): boolean | null {
+  if (val === true) { return null; }
+  if (val === false) { return true; }
+  return false;
+}
+function getToggleLabel(val: boolean | null): string {
+  if (val === null) { return 'לא ידוע'; }
+  return val ? 'כן' : 'לא';
+}
+function getToggleBorderColor(val: boolean | null): string {
+  if (val === true) { return '#0d9e6e'; }
+  if (val === false) { return '#ef4444'; }
+  return '#e2e8f0';
+}
+function getToggleBgColor(val: boolean | null): string {
+  if (val === true) { return '#f0fdf4'; }
+  if (val === false) { return '#fef2f2'; }
+  return '#fff';
+}
+function getToggleTextColor(val: boolean | null): string {
+  if (val === true) { return '#0d9e6e'; }
+  if (val === false) { return '#ef4444'; }
+  return '#94a3b8';
+}
+function getToggleIndicator(val: boolean | null): string {
+  if (val === true) { return '✓'; }
+  if (val === false) { return '✗'; }
+  return '?';
+}
 function computeToggleProps(val: boolean | null): ToggleProps {
-  const nextVal = val === true ? null : val === false ? true : false;
-  const toggleTitle = val === null ? 'לא ידוע' : val ? 'כן' : 'לא';
-  const borderColor = val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#e2e8f0';
-  const bgColor = val === true ? '#f0fdf4' : val === false ? '#fef2f2' : '#fff';
-  const textColor = val === true ? '#0d9e6e' : val === false ? '#ef4444' : '#94a3b8';
-  const indicator = val === true ? '✓' : val === false ? '✗' : '?';
-  return { nextVal, toggleTitle, borderColor, bgColor, textColor, indicator };
+  return {
+    nextVal: getNextToggle(val),
+    toggleTitle: getToggleLabel(val),
+    borderColor: getToggleBorderColor(val),
+    bgColor: getToggleBgColor(val),
+    textColor: getToggleTextColor(val),
+    indicator: getToggleIndicator(val),
+  };
 }
 
 // ── Status badge helper ──────────────────────────────────────────────────────
@@ -200,6 +230,10 @@ export default function EditMyPlace() {
 
   if (!poi) return null;
 
+  let saveButtonLabel: string;
+  if (saving) { saveButtonLabel = '⏳ שומר...'; }
+  else if (success) { saveButtonLabel = '✅ נשמר!'; }
+  else { saveButtonLabel = '💾 שמור שינויים'; }
 
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl', fontFamily: 'Heebo, sans-serif', paddingBottom: 80 }}>
@@ -394,7 +428,7 @@ export default function EditMyPlace() {
                 color: '#fff', fontSize: 16, fontWeight: 900, cursor: 'pointer',
                 fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)',
               }}>
-              {saving ? '⏳ שומר...' : success ? '✅ נשמר!' : '💾 שמור שינויים'}
+              {saveButtonLabel}
             </button>
           </div>
       </div>
@@ -431,7 +465,7 @@ function input(disabled: boolean): React.CSSProperties {
   };
 }
 
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>
       {children}
@@ -439,7 +473,7 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Spinner({ label }: { label: string }) {
+function Spinner({ label }: Readonly<{ label: string }>) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', fontFamily: 'Heebo, sans-serif' }}>
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>

@@ -157,7 +157,6 @@ export default function ContributePOI() {
     handleFilesChange,
     uploadAll,
     removeFile,
-    reset: resetFiles,
     uploadError: fileUploadError,
   } = useMultiImageUpload();
   const [pastedUrls, setPastedUrls] = useState<string[]>([]);
@@ -167,6 +166,8 @@ export default function ContributePOI() {
   const [error, setError] = useState('');
 
   const defaultCenter: LatLng = { lat: 31.8, lng: 35.2 };
+
+  const removeUrl = (index: number) => setPastedUrls(prev => prev.filter((_, i) => i !== index));
 
   const handlePickPoint = async (coords: LatLng) => {
     setPickedPoint(coords);
@@ -262,7 +263,7 @@ export default function ContributePOI() {
             longitude: pickedPoint.lng,
             photos,
             difficulty,
-            duration_minutes: durationMinutes ? parseInt(durationMinutes, 10) : undefined,
+            duration_minutes: durationMinutes ? Number.parseInt(durationMinutes, 10) : undefined,
             has_water: hasWater,
             has_shade: hasShade,
             accessible,
@@ -445,7 +446,7 @@ export default function ContributePOI() {
               {pastedUrls.map((url, idx) => (
                 <div key={url} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', aspectRatio: '1' }}>
                   <img src={url} alt="url preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <button onClick={() => setPastedUrls(prev => prev.filter((_, i) => i !== idx))} style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', color: '#fff', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                  <button onClick={() => removeUrl(idx)} style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', color: '#fff', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                 </div>
               ))}
             </div>

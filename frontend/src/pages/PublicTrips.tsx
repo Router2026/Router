@@ -75,7 +75,7 @@ function RouteMapCard({ trip }: { trip: PublicTrip }) {
             html: `<div style="width:28px;height:28px;border-radius:50%;background:${CAT_COLOR[loc.category] || '#0d9e6e'};border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.35);font-family:Heebo,Arial;">${i + 1}</div>`,
             className: '', iconSize: [28, 28], iconAnchor: [14, 14],
           });
-          return <Marker key={i} position={[loc.latitude, loc.longitude]} icon={icon} />;
+          return <Marker key={`${loc.latitude}-${loc.longitude}`} position={[loc.latitude, loc.longitude]} icon={icon} />;
         })}
         <FitBounds points={points} />
       </MapContainer>
@@ -292,8 +292,10 @@ function getRankEmoji(rank: number): string | null {
   return null;
 }
 
-function buildMediaTabs(hasImage: boolean, hasVideo: boolean): ('map' | 'image' | 'video')[] {
-  const tabs: ('map' | 'image' | 'video')[] = ['map'];
+type MediaTab = 'map' | 'image' | 'video';
+
+function buildMediaTabs(hasImage: boolean, hasVideo: boolean): MediaTab[] {
+  const tabs: MediaTab[] = ['map'];
   if (hasImage) tabs.push('image');
   if (hasVideo) tabs.push('video');
   return tabs;
@@ -309,6 +311,53 @@ interface MediaUploadPanelProps {
   currentUser: any;
 }
 
+async function saveMediaUpload(
+  trip: PublicTrip,
+  desc: string,
+  imageFile: File | null,
+  videoFile: File | null,
+  imagePreview: string,
+  videoPreview: string,
+  setSaving: (v: boolean) => void,
+  onUpdated: (t: PublicTrip) => void,
+  onClose: () => void,
+) {
+  setSaving(true);
+  try {
+    let image_url = trip.image_url || undefined;
+    let video_url = trip.video_url || undefined;
+    if (imageFile) { image_url = await api.locations.uploadPendingMedia(imageFile); }
+    if (videoFile) { video_url = await api.locations.uploadPendingMedia(videoFile); }
+    await api.publicTrips.updateMedia(trip.id, { user_description: desc, image_url, video_url });
+    onUpdated({ ...trip, user_description: desc, image_url: imagePreview || image_url, video_url: videoPreview || video_url });
+    onClose();
+  } catch (err) {
+    console.error('[MediaUploadPanel.save]', err);
+  } finally { setSaving(false); }
+}
+
+function handleImageDrop(
+  e: React.DragEvent,
+  setDragOver: (v: 'image' | 'video' | null) => void,
+  onFile: (f: File) => void,
+) {
+  e.preventDefault();
+  setDragOver(null);
+  const f = e.dataTransfer.files[0];
+  if (f?.type.startsWith('image/')) { onFile(f); }
+}
+
+function handleVideoDrop(
+  e: React.DragEvent,
+  setDragOver: (v: 'image' | 'video' | null) => void,
+  onFile: (f: File) => void,
+) {
+  e.preventDefault();
+  setDragOver(null);
+  const f = e.dataTransfer.files[0];
+  if (f?.type.startsWith('video/')) { onFile(f); }
+}
+
 function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Readonly<MediaUploadPanelProps>) {
   const [desc, setDesc] = useState(trip.user_description || '');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -321,28 +370,13 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
   const videoRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
-  const isOwner = currentUser && !currentUser.isGuest && Number(currentUser.id) === trip.user_id;
+  const isOwner = currentUser?.id && !currentUser.isGuest && Number(currentUser.id) === trip.user_id;
   if (!isOwner) return null;
 
   const handleImage = (f: File) => { setImageFile(f); setImagePreview(URL.createObjectURL(f)); };
   const handleVideo = (f: File) => { setVideoFile(f); setVideoPreview(URL.createObjectURL(f)); };
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      let image_url = trip.image_url || undefined;
-      let video_url = trip.video_url || undefined;
-
-      if (imageFile) image_url = await api.locations.uploadPendingMedia(imageFile);
-      if (videoFile) video_url = await api.locations.uploadPendingMedia(videoFile);
-
-      await api.publicTrips.updateMedia(trip.id, { user_description: desc, image_url, video_url });
-      onUpdated({ ...trip, user_description: desc, image_url: imagePreview || image_url, video_url: videoPreview || video_url });
-      onClose();
-    } catch (err) {
-      console.error('[MediaUploadPanel.save]', err);
-    } finally { setSaving(false); }
-  };
+  const save = () => saveMediaUpload(trip, desc, imageFile, videoFile, imagePreview, videoPreview, setSaving, onUpdated, onClose);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}>
@@ -395,7 +429,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('image'); }}
                 onDragLeave={() => setDragOver(null)}
-                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) handleImage(f); }}
+                onDrop={e => handleImageDrop(e, setDragOver, handleImage)}
                 onClick={() => imageRef.current?.click()}
                 style={{ border: `2px dashed ${dragOver === 'image' ? '#0d9e6e' : '#d1d5db'}`, borderRadius: 16, padding: '32px 20px', textAlign: 'center', background: dragOver === 'image' ? '#f0fdf4' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
@@ -423,7 +457,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               <button type="button"
                 onDragOver={e => { e.preventDefault(); setDragOver('video'); }}
                 onDragLeave={() => setDragOver(null)}
-                onDrop={e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('video/')) handleVideo(f); }}
+                onDrop={e => handleVideoDrop(e, setDragOver, handleVideo)}
                 onClick={() => videoRef.current?.click()}
                 style={{ border: `2px dashed ${dragOver === 'video' ? '#7c3aed' : '#d1d5db'}`, borderRadius: 16, padding: '28px 20px', textAlign: 'center', background: dragOver === 'video' ? '#faf5ff' : '#fafafa', cursor: 'pointer', transition: 'all 0.2s', width: '100%' }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>🎬</div>
@@ -445,6 +479,38 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
 
 // ── Trip Card ─────────────────────────────────────────────────────────────────
 
+function getTabLabel(tab: MediaTab): string {
+  if (tab === 'map') return '🗺️ מפה';
+  if (tab === 'image') return '🖼️ תמונה';
+  return '🎥 סרטון';
+}
+
+function getLikeTransform(likeAnim: boolean, liked: boolean): string {
+  if (likeAnim) return 'scale(1.4)';
+  if (liked) return 'scale(1.1)';
+  return 'scale(1)';
+}
+
+async function performToggleLike(
+  tripId: number,
+  likeLoading: boolean,
+  currentUser: any,
+  setLikeLoading: (v: boolean) => void,
+  setLikeAnim: (v: boolean) => void,
+  setLiked: (v: boolean) => void,
+  setLikesCount: (v: number) => void,
+) {
+  if (likeLoading || !currentUser || currentUser.isGuest) return;
+  setLikeLoading(true);
+  setLikeAnim(true);
+  setTimeout(() => setLikeAnim(false), 400);
+  try {
+    const { liked: l, likes_count: lc } = await api.publicTrips.toggleLike(tripId);
+    setLiked(l);
+    setLikesCount(lc);
+  } catch { /* intentional */ } finally { setLikeLoading(false); }
+}
+
 interface TripCardProps {
   trip: PublicTrip;
   rank: number;
@@ -465,41 +531,32 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
   const [showMediaUpload, setShowMediaUpload] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [commentsCount, setCommentsCount] = useState(trip.comments_count ?? 0);
-  const [mediaTab, setMediaTab] = useState<'map' | 'image' | 'video'>('map');
+  const [mediaTab, setMediaTab] = useState<MediaTab>('map');
   const [descExpanded, setDescExpanded] = useState(false);
 
   const isAuth = !!currentUser && !currentUser.isGuest;
   const { data: likesData }  = useTripLikes(trip.id, isAuth);
   const { data: ratingData } = useTripRating(trip.id, isAuth);
 
-  useEffect(() => {
-    if (likesData)  { setLiked(likesData.liked); setLikesCount(likesData.likes_count); }
-  }, [likesData]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (likesData) { setLiked(likesData.liked); setLikesCount(likesData.likes_count); } }, [likesData]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (ratingData) { setUserRating(ratingData.user_rating ?? 0); setAvgRating(ratingData.average_rating); setRatingsCount(ratingData.ratings_count); } }, [ratingData]);
 
-  useEffect(() => {
-    if (ratingData) { setUserRating(ratingData.user_rating ?? 0); setAvgRating(ratingData.average_rating); setRatingsCount(ratingData.ratings_count); }
-  }, [ratingData]);
-
-  const toggleLike = async (e: React.MouseEvent) => {
+  const toggleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (likeLoading || !currentUser || currentUser.isGuest) return;
-    setLikeLoading(true);
-    setLikeAnim(true);
-    setTimeout(() => setLikeAnim(false), 400);
-    try {
-      const { liked: l, likes_count: lc } = await api.publicTrips.toggleLike(trip.id);
-      setLiked(l); setLikesCount(lc);
-    } catch { /* intentional */ } finally { setLikeLoading(false); }
+    performToggleLike(trip.id, likeLoading, currentUser, setLikeLoading, setLikeAnim, setLiked, setLikesCount);
   };
 
   const rankBorder = getRankBorder(rank);
   const rankEmoji = getRankEmoji(rank);
-  const isOwner = currentUser && !currentUser.isGuest && Number(currentUser.id) === trip.user_id;
+  const isOwner = currentUser?.id && !currentUser.isGuest && Number(currentUser.id) === trip.user_id;
   const hasImage = !!trip.image_url;
   const hasVideo = !!trip.video_url;
   const hasMedia = hasImage || hasVideo;
   const displayDescription = trip.user_description || trip.description;
   const mediaTabs = buildMediaTabs(hasImage, hasVideo);
+  const likeTransform = getLikeTransform(likeAnim, liked);
 
   return (
     <>
@@ -572,7 +629,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
             {mediaTabs.map(tab => (
               <button key={tab} onClick={() => setMediaTab(tab)}
                 style={{ flex: 1, padding: '7px 0', border: 'none', background: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: mediaTab === tab ? '#0d9e6e' : '#94a3b8', borderBottom: mediaTab === tab ? '2px solid #0d9e6e' : '2px solid transparent', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}>
-                {tab === 'map' ? '🗺️ מפה' : tab === 'image' ? '🖼️ תמונה' : '🎥 סרטון'}
+                {getTabLabel(tab)}
               </button>
             ))}
           </div>
@@ -611,7 +668,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
             <svg width="24" height="24" viewBox="0 0 24 24"
               fill={liked ? '#ef4444' : 'none'}
               stroke={liked ? '#ef4444' : '#64748b'} strokeWidth="2"
-              style={{ transition: 'all 0.25s', transform: likeAnim ? 'scale(1.4)' : liked ? 'scale(1.1)' : 'scale(1)' }}>
+              style={{ transition: 'all 0.25s', transform: likeTransform }}>
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
             </svg>
             <span style={{ fontSize: 14, fontWeight: 700, color: liked ? '#ef4444' : '#64748b' }}>{likesCount}</span>
@@ -688,7 +745,7 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
         {trip.locations.length > 0 && (
           <div style={{ display: 'flex', gap: 6, paddingInline: 15, paddingBottom: 10, flexWrap: 'wrap' }}>
             {trip.locations.slice(0, 4).map((loc, i) => (
-              <span key={i} style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 10, padding: '3px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #d1fae5' }}>
+              <span key={loc.name} style={{ background: '#f0fdf4', color: '#0d9e6e', borderRadius: 10, padding: '3px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #d1fae5' }}>
                 {i + 1}. {loc.name}
               </span>
             ))}

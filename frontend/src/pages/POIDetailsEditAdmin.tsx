@@ -25,7 +25,7 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ function LocationPickerMap({ lat, lng, onChange }: { lat: number; lng: number; o
     };
     return (
         <div style={{ height: 220, width: '100%', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0' }}>
-            <MapContainer center={[lat || 31.5, lng || 35.0]} zoom={11} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={[lat || 31.5, lng || 35]} zoom={11} style={{ height: '100%', width: '100%' }}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 {!!(lat && lng) && <Marker position={[lat, lng]} />}
                 <MapEvents />
@@ -117,10 +117,15 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
     return (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 14, color: '#374151', fontWeight: 600 }}>{label}</span>
-            <div onClick={() => onChange(!checked)}
-                style={{ width: 44, height: 24, borderRadius: 12, background: checked ? '#0d9e6e' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={checked}
+                onClick={() => onChange(!checked)}
+                style={{ width: 44, height: 24, borderRadius: 12, background: checked ? '#0d9e6e' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0, border: 'none', cursor: 'pointer', padding: 0 }}
+            >
                 <div style={{ position: 'absolute', top: 2, left: checked ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-            </div>
+            </button>
         </label>
     );
 }
@@ -154,6 +159,15 @@ function InputField({ label, value, onChange, type = 'text', placeholder = '', s
     );
 }
 
+// ── Admin-extended POI type (server returns extra DB columns) ────────────────
+
+interface AdminPOI extends POI {
+    source?: string;
+    source_id?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export interface POIDetailsEditAdminProps {
@@ -182,8 +196,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
         average_rating: String(poi.average_rating ?? 4),
         latitude: String(poi.latitude ?? ''),
         longitude: String(poi.longitude ?? ''),
-        source: (poi as any).source ?? '',
-        source_id: (poi as any).source_id ?? '',
+        source: (poi as AdminPOI).source ?? '',
+        source_id: (poi as AdminPOI).source_id ?? '',
         uploaded_by: poi.uploaded_by ?? '',
     });
 
@@ -230,7 +244,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
             if (edit.duration_minutes) payload.duration_minutes = Number.parseInt(edit.duration_minutes);
             if (edit.region_id) payload.region_id = Number.parseInt(edit.region_id);
 
-            const res = await adminFetch<{ data: any }>(`/locations/${poi.id}`, {
+            const res = await adminFetch<{ data: Partial<AdminPOI> }>(`/locations/${poi.id}`, {
                 method: 'PATCH',
                 body: JSON.stringify(payload),
             });
@@ -254,17 +268,17 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                 region_id: edit.region_id ? Number.parseInt(edit.region_id) : poi.region_id,
                 region: regions.find(r => String(r.id) === edit.region_id)?.name || poi.region,
                 uploaded_by: edit.uploaded_by || undefined,
-                ...(res as any)?.data,
+                ...(res?.data ?? {}),
                 is_featured: edit.is_featured,
                 source: edit.source,
                 source_id: edit.source_id,
-            } as any;
+            } as AdminPOI;
 
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2000);
             onSaved(updated);
-        } catch (e: any) {
-            setSaveError(e.message || 'שגיאה בשמירה');
+        } catch (e: unknown) {
+            setSaveError(e instanceof Error ? e.message : 'שגיאה בשמירה');
         } finally {
             setSaving(false);
         }
@@ -276,8 +290,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
         try {
             await adminFetch(`/locations/${poi.id}`, { method: 'DELETE' });
             onDeleted(poi.id);
-        } catch (e: any) {
-            setSaveError(e.message || 'שגיאה במחיקה');
+        } catch (e: unknown) {
+            setSaveError(e instanceof Error ? e.message : 'שגיאה במחיקה');
             setDeleting(false);
             setConfirmDelete(false);
         }
@@ -305,10 +319,10 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
             // clear timeout error rather than a generic "Failed to fetch".
             const result = await api.locations.uploadMedia(poi.id, file);
             set('main_image', result.media.media_url);
-        } catch (err: any) {
+        } catch (err: unknown) {
             // Surface the real error message so we can distinguish "413 too large"
             // from "network error" from "auth error" in the UI.
-            const msg = err?.message || 'שגיאה בהעלאת התמונה';
+            const msg = err instanceof Error ? err.message : 'שגיאה בהעלאת התמונה';
             setMainImageUploadError(
                 msg.includes('413') || msg.toLowerCase().includes('large')
                     ? 'הקובץ גדול מדי — דחס את התמונה או בחר קובץ קטן יותר'
@@ -367,7 +381,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {/* Backdrop */}
-            <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)' }} />
+            <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', border: 'none', cursor: 'pointer', padding: 0 }} />
 
             {/* Modal */}
             <div style={{
@@ -401,16 +415,24 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: 4, padding: '8px 12px', background: '#fff', borderBottom: '1px solid #f1f5f9', overflowX: 'auto', flexShrink: 0 }}>
-                    {SECTIONS.map(s => (
-                        <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
-                            padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
-                            background: activeSection === s.id ? (s.id === 'danger' ? '#dc2626' : '#0d9e6e') : 'transparent',
-                            color: activeSection === s.id ? '#fff' : (s.id === 'danger' ? '#dc2626' : '#64748b'),
-                            fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                            fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap',
-                            transition: 'all 0.15s',
-                        }}>{s.label}</button>
-                    ))}
+                    {SECTIONS.map(s => {
+                        const isDanger = s.id === 'danger';
+                        const isActive = activeSection === s.id;
+                        const activeColor = isDanger ? '#dc2626' : '#0d9e6e';
+                        const inactiveColor = isDanger ? '#dc2626' : '#64748b';
+                        const tabBackground = isActive ? activeColor : 'transparent';
+                        const tabColor = isActive ? '#fff' : inactiveColor;
+                        return (
+                            <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
+                                padding: '7px 12px', border: 'none', borderRadius: 10, flexShrink: 0,
+                                background: tabBackground,
+                                color: tabColor,
+                                fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                                fontFamily: 'Heebo, sans-serif', whiteSpace: 'nowrap',
+                                transition: 'all 0.15s',
+                            }}>{s.label}</button>
+                        );
+                    })}
                 </div>
 
                 {/* Content */}
@@ -523,8 +545,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 {geoError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6 }}>{geoError}</div>}
                                 {geoResults.length > 0 && (
                                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        {geoResults.map((r, i) => (
-                                            <button key={i} onClick={() => {
+                                        {geoResults.map(r => (
+                                            <button key={`${r.lat},${r.lon}`} onClick={() => {
                                                 set('latitude', Number.parseFloat(r.lat).toFixed(6));
                                                 set('longitude', Number.parseFloat(r.lon).toFixed(6));
                                                 setGeoResults([]);
@@ -571,7 +593,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 <FieldLabel>בחר מיקום על המפה (לחץ לעדכון)</FieldLabel>
                                 <LocationPickerMap
                                     lat={Number.parseFloat(edit.latitude) || 31.5}
-                                    lng={Number.parseFloat(edit.longitude) || 35.0}
+                                    lng={Number.parseFloat(edit.longitude) || 35}
                                     onChange={(lat, lng) => { set('latitude', lat.toFixed(6)); set('longitude', lng.toFixed(6)); }}
                                 />
                             </div>
@@ -690,8 +712,8 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                 {[
                                     { label: 'מזהה (ID)', val: poi.id },
                                     { label: 'אזור', val: poi.region || '—' },
-                                    { label: 'נוצר', val: (poi as any).created_at ? new Date((poi as any).created_at).toLocaleDateString('he-IL') : '—' },
-                                    { label: 'עודכן', val: (poi as any).updated_at ? new Date((poi as any).updated_at).toLocaleDateString('he-IL') : '—' },
+                                    { label: 'נוצר', val: (poi as AdminPOI).created_at ? new Date((poi as AdminPOI).created_at as string).toLocaleDateString('he-IL') : '—' },
+                                    { label: 'עודכן', val: (poi as AdminPOI).updated_at ? new Date((poi as AdminPOI).updated_at as string).toLocaleDateString('he-IL') : '—' },
                                     { label: 'מספר תמונות', val: `${edit.images.length}` },
                                     { label: 'קואורדינטות', val: `${edit.latitude}, ${edit.longitude}` },
                                 ].map(row => (
@@ -719,7 +741,7 @@ export default function POIDetailsEditAdmin({ poi, regions, onClose, onSaved, on
                                     מחיקת <strong>{poi.name}</strong> תמחק את כל הנתונים הקשורים אליו לצמיתות. פעולה זו אינה ניתנת לביטול.
                                 </p>
                                 <button onClick={handleDelete} disabled={deleting} style={{
-                                    width: '100%', padding: '14px', border: `2px solid ${confirmDelete ? '#dc2626' : '#fecaca'}` as any,
+                                    width: '100%', padding: '14px', border: `2px solid ${confirmDelete ? '#dc2626' : '#fecaca'}`,
                                     borderRadius: 12, background: confirmDelete ? '#dc2626' : '#fff',
                                     color: confirmDelete ? '#fff' : '#dc2626',
                                     fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s',
