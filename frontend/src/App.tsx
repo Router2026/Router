@@ -1,5 +1,20 @@
-import React, { useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect, lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigationType } from 'react-router-dom';
+
+// We manage scroll restoration manually so Chrome doesn't override it on back navigation.
+if (globalThis.window !== undefined) globalThis.window.history.scrollRestoration = 'manual';
+
+// Scroll to top on every forward navigation (PUSH/REPLACE).
+// Back navigation (POP) is left to each page to handle — Explore restores its
+// own position via useLayoutEffect with a cached snapshot.
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const navType = useNavigationType();
+  useLayoutEffect(() => {
+    if (navType !== 'POP') globalThis.window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [pathname, navType]);
+  return null;
+}
 import Layout from './components/Layout';
 import Home  from './pages/Home';
 import Login from './pages/Login';
@@ -107,6 +122,7 @@ function AppRoutes() {
 
   return (
     <>
+      <ScrollToTop />
       <TokenSync />
       <GuestBanner />
       <InstallPrompt />

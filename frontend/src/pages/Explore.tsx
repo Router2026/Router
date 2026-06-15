@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type POI, geocodeCity, haversineDistance, type GeocodedCity } from '../api';
 import RouterLogo from '../assets/logo.jpeg';
@@ -11,9 +11,9 @@ import { useGuestLock } from '../components/LockedFeature';
 
 // ── Persistence ──────────────────────────────────────────────────────────────
 
-const EXPLORE_STATE_KEY   = 'explore:state';
-const EXPLORE_SCROLL_KEY  = 'explore:scroll';
-const EXPLORE_FROM_DETAIL = 'explore:from_detail';
+const EXPLORE_STATE_KEY    = 'explore:state';
+const EXPLORE_SNAPSHOT_KEY = 'explore:snapshot';
+const EXPLORE_FROM_DETAIL  = 'explore:from_detail';
 
 interface ExplorePersistedState {
   search: string;
@@ -27,15 +27,31 @@ interface ExplorePersistedState {
   userCoords: { lat: number; lng: number } | null;
 }
 
-function readPersistedState(): { state: ExplorePersistedState; scrollY: number } | null {
+// Snapshot captures the full rendered list so scroll can be restored without
+// waiting for a re-fetch on back navigation.
+interface ExploreSnapshot {
+  pois: POI[];
+  totalCount: number | null;
+  page: number;
+  scrollY: number;
+}
+
+interface RestoredSession {
+  state: ExplorePersistedState;
+  snapshot: ExploreSnapshot;
+}
+
+function readRestored(): RestoredSession | null {
   try {
     if (sessionStorage.getItem(EXPLORE_FROM_DETAIL) !== '1') return null;
     sessionStorage.removeItem(EXPLORE_FROM_DETAIL);
-    const raw = sessionStorage.getItem(EXPLORE_STATE_KEY);
-    if (!raw) return null;
-    const state = JSON.parse(raw) as ExplorePersistedState;
-    const scrollY = Number(sessionStorage.getItem(EXPLORE_SCROLL_KEY) ?? '0');
-    return { state, scrollY };
+    const stateRaw = sessionStorage.getItem(EXPLORE_STATE_KEY);
+    const snapRaw  = sessionStorage.getItem(EXPLORE_SNAPSHOT_KEY);
+    if (!stateRaw || !snapRaw) return null;
+    return {
+      state:    JSON.parse(stateRaw) as ExplorePersistedState,
+      snapshot: JSON.parse(snapRaw)  as ExploreSnapshot,
+    };
   } catch {
     return null;
   }
@@ -441,13 +457,22 @@ export default function Explore() {
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
 
-  // ── Restore persisted state synchronously (no flash) ─────────────────────
-  // readPersistedState() checks for the EXPLORE_FROM_DETAIL marker set by
-  // POICard before navigating away, so state is only restored on Back, not on
-  // fresh navigation from the nav bar or Home.
-  const [restored] = useState(() => readPersistedState());
-  const savedScrollY = restored?.scrollY ?? 0;
-  const scrollRestoredRef = useRef(false);
+  // ── Restore persisted state synchronously ────────────────────────────────
+  // readRestored() checks for the EXPLORE_FROM_DETAIL marker set by POICard
+  // before navigating away, so state is only restored on Back navigation, not
+  // on fresh navigation from the nav bar or Home.
+  const [restored] = useState(() => readRestored());
+  // skipInitialFetchRef prevents the search effect from re-fetching when we
+  // already have a cached POI list from the snapshot.
+  const skipInitialFetchRef = useRef(!!restored);
+
+  // Restore scroll synchronously before the browser paints — no flash.
+  // history.scrollRestoration = 'manual' (set in App.tsx) prevents Chrome from
+  // overriding this with its own async scroll restoration.
+  useLayoutEffect(() => {
+    if (!restored?.snapshot.scrollY) return;
+    window.scrollTo({ top: restored.snapshot.scrollY, behavior: 'instant' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [search, setSearch] = useState(() => restored?.state.search ?? urlQuery);
@@ -460,10 +485,10 @@ export default function Explore() {
   const [filterOpen, setFilterOpen] = useState(false);
 
   // ── Server-side pagination ────────────────────────────────────────────────
-  const [pois, setPois] = useState<POI[]>([]);
-  const pageRef = useRef(0);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [pois, setPois] = useState<POI[]>(() => restored?.snapshot.pois ?? []);
+  const pageRef = useRef(restored?.snapshot.page ?? 0);
+  const [totalCount, setTotalCount] = useState<number | null>(() => restored?.snapshot.totalCount ?? null);
+  const [loading, setLoading] = useState(!restored);
   const [error, setError] = useState<string | null>(null);
   const hasMore = totalCount === null ? true : pois.length < totalCount;
 
@@ -508,26 +533,13 @@ export default function Explore() {
   // any further page requests even though totalCount (server-side) may be high.
   const cityFetchExhaustedRef = useRef(false);
 
-  // ── Persist filter + sort state on every change ───────────────────────────
+  // ── Persist filter + sort state continuously ──────────────────────────────
   useEffect(() => {
     const state: ExplorePersistedState = {
       search, selRegions, selCats, selDiffs, hasWater, hasShade, accessible, sortByProximity, userCoords,
     };
     sessionStorage.setItem(EXPLORE_STATE_KEY, JSON.stringify(state));
   }, [search, selRegions, selCats, selDiffs, hasWater, hasShade, accessible, sortByProximity, userCoords]);
-
-  // ── Save scroll position when leaving the page ────────────────────────────
-  useEffect(() => {
-    return () => { sessionStorage.setItem(EXPLORE_SCROLL_KEY, String(window.scrollY)); };
-  }, []);
-
-  // ── Restore scroll after the initial fetch settles ────────────────────────
-  const poisLoaded = pois.length > 0;
-  useEffect(() => {
-    if (scrollRestoredRef.current || !savedScrollY || loading || !poisLoaded) return;
-    scrollRestoredRef.current = true;
-    requestAnimationFrame(() => { window.scrollTo(0, savedScrollY); });
-  }, [loading, savedScrollY, poisLoaded]);
 
   // ── Fetch filter meta once ────────────────────────────────────────────────
   useEffect(() => {
@@ -615,6 +627,12 @@ export default function Explore() {
   // this effect's dep array (via `fetchPage`), so filter changes re-run this
   // effect and trigger a fresh fetch regardless of whether city mode is active.
   useEffect(() => {
+    // On back navigation we already have the cached POI list — skip the fetch.
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false;
+      return;
+    }
+
     let cancelled = false;
 
     const run = async () => {
@@ -788,8 +806,15 @@ export default function Explore() {
   }, []);
 
   const handleBeforePoiNavigate = useCallback(() => {
+    const snapshot: ExploreSnapshot = {
+      pois,
+      totalCount,
+      page: pageRef.current,
+      scrollY: window.scrollY,
+    };
+    sessionStorage.setItem(EXPLORE_SNAPSHOT_KEY, JSON.stringify(snapshot));
     sessionStorage.setItem(EXPLORE_FROM_DETAIL, '1');
-  }, []);
+  }, [pois, totalCount]);
 
   const activeFilterCount =
     selRegions.length + selCats.length + selDiffs.length +
