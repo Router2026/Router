@@ -1,31 +1,104 @@
 // src/api.ts — UPDATED: media upload (images+video), ratings, nearby locations
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { toast } from 'sonner';
+
 export const BASE_URL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
 let _token: string | null = null;
 export function setAuthToken(t: string | null) { _token = t; }
 export function getAuthToken() { return _token; }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   code?: string;
-  constructor(message: string, code?: string) { super(message); this.code = code; }
+  status?: number;
+  constructor(message: string, code?: string, status?: number) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
 }
 
+export { toast };
+
 const TOKEN_KEY = 'router_auth_token';
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 1000;
+
+function isNetworkError(err: unknown): err is TypeError {
+  return err instanceof TypeError && (
+    err.message === 'Failed to fetch' ||
+    err.message === 'Load failed' ||
+    err.message.includes('NetworkError')
+  );
+}
+
+function shouldRetry(method: string, attempt: number, err: unknown, status?: number): boolean {
+  if (attempt >= MAX_RETRIES) return false;
+  // Only retry idempotent methods
+  const idempotent = !method || ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+  if (!idempotent) return false;
+  // Retry on network failures or server errors (5xx), not on 4xx
+  if (isNetworkError(err)) return true;
+  if (status && status >= 500) return true;
+  return false;
+}
+
+function retryDelay(attempt: number): Promise<void> {
+  const jitter = 0.8 + Math.random() * 0.4;
+  const ms = RETRY_BASE_MS * Math.pow(2, attempt) * jitter;
+  return new Promise(r => setTimeout(r, ms));
+}
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = _token ?? localStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE_URL}${path}`, { headers, ...options });
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`;
-    let code: string | undefined;
-    try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
-    throw new ApiError(message, code);
+  const method = options?.method ?? 'GET';
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await retryDelay(attempt - 1);
+    }
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, { headers, ...options });
+      if (!res.ok) {
+        let message = `HTTP ${res.status}`;
+        let code: string | undefined;
+        try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
+        const apiErr = new ApiError(message, code, res.status);
+        if (shouldRetry(method, attempt, apiErr, res.status)) {
+          lastErr = apiErr;
+          continue;
+        }
+        throw apiErr;
+      }
+      return res.json();
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      if (isNetworkError(err) && shouldRetry(method, attempt, err)) {
+        lastErr = err;
+        if (attempt === 0) {
+          toast.error('בעיית חיבור לאינטרנט, מנסה שנית...', {
+            id: 'network-retry',
+            duration: 8000,
+          });
+        }
+        continue;
+      }
+      throw err;
+    }
   }
-  return res.json();
+
+  // All retries exhausted
+  toast.dismiss('network-retry');
+  if (isNetworkError(lastErr)) {
+    toast.error('אין חיבור לאינטרנט. בדוק את החיבור ונסה שוב.', { duration: 6000 });
+  } else {
+    toast.error('שגיאת שרת. נסה שוב מאוחר יותר.', { duration: 5000 });
+  }
+  throw lastErr;
 }
 
 // For multipart/form-data uploads — no Content-Type header so browser sets boundary automatically
@@ -33,12 +106,20 @@ async function apiFetchForm<T>(path: string, formData: FormData): Promise<T> {
   const token = _token ?? localStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+  } catch (err) {
+    if (isNetworkError(err)) {
+      toast.error('אין חיבור לאינטרנט. לא ניתן להעלות את הקובץ.', { duration: 6000 });
+    }
+    throw err;
+  }
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let code: string | undefined;
     try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
-    throw new ApiError(message, code);
+    throw new ApiError(message, code, res.status);
   }
   return res.json();
 }

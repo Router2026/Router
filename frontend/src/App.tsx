@@ -45,6 +45,7 @@ function PageLoader() {
   );
 }
 
+import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TripBucketProvider } from './context/TripBucketContext';
 import { FavoritesProvider } from './context/FavoritesContext';
@@ -169,6 +170,16 @@ export default function App() {
           <Router>
             <AppRoutes />
           </Router>
+          <Toaster
+            position="bottom-center"
+            toastOptions={{
+              style: {
+                fontFamily: 'Heebo, sans-serif',
+                direction: 'rtl',
+                textAlign: 'right',
+              },
+            }}
+          />
         </FavoritesProvider>
       </TripBucketProvider>
     </AuthProvider>
