@@ -45,9 +45,28 @@ function shouldRetry(method: string, attempt: number, err: unknown, status?: num
 }
 
 function retryDelay(attempt: number): Promise<void> {
-  const jitter = 0.8 + Math.random() * 0.4;
+  const jitter = 0.8 + Math.random() * 0.4; // NOSONAR — timing jitter, not cryptographic
   const ms = RETRY_BASE_MS * Math.pow(2, attempt) * jitter;
   return new Promise(r => setTimeout(r, ms));
+}
+
+type AttemptResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; err: unknown; status?: number };
+
+async function singleAttempt<T>(url: string, init: RequestInit): Promise<AttemptResult<T>> {
+  try {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      let message = `HTTP ${res.status}`;
+      let code: string | undefined;
+      try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
+      return { ok: false, err: new ApiError(message, code, res.status), status: res.status };
+    }
+    return { ok: true, data: await res.json() };
+  } catch (err) {
+    return { ok: false, err };
+  }
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -58,46 +77,25 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   let lastErr: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      await retryDelay(attempt - 1);
+    if (attempt > 0) await retryDelay(attempt - 1);
+
+    const result = await singleAttempt<T>(`${BASE_URL}${path}`, { headers, ...options });
+    if (result.ok) return result.data;
+
+    lastErr = result.err;
+    if (!shouldRetry(method, attempt, result.err, result.status)) {
+      throw result.err instanceof ApiError ? result.err : result.err;
     }
-    try {
-      const res = await fetch(`${BASE_URL}${path}`, { headers, ...options });
-      if (!res.ok) {
-        let message = `HTTP ${res.status}`;
-        let code: string | undefined;
-        try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
-        const apiErr = new ApiError(message, code, res.status);
-        if (shouldRetry(method, attempt, apiErr, res.status)) {
-          lastErr = apiErr;
-          continue;
-        }
-        throw apiErr;
-      }
-      return res.json();
-    } catch (err) {
-      if (err instanceof ApiError) throw err;
-      if (isNetworkError(err) && shouldRetry(method, attempt, err)) {
-        lastErr = err;
-        if (attempt === 0) {
-          toast.error('בעיית חיבור לאינטרנט, מנסה שנית...', {
-            id: 'network-retry',
-            duration: 8000,
-          });
-        }
-        continue;
-      }
-      throw err;
+    if (isNetworkError(result.err) && attempt === 0) {
+      toast.error('בעיית חיבור לאינטרנט, מנסה שנית...', { id: 'network-retry', duration: 8000 });
     }
   }
 
-  // All retries exhausted
   toast.dismiss('network-retry');
-  if (isNetworkError(lastErr)) {
-    toast.error('אין חיבור לאינטרנט. בדוק את החיבור ונסה שוב.', { duration: 6000 });
-  } else {
-    toast.error('שגיאת שרת. נסה שוב מאוחר יותר.', { duration: 5000 });
-  }
+  const msg = isNetworkError(lastErr)
+    ? 'אין חיבור לאינטרנט. בדוק את החיבור ונסה שוב.'
+    : 'שגיאת שרת. נסה שוב מאוחר יותר.';
+  toast.error(msg, { duration: 6000 });
   throw lastErr;
 }
 

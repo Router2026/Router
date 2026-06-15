@@ -333,25 +333,11 @@ const POICard = React.memo(function POICard({ poi, onDelete, onBeforeNavigate }:
     favLock.guardAction(() => toggleFavorite(Number(poi.id)));
   };
 
-  let bucketAriaLabel: string;
-  if (isGuest) { bucketAriaLabel = 'הוספה לסל המסלול — דרוש חשבון'; }
-  else if (inBucket) { bucketAriaLabel = 'הסר מסל המסלול'; }
-  else { bucketAriaLabel = 'הוסף לסל המסלול'; }
-
-  let bucketBorder: string;
-  if (isGuest) { bucketBorder = '1.5px solid #e2e8f0'; }
-  else if (inBucket) { bucketBorder = '1.5px solid #0d9e6e'; }
-  else { bucketBorder = '1.5px solid #e2e8f0'; }
-
-  let bucketBg: string;
-  if (isGuest) { bucketBg = '#f8fafc'; }
-  else if (inBucket) { bucketBg = '#f0fdf8'; }
-  else { bucketBg = '#f8fafc'; }
-
-  let bucketColor: string;
-  if (isGuest) { bucketColor = '#94a3b8'; }
-  else if (inBucket) { bucketColor = '#0d9e6e'; }
-  else { bucketColor = '#64748b'; }
+  const bucketStyle = isGuest
+    ? { ariaLabel: 'הוספה לסל המסלול — דרוש חשבון', border: '1.5px solid #e2e8f0', bg: '#f8fafc', color: '#94a3b8' }
+    : inBucket
+    ? { ariaLabel: 'הסר מסל המסלול',                 border: '1.5px solid #0d9e6e', bg: '#f0fdf8', color: '#0d9e6e' }
+    : { ariaLabel: 'הוסף לסל המסלול',                border: '1.5px solid #e2e8f0', bg: '#f8fafc', color: '#64748b' };
 
   return (
     <button type="button" onClick={() => { onBeforeNavigate?.(); navigate(`/POIDetail?id=${poi.id}`); }}
@@ -415,8 +401,8 @@ const POICard = React.memo(function POICard({ poi, onDelete, onBeforeNavigate }:
           const addLabel = inBucket ? <>✓ נוסף לסל המסלול</> : <>+ הוספה מהירה למסלול</>;
           return (
             <button onClick={handleBucketToggle}
-              aria-label={bucketAriaLabel}
-              style={{ marginTop: 10, width: '100%', padding: '7px', border: bucketBorder, borderRadius: 10, background: bucketBg, color: bucketColor, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
+              aria-label={bucketStyle.ariaLabel}
+              style={{ marginTop: 10, width: '100%', padding: '7px', border: bucketStyle.border, borderRadius: 10, background: bucketStyle.bg, color: bucketStyle.color, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all 0.15s' }}>
               {isGuest
                 ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> הוספה לסל — דרוש חשבון</>
                 : addLabel
