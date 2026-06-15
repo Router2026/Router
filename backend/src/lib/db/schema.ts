@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType, index } from "drizzle-orm/pg-core";
 
 const tsvector = customType<{ data: string }>({
   dataType() { return "tsvector"; },
@@ -123,13 +123,21 @@ export const routes = pgTable("routes", {
   name:               varchar("name", { length: 255 }).notNull(),
   description:        text("description"),
   regionId:           integer("region_id").references(() => regions.id),
+  userId:             integer("user_id").references(() => routerUsers.id),
   totalDistanceKm:    numeric("total_distance_km", { precision: 6, scale: 2 }),
   totalDurationHours: numeric("total_duration_hours", { precision: 4, scale: 1 }),
   difficulty:         varchar("difficulty", { length: 50 }).default("בינוני"),
   groupType:          varchar("group_type", { length: 100 }).default("משפחה"),
   style:              varchar("style", { length: 100 }).default("טבע"),
   createdAt:          timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+}, (t) => [
+  // user_id already indexed as idx_routes_user (migration 0003)
+  index("idx_routes_user").on(t.userId),
+  // Default sort for all listings — added in migration 0006
+  index("routes_created_at_idx").on(t.createdAt),
+  // Region join/filter — added in migration 0006
+  index("routes_region_id_idx").on(t.regionId),
+]);
 
 export const routeStops = pgTable("route_stops", {
   id:              serial("id").primaryKey(),
@@ -141,7 +149,12 @@ export const routeStops = pgTable("route_stops", {
   durationMinutes: integer("duration_minutes").default(60),
   smartInsight:    text("smart_insight"),
   createdAt:       timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+}, (t) => [
+  // route_id already indexed as idx_route_stops_route (migration 0001)
+  index("idx_route_stops_route").on(t.routeId),
+  // Composite: covers WHERE route_id = $1 ORDER BY order_index in one scan — migration 0006
+  index("route_stops_route_id_order_idx").on(t.routeId, t.orderIndex),
+]);
 
 export const routerUsers = pgTable("users", {
   id:           serial("id").primaryKey(),
