@@ -1,8 +1,9 @@
 import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
+import Home  from './pages/Home';
+import Login from './pages/Login';
 
-const Home            = lazy(() => import('./pages/Home'));
 const Explore         = lazy(() => import('./pages/Explore'));
 const MapView         = lazy(() => import('./pages/MapView'));
 const TripPlanner     = lazy(() => import('./pages/TripPlanner'));
@@ -17,7 +18,6 @@ const AddReport       = lazy(() => import('./pages/AddReport'));
 const AddReview       = lazy(() => import('./pages/AddReview'));
 const UploadVideo     = lazy(() => import('./pages/UploadVideo'));
 const MyTrips         = lazy(() => import('./pages/MyTrips'));
-const Login           = lazy(() => import('./pages/Login'));
 const Register        = lazy(() => import('./pages/Register'));
 const VerifyEmail     = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword  = lazy(() => import('./pages/ForgotPassword'));

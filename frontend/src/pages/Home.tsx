@@ -214,7 +214,15 @@ export default function Home() {
     <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl', width: '100%' }}>
 
       {/* ── Hero ── */}
-      <div style={{ position: 'relative', height: 280, overflow: 'hidden', width: '100%', backgroundImage: 'url(https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200)', backgroundSize: 'cover', backgroundPosition: 'center 40%' }}>
+      <div style={{ position: 'relative', height: 280, overflow: 'hidden', width: '100%' }}>
+        <img
+          src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800"
+          alt=""
+          aria-hidden="true"
+          fetchPriority="high"
+          decoding="sync"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 40%' }}
+        />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(13,158,110,0.85) 0%, rgba(11,186,126,0.65) 100%)' }} />
         <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative', zIndex: 2, padding: '50px 24px 0', textAlign: 'right' }}>
           <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: 6 }}>🧭 Router</div>
