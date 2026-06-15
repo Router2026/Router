@@ -9,6 +9,38 @@ import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 import { useGuestLock } from '../components/LockedFeature';
 
+// ── Persistence ──────────────────────────────────────────────────────────────
+
+const EXPLORE_STATE_KEY   = 'explore:state';
+const EXPLORE_SCROLL_KEY  = 'explore:scroll';
+const EXPLORE_FROM_DETAIL = 'explore:from_detail';
+
+interface ExplorePersistedState {
+  search: string;
+  selRegions: string[];
+  selCats: string[];
+  selDiffs: string[];
+  hasWater: boolean;
+  hasShade: boolean;
+  accessible: boolean;
+  sortByProximity: boolean;
+  userCoords: { lat: number; lng: number } | null;
+}
+
+function readPersistedState(): { state: ExplorePersistedState; scrollY: number } | null {
+  try {
+    if (sessionStorage.getItem(EXPLORE_FROM_DETAIL) !== '1') return null;
+    sessionStorage.removeItem(EXPLORE_FROM_DETAIL);
+    const raw = sessionStorage.getItem(EXPLORE_STATE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw) as ExplorePersistedState;
+    const scrollY = Number(sessionStorage.getItem(EXPLORE_SCROLL_KEY) ?? '0');
+    return { state, scrollY };
+  } catch {
+    return null;
+  }
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const DIFFICULTIES = ['קל', 'בינוני', 'מאתגר', 'אקסטרים'];
@@ -128,7 +160,7 @@ function mergePois(prev: POI[], pageNum: number, newPois: POI[]): POI[] {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
+function FilterSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>{title}</div>
@@ -137,9 +169,9 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
   );
 }
 
-function TagGrid({ items, selected, onToggle }: {
+function TagGrid({ items, selected, onToggle }: Readonly<{
   items: string[]; selected: string[]; onToggle: (v: string) => void;
-}) {
+}>) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       {items.map(item => {
@@ -262,7 +294,11 @@ function formatDistance(m: number): string {
 
 // ── POICard ───────────────────────────────────────────────────────────────────
 
-const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDelete?: (id: string) => void }) {
+const POICard = React.memo(function POICard({ poi, onDelete, onBeforeNavigate }: {
+  poi: POI;
+  onDelete?: (id: string) => void;
+  onBeforeNavigate?: () => void;
+}) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
@@ -302,7 +338,7 @@ const POICard = React.memo(function POICard({ poi, onDelete }: { poi: POI; onDel
   else { bucketColor = '#64748b'; }
 
   return (
-    <button type="button" onClick={() => navigate(`/POIDetail?id=${poi.id}`)}
+    <button type="button" onClick={() => { onBeforeNavigate?.(); navigate(`/POIDetail?id=${poi.id}`); }}
       style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'transform 0.15s ease', border: 'none', padding: 0, textAlign: 'right', display: 'block', width: '100%' }}>
       <div style={{ position: 'relative', height: 160 }}>
         <img src={poi.thumbnail || poi.main_image || RouterLogo} alt={poi.name}
@@ -405,14 +441,22 @@ export default function Explore() {
   const urlCategory = searchParams.get('category') || '';
   const urlQuery = searchParams.get('q') || '';
 
+  // ── Restore persisted state synchronously (no flash) ─────────────────────
+  // readPersistedState() checks for the EXPLORE_FROM_DETAIL marker set by
+  // POICard before navigating away, so state is only restored on Back, not on
+  // fresh navigation from the nav bar or Home.
+  const [restored] = useState(() => readPersistedState());
+  const savedScrollY = restored?.scrollY ?? 0;
+  const scrollRestoredRef = useRef(false);
+
   // ── Filter state ──────────────────────────────────────────────────────────
-  const [search, setSearch] = useState(urlQuery);
-  const [selRegions, setSelRegions] = useState<string[]>([]);
-  const [selCats, setSelCats] = useState<string[]>(urlCategory ? [urlCategory] : []);
-  const [selDiffs, setSelDiffs] = useState<string[]>([]);
-  const [hasWater, setHasWater] = useState(false);
-  const [hasShade, setHasShade] = useState(false);
-  const [accessible, setAccessible] = useState(false);
+  const [search, setSearch] = useState(() => restored?.state.search ?? urlQuery);
+  const [selRegions, setSelRegions] = useState<string[]>(() => restored?.state.selRegions ?? []);
+  const [selCats, setSelCats] = useState<string[]>(() => restored?.state.selCats ?? (urlCategory ? [urlCategory] : []));
+  const [selDiffs, setSelDiffs] = useState<string[]>(() => restored?.state.selDiffs ?? []);
+  const [hasWater, setHasWater] = useState(() => restored?.state.hasWater ?? false);
+  const [hasShade, setHasShade] = useState(() => restored?.state.hasShade ?? false);
+  const [accessible, setAccessible] = useState(() => restored?.state.accessible ?? false);
   const [filterOpen, setFilterOpen] = useState(false);
 
   // ── Server-side pagination ────────────────────────────────────────────────
@@ -428,8 +472,8 @@ export default function Explore() {
   const [categories, setCategories] = useState<string[]>([]);
 
   // ── Proximity sort (GPS) ──────────────────────────────────────────────────
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [sortByProximity, setSortByProximity] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(() => restored?.state.userCoords ?? null);
+  const [sortByProximity, setSortByProximity] = useState(() => restored?.state.sortByProximity ?? false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
 
@@ -463,6 +507,27 @@ export default function Explore() {
   // has no more candidates. When true, the IntersectionObserver will not fire
   // any further page requests even though totalCount (server-side) may be high.
   const cityFetchExhaustedRef = useRef(false);
+
+  // ── Persist filter + sort state on every change ───────────────────────────
+  useEffect(() => {
+    const state: ExplorePersistedState = {
+      search, selRegions, selCats, selDiffs, hasWater, hasShade, accessible, sortByProximity, userCoords,
+    };
+    sessionStorage.setItem(EXPLORE_STATE_KEY, JSON.stringify(state));
+  }, [search, selRegions, selCats, selDiffs, hasWater, hasShade, accessible, sortByProximity, userCoords]);
+
+  // ── Save scroll position when leaving the page ────────────────────────────
+  useEffect(() => {
+    return () => { sessionStorage.setItem(EXPLORE_SCROLL_KEY, String(window.scrollY)); };
+  }, []);
+
+  // ── Restore scroll after the initial fetch settles ────────────────────────
+  const poisLoaded = pois.length > 0;
+  useEffect(() => {
+    if (scrollRestoredRef.current || !savedScrollY || loading || !poisLoaded) return;
+    scrollRestoredRef.current = true;
+    requestAnimationFrame(() => { window.scrollTo(0, savedScrollY); });
+  }, [loading, savedScrollY, poisLoaded]);
 
   // ── Fetch filter meta once ────────────────────────────────────────────────
   useEffect(() => {
@@ -722,6 +787,10 @@ export default function Explore() {
     setTotalCount(prev => prev === null ? null : prev - 1);
   }, []);
 
+  const handleBeforePoiNavigate = useCallback(() => {
+    sessionStorage.setItem(EXPLORE_FROM_DETAIL, '1');
+  }, []);
+
   const activeFilterCount =
     selRegions.length + selCats.length + selDiffs.length +
     (hasWater ? 1 : 0) + (hasShade ? 1 : 0) + (accessible ? 1 : 0);
@@ -812,7 +881,7 @@ export default function Explore() {
           const isLast = index === displayedPois.length - 1;
           return (
             <div key={poi.id} ref={isLast ? lastPoiRef : null}>
-              <POICard poi={poi} onDelete={handleDeletePoi} />
+              <POICard poi={poi} onDelete={handleDeletePoi} onBeforeNavigate={handleBeforePoiNavigate} />
             </div>
           );
         })}
