@@ -333,11 +333,12 @@ const POICard = React.memo(function POICard({ poi, onDelete, onBeforeNavigate }:
     favLock.guardAction(() => toggleFavorite(Number(poi.id)));
   };
 
+  const bucketStyleActive = inBucket
+    ? { ariaLabel: 'הסר מסל המסלול', border: '1.5px solid #0d9e6e', bg: '#f0fdf8', color: '#0d9e6e' }
+    : { ariaLabel: 'הוסף לסל המסלול', border: '1.5px solid #e2e8f0', bg: '#f8fafc', color: '#64748b' };
   const bucketStyle = isGuest
     ? { ariaLabel: 'הוספה לסל המסלול — דרוש חשבון', border: '1.5px solid #e2e8f0', bg: '#f8fafc', color: '#94a3b8' }
-    : inBucket
-    ? { ariaLabel: 'הסר מסל המסלול',                 border: '1.5px solid #0d9e6e', bg: '#f0fdf8', color: '#0d9e6e' }
-    : { ariaLabel: 'הוסף לסל המסלול',                border: '1.5px solid #e2e8f0', bg: '#f8fafc', color: '#64748b' };
+    : bucketStyleActive;
 
   return (
     <button type="button" onClick={() => { onBeforeNavigate?.(); navigate(`/POIDetail?id=${poi.id}`); }}

@@ -84,7 +84,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
     lastErr = result.err;
     if (!shouldRetry(method, attempt, result.err, result.status)) {
-      throw result.err instanceof ApiError ? result.err : result.err;
+      throw result.err;
     }
     if (isNetworkError(result.err) && attempt === 0) {
       toast.error('בעיית חיבור לאינטרנט, מנסה שנית...', { id: 'network-retry', duration: 8000 });
