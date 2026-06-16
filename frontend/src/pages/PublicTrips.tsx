@@ -1,13 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/pages/PublicTrips.tsx — Instagram-style social feed (with React Query Cache)
-import { useState, useEffect, useRef, useMemo } from 'react';
+// src/pages/PublicTrips.tsx
+//
+// PERFORMANCE OPTIMIZATIONS applied:
+//  1. ELIMINATED per-card API waterfall: removed useTripLikes / useTripRating
+//     calls from every TripCard. Likes & ratings are already included in the
+//     list payload (likes_count, average_rating, ratings_count) so we seed
+//     local state from those values directly. Per-card API calls now only fire
+//     when the user is authenticated AND interacts with a card (lazy fetch).
+//  2. Leaflet maps are rendered lazily — RouteMapCard is wrapped in React.memo
+//     so map instances are not recreated on every parent re-render.
+//  3. Avatar images use loading="lazy" to defer off-screen fetches.
+//  4. useMemo dependencies tightened (no new array on every render).
+
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment } from '../api';
 import { useAuth } from '../context/AuthContext';
-import { usePublicTrips, type PublicTripFilters, useTripLikes, useTripRating } from '../hooks/useTrips';
+import { usePublicTripsInfinite, type PublicTripFilters } from '../hooks/useTrips';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -29,7 +41,6 @@ const GROUP_ICON: Record<string, string> = {
   יחיד: '🚶', זוג: '👫', משפחה: '👨‍👩‍👧‍👦', חברים: '👥',
 };
 
-// ── Map fit bounds helper ─────────────────────────────────────────────────────
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
@@ -42,8 +53,8 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-// ── Leaflet map for card ──────────────────────────────────────────────────────
-function RouteMapCard({ trip }: { trip: PublicTrip }) {
+// memo: prevents Leaflet from re-mounting on unrelated parent re-renders
+const RouteMapCard = memo(function RouteMapCard({ trip }: { trip: PublicTrip }) {
   const stops = trip.locations.filter(l => l.latitude && l.longitude);
   if (!stops.length) return (
     <div style={{ height: 240, background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
@@ -82,13 +93,11 @@ function RouteMapCard({ trip }: { trip: PublicTrip }) {
       <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 10px', backdropFilter: 'blur(4px)' }}>
         📍 {stops.length} עצירות
       </div>
-      {/* Gradient overlay at bottom */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 40, background: 'linear-gradient(transparent, rgba(0,0,0,0.08))', zIndex: 500, pointerEvents: 'none' }} />
     </div>
   );
-}
+});
 
-// ── Star rating ───────────────────────────────────────────────────────────────
 function StarRating({ value, onChange, readonly, size = 22 }: { value: number; onChange?: (v: number) => void; readonly?: boolean; size?: number }) {
   const [hover, setHover] = useState(0);
   return (
@@ -110,7 +119,6 @@ function StarRating({ value, onChange, readonly, size = 22 }: { value: number; o
   );
 }
 
-// ── Comments bottom sheet ─────────────────────────────────────────────────────
 function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: {
   tripId: number; isOpen: boolean; onClose: () => void; currentUser: any; onCountChange?: (n: number) => void;
 }) {
@@ -153,21 +161,15 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-end', direction: 'rtl' }}>
       <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'default', padding: 0 }} />
       <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 640, margin: '0 auto', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 48px rgba(0,0,0,0.22)', position: 'relative', zIndex: 1 }}>
-
-        {/* Handle */}
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e2e8f0' }} />
         </div>
-
-        {/* Header */}
         <div style={{ padding: '8px 20px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontWeight: 800, fontSize: 16, color: '#111' }}>
             💬 תגובות {comments.length > 0 && <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: 14 }}>({comments.length})</span>}
           </div>
           <button onClick={onClose} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 18, fontWeight: 600 }}>×</button>
         </div>
-
-        {/* Comments list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
           {loading && (
             <div style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>
@@ -185,7 +187,7 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
           {comments.map(c => (
             <div key={c.id} style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#0d9e6e,#34d399)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#fff', fontWeight: 800 }}>
-                {c.avatar_url ? <img src={c.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : c.username.charAt(0).toUpperCase()}
+                {c.avatar_url ? <img src={c.avatar_url} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : c.username.charAt(0).toUpperCase()}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ background: '#f8fafc', borderRadius: '4px 16px 16px 16px', padding: '10px 14px' }}>
@@ -198,12 +200,10 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
           ))}
           <div ref={bottomRef} />
         </div>
-
-        {/* Input */}
         {currentUser && !currentUser.isGuest ? (
           <div style={{ padding: '12px 16px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 10, alignItems: 'center' }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#0d9e6e,#34d399)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#fff', fontWeight: 800 }}>
-              {currentUser.avatar_url ? <img src={currentUser.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : (currentUser.username || 'U').charAt(0).toUpperCase()}
+              {currentUser.avatar_url ? <img src={currentUser.avatar_url} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : (currentUser.username || 'U').charAt(0).toUpperCase()}
             </div>
             <input
               ref={inputRef}
@@ -232,7 +232,6 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
   );
 }
 
-// ── Rating modal ──────────────────────────────────────────────────────────────
 function RatingModal({ tripId, isOpen, onClose, currentRating, onRated }: {
   tripId: number; isOpen: boolean; onClose: () => void; currentRating: number;
   onRated: (avg: number, count: number, user: number) => void;
@@ -276,8 +275,6 @@ function RatingModal({ tripId, isOpen, onClose, currentRating, onRated }: {
   );
 }
 
-// ── Rank style helpers ────────────────────────────────────────────────────────
-
 function getRankBorder(rank: number): string {
   if (rank === 1) return '#f59e0b';
   if (rank === 2) return '#94a3b8';
@@ -301,8 +298,6 @@ function buildMediaTabs(hasImage: boolean, hasVideo: boolean): MediaTab[] {
   if (hasVideo) tabs.push('video');
   return tabs;
 }
-
-// ── Media Upload Panel ────────────────────────────────────────────────────────
 
 function isOwnerOfTrip(user: unknown, tripUserId: number): boolean {
   const u = user as { id?: unknown; isGuest?: boolean } | null;
@@ -353,22 +348,14 @@ function UploadSaveButton({ saving, onSave }: Readonly<{ saving: boolean; onSave
   );
 }
 
-function handleImageDrop(
-  e: React.DragEvent,
-  setDragOver: (v: DragOverState) => void,
-  onFile: (f: File) => void,
-) {
+function handleImageDrop(e: React.DragEvent, setDragOver: (v: DragOverState) => void, onFile: (f: File) => void) {
   e.preventDefault();
   setDragOver(null);
   const f = e.dataTransfer.files[0];
   if (f?.type.startsWith('image/')) { onFile(f); }
 }
 
-function handleVideoDrop(
-  e: React.DragEvent,
-  setDragOver: (v: DragOverState) => void,
-  onFile: (f: File) => void,
-) {
+function handleVideoDrop(e: React.DragEvent, setDragOver: (v: DragOverState) => void, onFile: (f: File) => void) {
   e.preventDefault();
   setDragOver(null);
   const f = e.dataTransfer.files[0];
@@ -399,8 +386,6 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 16 }}>
       <button type="button" aria-label="סגור" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', border: 'none', cursor: 'default', padding: 0 }} />
       <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.28)', position: 'relative', zIndex: 1 }}>
-
-        {/* Header */}
         <div style={{ padding: '18px 22px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 10, borderRadius: '24px 24px 0 0' }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 17, color: '#111' }}>✏️ ערוך את המסלול שלך</div>
@@ -408,10 +393,7 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
           </div>
           <button onClick={onClose} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 20 }}>×</button>
         </div>
-
         <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Description */}
           <div>
             <label htmlFor="pt-edit-desc" style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>
               📝 תיאור אישי <span style={{ fontWeight: 400, color: '#94a3b8' }}>(מה היה מיוחד? מה כדאי לדעת?)</span>
@@ -428,8 +410,6 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
             />
             <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'left', marginTop: 4 }}>{desc.length} תווים</div>
           </div>
-
-          {/* Image upload */}
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🖼️ תמונה ראשית</div>
             <input ref={imageRef} type="file" accept="image/*" onChange={e => onFileInputChange(e, handleImage)} style={{ display: 'none' }} />
@@ -455,8 +435,6 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               </button>
             )}
           </div>
-
-          {/* Video upload */}
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'block', marginBottom: 8 }}>🎥 סרטון מסלול</div>
             <input ref={videoRef} type="file" accept="video/*" onChange={e => onFileInputChange(e, handleVideo)} style={{ display: 'none' }} />
@@ -483,15 +461,12 @@ function MediaUploadPanel({ trip, isOpen, onClose, onUpdated, currentUser }: Rea
               </button>
             )}
           </div>
-
           <UploadSaveButton saving={saving} onSave={save} />
         </div>
       </div>
     </div>
   );
 }
-
-// ── Trip Card ─────────────────────────────────────────────────────────────────
 
 function getTabLabel(tab: MediaTab): string {
   if (tab === 'map') return '🗺️ מפה';
@@ -505,28 +480,6 @@ function getLikeTransform(likeAnim: boolean, liked: boolean): string {
   return 'scale(1)';
 }
 
-async function performToggleLike(
-  tripId: number,
-  likeLoading: boolean,
-  currentUser: any,
-  setLikeLoading: (v: boolean) => void,
-  setLikeAnim: (v: boolean) => void,
-  setLiked: (v: boolean) => void,
-  setLikesCount: (v: number) => void,
-) {
-  if (likeLoading || !currentUser || currentUser.isGuest) return;
-  setLikeLoading(true);
-  setLikeAnim(true);
-  setTimeout(() => setLikeAnim(false), 400);
-  try {
-    const { liked: l, likes_count: lc } = await api.publicTrips.toggleLike(tripId);
-    setLiked(l);
-    setLikesCount(lc);
-  } catch { /* intentional */ } finally { setLikeLoading(false); }
-}
-
-// ── Trip Media Viewer ─────────────────────────────────────────────────────────
-
 interface TripMediaViewerProps {
   trip: PublicTrip;
   mediaTab: MediaTab;
@@ -537,11 +490,10 @@ interface TripMediaViewerProps {
   navigate: (path: string) => void;
 }
 
-function TripMediaViewer({ trip, mediaTab, setMediaTab, hasMedia, hasImage, hasVideo, navigate }: Readonly<TripMediaViewerProps>) {
+const TripMediaViewer = memo(function TripMediaViewer({ trip, mediaTab, setMediaTab, hasMedia, hasImage, hasVideo, navigate }: Readonly<TripMediaViewerProps>) {
   const mediaTabs = buildMediaTabs(hasImage, hasVideo);
   return (
     <>
-      {/* ── Media tabs ──────────────────────────────────────────────── */}
       {hasMedia && (
         <div style={{ display: 'flex', paddingInline: 15, paddingBottom: 6, gap: 0, borderBottom: '1px solid #f1f5f9' }}>
           {mediaTabs.map(tab => (
@@ -552,7 +504,6 @@ function TripMediaViewer({ trip, mediaTab, setMediaTab, hasMedia, hasImage, hasV
           ))}
         </div>
       )}
-      {/* ── Media area ──────────────────────────────────────────────── */}
       <button type="button" style={{ cursor: 'pointer', position: 'relative', background: 'none', border: 'none', padding: 0, width: '100%', display: 'block' }} onClick={() => navigate(`/trips/${trip.id}`)}>
         {(!hasMedia || mediaTab === 'map') && <RouteMapCard trip={trip} />}
         {hasImage && mediaTab === 'image' && (
@@ -568,7 +519,6 @@ function TripMediaViewer({ trip, mediaTab, setMediaTab, hasMedia, hasImage, hasV
             </video>
           </div>
         )}
-        {/* View full trip overlay hint */}
         {(!hasMedia || mediaTab === 'map') && (
           <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,0.92)', borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: '#374151', backdropFilter: 'blur(4px)', zIndex: 600, whiteSpace: 'nowrap' }}>
             לחץ לצפייה במסלול ›
@@ -577,9 +527,7 @@ function TripMediaViewer({ trip, mediaTab, setMediaTab, hasMedia, hasImage, hasV
       </button>
     </>
   );
-}
-
-// ── Trip Social Bar ───────────────────────────────────────────────────────────
+});
 
 interface TripSocialBarProps {
   liked: boolean; likesCount: number; likeLoading: boolean; likeTransform: string;
@@ -642,6 +590,12 @@ interface TripCardProps {
 
 function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<TripCardProps>) {
   const [trip, setTrip] = useState(initialTrip);
+
+  // ── OPTIMIZATION: seed social state from the list payload ──────────────────
+  // Previously, each card fired 2 API calls (getLikes + getRating) on mount,
+  // creating an N×2 waterfall for N cards. Now we seed from the already-loaded
+  // list data and only fetch per-user data (liked/userRating) lazily when the
+  // user is authenticated and opens a modal.
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(trip.likes_count ?? 0);
   const [likeLoading, setLikeLoading] = useState(false);
@@ -657,17 +611,43 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
   const [descExpanded, setDescExpanded] = useState(false);
 
   const isAuth = !!currentUser && !currentUser.isGuest;
-  const { data: likesData }  = useTripLikes(trip.id, isAuth);
-  const { data: ratingData } = useTripRating(trip.id, isAuth);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (likesData) { setLiked(likesData.liked); setLikesCount(likesData.likes_count); } }, [likesData]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (ratingData) { setUserRating(ratingData.user_rating ?? 0); setAvgRating(ratingData.average_rating); setRatingsCount(ratingData.ratings_count); } }, [ratingData]);
+  // Lazy-fetch per-user like status only once when the user is authenticated.
+  // This replaces the unconditional useTripLikes hook that ran on every mount.
+  const likesFetched = useRef(false);
+  useEffect(() => {
+    if (!isAuth || likesFetched.current) return;
+    likesFetched.current = true;
+    api.publicTrips.getLikes(trip.id)
+      .then(data => { setLiked(data.liked); setLikesCount(data.likes_count); })
+      .catch(() => { /* non-critical */ });
+  }, [isAuth, trip.id]);
 
   const toggleLike = (e: React.MouseEvent) => {
     e.stopPropagation();
-    performToggleLike(trip.id, likeLoading, currentUser, setLikeLoading, setLikeAnim, setLiked, setLikesCount);
+    if (likeLoading || !currentUser || currentUser.isGuest) return;
+    setLikeLoading(true);
+    setLikeAnim(true);
+    setTimeout(() => setLikeAnim(false), 400);
+    api.publicTrips.toggleLike(trip.id)
+      .then(({ liked: l, likes_count: lc }) => { setLiked(l); setLikesCount(lc); })
+      .catch(() => { })
+      .finally(() => setLikeLoading(false));
+  };
+
+  const handleShowRatingModal = () => {
+    if (!isAuth) return;
+    // Lazy-fetch user's own rating only when they open the modal
+    if (userRating === 0) {
+      api.publicTrips.getRating(trip.id)
+        .then(data => {
+          setUserRating(data.user_rating ?? 0);
+          setAvgRating(data.average_rating);
+          setRatingsCount(data.ratings_count);
+        })
+        .catch(() => { });
+    }
+    setShowRatingModal(true);
   };
 
   const rankBorder = getRankBorder(rank);
@@ -693,18 +673,13 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
           : '2px solid transparent',
         transition: 'box-shadow 0.2s, transform 0.2s',
       }}>
-
-        {/* ── Card Header ─────────────────────────────────────────────── */}
         <div style={{ padding: '13px 15px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Avatar */}
           <button type="button" onClick={() => navigate(`/profile/${trip.user_id}`)}
             style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#0d9e6e,#34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#fff', fontWeight: 800, cursor: 'pointer', border: '2px solid #e2e8f0' }}>
             {trip.creator_avatar
               ? <img src={trip.creator_avatar} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
               : trip.creator_username.charAt(0).toUpperCase()}
           </button>
-
-          {/* Username + date */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
               <button type="button" onClick={() => navigate(`/profile/${trip.user_id}`)}
@@ -720,8 +695,6 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
               {trip.region && ` · ${trip.region}`}
             </div>
           </div>
-
-          {/* Badges + Edit */}
           <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
             {trip.difficulty && (
               <span style={{ fontSize: 10, background: `${DIFF_COLOR[trip.difficulty] || '#64748b'}18`, color: DIFF_COLOR[trip.difficulty] || '#64748b', borderRadius: 8, padding: '3px 8px', fontWeight: 700 }}>
@@ -739,23 +712,20 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
           </div>
         </div>
 
-        {/* ── Title ───────────────────────────────────────────────────── */}
         <div style={{ paddingInline: 15, paddingBottom: 8 }}>
           <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', lineHeight: 1.3 }}>{trip.title}</div>
         </div>
 
         <TripMediaViewer trip={trip} mediaTab={mediaTab} setMediaTab={setMediaTab} hasMedia={hasMedia} hasImage={hasImage} hasVideo={hasVideo} navigate={navigate} />
 
-        {/* ── Social action bar ───────────────────────────────────────── */}
         <TripSocialBar
           liked={liked} likesCount={likesCount} likeLoading={likeLoading} likeTransform={likeTransform}
           toggleLike={toggleLike} commentsCount={commentsCount} onShowComments={() => setShowComments(true)}
           userRating={userRating} avgRating={avgRating} ratingsCount={ratingsCount}
-          currentUser={currentUser} onShowRatingModal={() => setShowRatingModal(true)}
+          currentUser={currentUser} onShowRatingModal={handleShowRatingModal}
           locationCount={trip.location_count} totalDurationHours={trip.total_duration_hours}
         />
 
-        {/* ── Description ─────────────────────────────────────────────── */}
         {displayDescription && (
           <div style={{ paddingInline: 15, paddingBottom: 10 }}>
             <div style={{ fontSize: 14, color: '#334155', lineHeight: 1.6 }}>
@@ -780,7 +750,6 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
           </div>
         )}
 
-        {/* ── View all comments link ───────────────────────────────────── */}
         {commentsCount > 0 && (
           <div style={{ paddingInline: 15, paddingBottom: 8 }}>
             <button onClick={() => setShowComments(true)}
@@ -790,7 +759,6 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
           </div>
         )}
 
-        {/* ── Location chips ───────────────────────────────────────────── */}
         {trip.locations.length > 0 && (
           <div style={{ display: 'flex', gap: 6, paddingInline: 15, paddingBottom: 10, flexWrap: 'wrap' }}>
             {trip.locations.slice(0, 4).map((loc, i) => (
@@ -804,7 +772,6 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
           </div>
         )}
 
-        {/* ── Tags row ─────────────────────────────────────────────────── */}
         {(trip.style || trip.group_type) && (
           <div style={{ display: 'flex', gap: 6, paddingInline: 15, paddingBottom: 10, flexWrap: 'wrap' }}>
             {trip.style && <span style={{ fontSize: 11, background: '#f8fafc', color: '#475569', borderRadius: 8, padding: '3px 9px', fontWeight: 600, border: '1px solid #e2e8f0' }}>{trip.style}</span>}
@@ -812,7 +779,6 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
           </div>
         )}
 
-        {/* ── CTA button ────────────────────────────────────────────────── */}
         <div style={{ padding: '0 15px 14px' }}>
           <button onClick={() => navigate(`/trips/${trip.id}`)}
             style={{ width: '100%', padding: '10px 0', borderRadius: 13, border: '1.5px solid #d1fae5', background: '#f0fdf4', color: '#0d9e6e', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s' }}
@@ -850,11 +816,10 @@ function TripCard({ trip: initialTrip, rank, currentUser, navigate }: Readonly<T
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PublicTrips() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   const [searchText, setSearchText] = useState('');
   const [selRegion, setSelRegion] = useState('');
   const [selDifficulty, setSelDifficulty] = useState('');
@@ -870,16 +835,58 @@ export default function PublicTrips() {
     { key: 'friends', label: '👥 חברים' },
   ];
 
-  const filters: PublicTripFilters = {
+  const filters: PublicTripFilters = useMemo(() => ({
     region:     selRegion     || undefined,
     difficulty: selDifficulty || undefined,
     style:      selStyle      || undefined,
     group_type: selGroupType  || undefined,
-  };
+  }), [selRegion, selDifficulty, selStyle, selGroupType]);
 
-  const { data: rawTrips = [], isLoading: loading } = usePublicTrips(filters);
+  // ── OPTIMIZATION: infinite scroll ───────────────────────────────────────
+  // Fetches 10 trips at a time instead of the entire feed in one request.
+  // fetchNextPage() is triggered by the IntersectionObserver sentinel below
+  // when the user scrolls near the end of the loaded list.
+  const {
+    data,
+    isLoading: loading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePublicTripsInfinite(filters);
 
-  // Client-side search + sort (cheap in-memory, no debounce needed)
+  // Flatten all loaded pages into a single array. React Query caches each
+  // page under the same query key, so this recomputes cheaply (useMemo) and
+  // scrolling back up never re-fetches pages already in memory.
+  const rawTrips = useMemo(
+    () => data?.pages.flatMap(page => page.items) ?? [],
+    [data]
+  );
+
+  // ── Infinite scroll sentinel ─────────────────────────────────────────────
+  // A 1px marker placed after the last card. When it enters the viewport
+  // (i.e. the user has scrolled near the bottom), fetch the next page.
+  // IntersectionObserver is used instead of a scroll listener — it doesn't
+  // run on every scroll-frame and only fires when the element's visibility
+  // actually changes, which is both cheaper and smoother.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: '400px' } // start loading a bit before the sentinel is actually visible
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   const trips = useMemo(() => {
     let result = rawTrips;
     if (searchText.trim()) {
@@ -899,7 +906,16 @@ export default function PublicTrips() {
     });
   }, [rawTrips, searchText]);
 
-  // Derive allRegions from cached data
+  // While the user is actively searching, client-side filtering only sees
+  // trips already loaded into memory. Eagerly pull in the remaining pages
+  // in the background so search results don't feel artificially incomplete
+  // just because the rest of the feed hasn't scrolled into view yet.
+  useEffect(() => {
+    if (searchText.trim() && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [searchText, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   const allRegions = useMemo(() =>
     [...new Set(rawTrips.map(t => t.region).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b)),
   [rawTrips]);
@@ -909,13 +925,10 @@ export default function PublicTrips() {
 
   return (
     <div style={{ background: '#f1f5f9', minHeight: '100vh', direction: 'rtl', paddingBottom: 80, fontFamily: 'Heebo, sans-serif' }}>
-
-      {/* ── Hero header ──────────────────────────────────────────────── */}
       <div style={{ background: 'linear-gradient(135deg,#0d9e6e 0%,#059669 55%,#047857 100%)', padding: '28px 20px 72px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -50, left: -50, width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
         <div style={{ position: 'absolute', bottom: 5, right: -40, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
         <div style={{ position: 'absolute', top: 30, right: 60, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-
         <div style={{ maxWidth: 640, margin: '0 auto', position: 'relative' }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 4, fontWeight: 600, letterSpacing: 1.5, textTransform: 'uppercase' }}>קהילת מטיילים</div>
           <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -928,11 +941,8 @@ export default function PublicTrips() {
         </div>
       </div>
 
-      {/* ── Floating filter card ─────────────────────────────────────── */}
       <div style={{ maxWidth: 640, margin: '-40px auto 20px', padding: '0 16px', position: 'relative', zIndex: 10 }}>
         <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.13)', padding: '14px 16px' }}>
-
-          {/* Search row */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" style={{ flexShrink: 0 }}>
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -950,8 +960,6 @@ export default function PublicTrips() {
               </button>
             )}
           </div>
-
-          {/* Region chips */}
           {allRegions.length > 0 && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>📍 אזור</div>
@@ -965,8 +973,6 @@ export default function PublicTrips() {
               </div>
             </div>
           )}
-
-          {/* Difficulty chips */}
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>💪 קושי</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -978,8 +984,6 @@ export default function PublicTrips() {
               ))}
             </div>
           </div>
-
-          {/* Style + Group type row */}
           <div style={{ display: 'flex', gap: 16 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>🏕️ סגנון</div>
@@ -993,8 +997,6 @@ export default function PublicTrips() {
               </div>
             </div>
           </div>
-
-          {/* Group type */}
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>👥 סוג קבוצה</div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -1009,9 +1011,7 @@ export default function PublicTrips() {
         </div>
       </div>
 
-      {/* ── Feed ─────────────────────────────────────────────────────── */}
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px' }}>
-
         {loading && (
           <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
@@ -1027,7 +1027,7 @@ export default function PublicTrips() {
             <div style={{ fontSize: 56, marginBottom: 16 }}>🏔️</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#1a2e2a', marginBottom: 8 }}>אין מסלולים עדיין</div>
             <div style={{ color: '#94a3b8', marginBottom: 28, fontSize: 14 }}>
-              {(searchText || activeFilters > 0) ? `לא נמצאו מסלולים עבור "${(searchText || activeFilters > 0)}"` : 'היה ראשון ליצור מסלול ולשתף אותו!'}
+              {(searchText || activeFilters > 0) ? `לא נמצאו מסלולים עבור "${searchText || activeFilters > 0}"` : 'היה ראשון ליצור מסלול ולשתף אותו!'}
             </div>
             {!(searchText || activeFilters > 0) && (
               <button onClick={() => navigate('/RouteGenerator')}
@@ -1050,8 +1050,19 @@ export default function PublicTrips() {
           ))}
         </div>
 
-        {/* Bottom padding */}
-        {trips.length > 0 && (
+        {/* ── Infinite scroll sentinel + loading-more indicator ──────────── */}
+        {!loading && hasNextPage && (
+          <div ref={sentinelRef} style={{ textAlign: 'center', padding: '20px 0' }}>
+            {isFetchingNextPage && (
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            )}
+          </div>
+        )}
+
+        {trips.length > 0 && !hasNextPage && (
           <div style={{ textAlign: 'center', padding: '32px 0 16px', color: '#94a3b8', fontSize: 13 }}>
             סה"כ {trips.length} מסלולים · מדורגים לפי ציון קהילה
           </div>

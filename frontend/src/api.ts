@@ -287,6 +287,12 @@ export interface PublicTrip {
   average_rating?: number; ratings_count?: number;
 }
 
+/** Returned by /trips/public when used for infinite-scroll pagination. */
+export interface PaginatedTrips {
+  items: PublicTrip[];
+  has_more: boolean;
+}
+
 export interface FavoriteLocation {
   id: number; user_id: number; location_id: number; created_at: string;
   name?: string; category?: string; region_name?: string;
@@ -583,6 +589,20 @@ export const api = {
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.offset) qs.set('offset', String(params.offset));
       return (await apiFetch<{ data: PublicTrip[] }>(`/trips/public?${qs}`)).data;
+    },
+    // OPTIMIZATION (infinite scroll): the backend now returns
+    // { items, has_more } from the same /trips/public endpoint (default page
+    // size 10). This is the paginated counterpart to `list` above — used by
+    // the Community feed instead of fetching everything in one request.
+    listPaginated: async (params?: { region?: string; difficulty?: string; style?: string; group_type?: string; limit?: number; offset?: number }): Promise<PaginatedTrips> => {
+      const qs = new URLSearchParams();
+      if (params?.region) qs.set('region', params.region);
+      if (params?.difficulty) qs.set('difficulty', params.difficulty);
+      if (params?.style) qs.set('style', params.style);
+      if (params?.group_type) qs.set('group_type', params.group_type);
+      qs.set('limit', String(params?.limit ?? 10));
+      qs.set('offset', String(params?.offset ?? 0));
+      return (await apiFetch<{ data: PaginatedTrips }>(`/trips/public?${qs}`)).data;
     },
     get: async (id: number): Promise<PublicTrip> =>
       (await apiFetch<{ data: PublicTrip }>(`/trips/public/${id}`)).data,

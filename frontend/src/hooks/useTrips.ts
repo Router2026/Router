@@ -3,8 +3,8 @@
 // and all associated social data (likes, ratings, comments, media).
 // Pages import these instead of calling api.* inside useEffect.
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type Trip, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia } from '../api';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { api, type Trip, type PublicTrip, type PaginatedTrips, type RouteComment, type RouteImage, type CommunityMedia } from '../api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 
@@ -74,6 +74,30 @@ export function usePublicTrips(filters: PublicTripFilters = {}) {
     queryKey: tripKeys.publicList(filters),
     queryFn: () => api.publicTrips.list(filters),
     staleTime: 3 * 60 * 1000,   // feed stays fresh 3 min
+    gcTime: 15 * 60 * 1000,
+  });
+}
+
+const PAGE_SIZE = 10;
+
+/**
+ * Infinite-scroll variant of the public trips feed.
+ *
+ * Fetches PAGE_SIZE (10) trips at a time instead of the whole feed in one
+ * request. Call `fetchNextPage()` (wired to an intersection observer in
+ * PublicTrips.tsx) when the user scrolls near the bottom of the list to load
+ * the next page. React Query keeps every fetched page cached under one query
+ * key, so scrolling back up doesn't refetch already-seen pages.
+ */
+export function usePublicTripsInfinite(filters: PublicTripFilters = {}) {
+  return useInfiniteQuery<PaginatedTrips>({
+    queryKey: [...tripKeys.publicList(filters), 'infinite'] as const,
+    queryFn: ({ pageParam }) =>
+      api.publicTrips.listPaginated({ ...filters, limit: PAGE_SIZE, offset: pageParam as number }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.has_more ? allPages.length * PAGE_SIZE : undefined,
+    staleTime: 3 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 }

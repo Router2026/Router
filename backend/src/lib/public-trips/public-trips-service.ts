@@ -1,9 +1,14 @@
-// src/lib/public-trips/public-trips-service.ts — REWRITTEN
+// src/lib/public-trips/public-trips-service.ts
 //
-// The `trips` and `trip_locations` tables are empty.
-// All custom-built trips live in `routes` + `route_stops`.
-// This service now reads from those tables while keeping the same
-// PublicTrip / PublicTripLocation shape so frontend stays unchanged.
+// OPTIMIZATIONS:
+//  1. getPublicTrips fetches routes AND their stops in a SINGLE SQL query
+//     using a LEFT JOIN + aggregation (json_agg), eliminating the sequential
+//     N+1 "attachStops" round-trip.
+//  2. The aggregated stops are ordered and filtered inside SQL — no extra round-trip.
+//  3. getPublicTripById similarly uses a single JOIN for the detail view.
+//  4. getPublicTripsPaginated (new) supports infinite-scroll pagination:
+//     fetches one extra row beyond the requested page size to derive
+//     `has_more` without a separate COUNT(*) query.
 
 import { rawDb } from "@/lib/db/raw-client";
 import { awardXp, XP_REWARDS } from "@/lib/xp/xp-service";
@@ -19,7 +24,7 @@ export interface RouteImageRow {
 export interface PublicTrip {
   id:               number;
   user_id:          number;
-  title:            string;           // mapped from routes.name
+  title:            string;
   description:      string | null;
   route_geojson:    object | null;
   is_public:        boolean;
@@ -29,21 +34,18 @@ export interface PublicTrip {
   creator_xp:       number;
   location_count:   number;
   locations:        PublicTripLocation[];
-  // extra route fields exposed for richer cards
   region?:          string;
   difficulty?:      string;
   group_type?:      string;
   style?:           string;
   total_duration_hours?: number;
   total_distance_km?:    number;
-  // user-provided content
   user_description?:  string;
   image_url?:         string;
   video_url?:         string;
   points_of_interest?: string;
   recommended_stops?:  string;
   route_images?:       RouteImageRow[];
-  // social stats
   likes_count?:    number;
   comments_count?: number;
   average_rating?: number;
@@ -67,7 +69,7 @@ export interface PublicTripLocation {
 }
 
 export interface PublicTripsQuery {
-  user_id?:    number;   // filter to one user's public trips (profile page)
+  user_id?:    number;
   region?:     string;
   difficulty?: string;
   style?:      string;
@@ -76,108 +78,124 @@ export interface PublicTripsQuery {
   offset?:     number;
 }
 
+/** Paginated result for infinite-scroll feeds. */
+export interface PaginatedTrips {
+  items:    PublicTrip[];
+  has_more: boolean;
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────
 
-function rowToLocation(r: Record<string, unknown>): PublicTripLocation {
+function parseStops(raw: unknown): PublicTripLocation[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Record<string, unknown>[])
+    .filter(r => Number(r.latitude) !== 0 || Number(r.longitude) !== 0)
+    .map(r => ({
+      id:               (r.rs_id          as number) ?? 0,
+      location_id:      (r.location_id    as number) ?? 0,
+      name:             (r.name           as string) || "מיקום",
+      category:         (r.category       as string) || "טבע",
+      latitude:         Number(r.latitude),
+      longitude:        Number(r.longitude),
+      main_image:       (r.main_image     as string) || null,
+      order_index:      (r.order_index    as number) ?? 0,
+      region_name:      (r.region_name    as string) || undefined,
+      difficulty:       (r.difficulty     as string) || undefined,
+      arrival_time:     (r.arrival_time   as string) || undefined,
+      duration_minutes: (r.duration_minutes as number) || undefined,
+      smart_insight:    (r.smart_insight  as string) || undefined,
+    }));
+}
+
+function rowToTrip(r: Record<string, unknown>): PublicTrip {
+  const stops = parseStops(r.stops);
   return {
-    id:               (r.rs_id       as number) ?? 0,
-    location_id:      r.location_id  as number,
-    name:             (r.name        as string) || (r.poi_name as string) || "מיקום",
-    category:         (r.category    as string) || "טבע",
-    latitude:         Number.parseFloat(r.latitude  as string),
-    longitude:        Number.parseFloat(r.longitude as string),
-    main_image:       (r.main_image  as string) || null,
-    order_index:      (r.order_index as number) ?? 0,
-    region_name:      (r.region_name as string) || undefined,
-    difficulty:       (r.difficulty  as string) || undefined,
-    arrival_time:     (r.arrival_time    as string) || undefined,
-    duration_minutes: (r.duration_minutes as number) || undefined,
-    smart_insight:    (r.smart_insight   as string) || undefined,
+    id:               r.id          as number,
+    user_id:          r.user_id     as number,
+    title:            (r.name       as string) || "מסלול",
+    description:      (r.description as string) || null,
+    route_geojson:    null,
+    is_public:        true,
+    created_at:       r.created_at  as Date,
+    creator_username: (r.creator_username as string) || "משתמש",
+    creator_avatar:   (r.creator_avatar  as string) || null,
+    creator_xp:       Number.parseInt(r.creator_xp as string, 10) || 0,
+    location_count:   stops.length,
+    locations:        stops,
+    region:           (r.region     as string) || undefined,
+    difficulty:       (r.difficulty as string) || undefined,
+    group_type:       (r.group_type as string) || undefined,
+    style:            (r.style      as string) || undefined,
+    total_duration_hours: Number.parseFloat(r.total_duration_hours as string) || undefined,
+    total_distance_km:    Number.parseFloat(r.total_distance_km    as string) || undefined,
+    user_description:     (r.user_description  as string) || undefined,
+    image_url:            (r.image_url          as string) || undefined,
+    video_url:            (r.video_url          as string) || undefined,
+    points_of_interest:   (r.points_of_interest as string) || undefined,
+    recommended_stops:    (r.recommended_stops  as string) || undefined,
+    likes_count:          Number.parseInt(r.likes_count    as string, 10) || 0,
+    comments_count:       Number.parseInt(r.comments_count as string, 10) || 0,
+    average_rating:       Number.parseFloat(r.average_rating as string) || 0,
+    ratings_count:        Number.parseInt(r.ratings_count  as string, 10) || 0,
   };
 }
 
-/** Attach route_stop + location rows to each route. */
-async function attachStops(routes: Record<string, unknown>[]): Promise<PublicTrip[]> {
-  if (!routes.length) return [];
+// ── Single-query fetch with aggregated stops ───────────────────────────────
+// OPTIMIZATION: one round-trip instead of two (routes query + stops query).
+// json_agg collects all stops per route inside Postgres so the app server
+// receives a single result set.
 
-  const routeIds    = routes.map(r => r.id as number);
-  const placeholders = routeIds.map((_, i) => `$${i + 1}`).join(", ");
+const STOPS_SUBQUERY = `
+  (
+    SELECT COALESCE(
+      json_agg(
+        json_build_object(
+          'rs_id',            rs.id,
+          'location_id',      COALESCE(l.id, 0),
+          'name',             COALESCE(l.name, rs.poi_name, ''),
+          'category',         COALESCE(l.category, 'טבע'),
+          'latitude',         COALESCE(l.latitude::float, 0),
+          'longitude',        COALESCE(l.longitude::float, 0),
+          'main_image',       l.main_image,
+          'order_index',      rs.order_index,
+          'region_name',      reg2.name,
+          'difficulty',       l.difficulty,
+          'arrival_time',     rs.arrival_time,
+          'duration_minutes', rs.duration_minutes,
+          'smart_insight',    rs.smart_insight
+        )
+        ORDER BY rs.order_index
+      ),
+      '[]'::json
+    )
+    FROM  route_stops rs
+    LEFT  JOIN locations l   ON l.id  = rs.location_id
+    LEFT  JOIN regions   reg2 ON reg2.id = l.region_id
+    WHERE rs.route_id = r.id
+  ) AS stops
+`;
 
-  const { rows: stopRows } = await rawDb.query(
-    `SELECT
-       rs.id          AS rs_id,
-       rs.route_id,
-       rs.order_index,
-       rs.arrival_time,
-       rs.duration_minutes,
-       rs.smart_insight,
-       rs.poi_name,
-       COALESCE(l.id,   0)     AS location_id,
-       COALESCE(l.name, rs.poi_name, '') AS name,
-       COALESCE(l.category, 'טבע')      AS category,
-       COALESCE(l.latitude::float,  0)  AS latitude,
-       COALESCE(l.longitude::float, 0)  AS longitude,
-       l.main_image,
-       l.difficulty,
-       reg.name AS region_name
-     FROM   route_stops rs
-     LEFT   JOIN locations l   ON l.id  = rs.location_id
-     LEFT   JOIN regions   reg ON reg.id = l.region_id
-     WHERE  rs.route_id IN (${placeholders})
-     ORDER  BY rs.route_id, rs.order_index`,
-    routeIds
-  );
-
-  // Group stops by route_id
-  const stopsByRoute = new Map<number, PublicTripLocation[]>();
-  for (const row of stopRows) {
-    const rid = row.route_id as number;
-    if (!stopsByRoute.has(rid)) stopsByRoute.set(rid, []);
-    // Only include stops that have real coordinates
-    const loc = rowToLocation(row);
-    if (loc.latitude !== 0 || loc.longitude !== 0) {
-      stopsByRoute.get(rid)!.push(loc);
-    }
-  }
-
-  return routes.map(r => {
-    const stops = stopsByRoute.get(r.id as number) || [];
-    return {
-      id:               r.id          as number,
-      user_id:          r.user_id     as number,
-      title:            (r.name       as string) || "מסלול",
-      description:      (r.description as string) || null,
-      route_geojson:    null,
-      is_public:        true,
-      created_at:       r.created_at  as Date,
-      creator_username: (r.creator_username as string) || "משתמש",
-      creator_avatar:   (r.creator_avatar  as string) || null,
-      creator_xp:       Number.parseInt(r.creator_xp as string, 10) || 0,
-      location_count:   stops.length,
-      locations:        stops,
-      region:           (r.region     as string) || undefined,
-      difficulty:       (r.difficulty as string) || undefined,
-      group_type:       (r.group_type as string) || undefined,
-      style:            (r.style      as string) || undefined,
-      total_duration_hours: Number.parseFloat(r.total_duration_hours as string) || undefined,
-      total_distance_km:    Number.parseFloat(r.total_distance_km    as string) || undefined,
-      user_description:     (r.user_description  as string) || undefined,
-      image_url:            (r.image_url          as string) || undefined,
-      video_url:            (r.video_url          as string) || undefined,
-      points_of_interest:   (r.points_of_interest as string) || undefined,
-      recommended_stops:    (r.recommended_stops  as string) || undefined,
-      likes_count:          Number.parseInt(r.likes_count    as string, 10) || 0,
-      comments_count:       Number.parseInt(r.comments_count as string, 10) || 0,
-      average_rating:       Number.parseFloat(r.average_rating as string) || 0,
-      ratings_count:        Number.parseInt(r.ratings_count  as string, 10) || 0,
-    };
-  });
-}
+const BASE_SELECT = `
+  r.id, r.user_id, r.name, r.description,
+  r.total_duration_hours, r.total_distance_km,
+  r.difficulty, r.group_type, r.style,
+  r.created_at,
+  r.user_description, r.image_url, r.video_url,
+  r.points_of_interest, r.recommended_stops,
+  COALESCE(r.likes_count, 0)    AS likes_count,
+  COALESCE(r.comments_count, 0) AS comments_count,
+  COALESCE(r.average_rating, 0) AS average_rating,
+  COALESCE(r.ratings_count, 0)  AS ratings_count,
+  reg.name AS region,
+  u.username   AS creator_username,
+  u.avatar_url AS creator_avatar,
+  COALESCE(u.xp_points, 0) AS creator_xp,
+  ${STOPS_SUBQUERY}
+`;
 
 // ── public API ─────────────────────────────────────────────────────────────
 
 export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<PublicTrip[]> {
-  // is_public = TRUE is mandatory — never leak private routes
   const conditions: string[] = ["r.is_public = TRUE", "r.user_id IS NOT NULL"];
   const params: unknown[]    = [];
 
@@ -209,21 +227,7 @@ export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<Publ
   params.push(offset); const offsetIdx = params.length;
 
   const { rows } = await rawDb.query(
-    `SELECT
-       r.id, r.user_id, r.name, r.description,
-       r.total_duration_hours, r.total_distance_km,
-       r.difficulty, r.group_type, r.style,
-       r.created_at,
-       r.user_description, r.image_url, r.video_url,
-       r.points_of_interest, r.recommended_stops,
-       COALESCE(r.likes_count, 0)    AS likes_count,
-       COALESCE(r.comments_count, 0) AS comments_count,
-       COALESCE(r.average_rating, 0) AS average_rating,
-       COALESCE(r.ratings_count, 0)  AS ratings_count,
-       reg.name AS region,
-       u.username   AS creator_username,
-       u.avatar_url AS creator_avatar,
-       COALESCE(u.xp_points, 0) AS creator_xp
+    `SELECT ${BASE_SELECT}
      FROM   routes r
      JOIN   users u ON u.id = r.user_id
      LEFT   JOIN regions reg ON reg.id = r.region_id
@@ -233,26 +237,32 @@ export async function getPublicTrips(query: PublicTripsQuery = {}): Promise<Publ
     params
   );
 
-  return attachStops(rows);
+  return rows.map(rowToTrip);
+}
+
+/**
+ * Infinite-scroll variant of getPublicTrips.
+ *
+ * OPTIMIZATION: instead of running a separate COUNT(*) query to know whether
+ * more pages exist (which would double the query cost on every page fetch),
+ * we over-fetch by one row (LIMIT pageSize + 1). If we get pageSize + 1 rows
+ * back, we know there's at least one more page; we trim the extra row before
+ * returning. This costs nothing extra in the common case (rows are cheap to
+ * over-fetch by 1) and avoids a second round-trip to Postgres.
+ */
+export async function getPublicTripsPaginated(query: PublicTripsQuery = {}): Promise<PaginatedTrips> {
+  const pageSize = Math.min(query.limit || 10, 50);
+  const rowsResult = await getPublicTrips({ ...query, limit: pageSize + 1 });
+
+  const hasMore = rowsResult.length > pageSize;
+  const items = hasMore ? rowsResult.slice(0, pageSize) : rowsResult;
+
+  return { items, has_more: hasMore };
 }
 
 export async function getPublicTripById(tripId: number): Promise<PublicTrip | null> {
   const { rows } = await rawDb.query(
-    `SELECT
-       r.id, r.user_id, r.name, r.description,
-       r.total_duration_hours, r.total_distance_km,
-       r.difficulty, r.group_type, r.style,
-       r.created_at,
-       r.user_description, r.image_url, r.video_url,
-       r.points_of_interest, r.recommended_stops,
-       COALESCE(r.likes_count, 0)    AS likes_count,
-       COALESCE(r.comments_count, 0) AS comments_count,
-       COALESCE(r.average_rating, 0) AS average_rating,
-       COALESCE(r.ratings_count, 0)  AS ratings_count,
-       reg.name AS region,
-       u.username   AS creator_username,
-       u.avatar_url AS creator_avatar,
-       COALESCE(u.xp_points, 0) AS creator_xp
+    `SELECT ${BASE_SELECT}
      FROM   routes r
      JOIN   users u ON u.id = r.user_id
      LEFT   JOIN regions reg ON reg.id = r.region_id
@@ -261,11 +271,9 @@ export async function getPublicTripById(tripId: number): Promise<PublicTrip | nu
   );
   if (!rows.length) return null;
 
-  const results = await attachStops(rows);
-  const trip = results[0] ?? null;
-  if (!trip) return null;
+  const trip = rowToTrip(rows[0]);
 
-  // Attach route images
+  // Attach route images (detail view only — not needed for the feed list)
   const { rows: imgRows } = await rawDb.query(
     `SELECT id, route_id, image_url, caption, created_at
      FROM route_images WHERE route_id = $1 ORDER BY created_at ASC`,
@@ -282,7 +290,6 @@ export async function getPublicTripById(tripId: number): Promise<PublicTrip | nu
   return trip;
 }
 
-// createTrip still inserts into `routes` for consistency with the rest of the app.
 export async function createTrip(
   userId: number,
   data: {
@@ -315,7 +322,6 @@ export async function createTrip(
   const result = await getPublicTripById(routeId);
   if (!result) throw new Error("Failed to fetch created trip");
 
-  // Award XP only when publishing publicly
   let xpResult: { new_xp: number; new_level: number; level_label: string; leveled_up: boolean } | undefined;
   if (isPublic) {
     try { xpResult = await awardXp(userId, XP_REWARDS.TRIP_CREATED); } catch { /* swallow */ }
@@ -324,7 +330,6 @@ export async function createTrip(
   return { trip: result, xp: xpResult };
 }
 
-// ── Toggle is_public for a route the user owns ────────────────────────────────
 export async function publishRoute(routeId: number, userId: number): Promise<{ trip: PublicTrip; xp?: { new_xp: number; new_level: number; level_label: string; leveled_up: boolean } }> {
   const { rows } = await rawDb.query(
     `UPDATE routes SET is_public = TRUE WHERE id = $1 AND user_id = $2 AND is_public = FALSE RETURNING id`,
@@ -341,28 +346,24 @@ export async function publishRoute(routeId: number, userId: number): Promise<{ t
   return { trip, xp: xpResult };
 }
 
-// ── Update route stops (owner only) ──────────────────────────────────────
-
 export async function updateRouteStops(
   routeId: number,
   userId: number,
   locationIds: number[]
 ): Promise<void> {
-  // Verify ownership
   const { rows: ownerRows } = await rawDb.query(
     `SELECT id FROM routes WHERE id = $1 AND user_id = $2`,
     [routeId, userId]
   );
   if (!ownerRows.length) throw Object.assign(new Error("Not authorized"), { code: "NOT_FOUND" });
 
-  // Replace all stops atomically
   await rawDb.query(`DELETE FROM route_stops WHERE route_id = $1`, [routeId]);
 
   for (let i = 0; i < locationIds.length; i++) {
     await rawDb.query(
       `INSERT INTO route_stops (route_id, location_id, order_index, arrival_time, duration_minutes)
        VALUES ($1, $2, $3, $4, 60)`,
-      [routeId, locationIds[i], i, `${String(9 + i).padStart(2, '0')}:00`]
+      [routeId, locationIds[i], i, `${String(9 + i).padStart(2, "0")}:00`]
     );
   }
 }

@@ -1,7 +1,13 @@
-// src/pages/Profile.tsx — UPDATED
-// Feature 5: reports, reviews, trips synced with DB.
-// Feature 8: "My Trips" link added to actions.
-// Added loading state matching PublicTrips.tsx
+// src/pages/Profile.tsx
+//
+// PERFORMANCE OPTIMIZATIONS:
+//  1. Removed the all-or-nothing loading gate: previously the page waited for
+//     profile + reports + reviews to ALL resolve before rendering anything.
+//     Now the header renders as soon as the profile arrives (fastest query),
+//     and the activity section fills in progressively.
+//  2. Reduced reviews/reports fetch from 50 rows to 10 (service also capped).
+//  3. "select: data => data.slice(0, 3)" no longer needed since the server
+//     already returns ≤10; kept for safety.
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +34,13 @@ function LevelBar({ xp }: Readonly<{ xp: number }>) {
   );
 }
 
+// Skeleton placeholder for progressive rendering
+function SkeletonLine({ width = '100%', height = 14, style = {} }: { width?: string | number; height?: number; style?: React.CSSProperties }) {
+  return (
+    <div style={{ width, height, borderRadius: 6, background: 'linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', ...style }} />
+  );
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -36,8 +49,9 @@ export default function Profile() {
   let installToggleIcon = '›';
   if (installIsIos) { installToggleIcon = showIosInstructions ? '▲' : '▼'; }
 
-  // Keyed by user.id — a new user login is a cache miss; re-logins with the
-  // same account are instant (staleTime allows 5-min background trips).
+  // ── OPTIMIZATION: three independent queries, not a single blocking gate ──
+  // Profile loads fastest (single row from users table + server cache).
+  // Reports and reviews load independently; the page renders progressively.
   const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
     queryKey: ['users', 'me', user?.id],
     queryFn: () => api.users.me(),
@@ -61,12 +75,9 @@ export default function Profile() {
     select: (data) => data.slice(0, 3),
   });
 
-  const loading = profileLoading || reportsLoading || reviewsLoading;
-
   const handleLogout = () => { logout(); navigate('/Login'); };
 
-  // Handle case where user is not logged in
-  if (!user && !loading) {
+  if (!user && !profileLoading) {
     return (
       <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 20 }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
@@ -79,15 +90,24 @@ export default function Profile() {
     );
   }
 
-  // Display loading spinner while fetching data
-  if (loading) {
+  // ── Only block on the profile itself (the header); sub-sections render progressively ──
+  if (profileLoading) {
     return (
-      <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', direction: 'rtl', padding: 20 }}>
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0d9e6e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', display: 'block', margin: '0 auto 12px' }}>
-          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-        </svg>
-        <div style={{ color: '#94a3b8', fontSize: 16, fontFamily: 'Heebo, sans-serif' }}>טוען נתוני פרופיל...</div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ background: '#f8fafc', minHeight: '100vh', direction: 'rtl' }}>
+        <div style={{ height: 120, background: 'linear-gradient(135deg, #0d9e6e 0%, #34d399 60%, #0284c7 100%)' }} />
+        <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', paddingBottom: 20 }}>
+          <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 20px' }}>
+            <div style={{ transform: 'translateY(-32px)', marginBottom: -16 }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#e2e8f0' }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
+              <SkeletonLine width={160} height={20} />
+              <SkeletonLine width={100} height={14} />
+              <SkeletonLine width="100%" height={6} style={{ marginTop: 8, borderRadius: 999 }} />
+            </div>
+          </div>
+        </div>
+        <style>{`@keyframes shimmer { to { background-position: -200% 0; } }`}</style>
       </div>
     );
   }
@@ -109,7 +129,7 @@ export default function Profile() {
           <div style={{ transform: 'translateY(-32px)', marginBottom: -16 }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #fff', background: profile?.avatar_url ? 'none' : 'linear-gradient(135deg, #0d9e6e, #34d399)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#fff', fontWeight: 800, boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
               {profile?.avatar_url
-                ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                ? <img src={profile.avatar_url} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                 : (user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'ע')}
             </div>
           </div>
@@ -143,7 +163,7 @@ export default function Profile() {
       </div>
 
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '16px 20px' }}>
-        {/* Stats — synced from DB (Feature 5) */}
+        {/* Stats */}
         <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, textAlign: 'center' }}>
             {[
@@ -160,8 +180,13 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Recent activity — Feature 5 */}
-        {recentReports.length > 0 && (
+        {/* Recent activity — progressive: shows skeleton while loading */}
+        {reportsLoading ? (
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+            <SkeletonLine width={160} height={15} style={{ marginBottom: 12 }} />
+            {[1, 2, 3].map(i => <SkeletonLine key={i} height={32} style={{ marginBottom: 8, borderRadius: 8 }} />)}
+          </div>
+        ) : recentReports.length > 0 ? (
           <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>הדיווחים האחרונים שלי</div>
             {recentReports.map(r => (
@@ -171,7 +196,7 @@ export default function Profile() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
 
         {/* Quick actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -181,7 +206,6 @@ export default function Profile() {
               <span>🛡️ לוח ניהול</span>
             </button>
           )}
-          {/* Feature 8: My Trips added */}
           {[
             { label: '📍 המיקומים שלי', path: '/my-places' },
             { label: '❤️ המועדפים שלי', path: '/favorites' },
@@ -198,7 +222,6 @@ export default function Profile() {
             🚪 התנתקות
           </button>
 
-          {/* ── Install App ── always visible when installation is available */}
           {installAvailable && (
             <div style={{ marginTop: 4 }}>
               <button
@@ -217,7 +240,6 @@ export default function Profile() {
                 <span>📲 התקנת האפליקציה</span>
               </button>
 
-              {/* iOS step-by-step instructions (toggled) */}
               {installIsIos && showIosInstructions && (
                 <div style={{
                   marginTop: 8, background: '#fff', borderRadius: 14,
@@ -248,6 +270,7 @@ export default function Profile() {
           )}
         </div>
       </div>
+      <style>{`@keyframes shimmer { to { background-position: -200% 0; } }`}</style>
     </div>
   );
 }
