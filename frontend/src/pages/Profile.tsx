@@ -35,7 +35,7 @@ function LevelBar({ xp }: Readonly<{ xp: number }>) {
 }
 
 // Skeleton placeholder for progressive rendering
-function SkeletonLine({ width = '100%', height = 14, style = {} }: { width?: string | number; height?: number; style?: React.CSSProperties }) {
+function SkeletonLine({ width = '100%', height = 14, style = {} }: Readonly<{ width?: string | number; height?: number; style?: React.CSSProperties }>) {
   return (
     <div style={{ width, height, borderRadius: 6, background: 'linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', ...style }} />
   );
@@ -67,7 +67,7 @@ export default function Profile() {
     select: (data) => data.slice(0, 3),
   });
 
-  const { data: recentReviews = [], isLoading: reviewsLoading } = useQuery<Review[]>({
+  const { data: recentReviews = [] } = useQuery<Review[]>({
     queryKey: ['reviews', 'mine', user?.id],
     queryFn: () => api.reviews.myReviews(),
     enabled: !!user,
@@ -181,22 +181,30 @@ export default function Profile() {
         </div>
 
         {/* Recent activity — progressive: shows skeleton while loading */}
-        {reportsLoading ? (
-          <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
-            <SkeletonLine width={160} height={15} style={{ marginBottom: 12 }} />
-            {[1, 2, 3].map(i => <SkeletonLine key={i} height={32} style={{ marginBottom: 8, borderRadius: 8 }} />)}
-          </div>
-        ) : recentReports.length > 0 ? (
-          <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>הדיווחים האחרונים שלי</div>
-            {recentReports.map(r => (
-              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0', direction: 'rtl' }}>
-                <span style={{ fontSize: 13, color: '#64748b' }}>{r.poi_name || 'מיקום לא ידוע'}</span>
-                <span style={{ fontSize: 11, background: '#fffbeb', color: '#d97706', borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>{r.report_type}</span>
+        {(() => {
+          if (reportsLoading) {
+            return (
+              <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+                <SkeletonLine width={160} height={15} style={{ marginBottom: 12 }} />
+                {[1, 2, 3].map(i => <SkeletonLine key={i} height={32} style={{ marginBottom: 8, borderRadius: 8 }} />)}
               </div>
-            ))}
-          </div>
-        ) : null}
+            );
+          }
+          if (recentReports.length > 0) {
+            return (
+              <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 14 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#1a2e2a', marginBottom: 12 }}>הדיווחים האחרונים שלי</div>
+                {recentReports.map(r => (
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0', direction: 'rtl' }}>
+                    <span style={{ fontSize: 13, color: '#64748b' }}>{r.poi_name || 'מיקום לא ידוע'}</span>
+                    <span style={{ fontSize: 11, background: '#fffbeb', color: '#d97706', borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>{r.report_type}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {/* Quick actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
