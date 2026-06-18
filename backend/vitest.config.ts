@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    env: {
+      JWT_SECRET: 'vitest-test-secret-not-for-production',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['lcov'],

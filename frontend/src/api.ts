@@ -72,7 +72,7 @@ function shouldRetry(method: string, attempt: number, err: unknown, status?: num
 }
 
 function retryDelay(attempt: number): Promise<void> {
-  const jitter = 0.8 + Math.random() * 0.4; // NOSONAR — timing jitter, not cryptographic
+  const jitter = 0.8 + (crypto.getRandomValues(new Uint32Array(1))[0] / 0xFFFFFFFF) * 0.4;
   const ms = RETRY_BASE_MS * Math.pow(2, attempt) * jitter;
   return new Promise(r => setTimeout(r, ms));
 }

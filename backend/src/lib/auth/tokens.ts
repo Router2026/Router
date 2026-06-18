@@ -2,7 +2,8 @@
 // JWT + password hashing using built-in Web Crypto API (no extra packages)
 
 function getSecret(): string {
-  return process.env.JWT_SECRET || "router-jwt-dev-secret-change-in-prod"; // NOSONAR S6418 — dev-only fallback, production must set JWT_SECRET
+  if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET environment variable is required");
+  return process.env.JWT_SECRET;
 }
 
 // ── Base64url helpers ─────────────────────────────────────────────────────
