@@ -87,7 +87,7 @@ function extractJsonFromLlmResponse(raw: string): unknown {
     // Strip markdown fences with string ops — no regex, no backtracking surface
     const lines = raw.split('\n');
     if (lines[0]?.trimEnd().startsWith('```')) lines.shift();
-    if (lines[lines.length - 1]?.trim() === '```') lines.pop();
+    if (lines.at(-1)?.trim() === '```') lines.pop();
     const stripped = lines.join('\n').trim();
     try {
       return JSON.parse(stripped);

@@ -213,6 +213,7 @@ export function heldKarp(matrix: DistanceMatrix, fixedStart = false): number[] {
 
 // ── Greedy Nearest-Neighbor fallback ─────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function nearestNeighbor(matrix: DistanceMatrix, _fixedStart: boolean): number[] {
   const n = matrix.length;
   const visited = new Array(n).fill(false);
@@ -220,7 +221,7 @@ function nearestNeighbor(matrix: DistanceMatrix, _fixedStart: boolean): number[]
   visited[0] = true;
 
   for (let step = 1; step < n; step++) {
-    const last = path[path.length - 1];
+    const last = path.at(-1)!;
     let bestNext = -1;
     let bestDist = Infinity;
     for (let j = 0; j < n; j++) {

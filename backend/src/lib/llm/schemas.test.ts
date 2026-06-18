@@ -86,7 +86,7 @@ describe('TripPlanSchema', () => {
       days: [
         {
           day: 1,
-          stops: [{ name: 'Stop A', latitude: 31.0, longitude: 35.0 }],
+          stops: [{ name: 'Stop A', latitude: 31, longitude: 35 }],
           accommodation: { name: 'Hotel', type: 'מלון', address: 'Addr', estimatedCostPerNight: 300 },
         },
         {

@@ -17,11 +17,11 @@ export async function resolvePoiAuthUser(req: NextRequest): Promise<AuthUser | n
       `SELECT id, username FROM users WHERE email = $1 LIMIT 1`,
       [sbUser.email]
     );
-    return rows.length ? { id: rows[0].id as number, username: rows[0].username as string } : null;
+    return rows.length ? { id: rows[0].id, username: rows[0].username } : null;
   }
 
   const auth = await getUserFromRequest(req);
-  return auth?.id ? { id: auth.id as number, username: (auth as any).username ?? "" } : null;
+  return auth?.id ? { id: auth.id, username: (auth as any).username ?? "" } : null;
 }
 
 export async function resolveContributorUser(
@@ -41,8 +41,8 @@ export async function resolveContributorUser(
     );
     if (rows.length) {
       return {
-        userId: rows[0].id as number,
-        name: (rows[0].full_name as string) || (rows[0].username as string) || fallback,
+        userId: rows[0].id,
+        name: rows[0].full_name || rows[0].username || fallback,
       };
     }
     return { userId: null, name: fallback };
@@ -56,8 +56,8 @@ export async function resolveContributorUser(
     );
     if (rows.length) {
       return {
-        userId: rows[0].id as number,
-        name: (rows[0].full_name as string) || (rows[0].username as string) || fallback,
+        userId: rows[0].id,
+        name: rows[0].full_name || rows[0].username || fallback,
       };
     }
   }

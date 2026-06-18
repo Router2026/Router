@@ -35,6 +35,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
+const ALLOWED_SEVERITIES = new Set(["נמוכה", "בינונית", "גבוהה"]);
+
+function stripHtml(s: unknown): string {
+  if (typeof s !== "string") return "";
+  return s.replace(/<[^>]*>/g, "").slice(0, 2000).trim();
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -43,6 +50,23 @@ export async function POST(req: NextRequest) {
       req,
       body.reporter_name ?? "אנונימי"
     );
+
+    if (!resolvedUserId) {
+      return NextResponse.json(
+        errorResponse("Authentication required to submit a report", "UNAUTHORIZED"),
+        { status: 401 }
+      );
+    }
+
+    const content = stripHtml(body.content);
+    if (!content) {
+      return NextResponse.json(
+        errorResponse("content is required", "VALIDATION_ERROR"),
+        { status: 400 }
+      );
+    }
+
+    const severity = ALLOWED_SEVERITIES.has(body.severity) ? body.severity : "בינונית";
 
     // ── Resolve location_id from the locations table ────────────────────────
     let resolvedLocationId: number | null = body.location_id
@@ -63,9 +87,9 @@ export async function POST(req: NextRequest) {
       user_id: resolvedUserId,
       location_id: resolvedLocationId,
       poi_name: body.poi_name ?? null,
-      report_type: body.report_type,
-      severity: body.severity ?? "בינונית",
-      content: body.content,
+      report_type: stripHtml(body.report_type),
+      severity,
+      content,
       reporter_name: resolvedReporterName,
     });
 
