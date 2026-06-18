@@ -3,15 +3,15 @@
 //
 // Reads DATABASE_URL and GOOGLE_PLACES_API_KEY from backend/.env.local
 
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import pg from "pg";
 
 // ── Load .env.local ────────────────────────────────────────────────────────
 const envPath = join(dirname(fileURLToPath(import.meta.url)), "../.env.local");
 for (const line of readFileSync(envPath, "utf8").split("\n")) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+  const m = /^([A-Z0-9_]+)=(.*)$/.exec(line);
   if (m) process.env[m[1]] ??= m[2].trim();
 }
 
@@ -28,7 +28,7 @@ if (!DB_URL || !API_KEY) {
 // ── Args ───────────────────────────────────────────────────────────────────
 const args  = process.argv.slice(2);
 const force = args.includes("--force");
-const limit = parseInt(args.find(a => a.startsWith("--limit="))?.split("=")[1] ?? "100");
+const limit = Number.parseInt(args.find(a => a.startsWith("--limit="))?.split("=")[1] ?? "100");
 const id    = args.find(a => a.startsWith("--id="))?.split("=")[1];
 
 // ── Google Places helpers ──────────────────────────────────────────────────
@@ -70,11 +70,11 @@ async function enrichFromPlaces(name, lat, lng) {
 const client = new pg.Client({ connectionString: DB_URL });
 await client.connect();
 
-const query = id
+const sqlConfig = id
   ? { text: "SELECT id, name, latitude::float, longitude::float FROM router.locations WHERE id = $1", values: [id] }
   : { text: `SELECT id, name, latitude::float, longitude::float FROM router.locations WHERE ($1 OR google_place_id IS NULL) ORDER BY id LIMIT $2`, values: [force, limit] };
 
-const { rows } = await client.query(query);
+const { rows } = await client.query(sqlConfig); // NOSONAR S4123 - pg.Client.query returns a Promise
 console.log(`Enriching ${rows.length} locations…\n`);
 
 let enriched = 0, notFound = 0, errors = 0;
@@ -83,16 +83,16 @@ for (const row of rows) {
   process.stdout.write(`  [${row.id}] ${row.name} … `);
   try {
     const result = await enrichFromPlaces(row.name, row.latitude, row.longitude);
-    if (!result) {
-      console.log("not found");
-      notFound++;
-    } else {
+    if (result) {
       await client.query(
         `UPDATE router.locations SET google_place_id=$1, images=$2::jsonb, main_image=$3, photo_credit=$4, updated_at=NOW() WHERE id=$5`,
         [result.placeId, JSON.stringify(result.photoUrls), result.photoUrls[0] ?? null, result.credit, row.id],
       );
       console.log(`✓ ${result.photoUrls.length} photos`);
       enriched++;
+    } else {
+      console.log("not found");
+      notFound++;
     }
   } catch (err) {
     console.log(`error: ${err.message}`);

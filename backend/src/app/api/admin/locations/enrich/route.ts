@@ -29,10 +29,8 @@ export async function POST(req: NextRequest) {
 
   for (const row of rows.rows) {
     try {
-      const enrichment = await enrichFromPlaces(row.name, parseFloat(row.latitude), parseFloat(row.longitude));
-      if (!enrichment) {
-        results.push({ id: row.id, status: "not_found" });
-      } else {
+      const enrichment = await enrichFromPlaces(row.name, Number.parseFloat(row.latitude), Number.parseFloat(row.longitude));
+      if (enrichment) {
         await rawDb.query(
           `UPDATE locations
            SET google_place_id = $1,
@@ -50,6 +48,8 @@ export async function POST(req: NextRequest) {
           ],
         );
         results.push({ id: row.id, status: "enriched" });
+      } else {
+        results.push({ id: row.id, status: "not_found" });
       }
     } catch {
       results.push({ id: row.id, status: "error" });
