@@ -137,7 +137,7 @@ function CommentsPanel({ tripId, isOpen, onClose, currentUser, onCountChange }: 
       .catch(() => { })
       .finally(() => setLoading(false));
     setTimeout(() => inputRef.current?.focus(), 300);
-  }, [isOpen, tripId]);
+  }, [isOpen, tripId, onCountChange]);
 
   useEffect(() => {
     if (isOpen) setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);

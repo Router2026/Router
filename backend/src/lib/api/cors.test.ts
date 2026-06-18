@@ -36,12 +36,12 @@ describe('CORS_HEADERS', () => {
 
 describe('optionsResponse', () => {
   it('returns 204 status', () => {
-    const res = optionsResponse() as unknown as InstanceType<typeof NextResponse>
-    expect((res as { status: number }).status).toBe(204)
+    const res = optionsResponse() as unknown as { status: number; headers: Map<string, string> }
+    expect(res.status).toBe(204)
   })
 
   it('sets all CORS headers', () => {
-    const res = optionsResponse() as unknown as { headers: Map<string, string> }
+    const res = optionsResponse() as unknown as { status: number; headers: Map<string, string> }
     for (const [key, value] of Object.entries(CORS_HEADERS)) {
       expect(res.headers.get(key)).toBe(value)
     }
@@ -51,15 +51,15 @@ describe('optionsResponse', () => {
 describe('withCors', () => {
   it('sets CORS headers on a response', () => {
     const res = new NextResponse(null, { status: 200 })
-    withCors(res as never)
+    withCors(res)
     for (const [key, value] of Object.entries(CORS_HEADERS)) {
-      expect(res.headers.get(key)).toBe(value)
+      expect((res as unknown as { headers: Map<string, string> }).headers.get(key)).toBe(value)
     }
   })
 
   it('returns the same response object', () => {
     const res = new NextResponse(null, { status: 200 })
-    const returned = withCors(res as never)
+    const returned = withCors(res)
     expect(returned).toBe(res)
   })
 })

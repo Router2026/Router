@@ -24,11 +24,11 @@ async function resolveUserId(req: NextRequest): Promise<number | null> {
       `SELECT id FROM users WHERE email = $1 LIMIT 1`,
       [sbUser.email]
     );
-    return rows.length ? (rows[0].id as number) : null;
+    return rows.length ? rows[0].id : null;
   }
 
   const auth = await getUserFromRequest(req);
-  return auth?.id ? (auth.id as number) : null;
+  return auth?.id ? auth.id : null;
 }
 
 export async function GET() {

@@ -66,6 +66,7 @@ describe('TripInputSchema', () => {
   })
 
   it('defaults dayStartTime to 09:00 and dayEndTime to 20:00', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { dayStartTime: _dayStartTime, dayEndTime: _dayEndTime, ...rest } = validInput
     const result = TripInputSchema.parse(rest)
     expect(result.dayStartTime).toBe('09:00')
@@ -106,7 +107,7 @@ describe('TripInputSchema', () => {
   })
 
   it('accepts userLocation when provided', () => {
-    const result = TripInputSchema.safeParse({ ...validInput, userLocation: { lat: 31.5, lng: 35.0 } })
+    const result = TripInputSchema.safeParse({ ...validInput, userLocation: { lat: 31.5, lng: 35 } })
     expect(result.success).toBe(true)
   })
 })

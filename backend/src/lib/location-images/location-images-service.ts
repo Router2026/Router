@@ -52,7 +52,7 @@ export async function saveLocationImage(
   }
 
   const xpResult = await awardXp(userId, XP_REWARDS.PHOTO_UPLOAD);
-  return { image: rows[0] as unknown as LocationImage, xp: xpResult };
+  return { image: rows[0], xp: xpResult };
 }
 
 /** Approve a specific location image (admin only). */
@@ -68,7 +68,7 @@ export async function approveLocationImage(
     [imageId, adminId]
   );
   if (!rows.length) throw Object.assign(new Error("Image not found"), { code: "NOT_FOUND" });
-  return rows[0]  as unknown as LocationImage;
+  return rows[0];
 }
 
 /** Remove approval from a specific location image (admin only). */
@@ -98,7 +98,7 @@ export async function getLocationImages(
      ORDER  BY li.created_at DESC`,
     [locationId]
   );
-  return rows  as unknown as LocationImage[];
+  return rows;
 }
 
 /** How many images has this user uploaded for this location? */

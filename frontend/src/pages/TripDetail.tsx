@@ -29,7 +29,7 @@ function PhotoStopMarker({ stop, index }: Readonly<{ stop: any; index: number }>
             overflow:hidden;border:3px solid #0d9e6e;
             box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
           <img src="${stop.main_image}" style="width:100%;height:100%;object-fit:cover;"
-            onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\'width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900\'>${index + 1}</div>'"/>
+            onerror="this.onerror=null;var fb=document.createElement('div');fb.setAttribute('style','width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900');fb.textContent='${index + 1}';this.parentElement.replaceChild(fb,this)"/>
           <div style="
             position:absolute;bottom:0;left:0;right:0;
             background:linear-gradient(transparent,rgba(0,0,0,0.65));
@@ -69,6 +69,7 @@ function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
   const map = useMap();
   useEffect(() => {
     if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.18));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot: fit bounds once on mount only
   }, []);
   return null;
 }

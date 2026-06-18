@@ -1,0 +1,1 @@
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS google_place_id VARCHAR(255);

@@ -40,7 +40,7 @@ describe('makeAdminCookieHeader', () => {
 
   it('produces a 64-char hex token (SHA-256)', async () => {
     const header = await makeAdminCookieHeader('test-secret')
-    const tokenMatch = header.match(/admin_token=([0-9a-f]+)/)
+    const tokenMatch = /admin_token=([0-9a-f]+)/.exec(header)
     expect(tokenMatch).not.toBeNull()
     expect(tokenMatch![1]).toHaveLength(64)
   })
@@ -76,7 +76,7 @@ describe('verifyAdminCookie', () => {
   it('returns true when cookie matches expected token', async () => {
     process.env.ADMIN_SECRET = 'my-secret'
     const header = await makeAdminCookieHeader('my-secret')
-    const token = header.match(/admin_token=([0-9a-f]+)/)![1]
+    const token = /admin_token=([0-9a-f]+)/.exec(header)![1]
     mockCookies.mockResolvedValue({ get: vi.fn().mockReturnValue({ value: token }) } as any)
     const result = await verifyAdminCookie()
     expect(result).toBe(true)
@@ -102,7 +102,7 @@ describe('verifyAdminRequest', () => {
   it('returns true with matching token in cookie', async () => {
     process.env.ADMIN_SECRET = 'req-secret'
     const header = await makeAdminCookieHeader('req-secret')
-    const token = header.match(/admin_token=([0-9a-f]+)/)![1]
+    const token = /admin_token=([0-9a-f]+)/.exec(header)![1]
     const req = { cookies: { get: vi.fn().mockReturnValue({ value: token }) } } as any
     expect(await verifyAdminRequest(req)).toBe(true)
     delete process.env.ADMIN_SECRET
@@ -120,7 +120,7 @@ describe('requireAdmin', () => {
   it('returns { ok: true } when authorized', async () => {
     process.env.ADMIN_SECRET = 'admin-secret'
     const header = await makeAdminCookieHeader('admin-secret')
-    const token = header.match(/admin_token=([0-9a-f]+)/)![1]
+    const token = /admin_token=([0-9a-f]+)/.exec(header)![1]
     const req = { cookies: { get: vi.fn().mockReturnValue({ value: token }) } } as any
     const result = await requireAdmin(req)
     expect(result).toEqual({ ok: true })

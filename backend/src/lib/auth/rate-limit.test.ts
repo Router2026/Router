@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@upstash/ratelimit', () => ({ Ratelimit: class { static slidingWindow() {} limit = vi.fn() } }))
-vi.mock('@upstash/redis', () => ({ Redis: class {} }))
+vi.mock('@upstash/ratelimit', () => ({ Ratelimit: class { static slidingWindow() { return null; } limit = vi.fn() } }))
+vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
 
 import { checkRateLimit, clientIp } from './rate-limit'
 
@@ -41,19 +41,26 @@ describe('checkRateLimit (in-memory path)', () => {
   })
 })
 
+// Test-only IP fixtures — safe, not used in production code
+const TEST_IP_A = '1.2.3.4' // NOSONAR S1313
+const TEST_IP_B = '1.2.3.5' // NOSONAR S1313
+const TEST_IP_C = '9.9.9.9' // NOSONAR S1313
+const TEST_IP_D = '10.0.0.1' // NOSONAR S1313
+const TEST_IP_E = '10.0.0.2' // NOSONAR S1313
+
 describe('clientIp', () => {
   it('extracts first IP from x-forwarded-for header', () => {
     const req = new Request('http://localhost', {
-      headers: { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' },
+      headers: { 'x-forwarded-for': `${TEST_IP_A}, ${TEST_IP_B}` },
     })
-    expect(clientIp(req)).toBe('1.2.3.4')
+    expect(clientIp(req)).toBe(TEST_IP_A)
   })
 
   it('falls back to x-real-ip', () => {
     const req = new Request('http://localhost', {
-      headers: { 'x-real-ip': '9.9.9.9' },
+      headers: { 'x-real-ip': TEST_IP_C },
     })
-    expect(clientIp(req)).toBe('9.9.9.9')
+    expect(clientIp(req)).toBe(TEST_IP_C)
   })
 
   it('returns unknown when no IP headers present', () => {
@@ -63,8 +70,8 @@ describe('clientIp', () => {
 
   it('trims whitespace from x-forwarded-for', () => {
     const req = new Request('http://localhost', {
-      headers: { 'x-forwarded-for': '  10.0.0.1  , 10.0.0.2' },
+      headers: { 'x-forwarded-for': `  ${TEST_IP_D}  , ${TEST_IP_E}` },
     })
-    expect(clientIp(req)).toBe('10.0.0.1')
+    expect(clientIp(req)).toBe(TEST_IP_D)
   })
 })

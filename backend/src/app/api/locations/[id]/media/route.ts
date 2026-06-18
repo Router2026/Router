@@ -231,7 +231,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 }
 
 // PATCH /locations/:id/media — approve or reject (admin only)
-export async function PATCH(req: NextRequest, _routeCtx: RouteParams) {
+export async function PATCH(req: NextRequest) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth?.is_admin) {
@@ -262,7 +262,7 @@ export async function PATCH(req: NextRequest, _routeCtx: RouteParams) {
 }
 
 // DELETE /locations/:id/media — delete own media (or admin)
-export async function DELETE(req: NextRequest, _routeCtx: RouteParams) {
+export async function DELETE(req: NextRequest) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth) {

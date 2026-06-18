@@ -21,6 +21,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function stripHtml(s: unknown): string {
+  if (typeof s !== "string") return "";
+  return s.replace(/<[^>]*>/g, "").slice(0, 2000).trim();
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -29,6 +34,29 @@ export async function POST(req: NextRequest) {
       req,
       body.reviewer_name ?? "אנונימי"
     );
+
+    if (!resolvedUserId) {
+      return NextResponse.json(
+        errorResponse("Authentication required to submit a review", "UNAUTHORIZED"),
+        { status: 401 }
+      );
+    }
+
+    const content = stripHtml(body.content);
+    if (!content) {
+      return NextResponse.json(
+        errorResponse("content is required", "VALIDATION_ERROR"),
+        { status: 400 }
+      );
+    }
+
+    const rating = Number.parseInt(body.rating, 10);
+    if (Number.isNaN(rating) || rating < 1 || rating > 5) {
+      return NextResponse.json(
+        errorResponse("rating must be a number between 1 and 5", "VALIDATION_ERROR"),
+        { status: 400 }
+      );
+    }
 
     // ── Resolve location_id from the locations table ────────────────────────
     // The client may send either a numeric location_id or only a poi_name.
@@ -51,8 +79,8 @@ export async function POST(req: NextRequest) {
       location_id:   resolvedLocationId,
       poi_name:      body.poi_name     ?? null,
       reviewer_name: resolvedReviewerName,
-      rating:        body.rating,
-      content:       body.content,
+      rating,
+      content,
     });
 
     return NextResponse.json(successResponse(data), { status: 201 });

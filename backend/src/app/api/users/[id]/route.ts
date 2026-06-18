@@ -22,7 +22,7 @@ async function getApprovedCommunityPoisForUser(userId: number): Promise<Communit
      ORDER BY cp.created_at DESC`,
     [userId]
   );
-  return rows as unknown as CommunityPoiRow[];
+  return rows;
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {

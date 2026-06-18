@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/trips/public/[id]/media/route.ts
 // GET  /trips/public/:id/media    — list all media (images + videos)
 // POST /trips/public/:id/media    — upload image or video (authenticated)
@@ -17,7 +16,7 @@ import {
   rejectMedia,
   deleteMedia,
   getMediaType,
-  validateMediaSize,
+  validateMediaSizeBytes,
 } from "@/lib/location-images/location-media-service";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -58,7 +57,7 @@ async function handleMultipartPost(req: NextRequest): Promise<ParsedMedia | Next
   const base64Data = buffer.toString("base64");
 
   try {
-    validateMediaSize(base64Data, file.type);
+    validateMediaSizeBytes(buffer.byteLength, file.type);
   } catch (err: unknown) {
     return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
   }
@@ -77,7 +76,7 @@ function handleBase64Json(body: Record<string, unknown>): ParsedMedia | NextResp
   const base64Data: string = (body.media_data as string).replace(/^data:[^;]+;base64,/, "");
 
   try {
-    validateMediaSize(base64Data, body.mime_type as string);
+    validateMediaSizeBytes(Math.floor(base64Data.length * 3 / 4), body.mime_type as string);
   } catch (err: unknown) {
     return NextResponse.json(errorResponse(asAppError(err).message, "VALIDATION_ERROR"), { status: 413 });
   }
@@ -188,7 +187,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 }
 
 // PATCH /trips/public/:id/media  — approve or reject (admin only)
-export async function PATCH(req: NextRequest, _routeCtx: RouteParams) {
+export async function PATCH(req: NextRequest) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth?.is_admin) {
@@ -219,7 +218,7 @@ export async function PATCH(req: NextRequest, _routeCtx: RouteParams) {
 }
 
 // DELETE /trips/public/:id/media  — delete own media (or admin)
-export async function DELETE(req: NextRequest, _routeCtx: RouteParams) {
+export async function DELETE(req: NextRequest) {
   try {
     const auth = await getUserFromRequest(req);
     if (!auth) {

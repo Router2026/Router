@@ -12,6 +12,7 @@ vi.mock('../api', () => ({
     },
     publicTrips: {
       list: vi.fn(),
+      listPaginated: vi.fn(),
       get: vi.fn(),
       getLikes: vi.fn(),
       toggleLike: vi.fn(),
@@ -35,6 +36,7 @@ import {
   useRoute,
   useDeleteRoute,
   usePublicTrips,
+  usePublicTripsInfinite,
   usePublicTrip,
   useTripLikes,
   useToggleTripLike,
@@ -58,6 +60,7 @@ const mockApi = api as {
   }
   publicTrips: {
     list: ReturnType<typeof vi.fn>
+    listPaginated: ReturnType<typeof vi.fn>
     get: ReturnType<typeof vi.fn>
     getLikes: ReturnType<typeof vi.fn>
     toggleLike: ReturnType<typeof vi.fn>
@@ -171,6 +174,45 @@ describe('useDeleteRoute', () => {
 
     await waitFor(() => expect(listResult.current.data).toHaveLength(1))
     expect(listResult.current.data?.[0].id).toBe('t2')
+  })
+})
+
+// ── usePublicTripsInfinite ────────────────────────────────────────────────────
+
+describe('usePublicTripsInfinite', () => {
+  it('fetches first page and exposes pages data', async () => {
+    const page1 = { trips: [mockPublicTrip(1), mockPublicTrip(2)], has_more: false, total: 2 }
+    mockApi.publicTrips.listPaginated.mockResolvedValue(page1)
+    const { result } = renderHook(() => usePublicTripsInfinite(), { wrapper: makeWrapper() })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data?.pages).toHaveLength(1)
+    expect(result.current.data?.pages[0].trips).toHaveLength(2)
+  })
+
+  it('getNextPageParam returns undefined when has_more is false', async () => {
+    const page1 = { trips: [mockPublicTrip(1)], has_more: false, total: 1 }
+    mockApi.publicTrips.listPaginated.mockResolvedValue(page1)
+    const { result } = renderHook(() => usePublicTripsInfinite(), { wrapper: makeWrapper() })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.hasNextPage).toBe(false)
+  })
+
+  it('getNextPageParam returns offset when has_more is true', async () => {
+    const page1 = { trips: [mockPublicTrip(1)], has_more: true, total: 20 }
+    mockApi.publicTrips.listPaginated.mockResolvedValue(page1)
+    const { result } = renderHook(() => usePublicTripsInfinite(), { wrapper: makeWrapper() })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.hasNextPage).toBe(true)
+  })
+
+  it('passes filters to listPaginated', async () => {
+    const page1 = { trips: [], has_more: false, total: 0 }
+    mockApi.publicTrips.listPaginated.mockResolvedValue(page1)
+    renderHook(() => usePublicTripsInfinite({ region: 'north' }), { wrapper: makeWrapper() })
+    await waitFor(() => expect(mockApi.publicTrips.listPaginated).toHaveBeenCalled())
+    expect(mockApi.publicTrips.listPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ region: 'north', offset: 0 })
+    )
   })
 })
 

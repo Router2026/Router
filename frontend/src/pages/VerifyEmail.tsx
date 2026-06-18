@@ -26,7 +26,6 @@ export default function VerifyEmail() {
 
     // Fallback: token in query param
     const token = params.get('token');
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!token) { setStatus('no_token'); return; }
 
     api.auth.verifyEmail(token)
@@ -37,6 +36,7 @@ export default function VerifyEmail() {
         if ((err as Error).message?.includes('expired')) setStatus('expired');
         else setStatus('invalid');
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot: processes the verification token from URL once on mount
   }, []);
 
   const handleResend = async () => {

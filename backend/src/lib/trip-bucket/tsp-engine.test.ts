@@ -7,7 +7,7 @@ function makeNode(id: string, lat: number, lng: number): TspNode {
 
 describe('haversineKm', () => {
   it('returns 0 for same point', () => {
-    expect(haversineKm(32.0, 35.0, 32.0, 35.0)).toBe(0)
+    expect(haversineKm(32, 35, 32, 35)).toBe(0)
   })
 
   it('returns approximately correct distance between two known points', () => {
@@ -18,15 +18,15 @@ describe('haversineKm', () => {
   })
 
   it('is symmetric', () => {
-    const d1 = haversineKm(32.0, 35.0, 31.5, 34.5)
-    const d2 = haversineKm(31.5, 34.5, 32.0, 35.0)
+    const d1 = haversineKm(32, 35, 31.5, 34.5)
+    const d2 = haversineKm(31.5, 34.5, 32, 35)
     expect(Math.abs(d1 - d2)).toBeLessThan(0.001)
   })
 })
 
 describe('buildHaversineMatrix', () => {
   it('diagonal is always 0', () => {
-    const nodes = [makeNode('A', 32.0, 35.0), makeNode('B', 31.5, 34.5), makeNode('C', 33.0, 36.0)]
+    const nodes = [makeNode('A', 32, 35), makeNode('B', 31.5, 34.5), makeNode('C', 33, 36)]
     const matrix = buildHaversineMatrix(nodes)
     for (let i = 0; i < nodes.length; i++) {
       expect(matrix[i][i]).toBe(0)
@@ -34,7 +34,7 @@ describe('buildHaversineMatrix', () => {
   })
 
   it('matrix is symmetric', () => {
-    const nodes = [makeNode('A', 32.0, 35.0), makeNode('B', 31.5, 34.5)]
+    const nodes = [makeNode('A', 32, 35), makeNode('B', 31.5, 34.5)]
     const matrix = buildHaversineMatrix(nodes)
     expect(matrix[0][1]).toBeCloseTo(matrix[1][0], 5)
   })
@@ -49,7 +49,7 @@ describe('solveTsp', () => {
   })
 
   it('returns single node unchanged', () => {
-    const nodes = [makeNode('A', 32.0, 35.0)]
+    const nodes = [makeNode('A', 32, 35)]
     const matrix = buildHaversineMatrix(nodes)
     const result = solveTsp(nodes, matrix, false)
     expect(result.orderedNodes).toHaveLength(1)
@@ -58,7 +58,7 @@ describe('solveTsp', () => {
   })
 
   it('returns both nodes for 2-node input', () => {
-    const nodes = [makeNode('A', 32.0, 35.0), makeNode('B', 31.5, 34.5)]
+    const nodes = [makeNode('A', 32, 35), makeNode('B', 31.5, 34.5)]
     const matrix = buildHaversineMatrix(nodes)
     const result = solveTsp(nodes, matrix, false)
     expect(result.orderedNodes).toHaveLength(2)
@@ -66,16 +66,16 @@ describe('solveTsp', () => {
 
   it('returns all nodes for multi-stop input', () => {
     const nodes = [
-      makeNode('A', 32.0, 35.0),
+      makeNode('A', 32, 35),
       makeNode('B', 31.5, 34.5),
-      makeNode('C', 33.0, 36.0),
-      makeNode('D', 31.0, 35.5),
+      makeNode('C', 33, 36),
+      makeNode('D', 31, 35.5),
     ]
     const matrix = buildHaversineMatrix(nodes)
     const result = solveTsp(nodes, matrix, false)
     expect(result.orderedNodes).toHaveLength(4)
     // All original nodes appear exactly once
-    const ids = result.orderedNodes.map(n => n.id).sort()
+    const ids = result.orderedNodes.map(n => n.id).sort((a, b) => a.localeCompare(b))
     expect(ids).toEqual(['A', 'B', 'C', 'D'])
   })
 
@@ -83,10 +83,10 @@ describe('solveTsp', () => {
     // Place 4 nodes in a clearly non-optimal order
     // Optimal order: A -> B -> C -> D (goes in one direction)
     const nodes = [
-      makeNode('A', 31.0, 35.0), // start
-      makeNode('C', 33.0, 35.0), // far jump
-      makeNode('B', 32.0, 35.0), // then back
-      makeNode('D', 34.0, 35.0), // then far again
+      makeNode('A', 31, 35), // start
+      makeNode('C', 33, 35), // far jump
+      makeNode('B', 32, 35), // then back
+      makeNode('D', 34, 35), // then far again
     ]
     const matrix = buildHaversineMatrix(nodes)
     const result = solveTsp(nodes, matrix, false)
@@ -101,9 +101,9 @@ describe('solveTsp', () => {
 
   it('with fixedStart=true, first node is preserved as origin', () => {
     const nodes = [
-      makeNode('start', 32.0, 35.0),
+      makeNode('start', 32, 35),
       makeNode('A', 31.5, 34.5),
-      makeNode('B', 33.0, 36.0),
+      makeNode('B', 33, 36),
     ]
     const matrix = buildHaversineMatrix(nodes)
     const result = solveTsp(nodes, matrix, true)

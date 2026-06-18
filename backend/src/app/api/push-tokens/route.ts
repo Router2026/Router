@@ -23,10 +23,10 @@ export async function POST(req: NextRequest) {
           `SELECT id FROM users WHERE email = $1 LIMIT 1`,
           [sbUser.email]
         );
-        if (rows.length) userId = rows[0].id as number;
+        if (rows.length) userId = rows[0].id;
       } else {
         const auth = await getUserFromRequest(req);
-        if (auth?.id) userId = auth.id as number;
+        if (auth?.id) userId = auth.id;
       }
     }
 

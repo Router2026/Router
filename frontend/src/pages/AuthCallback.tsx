@@ -24,7 +24,6 @@ export default function AuthCallback() {
     const errorCode = params.get('error');
     const errorDesc = params.get('error_description');
     if (errorCode) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(`שגיאה מ-Google: ${errorDesc || errorCode}`);
       return;
     }
@@ -50,6 +49,7 @@ export default function AuthCallback() {
         }
       })
       .catch(e => setError(e.message || 'שגיאה בכניסה עם Google'));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot: runs once on mount to process the OAuth hash
   }, []);
 
   if (error) {

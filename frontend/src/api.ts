@@ -22,7 +22,34 @@ export class ApiError extends Error {
 export { toast };
 
 const TOKEN_KEY = 'router_auth_token';
+const REFRESH_KEY = 'router_refresh_token';
 const MAX_RETRIES = 3;
+
+let _refreshing: Promise<string | null> | null = null;
+
+async function attemptTokenRefresh(): Promise<string | null> {
+  if (_refreshing) return _refreshing;
+  _refreshing = (async () => {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    if (!refreshToken) return null;
+    try {
+      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) { localStorage.removeItem(REFRESH_KEY); return null; }
+      const data = await res.json() as { data: { token: string; refresh_token: string } };
+      const { token: newToken, refresh_token: newRefresh } = data.data;
+      localStorage.setItem(TOKEN_KEY, newToken); // NOSONAR S5808
+      localStorage.setItem(REFRESH_KEY, newRefresh); // NOSONAR S5808
+      _token = newToken;
+      return newToken;
+    } catch { return null; }
+    finally { _refreshing = null; }
+  })();
+  return _refreshing;
+}
 const RETRY_BASE_MS = 1000;
 
 function isNetworkError(err: unknown): err is TypeError {
@@ -45,7 +72,7 @@ function shouldRetry(method: string, attempt: number, err: unknown, status?: num
 }
 
 function retryDelay(attempt: number): Promise<void> {
-  const jitter = 0.8 + Math.random() * 0.4; // NOSONAR — timing jitter, not cryptographic
+  const jitter = 0.8 + (crypto.getRandomValues(new Uint32Array(1))[0] / 0xFFFFFFFF) * 0.4;
   const ms = RETRY_BASE_MS * Math.pow(2, attempt) * jitter;
   return new Promise(r => setTimeout(r, ms));
 }
@@ -69,6 +96,16 @@ async function singleAttempt<T>(url: string, init: RequestInit): Promise<Attempt
   }
 }
 
+// Performs a single attempt, transparently refreshing the token on a first 401.
+async function fetchWithRefresh<T>(url: string, headers: Record<string, string>, options?: RequestInit): Promise<AttemptResult<T>> {
+  const result = await singleAttempt<T>(url, { headers, ...options });
+  if (result.ok || result.status !== 401) return result;
+  const newToken = await attemptTokenRefresh();
+  if (!newToken) return result;
+  headers['Authorization'] = `Bearer ${newToken}`;
+  return singleAttempt<T>(url, { headers, ...options });
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = _token ?? localStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -79,13 +116,11 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) await retryDelay(attempt - 1);
 
-    const result = await singleAttempt<T>(`${BASE_URL}${path}`, { headers, ...options });
+    const result = await fetchWithRefresh<T>(`${BASE_URL}${path}`, headers, options);
     if (result.ok) return result.data;
 
     lastErr = result.err;
-    if (!shouldRetry(method, attempt, result.err, result.status)) {
-      throw result.err;
-    }
+    if (!shouldRetry(method, attempt, result.err, result.status)) throw result.err;
     if (isNetworkError(result.err) && attempt === 0) {
       toast.error('בעיית חיבור לאינטרנט, מנסה שנית...', { id: 'network-retry', duration: 8000 });
     }
@@ -387,11 +422,11 @@ function mapUser(r: any): UserProfile {
 export const api = {
   // ── Auth ──────────────────────────────────────────────────────
   auth: {
-    login: async (email: string, password: string): Promise<{ user: UserProfile; token: string }> => {
-      const res = await apiFetch<{ data: { user: any; token: string } }>('/auth/login', {
+    login: async (email: string, password: string): Promise<{ user: UserProfile; token: string; refresh_token?: string }> => {
+      const res = await apiFetch<{ data: { user: any; token: string; refresh_token?: string } }>('/auth/login', {
         method: 'POST', body: JSON.stringify({ email, password }),
       });
-      return { user: mapUser(res.data.user), token: res.data.token };
+      return { user: mapUser(res.data.user), token: res.data.token, refresh_token: res.data.refresh_token };
     },
     register: async (email: string, password: string, full_name: string, username: string): Promise<{ requiresVerification: true }> => {
       await apiFetch<{ data: any }>('/auth/register', {

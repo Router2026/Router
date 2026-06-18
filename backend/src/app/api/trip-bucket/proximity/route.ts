@@ -70,9 +70,7 @@ export async function POST(req: NextRequest) {
     // Prefer real Mapbox travel times; fall back to straight-line Haversine.
     let matrix = await fetchMapboxMatrix(nodes);
     const usedMapbox = matrix !== null;
-    if (!matrix) {
-      matrix = buildHaversineMatrix(nodes);
-    }
+    matrix ??= buildHaversineMatrix(nodes);
 
     console.log(
       `[Proximity] ${nodes.length} nodes, matrix source: ${usedMapbox ? 'Mapbox' : 'Haversine'}`,
@@ -92,7 +90,7 @@ export async function POST(req: NextRequest) {
       // Advance cursor: visit duration + travel to next stop + buffer
       const travelToNext =
         i < orderedNodes.length - 1
-          ? matrix![
+          ? matrix[
               nodes.findIndex(n => n.id === node.id)
             ][
               nodes.findIndex(n => n.id === orderedNodes[i + 1].id)

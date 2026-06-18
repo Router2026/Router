@@ -185,7 +185,7 @@ export async function getTripByUuid(uuid: string): Promise<TripRecord | null> {
     console.error("[getTripByUuid] Stored plan is unreadable:", lenient.error.message);
     return null;
   }
-  const recovered = sanitizePlan(lenient.data as TripPlan);
+  const recovered = sanitizePlan(lenient.data);
   if (recovered.days.length === 0) {
     console.error("[getTripByUuid] Stored plan has no valid stops after sanitization");
     return null;

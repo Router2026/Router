@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json();
     const poiId = Number.parseInt(id);
-    const adminId = admin.id as number;
+    const adminId = admin.id;
 
     if (body.action === "approve") {
       const poi = await approveCommunityPoi(poiId, adminId, body.edits);

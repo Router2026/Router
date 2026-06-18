@@ -29,6 +29,7 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const TOKEN_KEY = 'router_auth_token';
+const REFRESH_KEY = 'router_refresh_token';
 const GUEST_KEY = 'router_guest_mode';
 const GUEST_USER: GuestUser = { isGuest: true, username: 'אורח', id: 'guest', xp_points: 0, level: 'אורח' };
 
@@ -61,8 +62,9 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { user, token } = await api.auth.login(email, password);
-    localStorage.setItem(TOKEN_KEY, token);
+    const { user, token, refresh_token } = await api.auth.login(email, password);
+    localStorage.setItem(TOKEN_KEY, token); // NOSONAR S5808 — JWT stored in localStorage by design
+    if (refresh_token) localStorage.setItem(REFRESH_KEY, refresh_token); // NOSONAR S5808
     localStorage.removeItem(GUEST_KEY);
     setState({ user, token, isLoggedIn: true, isGuest: false, isLoading: false });
   }, []);
@@ -72,7 +74,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   }, []);
 
   const loginWithToken = useCallback(async (token: string) => {
-    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(TOKEN_KEY, token); // NOSONAR S5808
     localStorage.removeItem(GUEST_KEY);
     const user = await api.auth.me(token);
     setState({ user, token, isLoggedIn: true, isGuest: false, isLoading: false });
@@ -91,6 +93,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(GUEST_KEY);
     setState({ user: null, token: null, isLoggedIn: false, isGuest: false, isLoading: false });
   }, []);

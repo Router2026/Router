@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         );
         rows = result.rows;
       }
-      return NextResponse.json(successResponse({ user: rows[0], token: data.session.access_token }));
+      return NextResponse.json(successResponse({ user: rows[0], token: data.session.access_token, refresh_token: data.session.refresh_token }));
     }
 
     // Fallback: legacy password_hash check (migrate on first login)
@@ -71,15 +71,17 @@ export async function POST(req: NextRequest) {
 
     // If signUp returns a session the email confirmation is not required (or already confirmed)
     if (signUpData?.session) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password_hash: _ph, email_verified: _ev, ...safeUser } = user;
-      return NextResponse.json(successResponse({ user: safeUser, token: signUpData.session.access_token }));
+      return NextResponse.json(successResponse({ user: safeUser, token: signUpData.session.access_token, refresh_token: signUpData.session.refresh_token }));
     }
 
     // signUp created the account but needs email confirmation — try signing in again
     const { data: retried } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
     if (retried?.session) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password_hash: _ph2, email_verified: _ev2, ...safeUser } = user;
-      return NextResponse.json(successResponse({ user: safeUser, token: retried.session.access_token }));
+      return NextResponse.json(successResponse({ user: safeUser, token: retried.session.access_token, refresh_token: retried.session.refresh_token }));
     }
 
     return NextResponse.json(errorResponse("Invalid email or password", "AUTH_ERROR"), { status: 401 });

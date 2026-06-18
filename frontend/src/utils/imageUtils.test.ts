@@ -177,3 +177,49 @@ describe('getSrcSet — no SUPABASE_URL', () => {
     expect(result.split(',').length).toBe(2)
   })
 })
+
+// ── resolveMainImage tests ─────────────────────────────────────────────────────
+
+import { resolveMainImage } from './imageUtils'
+
+describe('resolveMainImage', () => {
+  it('returns main_image when set', () => {
+    expect(resolveMainImage({ main_image: 'https://a.com/img.jpg' })).toBe('https://a.com/img.jpg')
+  })
+
+  it('trims whitespace from main_image', () => {
+    expect(resolveMainImage({ main_image: '  https://a.com/img.jpg  ' })).toBe('https://a.com/img.jpg')
+  })
+
+  it('falls back to first images entry when main_image is absent', () => {
+    expect(resolveMainImage({ images: ['https://a.com/img.jpg', 'https://b.com/img.jpg'] })).toBe('https://a.com/img.jpg')
+  })
+
+  it('skips empty strings in images array', () => {
+    expect(resolveMainImage({ images: ['', '  ', 'https://b.com/img.jpg'] })).toBe('https://b.com/img.jpg')
+  })
+
+  it('falls back to first photos entry when main_image and images are absent', () => {
+    expect(resolveMainImage({ photos: ['https://c.com/photo.jpg'] })).toBe('https://c.com/photo.jpg')
+  })
+
+  it('skips empty strings in photos array', () => {
+    expect(resolveMainImage({ photos: ['', 'https://c.com/photo.jpg'] })).toBe('https://c.com/photo.jpg')
+  })
+
+  it('returns empty string when no image is available', () => {
+    expect(resolveMainImage({})).toBe('')
+  })
+
+  it('returns empty string when main_image is empty string', () => {
+    expect(resolveMainImage({ main_image: '', images: [] })).toBe('')
+  })
+
+  it('ignores main_image when it is null', () => {
+    expect(resolveMainImage({ main_image: null, images: ['https://a.com/img.jpg'] })).toBe('https://a.com/img.jpg')
+  })
+
+  it('prefers images over photos when main_image is absent', () => {
+    expect(resolveMainImage({ images: ['https://a.com/img.jpg'], photos: ['https://c.com/photo.jpg'] })).toBe('https://a.com/img.jpg')
+  })
+})
