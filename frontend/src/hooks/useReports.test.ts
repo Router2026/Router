@@ -14,7 +14,7 @@ vi.mock('../api', () => ({
   },
 }))
 
-import { api } from '../api'
+import { api, type CommunityReport } from '../api'
 import { reportKeys, useReports, useMyReports, useUpvoteReport, useCreateReport } from './useReports'
 
 const mockApi = api as {
@@ -30,6 +30,13 @@ function makeWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client }, children)
+}
+
+function makeWrapperWithClient() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client }, children)
+  return { client, wrapper }
 }
 
 const mockReport = (id: string, type = 'road', upvotes = 0) => ({
@@ -205,14 +212,108 @@ describe('useCreateReport', () => {
     expect(mockApi.reports.create).toHaveBeenCalled()
   })
 
+  it('does not prepend to typed list when report type does not match activeType', async () => {
+    const existingReport = mockReport('existing', 'road')
+    const newReport = mockReport('new', 'trail')
+    mockApi.reports.list.mockResolvedValue([existingReport])
+    mockApi.reports.create.mockResolvedValue(newReport)
+
+    const wrapper = makeWrapper()
+    const { result: listResult } = renderHook(() => useReports('road'), { wrapper })
+    await waitFor(() => expect(listResult.current.isSuccess).toBe(true))
+
+    const { result } = renderHook(() => useCreateReport('road'), { wrapper })
+    await act(async () => {
+      await result.current.mutateAsync({
+        report_type: 'trail',
+        title: 'Trail report',
+        content: 'content',
+        latitude: 31.5,
+        longitude: 34.8,
+        location_name: 'Test',
+      } as Parameters<typeof api.reports.create>[0])
+    })
+
+    // The 'road' typed list should NOT have the new 'trail' report prepended
+    expect(listResult.current.data?.find(r => r.id === 'new')).toBeUndefined()
+  })
+
   it('handles create error', async () => {
     mockApi.reports.create.mockRejectedValue(new Error('create failed'))
     const { result } = renderHook(() => useCreateReport(), { wrapper: makeWrapper() })
 
     await act(async () => {
-      try { await result.current.mutateAsync({} as Parameters<typeof api.reports.create>[0]) } catch { /* expected */ }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      try { await result.current.mutateAsync({} as any) } catch { /* expected */ }
     })
 
     await waitFor(() => expect(result.current.isError).toBe(true))
+  })
+})
+
+// ── useUpvoteReport onSuccess cross-list sync ─────────────────────────────────
+
+describe('useUpvoteReport — cross-list sync', () => {
+  it('onSuccess syncs updated report into a list that was not optimistically updated', async () => {
+    // Mutation uses activeType='road', so onMutate only touches the 'road' list.
+    // onSuccess must sync the 'all' list too — verified via the QueryClient directly.
+    const report = mockReport('r1', 'road', 3)
+    const updatedReport = { ...report, upvotes: 4 }
+    mockApi.reports.list.mockResolvedValue([report])
+    mockApi.reports.upvote.mockResolvedValue(updatedReport)
+
+    const { client: qc, wrapper } = makeWrapperWithClient()
+    const { result: allResult } = renderHook(() => useReports(), { wrapper })
+    const { result: roadResult } = renderHook(() => useReports('road'), { wrapper })
+    await waitFor(() => expect(allResult.current.isSuccess).toBe(true))
+    await waitFor(() => expect(roadResult.current.isSuccess).toBe(true))
+
+    // activeType='road': onMutate optimistically updates 'road', onSuccess syncs 'all'
+    const { result } = renderHook(() => useUpvoteReport('road'), { wrapper })
+    await act(async () => { await result.current.mutateAsync({ id: 'r1', action: 'add' }) })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    // Read the cache directly — bypasses React re-render timing
+    const allData = qc.getQueryData<CommunityReport[]>(reportKeys.list())
+    expect(allData?.find(r => r.id === 'r1')?.upvotes).toBe(4)
+  })
+
+  it('onSuccess skips lists that do not contain the updated report', async () => {
+    const r1 = mockReport('r1', 'road', 2)
+    const r2 = mockReport('r2', 'trail', 0)
+    const updatedR2 = { ...r2, upvotes: 1 }
+    mockApi.reports.list
+      .mockResolvedValueOnce([r1])    // 'all' list
+      .mockResolvedValueOnce([r2])    // 'trail' list
+    mockApi.reports.upvote.mockResolvedValue(updatedR2)
+
+    const wrapper = makeWrapper()
+    const { result: allResult } = renderHook(() => useReports(), { wrapper })
+    const { result: trailResult } = renderHook(() => useReports('trail'), { wrapper })
+    await waitFor(() => expect(allResult.current.isSuccess).toBe(true))
+    await waitFor(() => expect(trailResult.current.isSuccess).toBe(true))
+
+    const { result } = renderHook(() => useUpvoteReport('trail'), { wrapper })
+    await act(async () => { await result.current.mutateAsync({ id: 'r2', action: 'add' }) })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    // 'all' list does not contain r2 — it should be unmodified
+    expect(allResult.current.data?.find(r => r.id === 'r2')).toBeUndefined()
+  })
+
+  it('onMutate with remove action decrements upvotes', async () => {
+    mockApi.reports.list.mockResolvedValue([mockReport('r1', 'road', 5)])
+    mockApi.reports.upvote.mockImplementation(() => new Promise(() => {})) // never resolves
+
+    const wrapper = makeWrapper()
+    const { result: listResult } = renderHook(() => useReports(), { wrapper })
+    await waitFor(() => expect(listResult.current.isSuccess).toBe(true))
+
+    const { result } = renderHook(() => useUpvoteReport(), { wrapper })
+    act(() => { result.current.mutate({ id: 'r1', action: 'remove' }) })
+
+    await waitFor(() => {
+      expect(listResult.current.data?.find(r => r.id === 'r1')?.upvotes).toBe(4)
+    })
   })
 })

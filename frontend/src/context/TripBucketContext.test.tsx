@@ -12,6 +12,7 @@ const makePoi = (id: string): POI => ({
 
 function Harness({ fn }: { fn: (ctx: ReturnType<typeof useTripBucket>) => void }) {
   const ctx = useTripBucket()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- test harness: intentional one-shot call
   React.useEffect(() => { fn(ctx) }, [])
   return (
     <div>

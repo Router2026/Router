@@ -33,7 +33,8 @@ export function FavoritesProvider({ children }: Readonly<{ children: React.React
   useEffect(() => {
     if (!user) { setFavorites([]); return; }
     fetchFavorites();
-  }, [user?.id]); // depend only on id — not the whole object — to avoid infinite loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- depend only on id to avoid infinite loops from object identity changes
+  }, [user?.id]);
 
   const isFavorite = useCallback(
     (locationId: number | string) =>

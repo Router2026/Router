@@ -140,7 +140,8 @@ function FitBoundsToSelection({ pois, startPoint, region }: {
     } else if (region) {
       map.flyTo([region.center_lat, region.center_lng], region.zoom || 11, { duration: 0.8 });
     }
-  }, [pois.length, startPoint, region]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- map is a stable Leaflet instance; pois.length avoids refit on content-only changes
+  }, [map, pois.length, startPoint, region]);
   return null;
 }
 

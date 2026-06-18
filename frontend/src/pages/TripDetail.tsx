@@ -69,6 +69,7 @@ function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
   const map = useMap();
   useEffect(() => {
     if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.18));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot: fit bounds once on mount only
   }, []);
   return null;
 }

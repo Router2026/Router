@@ -105,7 +105,8 @@ export default function Register() {
     if (!USERNAME_RE.test(username)) { setUsernameStatus('invalid'); return; }
     setUsernameStatus('checking');
     scheduleUsernameCheck(username, debounceRef, setUsernameStatus);
-    return () => { if (debounceRef.current) { clearTimeout(debounceRef.current); } };
+    const scheduled = debounceRef.current;
+    return () => { if (scheduled) clearTimeout(scheduled); };
   }, [username]);
 
   const validate = () =>
