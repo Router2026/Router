@@ -33,7 +33,7 @@ export async function saveLocationImage(
   locationId: number,
   imageUrl:   string,
 ): Promise<UploadImageResult> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<LocationImage>(
     `INSERT INTO location_images (user_id, location_id, image_url, is_approved, approved_at)
      SELECT $1, $2, $3, TRUE, NOW()
      WHERE (
@@ -60,7 +60,7 @@ export async function approveLocationImage(
   imageId: number,
   adminId: number,
 ): Promise<LocationImage> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<LocationImage>(
     `UPDATE location_images
      SET is_approved = TRUE, approved_by = $2, approved_at = NOW()
      WHERE id = $1
@@ -86,7 +86,7 @@ export async function getLocationImages(
   locationId:   number,
   approvedOnly: boolean = false,
 ): Promise<LocationImage[]> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<LocationImage>(
     `SELECT li.id, li.user_id, li.location_id, li.image_url,
             COALESCE(li.is_approved, FALSE) AS is_approved,
             li.approved_by, li.approved_at, li.created_at,

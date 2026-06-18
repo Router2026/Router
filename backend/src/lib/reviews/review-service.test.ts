@@ -7,7 +7,7 @@ vi.mock('@/lib/db/raw-client', () => ({
 import { rawDb } from '@/lib/db/raw-client'
 import { getReviews, createReview } from './review-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn> }
 
 const sampleReview = {
   id: 1, user_id: 5, location_id: 10, poi_name: 'Ein Gedi',

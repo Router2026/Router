@@ -12,8 +12,8 @@ import { supabase } from '@/lib/db/supabase'
 import { rawDb } from '@/lib/db/raw-client'
 import { signJWT, verifyJWT, hashPassword, verifyPassword, getUserFromRequest } from './tokens'
 
-const mockSb    = supabase as { auth: { getUser: ReturnType<typeof vi.fn> } }
-const mockRawDb = rawDb   as { query: ReturnType<typeof vi.fn> }
+const mockSb    = supabase as unknown as { auth: { getUser: ReturnType<typeof vi.fn> } }
+const mockRawDb = rawDb   as unknown as { query: ReturnType<typeof vi.fn> }
 
 beforeEach(() => {
   vi.clearAllMocks()

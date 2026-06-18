@@ -12,7 +12,7 @@ import { rawDb } from '@/lib/db/raw-client'
 import { cacheGet, cacheSet } from '@/lib/cache/mem-cache'
 import { getAllRegions, getRegionBySlug, getRegionIdByName } from './region-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn> }
 const mockCacheGet = cacheGet as ReturnType<typeof vi.fn>
 const mockCacheSet = cacheSet as ReturnType<typeof vi.fn>
 

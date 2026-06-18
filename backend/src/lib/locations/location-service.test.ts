@@ -18,7 +18,7 @@ import {
   updateLocation, deleteLocation,
 } from './location-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn> }
 const mockCacheGet = cacheGet as ReturnType<typeof vi.fn>
 const mockCacheSet = cacheSet as ReturnType<typeof vi.fn>
 

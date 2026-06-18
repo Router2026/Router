@@ -29,7 +29,7 @@ import {
   editCommunityPoi,
 } from './community-poi-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn>; getClient: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn>; getClient: ReturnType<typeof vi.fn> }
 const mockPush = sendPushToUser as ReturnType<typeof vi.fn>
 
 const samplePoi = {
@@ -95,7 +95,7 @@ describe('approveCommunityPoi', () => {
     expect(result.status).toBe('approved')
 
     // BEGIN and COMMIT should have been called
-    const txSqls = mockTxQuery.mock.calls.map(([sql]: [string]) => sql.trim())
+    const txSqls = mockTxQuery.mock.calls.map((args: unknown[]) => (args[0] as string).trim())
     expect(txSqls).toContain('BEGIN')
     expect(txSqls).toContain('COMMIT')
 

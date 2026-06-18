@@ -19,7 +19,7 @@ export interface FavoriteLocation {
 }
 
 export async function addFavorite(userId: number, locationId: number): Promise<FavoriteLocation> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<FavoriteLocation>(
     `INSERT INTO favorites (user_id, location_id)
      VALUES ($1, $2)
      ON CONFLICT (user_id, location_id) DO NOTHING
@@ -28,7 +28,7 @@ export async function addFavorite(userId: number, locationId: number): Promise<F
   );
   if (!rows.length) {
     // Already exists — fetch and return it
-    const existing = await rawDb.query(
+    const existing = await rawDb.query<FavoriteLocation>(
       `SELECT * FROM favorites WHERE user_id = $1 AND location_id = $2`,
       [userId, locationId]
     );
@@ -45,7 +45,7 @@ export async function removeFavorite(userId: number, locationId: number): Promis
 }
 
 export async function getUserFavorites(userId: number): Promise<FavoriteLocation[]> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<FavoriteLocation>(
     `SELECT f.*, l.name, l.category, r.name AS region_name,
             l.latitude, l.longitude, l.main_image, l.difficulty, l.average_rating
      FROM favorites f

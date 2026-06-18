@@ -20,7 +20,7 @@ async function resolveUserId(req: NextRequest): Promise<number | null> {
   } = await supabase.auth.getUser(token);
 
   if (sbUser?.email) {
-    const { rows } = await rawDb.query(
+    const { rows } = await rawDb.query<{ id: number }>(
       `SELECT id FROM users WHERE email = $1 LIMIT 1`,
       [sbUser.email]
     );

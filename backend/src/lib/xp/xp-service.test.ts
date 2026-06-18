@@ -7,7 +7,7 @@ vi.mock('@/lib/db/raw-client', () => ({
 import { rawDb } from '@/lib/db/raw-client'
 import { computeLevel, levelLabel, awardXp, XP_REWARDS } from './xp-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn> }
 
 beforeEach(() => {
   vi.clearAllMocks()

@@ -6,17 +6,17 @@ import { CreateReviewInput, Review } from "./types";
 
 export async function getReviews(locationId?: number): Promise<Review[]> {
   const { rows } = locationId
-    ? await rawDb.query(
+    ? await rawDb.query<Review>(
       `SELECT * FROM reviews WHERE location_id = $1 ORDER BY created_at DESC`,
       [locationId]
     )
-    : await rawDb.query(`SELECT * FROM reviews ORDER BY created_at DESC`);
+    : await rawDb.query<Review>(`SELECT * FROM reviews ORDER BY created_at DESC`);
   return rows;
 }
 
 
 export async function createReview(data: CreateReviewInput): Promise<Review> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<Review>(
     `INSERT INTO reviews
        (user_id, location_id, poi_name, reviewer_name, rating, content)
      VALUES ($1, $2, $3, $4, $5, $6)

@@ -13,7 +13,7 @@ export async function resolvePoiAuthUser(req: NextRequest): Promise<AuthUser | n
 
   const { data: { user: sbUser } } = await supabase.auth.getUser(token);
   if (sbUser?.email) {
-    const { rows } = await rawDb.query(
+    const { rows } = await rawDb.query<{ id: number; username: string }>(
       `SELECT id, username FROM users WHERE email = $1 LIMIT 1`,
       [sbUser.email]
     );
@@ -35,7 +35,7 @@ export async function resolveContributorUser(
   const { data: { user: sbUser } } = await supabase.auth.getUser(token);
 
   if (sbUser?.email) {
-    const { rows } = await rawDb.query(
+    const { rows } = await rawDb.query<{ id: number; username: string; full_name: string }>(
       `SELECT id, username, full_name FROM users WHERE email = $1 LIMIT 1`,
       [sbUser.email]
     );
@@ -50,7 +50,7 @@ export async function resolveContributorUser(
 
   const auth = await getUserFromRequest(req);
   if (auth?.id) {
-    const { rows } = await rawDb.query(
+    const { rows } = await rawDb.query<{ id: number; username: string; full_name: string }>(
       `SELECT id, username, full_name FROM users WHERE id = $1 LIMIT 1`,
       [auth.id]
     );

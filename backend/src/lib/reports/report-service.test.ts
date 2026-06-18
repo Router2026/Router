@@ -7,7 +7,7 @@ vi.mock('@/lib/db/raw-client', () => ({
 import { rawDb } from '@/lib/db/raw-client'
 import { getReports, createReport, upvoteReport } from './report-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn> }
 
 const sampleReport = {
   id: 1, user_id: 3, location_id: 7, poi_name: 'Banias',
@@ -72,7 +72,7 @@ describe('upvoteReport', () => {
   it('increments upvotes and returns updated report', async () => {
     const upvoted = { ...sampleReport, upvotes: 3 }
     mockDb.query.mockResolvedValue({ rows: [upvoted] })
-    const result = await upvoteReport(1)
+    const result = await upvoteReport(1, 1)
     expect(result!.upvotes).toBe(3)
     const [sql, params] = mockDb.query.mock.calls[0]
     expect(sql).toContain('GREATEST(0, upvotes + $2)')
@@ -81,7 +81,7 @@ describe('upvoteReport', () => {
 
   it('returns null when report not found', async () => {
     mockDb.query.mockResolvedValue({ rows: [] })
-    const result = await upvoteReport(999)
+    const result = await upvoteReport(999, 1)
     expect(result).toBeNull()
   })
 })

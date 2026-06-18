@@ -7,7 +7,7 @@ vi.mock('@/lib/db/raw-client', () => ({
 import { rawDb } from '@/lib/db/raw-client'
 import { addFavorite, removeFavorite, getUserFavorites, isFavorite } from './favorites-service'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn> }
 
 const sampleFavorite = {
   id: 1, user_id: 5, location_id: 10, created_at: new Date(),

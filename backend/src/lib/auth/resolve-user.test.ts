@@ -16,8 +16,8 @@ import { supabase } from '@/lib/db/supabase'
 import { getUserFromRequest } from '@/lib/auth/tokens'
 import { resolvePoiAuthUser, resolveContributorUser } from './resolve-user'
 
-const mockDb       = rawDb     as { query: ReturnType<typeof vi.fn> }
-const mockSb       = supabase  as { auth: { getUser: ReturnType<typeof vi.fn> } }
+const mockDb       = rawDb     as unknown as { query: ReturnType<typeof vi.fn> }
+const mockSb       = supabase  as unknown as { auth: { getUser: ReturnType<typeof vi.fn> } }
 const mockGetUser  = getUserFromRequest as ReturnType<typeof vi.fn>
 
 function makeReq(token?: string): any {

@@ -8,7 +8,7 @@ import { rawDb } from '@/lib/db/raw-client'
 import { fetchBucketPois, toTspNodes } from './bucket-db'
 import type { BucketPoi } from './types'
 
-const mockDb = rawDb as { query: ReturnType<typeof vi.fn> }
+const mockDb = rawDb as unknown as { query: ReturnType<typeof vi.fn> }
 
 const sampleRow = {
   id: '1',

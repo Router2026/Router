@@ -48,7 +48,7 @@ export async function getReports(opts: GetReportsOptions = {}): Promise<Communit
   const offsetIdx = params.length;
 
   // Explicit column list — avoids pulling large unused columns in list views
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<CommunityReport>(
     `SELECT id, user_id, location_id, poi_name, report_type, severity,
             content, reporter_name, upvotes, created_at
      FROM community_reports
@@ -74,7 +74,7 @@ export interface CreateReportInput {
 }
 
 export async function createReport(data: CreateReportInput): Promise<CommunityReport> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<CommunityReport>(
     `INSERT INTO community_reports
        (user_id, location_id, poi_name, report_type, severity, content, reporter_name)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -105,7 +105,7 @@ export async function createReport(data: CreateReportInput): Promise<CommunityRe
 }
 
 export async function upvoteReport(id: number, delta: 1 | -1): Promise<CommunityReport | null> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<CommunityReport>(
     `UPDATE community_reports
      SET upvotes = GREATEST(0, upvotes + $2)
      WHERE id = $1 RETURNING *`,

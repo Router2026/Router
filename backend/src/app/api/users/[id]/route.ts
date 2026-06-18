@@ -12,7 +12,7 @@ import { CommunityPoiRow } from "@/lib/community-poi/types";
 type Params = { params: Promise<{ id: string }> };
 
 async function getApprovedCommunityPoisForUser(userId: number): Promise<CommunityPoiRow[]> {
-  const { rows } = await rawDb.query(
+  const { rows } = await rawDb.query<CommunityPoiRow>(
     `SELECT cp.*,
             u.username AS submitter_username
      FROM   community_pois cp
