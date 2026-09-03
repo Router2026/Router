@@ -41,9 +41,17 @@ interface PlaceCardProps {
   onClick: () => void;
 }
 
+// ── Shared place card ────────────────────────────────────────────────────────
+interface PlaceCardProps {
+  poi: POI | NearbyPOI;
+  badge?: React.ReactNode;
+  onClick: () => void;
+}
+
 function PlaceCard({ poi, badge, onClick }: Readonly<PlaceCardProps>) {
   const color = CATEGORY_COLORS[poi.category] || '#0d9e6e';
-  const img = poi.main_image || poi.images?.[0];
+  // יישור קו עם Explore: שימוש ישיר בתמונה ללא getImageUrl
+  const img = (poi as any).thumbnail || poi.main_image || poi.images?.[0];
   const getCategoryEmoji = () => {
     if (poi.category.includes('נחל')) return '💧';
     if (poi.category.includes('מצפה')) return '⛰️';
@@ -70,7 +78,8 @@ function PlaceCard({ poi, badge, onClick }: Readonly<PlaceCardProps>) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {img && (
-          <img src={getImageUrl(img, 'card')} alt={poi.name}
+          // שינוי ה-src לשימוש במשתנה img במקום בפונקציית getImageUrl
+          <img src={img} alt={poi.name}
             loading="lazy" decoding="async"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
             onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }}
@@ -108,7 +117,6 @@ function PlaceCard({ poi, badge, onClick }: Readonly<PlaceCardProps>) {
     </button>
   );
 }
-
 // ── Horizontal scroll row ────────────────────────────────────────────────────
 // Horizontal scroll row
 // ── Horizontal scroll row ────────────────────────────────────────────────────
