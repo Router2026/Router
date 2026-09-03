@@ -17,7 +17,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { type POI, type Region } from '../api';
-import { getImageUrl } from '../utils/imageUtils';
 import { useRegions, useLocationsByRegion } from '../hooks/useLocations';
 import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketFab from '../components/TripBucketFab';
@@ -485,7 +484,7 @@ export default function MapView() {
             </button>
             {selectedPOI.main_image && (
               <div style={{ height: 140, position: 'relative' }}>
-                <img src={getImageUrl(selectedPOI.main_image, 'card')} alt={selectedPOI.name}
+                <img src={selectedPOI.main_image} alt={selectedPOI.name}
                   loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />

@@ -7,7 +7,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia } from '../api';
 import { useAuth } from '../context/AuthContext';
-import { getImageUrl } from '../utils/imageUtils';
 import {
   usePublicTrip,
   useTripLikes, useToggleTripLike,
@@ -701,7 +700,7 @@ export default function PublicTripDetail() {
                               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0fdf4'}
                               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff'}>
                               {poi.main_image ? (
-                                <img src={getImageUrl(poi.main_image, 'thumb')} alt="" loading="lazy" decoding="async" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                                <img src={poi.main_image} alt="" loading="lazy" decoding="async" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                               ) : (
                                 <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📍</div>
                               )}
@@ -733,7 +732,7 @@ export default function PublicTripDetail() {
                             style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', borderRadius: 13, padding: '10px 12px', border: '1.5px solid #e2e8f0' }}>
                             <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#0d9e6e', color: '#fff', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
                             {stop.main_image && (
-                              <img src={getImageUrl(stop.main_image, 'thumb')} alt="" loading="lazy" decoding="async" style={{ width: 38, height: 38, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }} />
+                              <img src={stop.main_image} alt="" loading="lazy" decoding="async" style={{ width: 38, height: 38, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }} />
                             )}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stop.name}</div>
@@ -947,7 +946,7 @@ export default function PublicTripDetail() {
                 onClick={() => loc.location_id && navigate(`/POIDetail?id=${loc.location_id}`)}
                 style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderBottom: i < trip.locations.length - 1 ? '1px solid #f1f5f9' : 'none', cursor: loc.location_id ? 'pointer' : 'default', transition: 'background 0.15s', borderRadius: 8, background: 'none', border: 'none', width: '100%', textAlign: 'right' }}>
                 <div style={{ minWidth: 30, height: 30, borderRadius: '50%', background: CAT_COLOR[loc.category] || '#0d9e6e', color: '#fff', fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>{i + 1}</div>
-                {loc.main_image && <img src={getImageUrl(loc.main_image, 'thumb')} alt="" loading="lazy" decoding="async" style={{ width: 52, height: 52, borderRadius: 11, objectFit: 'cover', flexShrink: 0 }} />}
+                {loc.main_image && <img src={loc.main_image} alt="" loading="lazy" decoding="async" style={{ width: 52, height: 52, borderRadius: 11, objectFit: 'cover', flexShrink: 0 }} />}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{loc.name}</div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
