@@ -7,7 +7,6 @@ import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
 import { useFavorites } from '../context/FavoritesContext';
 import FavoriteButton from '../components/FavoriteButton';
-import { getImageUrl } from '../utils/imageUtils';
 
 const DIFF_COLOR: Record<string, string> = {
   'קל - משפחות': '#16a34a', 'קל': '#16a34a',
@@ -108,7 +107,7 @@ export default function Favorites() {
                 overflow: 'hidden',
               }}>
                 {fav.main_image
-                  ? <img src={getImageUrl(fav.main_image, 'thumb')} alt=""
+                  ? <img src={fav.main_image} alt=""
                       loading="lazy" decoding="async"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.onerror = null; }} />

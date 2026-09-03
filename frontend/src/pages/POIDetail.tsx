@@ -36,7 +36,6 @@ import UploadPhotoButton from '../components/UploadPhotoButton';
 import XpToast from '../components/XpToast';
 import POIDetailsEditAdmin from './POIDetailsEditAdmin';
 import OwnerPlaceEditModal from '../components/OwnerPlaceEditModal';
-import { getImageUrl } from '../utils/imageUtils';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -168,15 +167,15 @@ function HeroImage({
 
   useEffect(() => {
     if (!images[0]) return;
-    const href = getImageUrl(images[0], 'hero');
+    const href = images[0];
     const link = document.createElement('link');
     link.rel = 'preload'; link.as = 'image'; link.href = href;
     document.head.appendChild(link);
     return () => { document.head.removeChild(link); };
   }, [images]);
 
-  const currentSrc = !imgError && images[imgIdx] ? getImageUrl(images[imgIdx], 'hero') : null;
-  const nextSrc = images[imgIdx + 1] ? getImageUrl(images[imgIdx + 1], 'hero') : null;
+  const currentSrc = !imgError && images[imgIdx] ? images[imgIdx] : null;
+  const nextSrc = images[imgIdx + 1] ? images[imgIdx + 1] : null;
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -362,7 +361,7 @@ function MediaGallery({
             {item.media_type === 'video' ? (
               <div style={{ width: '100%', height: '100%', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 {item.thumbnail_url && (
-                  <img src={getImageUrl(item.thumbnail_url, 'card')} alt="video thumbnail" loading="lazy" decoding="async"
+                  <img src={item.thumbnail_url} alt="video thumbnail" loading="lazy" decoding="async"
                     style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
                 )}
                 <div style={{ position: 'relative', zIndex: 2, background: 'rgba(0,0,0,0.6)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -370,7 +369,7 @@ function MediaGallery({
                 </div>
               </div>
             ) : (
-              <img src={getImageUrl(item.media_url, 'card')} alt={item.caption || 'gallery'} loading="lazy" decoding="async"
+              <img src={item.media_url} alt={item.caption || 'gallery'} loading="lazy" decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
             )}
@@ -399,7 +398,7 @@ function MediaGallery({
                 <track kind="captions" />
               </video>
             ) : (
-              <img src={getImageUrl(media[lightboxIdx].media_url, 'lightbox')} alt={media[lightboxIdx].caption || ''}
+              <img src={media[lightboxIdx].media_url} alt={media[lightboxIdx].caption || ''}
                 style={{ maxWidth: '90vw', maxHeight: '75vh', borderRadius: 12, objectFit: 'contain' }} />
             )}
             <div style={{ marginTop: 12, textAlign: 'center', color: '#fff', direction: 'rtl' }}>
@@ -459,7 +458,7 @@ function NearbyPlaces({ locationId }: { locationId: number }) {
             onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}>
             <div style={{ height: 90, position: 'relative', background: 'linear-gradient(135deg, #0d9e6e, #34d399)' }}>
               {place.main_image ? (
-                <img src={getImageUrl(place.main_image, 'thumb')} alt={place.name} loading="lazy" decoding="async"
+                <img src={place.main_image} alt={place.name} loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).onerror = null; }} />
               ) : (

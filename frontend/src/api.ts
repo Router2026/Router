@@ -339,8 +339,6 @@ export interface ShareTripResult {
   shared: boolean; xp_awarded: boolean; xp: XpResult | null;
 }
 
-import { getImageUrl } from './utils/imageUtils';
-
 // ── Mapper helpers ─────────────────────────────────────────────────────────
 
 function mapLocation(r: any): POI {
@@ -355,7 +353,7 @@ function mapLocation(r: any): POI {
     region_id: r.region_id, latitude: Number.parseFloat(r.latitude),
     longitude: Number.parseFloat(r.longitude),
     images,
-    main_image: mainImage, thumbnail: getImageUrl(mainImage, 'card'), difficulty: r.difficulty || 'בינוני',
+    main_image: mainImage, thumbnail: mainImage, difficulty: r.difficulty || 'בינוני',
     duration_minutes: r.duration_minutes, has_water: r.has_water,
     has_shade: r.has_shade, accessible: r.accessible,
     is_featured: r.is_featured ?? false,
