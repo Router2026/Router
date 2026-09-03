@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type POI } from '../api';
-import { getImageUrl } from '../utils/imageUtils';
 import { useFeaturedLocations, useRegions, useNearbyUserLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock, LockBadge } from '../components/LockedFeature';
@@ -51,7 +50,8 @@ interface PlaceCardProps {
 function PlaceCard({ poi, badge, onClick }: Readonly<PlaceCardProps>) {
   const color = CATEGORY_COLORS[poi.category] || '#0d9e6e';
   // יישור קו עם Explore: שימוש ישיר בתמונה ללא getImageUrl
-  const img = (poi as any).thumbnail || poi.main_image || poi.images?.[0];
+  // Safely cast to access thumbnail without triggering the any rule
+  const img = (poi as POI & { thumbnail?: string }).thumbnail || poi.main_image || poi.images?.[0];
   const getCategoryEmoji = () => {
     if (poi.category.includes('נחל')) return '💧';
     if (poi.category.includes('מצפה')) return '⛰️';
