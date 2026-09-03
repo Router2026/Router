@@ -433,11 +433,9 @@ export default function MapView() {
         maxBounds={[[29, 34], [33.8, 36.3]]} maxBoundsViscosity={0.85}
         style={{ width: '100%', height: '100%', zIndex: 1 }} zoomControl={false}>
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          attribution='© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-          subdomains="abcd"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           maxZoom={19}
-          crossOrigin="anonymous"
         />
         <PanController target={panTarget} />
         <MapStateTracker onChange={handleMapState} />
