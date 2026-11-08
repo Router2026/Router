@@ -56,6 +56,17 @@ describe('buildHybridSql attributes', () => {
     expect(sql).not.toContain('CASE WHEN l.has_water')
   })
 
+  it('treats UI chip attributes and difficulty as hard filters, independent of detected boosts', () => {
+    const { sql, params } = buildHybridSql({
+      ftsText: 'x', vector: '[1]', boostRegionSlugs: [], limit: 5,
+      requiredAttributes: ['accessible'], difficulties: ['מאתגר'], attributes: ['shade'],
+    })
+    expect(sql).toMatch(/AND l\.accessible = TRUE/)
+    expect(sql).toMatch(/l\.difficulty = ANY\(\$\d+::text\[\]\)/)
+    expect(params).toContainEqual(['מאתגר'])
+    expect(sql).toContain('(l.has_shade = TRUE) AS attr_match') // detected → still a boost
+  })
+
   it('ignores unknown attribute keys', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { sql } = buildHybridSql({ ftsText: 'x', vector: null, boostRegionSlugs: [], limit: 5, attributes: ['1=1; DROP' as any] })

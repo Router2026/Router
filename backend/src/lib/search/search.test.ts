@@ -142,6 +142,23 @@ describe('searchLocations', () => {
   })
 })
 
+describe('searchLocations default deps', () => {
+  it('falls back to full-text (not a throw) when OPENAI_API_KEY is missing', async () => {
+    const saved = process.env.OPENAI_API_KEY
+    delete process.env.OPENAI_API_KEY
+    try {
+      vi.resetModules()
+      vi.doMock('@/lib/db/raw-client', () => ({ rawDb: { query: vi.fn(async () => ({ rows: [] })) } }))
+      const { searchLocations: fresh } = await import('./search')
+      const out = await fresh({ q: 'מעיין' })
+      expect(out.meta.mode).toBe('fts')
+    } finally {
+      if (saved !== undefined) process.env.OPENAI_API_KEY = saved
+      vi.doUnmock('@/lib/db/raw-client')
+    }
+  })
+})
+
 describe('buildHybridSql', () => {
   it('adds hard filters and distance only when requested', () => {
     const plain = buildHybridSql({ ftsText: 'x', vector: null, boostRegionSlugs: [], limit: 10 })

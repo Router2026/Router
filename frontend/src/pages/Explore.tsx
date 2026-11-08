@@ -167,6 +167,47 @@ async function executeFetch(params: FetchPageParams): Promise<FetchPageResult | 
   return { pois, total };
 }
 
+// ── Semantic search (/api/locations/search) ──────────────────────────────────
+// Used for page 0 whenever there is a search term (normal mode). Returns one
+// relevance-ranked page — there is no offset pagination for relevance results.
+
+const SEMANTIC_LIMIT = 50;
+
+export interface SemanticMeta {
+  query: string;
+  searchedAs: string;
+  translated: boolean;
+  mode: 'hybrid' | 'fts';
+}
+
+function buildSemanticQuery(opts: FetchQueryOptions): URLSearchParams {
+  const qs = new URLSearchParams();
+  qs.set('q', opts.debouncedSearch.trim());
+  if (opts.selRegions[0]) qs.set('region', opts.selRegions[0]);
+  if (opts.selCats[0]) qs.set('category', opts.selCats[0]);
+  if (opts.selDiffs[0]) qs.set('difficulty', opts.selDiffs[0]);
+  if (opts.hasWater) qs.set('has_water', 'true');
+  if (opts.hasShade) qs.set('has_shade', 'true');
+  if (opts.accessible) qs.set('accessible', 'true');
+  if (opts.gpsCoords) {
+    qs.set('lat', String(opts.gpsCoords.lat));
+    qs.set('lng', String(opts.gpsCoords.lng));
+  }
+  qs.set('limit', String(SEMANTIC_LIMIT));
+  return qs;
+}
+
+async function executeSemanticSearch(
+  qs: URLSearchParams,
+  signal: AbortSignal,
+): Promise<{ pois: POI[]; meta: SemanticMeta }> {
+  const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/locations/search?${qs}`, { signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  const results: Record<string, unknown>[] = json.data?.results ?? [];
+  return { pois: results.map(mapRawToPoi), meta: json.data.meta as SemanticMeta };
+}
+
 function mergePois(prev: POI[], pageNum: number, newPois: POI[]): POI[] {
   if (pageNum === 0) return newPois;
   const seen = new Set(prev.map(p => p.id));
@@ -519,6 +560,10 @@ export default function Explore() {
   // has no more candidates. When true, the IntersectionObserver will not fire
   // any further page requests even though totalCount (server-side) may be high.
   const cityFetchExhaustedRef = useRef(false);
+  // True while the current list came from semantic search (single page, no
+  // offset pagination). Cleared whenever a legacy / city fetch replaces it.
+  const semanticActiveRef = useRef(false);
+  const [semanticMeta, setSemanticMeta] = useState<SemanticMeta | null>(null);
 
   // ── Persist filter + sort state continuously ──────────────────────────────
   useEffect(() => {
@@ -556,6 +601,8 @@ export default function Explore() {
     gpsCoords?: { lat: number; lng: number } | null,
   ): Promise<POI[] | null> => {
     if (pageNum > 0 && fetchingRef.current) return null;
+    // Relevance results are a single page — nothing further to load.
+    if (pageNum > 0 && semanticActiveRef.current) return null;
     if (pageNum === 0) {
       abortRef.current?.abort();
       cityFetchExhaustedRef.current = false;
@@ -570,11 +617,35 @@ export default function Explore() {
     let aborted = false;
 
     try {
-      const qs = buildFetchQuery({
+      const queryOpts: FetchQueryOptions = {
         selRegions, selCats, selDiffs, hasWater, hasShade, accessible,
         isCityFetch, debouncedSearch, pageNum, gpsCoords,
-      });
+      };
 
+      if (pageNum === 0) {
+        semanticActiveRef.current = false;
+        setSemanticMeta(null);
+      }
+
+      // Free-text search → semantic endpoint first; on any non-abort failure
+      // (429, 5xx, network) fall through to the legacy ?search= fetch below.
+      if (!isCityFetch && pageNum === 0 && debouncedSearch.trim()) {
+        try {
+          const { pois: semanticPois, meta } = await executeSemanticSearch(
+            buildSemanticQuery(queryOpts), controller.signal,
+          );
+          semanticActiveRef.current = true;
+          setSemanticMeta(meta);
+          setTotalCount(semanticPois.length);
+          setPois(semanticPois);
+          return semanticPois;
+        } catch (err) {
+          if ((err as Error).name === 'AbortError') throw err;
+          console.warn('[Explore] semantic search failed, using keyword search:', err);
+        }
+      }
+
+      const qs = buildFetchQuery(queryOpts);
       const result = await executeFetch({ qs, signal: controller.signal, isCityFetch, pageNum });
       if (!result) return null;
 
@@ -809,6 +880,11 @@ export default function Explore() {
 
   let countLabel: string;
   if (cityResult) { countLabel = `${displayedPois.length} אתרים · קרוב ל-${cityResult.name}`; }
+  else if (semanticMeta && debouncedSearch.trim()) {
+    countLabel = semanticMeta.translated
+      ? `${displayedPois.length} תוצאות · לפי רלוונטיות · חיפשנו: "${semanticMeta.searchedAs}"`
+      : `${displayedPois.length} תוצאות · לפי רלוונטיות`;
+  }
   else if (sortByProximity) { countLabel = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי קרבה`; }
   else { countLabel = `${totalCount ?? displayedPois.length} אתרים · ממוינים לפי דירוג`; }
 
@@ -839,7 +915,8 @@ export default function Explore() {
 
           <div style={{ flex: 1, background: '#f8fafc', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '2px solid #e2e8f0' }}>
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="חיפוש אתרים, עיר או יישוב..."
+              placeholder='נסו: "מעיין מוצל לילדים ליד ירושלים"'
+              aria-label="חיפוש אתרים — אפשר לכתוב בחופשיות, בעברית או באנגלית"
               style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 15, fontFamily: 'Heebo, sans-serif', textAlign: 'right', color: '#1a2e2a' }} />
             {search
               ? <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>

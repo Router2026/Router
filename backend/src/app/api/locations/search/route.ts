@@ -1,4 +1,5 @@
-// GET /api/locations/search?q=...&region=a,b&category=x&lat=..&lng=..&radius=..&limit=..
+// GET /api/locations/search?q=...&region=a,b&category=x&difficulty=y&has_water=true&has_shade=true
+//     &accessible=true&lat=..&lng=..&radius=..&limit=..
 // Hybrid (semantic + full-text) location search. Public endpoint; rate-limited per IP because
 // each uncached request costs an embedding call (and a translation call for non-Hebrew queries).
 
@@ -7,6 +8,7 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 import { checkRateLimit, clientIp } from "@/lib/auth/rate-limit";
 import { MAX_QUERY_CHARS } from "@/lib/embeddings";
 import { MAX_SEARCH_LIMIT, searchLocations } from "@/lib/search/search";
+import type { AttributeKey } from "@/lib/search/attributes";
 
 const RATE_LIMIT_PER_MIN = 60;
 const MAX_RADIUS_M = 200_000;
@@ -54,11 +56,18 @@ export async function GET(req: NextRequest) {
   const limit = limitRaw === undefined ? 20 : Math.trunc(limitRaw);
   if (limit < 1 || limit > MAX_SEARCH_LIMIT) return bad(`limit must be 1..${MAX_SEARCH_LIMIT}`);
 
+  const requiredAttributes: AttributeKey[] = [];
+  if (sp.get("has_water") === "true") requiredAttributes.push("water");
+  if (sp.get("has_shade") === "true") requiredAttributes.push("shade");
+  if (sp.get("accessible") === "true") requiredAttributes.push("accessible");
+
   try {
     const result = await searchLocations({
       q,
       regions: parseList(sp.get("region")),
       categories: parseList(sp.get("category")),
+      difficulties: parseList(sp.get("difficulty")),
+      requiredAttributes,
       near: lat !== undefined && lng !== undefined ? { lat, lng, radiusM: radius } : null,
       limit,
     });

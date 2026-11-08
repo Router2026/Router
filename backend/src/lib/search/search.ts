@@ -2,6 +2,7 @@ import { rawDb } from "@/lib/db/raw-client";
 import { cacheGet, cacheSet } from "@/lib/cache/mem-cache";
 import {
   EMBEDDING_DIMENSIONS,
+  EMBEDDING_MODEL,
   getEmbeddingProvider,
   normalizeQuery,
   toPgVector,
@@ -28,6 +29,9 @@ export interface SearchInput {
   q: string;
   regions?: string[];
   categories?: string[];
+  difficulties?: string[];
+  /** Filter chips (has_water / has_shade / accessible) — hard filters. */
+  requiredAttributes?: AttributeKey[];
   near?: { lat: number; lng: number; radiusM?: number } | null;
   limit?: number;
 }
@@ -60,7 +64,13 @@ let defaultDeps: SearchDeps | null = null;
 function getDefaultDeps(): SearchDeps {
   defaultDeps ??= {
     db: rawDb,
-    embedder: getEmbeddingProvider(),
+    // Lazy: the provider constructor throws without OPENAI_API_KEY. Deferring it into
+    // embed() puts that failure inside embedQuery's try → full-text fallback, not a 500.
+    embedder: {
+      model: EMBEDDING_MODEL,
+      dimensions: EMBEDDING_DIMENSIONS,
+      embed: (texts, opts) => getEmbeddingProvider().embed(texts, opts),
+    },
     translator: new GroqQueryTranslator(),
     cache: { get: cacheGet, set: cacheSet },
   };
@@ -77,6 +87,8 @@ export async function searchLocations(input: SearchInput, deps: SearchDeps = get
     query,
     r: input.regions?.length ? input.regions : null,
     c: input.categories?.length ? input.categories : null,
+    d: input.difficulties?.length ? input.difficulties : null,
+    a: input.requiredAttributes?.length ? [...input.requiredAttributes].sort() : null,
     n: input.near ?? null,
     limit,
   })}`;
@@ -115,6 +127,8 @@ export async function searchLocations(input: SearchInput, deps: SearchDeps = get
     attributeMode: ATTRIBUTE_MODE,
     regions: input.regions,
     categories: input.categories,
+    difficulties: input.difficulties,
+    requiredAttributes: input.requiredAttributes,
     near: input.near,
     // Over-fetch so duplicates removed below don't leave the page short.
     limit: limit + DEDUPE_HEADROOM,

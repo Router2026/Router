@@ -24,6 +24,9 @@ export interface HybridSqlParams {
   /** Hard filters (from UI), matched against region slug or name like getLocations(). */
   regions?: string[];
   categories?: string[];
+  difficulties?: string[];
+  /** Attributes the user selected as filter chips — always required. */
+  requiredAttributes?: AttributeKey[];
   near?: { lat: number; lng: number; radiusM?: number } | null;
   /** Attributes detected in the query. */
   attributes?: AttributeKey[];
@@ -48,6 +51,9 @@ export function buildHybridSql(p: HybridSqlParams): { sql: string; params: unkno
     filters.push(`(r.slug = ANY(${r}::text[]) OR r.name = ANY(${r}::text[]))`);
   }
   if (p.categories?.length) filters.push(`l.category = ANY(${add(p.categories)}::text[])`);
+  if (p.difficulties?.length) filters.push(`l.difficulty = ANY(${add(p.difficulties)}::text[])`);
+  // UI filter chips are explicit choices → always hard filters (fixed SQL whitelist).
+  for (const a of p.requiredAttributes ?? []) if (a in ATTRIBUTE_SQL) filters.push(ATTRIBUTE_SQL[a]);
 
   let distanceSelect = "NULL::float8 AS distance_meters";
   if (p.near) {
