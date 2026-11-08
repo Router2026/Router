@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
-import { supabase } from "@/lib/db/supabase";
+import { createRequestAuthClient } from "@/lib/db/supabase";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { checkRateLimit, clientIp } from "@/lib/auth/rate-limit";
 
@@ -9,6 +9,7 @@ const USERNAME_RE = /^\w{3,20}$/;
 const PASSWORD_RE = /^(?=.*[a-zA-Z])(?=.*[\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
 export async function POST(req: NextRequest) {
+  const authClient = createRequestAuthClient();
   try {
     // 5 registrations per IP per hour — prevents spam account creation
     const ip = clientIp(req);
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     if (existing.length > 0)
       return NextResponse.json(errorResponse("Email or username already in use", "CONFLICT"), { status: 409 });
 
-    const { error } = await supabase.auth.signUp({
+    const { error } = await authClient.auth.signUp({
       email: normalizedEmail,
       password,
       options: {

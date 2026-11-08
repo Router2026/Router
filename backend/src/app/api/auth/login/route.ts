@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
-import { supabase } from "@/lib/db/supabase";
+import { createRequestAuthClient } from "@/lib/db/supabase";
 import { verifyPassword } from "@/lib/auth/tokens";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { checkRateLimit, clientIp } from "@/lib/auth/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const authClient = createRequestAuthClient();
   try {
     // 10 attempts per IP per 15 minutes — blocks credential stuffing while allowing
     // a legitimate user who keeps mistyping their password
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Try Supabase Auth first
-    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+    const { data, error } = await authClient.auth.signInWithPassword({ email: normalizedEmail, password });
     if (!error && data.session) {
       if (!data.user.email_confirmed_at)
         return NextResponse.json(errorResponse("Please verify your email before logging in", "EMAIL_NOT_VERIFIED"), { status: 403 });
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(errorResponse("Please verify your email before logging in", "EMAIL_NOT_VERIFIED"), { status: 403 });
 
     // Migrate user to Supabase Auth
-    const { data: signUpData } = await supabase.auth.signUp({
+    const { data: signUpData } = await authClient.auth.signUp({
       email: normalizedEmail,
       password,
       options: { data: { full_name: user.full_name, username: user.username } },
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     // signUp created the account but needs email confirmation — try signing in again
-    const { data: retried } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+    const { data: retried } = await authClient.auth.signInWithPassword({ email: normalizedEmail, password });
     if (retried?.session) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password_hash: _ph2, email_verified: _ev2, ...safeUser } = user;

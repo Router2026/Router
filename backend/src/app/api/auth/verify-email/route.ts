@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rawDb } from "@/lib/db/raw-client";
-import { supabase } from "@/lib/db/supabase";
+import { createRequestAuthClient } from "@/lib/db/supabase";
 import { successResponse, errorResponse } from "@/lib/api/response";
 
 export async function GET(req: NextRequest) {
+  const authClient = createRequestAuthClient();
   const token = req.nextUrl.searchParams.get("token");
   if (!token)
     return NextResponse.json(errorResponse("Token required", "VALIDATION_ERROR"), { status: 400 });
 
-  const { data, error } = await supabase.auth.verifyOtp({ token_hash: token, type: "email" });
+  const { data, error } = await authClient.auth.verifyOtp({ token_hash: token, type: "email" });
   if (error || !data.user?.email)
     return NextResponse.json(errorResponse("Invalid or expired verification link", "INVALID_TOKEN"), { status: 400 });
 

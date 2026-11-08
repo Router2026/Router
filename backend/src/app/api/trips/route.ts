@@ -2,43 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { TripInputSchema } from "@/lib/trips/schemas";
 import { generateTrip } from "@/lib/trips/trip-service";
 import { successResponse, errorResponse } from "@/lib/api/response";
+import { getUserFromRequest } from "@/lib/auth/tokens";
+import { checkRateLimit } from "@/lib/auth/rate-limit";
 
-// Simple in-memory rate limiter: 5 trips per IP per 10 minutes.
-// Note: resets on serverless cold start — use Redis for strict enforcement in production.
-const rateMap = new Map<string, { count: number; resetAt: number }>();
+// Trip generation calls the LLM, so it is both an auth-gated and a
+// rate-limited operation: 5 trips per user per 10 minutes, shared across all
+// serverless instances via Upstash (see lib/auth/rate-limit.ts).
 const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-  if (entry.count >= RATE_LIMIT) return true;
-  entry.count++;
-  return false;
-}
-
-// Accepts only bare IPv4/IPv6 to prevent spoofed composite values
-const IP_RE = /^[0-9a-fA-F.:]{2,45}$/;
-
-function extractClientIp(req: NextRequest): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0].trim();
-    if (IP_RE.test(first)) return first;
-  }
-  const real = req.headers.get("x-real-ip")?.trim();
-  if (real && IP_RE.test(real)) return real;
-  return "unknown";
-}
-
 export async function POST(req: NextRequest) {
-  const ip = extractClientIp(req);
+  const auth = await getUserFromRequest(req);
+  if (!auth) {
+    return NextResponse.json(errorResponse("Authentication required", "AUTH_ERROR"), { status: 401 });
+  }
 
-  if (isRateLimited(ip)) {
+  if (!(await checkRateLimit(`trip-generate:${auth.id}`, RATE_LIMIT, RATE_WINDOW_MS))) {
     return NextResponse.json(
       errorResponse("Too many requests — please wait before generating another trip", "RATE_LIMITED"),
       { status: 429 }

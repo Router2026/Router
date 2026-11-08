@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/db/supabase";
+import { createRequestAuthClient } from "@/lib/db/supabase";
 import { successResponse, errorResponse } from "@/lib/api/response";
 
 export async function POST(req: NextRequest) {
+  const authClient = createRequestAuthClient();
   try {
     const { refresh_token } = await req.json().catch(() => ({})) as { refresh_token?: string };
     if (!refresh_token) {
       return NextResponse.json(errorResponse("refresh_token required", "VALIDATION_ERROR"), { status: 400 });
     }
 
-    const { data, error } = await supabase.auth.refreshSession({ refresh_token });
+    const { data, error } = await authClient.auth.refreshSession({ refresh_token });
     if (error || !data.session) {
       return NextResponse.json(errorResponse("Session expired, please log in again", "AUTH_ERROR"), { status: 401 });
     }

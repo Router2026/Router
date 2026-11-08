@@ -1,6 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@upstash/ratelimit', () => ({ Ratelimit: class { static slidingWindow() { return null; } limit = vi.fn() } }))
+const upstash = vi.hoisted(() => ({
+  instances: [] as Array<{ config: { limiter: unknown; prefix: string }; limit: ReturnType<typeof vi.fn> }>,
+  limitImpl: (() => Promise.resolve({ success: true })) as (id: string, opts?: unknown) => Promise<{ success: boolean }>,
+}))
+
+vi.mock('@upstash/ratelimit', () => ({
+  Ratelimit: class {
+    static slidingWindow(tokens: number, window: string) { return { tokens, window } }
+    config: { limiter: unknown; prefix: string }
+    limit: ReturnType<typeof vi.fn>
+    constructor(config: { limiter: unknown; prefix: string }) {
+      this.config = config
+      this.limit = vi.fn((id: string, opts?: unknown) => upstash.limitImpl(id, opts))
+      upstash.instances.push(this)
+    }
+  },
+}))
 vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
 
 import { checkRateLimit, clientIp } from './rate-limit'
@@ -8,6 +24,49 @@ import { checkRateLimit, clientIp } from './rate-limit'
 beforeEach(() => {
   delete process.env.UPSTASH_REDIS_REST_URL
   delete process.env.UPSTASH_REDIS_REST_TOKEN
+  upstash.limitImpl = () => Promise.resolve({ success: true })
+})
+
+describe('checkRateLimit (Upstash path)', () => {
+  beforeEach(() => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://example.upstash.io'
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token'
+  })
+
+  it('builds the limiter with the caller-supplied max and window', async () => {
+    await checkRateLimit('login:ip', 10, 15 * 60 * 1000)
+    const inst = upstash.instances.find(i => i.config.prefix === `rl:10:${15 * 60 * 1000}`)
+    expect(inst).toBeDefined()
+    expect(inst!.config.limiter).toEqual({ tokens: 10, window: `${15 * 60 * 1000} ms` })
+  })
+
+  it('consumes exactly one token per call (no `rate` override)', async () => {
+    await checkRateLimit('register:ip', 5, 3_600_000)
+    const inst = upstash.instances.find(i => i.config.prefix === 'rl:5:3600000')!
+    expect(inst.limit).toHaveBeenLastCalledWith('register:ip')
+  })
+
+  it('reuses one limiter per policy and separates different policies', async () => {
+    const before = upstash.instances.length
+    await checkRateLimit('a', 7, 7000)
+    await checkRateLimit('b', 7, 7000)
+    await checkRateLimit('c', 8, 7000)
+    expect(upstash.instances.length - before).toBe(2)
+  })
+
+  it('returns the Upstash verdict', async () => {
+    upstash.limitImpl = () => Promise.resolve({ success: false })
+    expect(await checkRateLimit('blocked', 3, 3000)).toBe(false)
+  })
+
+  it('falls back to in-memory when Upstash throws', async () => {
+    upstash.limitImpl = () => Promise.reject(new Error('down'))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const key = `fallback:${Date.now()}`
+    expect(await checkRateLimit(key, 1, 5000)).toBe(true)
+    expect(await checkRateLimit(key, 1, 5000)).toBe(false)
+    err.mockRestore()
+  })
 })
 
 describe('checkRateLimit (in-memory path)', () => {

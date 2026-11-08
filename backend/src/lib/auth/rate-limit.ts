@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Rate limiter with two tiers:
  *
@@ -21,23 +20,35 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-// ── Upstash client (lazy — only created when env vars are present) ────────────
+// ── Upstash limiters (lazy — only created when env vars are present) ──────────
+//
+// A Ratelimit instance's limit and window are fixed at construction time.
+// (`limit(id, { rate })` means "tokens to consume per call", NOT "the limit",
+// so it cannot be used to vary the limit per call.) We therefore keep one
+// instance per distinct (max, window) pair, each with its own key prefix so
+// counters for different policies never collide.
 
-let _ratelimit: Ratelimit | null = null;
+let _redis: Redis | null = null;
+const _limiters = new Map<string, Ratelimit>();
 
-function getUpstashRatelimit(): Ratelimit | null {
-  if (_ratelimit) return _ratelimit;
+function getUpstashLimiter(max: number, windowMs: number): Ratelimit | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
-  const redis = new Redis({ url, token });
-  _ratelimit = new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(1, "1 s"), // overridden per-call via prefix
-    prefix: "rl",
-    analytics: false,
-  });
-  return _ratelimit;
+
+  const policy = `${max}:${windowMs}`;
+  let limiter = _limiters.get(policy);
+  if (!limiter) {
+    _redis ??= new Redis({ url, token });
+    limiter = new Ratelimit({
+      redis: _redis,
+      limiter: Ratelimit.slidingWindow(max, `${windowMs} ms`),
+      prefix: `rl:${policy}`,
+      analytics: false,
+    });
+    _limiters.set(policy, limiter);
+  }
+  return limiter;
 }
 
 // ── In-memory fallback ────────────────────────────────────────────────────────
@@ -52,8 +63,10 @@ setInterval(() => {
 
 function inMemoryCheck(key: string, max: number, windowMs: number): boolean {
   const now = Date.now();
-  let b = _store.get(key);
-  if (!b || now > b.resetAt) { b = { count: 0, resetAt: now + windowMs }; _store.set(key, b); }
+  // Include the policy in the key, matching the Upstash prefixing above.
+  const k = `${key}:${max}:${windowMs}`;
+  let b = _store.get(k);
+  if (!b || now > b.resetAt) { b = { count: 0, resetAt: now + windowMs }; _store.set(k, b); }
   b.count++;
   return b.count <= max;
 }
@@ -73,15 +86,10 @@ export async function checkRateLimit(
   max: number,
   windowMs: number,
 ): Promise<boolean> {
-  const upstash = getUpstashRatelimit();
+  const upstash = getUpstashLimiter(max, windowMs);
   if (upstash) {
-    // Encode the per-call limit into the key so one Ratelimit instance handles all limits
-    const prefixedKey = `${key}:${max}:${windowMs}`;
     try {
-      const { success } = await upstash.limit(prefixedKey, {
-        rate: max,
-        interval: Math.ceil(windowMs / 1000) + " s",
-      } as any);
+      const { success } = await upstash.limit(key);
       return success;
     } catch (err) {
       // Upstash unreachable — fall through to in-memory
