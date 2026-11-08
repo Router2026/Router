@@ -21,6 +21,7 @@ import { useRegions, useLocationsByRegion } from '../hooks/useLocations';
 import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
+import AssistantLauncher from '../components/assistant/AssistantLauncher';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -542,6 +543,7 @@ export default function MapView() {
 
       <TripBucketFab />
       <TripBucketSheet />
+      <AssistantLauncher />
     </div>
   );
 }

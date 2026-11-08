@@ -189,6 +189,29 @@ export interface POI {
   community_poi_id?: number | null;
 }
 
+// ── AI trip assistant ─────────────────────────────────────────────────────────
+// Mirrors backend/src/lib/assistant/types.ts. Places come back in the slim
+// location shape — convert with mapRawToPoi (utils/poiMapper).
+
+export interface AssistantPlaceRef { id: number; name: string }
+
+export interface AssistantChatRequest {
+  messages: { role: 'user' | 'assistant'; content: string; places?: AssistantPlaceRef[] }[];
+  route: AssistantPlaceRef[];
+  userLocation?: { lat: number; lng: number } | null;
+}
+
+export type AssistantAction =
+  | { type: 'add'; place: Record<string, unknown> }
+  | { type: 'remove'; id: number; name: string };
+
+export interface AssistantChatResponse {
+  reply: string;
+  places: Record<string, unknown>[];
+  actions: AssistantAction[];
+  meta: { model: string; toolCalls: number; modelCalls: number; inputTokens: number; outputTokens: number };
+}
+
 export interface NearbyPOI extends POI {
   distance_meters: number;
 }
@@ -517,6 +540,14 @@ export const api = {
   // ── Regions ──────────────────────────────────────────────────
   regions: {
     list: async (): Promise<Region[]> => (await apiFetch<{ data: any[] }>('/regions')).data,
+  },
+
+  // ── AI trip assistant (admin-only during development) ────────
+  assistant: {
+    chat: async (body: AssistantChatRequest): Promise<AssistantChatResponse> =>
+      (await apiFetch<{ data: AssistantChatResponse }>('/assistant/chat', {
+        method: 'POST', body: JSON.stringify(body),
+      })).data,
   },
 
   // ── Locations ────────────────────────────────────────────────
