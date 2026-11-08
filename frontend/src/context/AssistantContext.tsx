@@ -34,6 +34,8 @@ interface AssistantContextValue {
   isSending: boolean;
   isOpen: boolean;
   snap: SheetSnap;
+  /** Increments when the chat changes the route, so the map can re-frame it (RouteLayer). */
+  routeFocus: number;
   open: () => void;
   close: () => void;
   setSnap: (s: SheetSnap) => void;
@@ -103,6 +105,7 @@ export function AssistantProvider({ children }: Readonly<{ children: React.React
   const [isSending, setIsSending] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [snap, setSnap] = useState<SheetSnap>('half');
+  const [routeFocus, setRouteFocus] = useState(0);
   const sendingRef = useRef(false);
 
   useEffect(() => {
@@ -157,8 +160,11 @@ export function AssistantProvider({ children }: Readonly<{ children: React.React
       }
 
       append({ role: 'assistant', text: res.reply, places: res.places.map(mapRawToPoi) });
-      // Route changed → drop the sheet so the map (and the new marker) is visible.
-      if (res.actions.length) setSnap('peek');
+      // Route changed → drop the sheet and re-frame the map so the new stop is visible.
+      if (res.actions.length) {
+        setSnap('peek');
+        setRouteFocus(n => n + 1);
+      }
     } catch (err) {
       append({ role: 'assistant', kind: 'error', text: errorText(err), retryText: text });
     } finally {
@@ -175,6 +181,7 @@ export function AssistantProvider({ children }: Readonly<{ children: React.React
       text: `מעולה! הוספתי את '${poi.name}' למסלול שלך. רוצה שאחפש עוד משהו באזור?`,
     });
     setSnap('peek');
+    setRouteFocus(n => n + 1);
   }, [addPoi, append]);
 
   const removeFromCard = useCallback((poi: POI) => {
@@ -187,8 +194,8 @@ export function AssistantProvider({ children }: Readonly<{ children: React.React
   const close = useCallback(() => setIsOpen(false), []);
 
   const value = useMemo<AssistantContextValue>(() => ({
-    messages, isSending, isOpen, snap, open, close, setSnap, send, addFromCard, removeFromCard, resetConversation,
-  }), [messages, isSending, isOpen, snap, open, close, send, addFromCard, removeFromCard, resetConversation]);
+    messages, isSending, isOpen, snap, routeFocus, open, close, setSnap, send, addFromCard, removeFromCard, resetConversation,
+  }), [messages, isSending, isOpen, snap, routeFocus, open, close, send, addFromCard, removeFromCard, resetConversation]);
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>;
 }

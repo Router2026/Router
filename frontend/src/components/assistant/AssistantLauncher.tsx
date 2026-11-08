@@ -4,6 +4,7 @@
  * Sits on the left so it doesn't collide with TripBucketFab (right: 18).
  */
 
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useAssistant } from '../../context/AssistantContext';
 import AssistantPanel from './AssistantPanel';
@@ -14,7 +15,8 @@ export default function AssistantLauncher() {
   const isAdmin = !!user && !('isGuest' in user && user.isGuest) && !!(user as { is_admin?: boolean }).is_admin;
 
   if (!isAdmin) return null;
-  if (isOpen) return <AssistantPanel />;
+  // Portal to <body>: a transformed / overflow-hidden ancestor would otherwise clip the fixed panel.
+  if (isOpen) return createPortal(<AssistantPanel />, document.body);
 
   return (
     <button

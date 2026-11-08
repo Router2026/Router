@@ -110,6 +110,21 @@ describe('AssistantContext', () => {
     await act(async () => { resolve({ reply: 'ok', places: [], actions: [], meta }); await first })
   })
 
+  it('bumps routeFocus only when the chat changes the route', async () => {
+    mount()
+    expect(ctx.a.routeFocus).toBe(0)
+    chat.mockResolvedValueOnce({ reply: 'הנה:', places: [raw(1, 'חוף גיא')], actions: [], meta })
+    await act(() => ctx.a.send('חוף'))
+    expect(ctx.a.routeFocus).toBe(0) // suggestions only
+    act(() => ctx.a.addFromCard(poi('1', 'חוף גיא')))
+    expect(ctx.a.routeFocus).toBe(1)
+    chat.mockResolvedValueOnce({ reply: 'הוספתי.', places: [], actions: [{ type: 'add', place: raw(2, 'עין חמד') }], meta })
+    await act(() => ctx.a.send('תוסיף את עין חמד'))
+    expect(ctx.a.routeFocus).toBe(2)
+    act(() => ctx.b.addPoi(poi('9', 'manual'))) // manual add elsewhere: no re-frame
+    expect(ctx.a.routeFocus).toBe(2)
+  })
+
   it('persists the conversation in sessionStorage', async () => {
     mount()
     chat.mockResolvedValueOnce({ reply: 'שלום', places: [], actions: [], meta })

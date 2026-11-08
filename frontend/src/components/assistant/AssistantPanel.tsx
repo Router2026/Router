@@ -28,15 +28,20 @@ function useIsDesktop(): boolean {
   return isDesktop;
 }
 
+const FULL_HEIGHT = `calc(100dvh - ${NAV_HEIGHT + 56}px)`;
+
 function snapHeight(snap: SheetSnap): string {
   if (snap === 'peek') return `${PEEK_PX}px`;
-  if (snap === 'half') return '55dvh';
-  return `calc(100dvh - ${NAV_HEIGHT + 56}px)`;
+  // At least 440px so a card row fits on short laptop / landscape screens, never taller than full.
+  if (snap === 'half') return `min(${FULL_HEIGHT}, max(55dvh, 440px))`;
+  return FULL_HEIGHT;
 }
 
 const KEYFRAMES = `
 @keyframes router-dot { 0%, 80%, 100% { transform: translateY(0); opacity: .45 } 40% { transform: translateY(-5px); opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .router-dot { animation: none !important } }
+.router-noscrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.router-noscrollbar::-webkit-scrollbar { display: none; }
 `;
 
 function TypingIndicator() {
@@ -98,6 +103,7 @@ export default function AssistantPanel() {
   const submit = (text: string) => {
     if (!text.trim() || isSending) return;
     setDraft('');
+    if (inputRef.current) inputRef.current.style.height = '42px';
     if (!isDesktop && snap === 'peek') setSnap('half');
     void send(text);
   };
@@ -115,7 +121,7 @@ export default function AssistantPanel() {
 
   const containerStyle: React.CSSProperties = isDesktop
     ? {
-      position: 'fixed', left: 16, top: 80, bottom: NAV_HEIGHT + 16, width: 380, zIndex: 1900,
+      position: 'fixed', left: 16, top: 80, bottom: NAV_HEIGHT + 16, width: 'min(380px, calc(100vw - 32px))', zIndex: 1900,
       borderRadius: 20,
     }
     : {
@@ -208,7 +214,7 @@ export default function AssistantPanel() {
 
       {/* Quick prompts */}
       {!collapsed && !isSending && (
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '6px 12px', flexShrink: 0 }}>
+        <div className="router-noscrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '6px 12px', flexShrink: 0 }}>
           {prompts.map(p => (
             <button key={p} onClick={() => submit(p)}
               style={{ flex: '0 0 auto', border: '1.5px solid #bbf7d0', background: '#f0fdf8', color: '#047857', borderRadius: 18, padding: '6px 12px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
@@ -226,15 +232,22 @@ export default function AssistantPanel() {
         <textarea
           ref={inputRef}
           value={draft}
-          onChange={e => setDraft(e.target.value)}
+          onChange={e => {
+            setDraft(e.target.value);
+            // Auto-grow up to ~4 lines; no inner scrollbar until then.
+            const el = e.target;
+            el.style.height = 'auto';
+            el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+          }}
           onKeyDown={onKeyDown}
           onFocus={() => { if (!isDesktop && snap === 'peek') setSnap('half'); }}
           rows={1}
           maxLength={1000}
           dir="auto"
-          placeholder="מה מתחשק לך? למשל: מקום עם מים באזור זכרון"
+          placeholder="מה מתחשק לך היום?"
           aria-label="הודעה לעוזר"
-          style={{ flex: 1, resize: 'none', border: '2px solid #e2e8f0', borderRadius: 14, padding: '9px 12px', fontSize: 15, fontFamily: 'inherit', outline: 'none', maxHeight: 96, background: '#f8fafc', color: '#1a2e2a' }}
+          className="router-noscrollbar"
+          style={{ flex: 1, minWidth: 0, resize: 'none', border: '2px solid #e2e8f0', borderRadius: 14, padding: '9px 12px', fontSize: 15, lineHeight: 1.4, fontFamily: 'inherit', outline: 'none', height: 42, maxHeight: 96, overflowY: 'auto', background: '#f8fafc', color: '#1a2e2a', boxSizing: 'border-box' }}
         />
         <button type="submit" disabled={!draft.trim() || isSending} aria-label="שלח"
           style={{ width: 42, height: 42, borderRadius: 14, border: 'none', flexShrink: 0, cursor: draft.trim() && !isSending ? 'pointer' : 'default', background: draft.trim() && !isSending ? 'linear-gradient(135deg, #0d9e6e, #0bba7e)' : '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

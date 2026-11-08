@@ -22,6 +22,8 @@ import { useTripBucket } from '../context/TripBucketContext';
 import TripBucketFab from '../components/TripBucketFab';
 import TripBucketSheet from '../components/TripBucketSheet';
 import AssistantLauncher from '../components/assistant/AssistantLauncher';
+import RouteLayer from '../components/RouteLayer';
+import { useAuth } from '../context/AuthContext';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -311,6 +313,8 @@ export default function MapView() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { addPoi, removePoi, hasPoi } = useTripBucket();
+  const { user } = useAuth();
+  const isAdmin = !!user && !('isGuest' in user && user.isGuest) && !!(user as { is_admin?: boolean }).is_admin;
 
   const urlRegion = searchParams.get('region') || '';
   const urlLat = Number.parseFloat(searchParams.get('lat') || '0');
@@ -466,6 +470,8 @@ export default function MapView() {
           onMapClick={() => setSelectedPOI(null)}
           zoom={mapZoom}
         />
+        {/* Admin-only during development, together with the assistant chat. */}
+        {isAdmin && <RouteLayer onSelect={setSelectedPOI} />}
       </MapContainer>
 
       {/* POI popup card */}
