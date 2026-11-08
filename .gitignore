@@ -153,3 +153,7 @@ sonar-project.properties
 .scannerwork
 tsconfig.sonar.json
 sonar-scan.sh
+# Supabase backups / exports — never commit (contain user data + password hashes)
+*.backup.gz
+*.storage.zip
+db_cluster-*

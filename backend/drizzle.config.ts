@@ -1,7 +1,10 @@
 import { config } from "dotenv";
 import type { Config } from "drizzle-kit";
 
-config({ path: ".env.local" });
+// Same precedence as `next dev`: .env.development.local (local Supabase) wins
+// over .env.local (remote). dotenv never overwrites an already-set variable.
+config({ path: ".env.development.local", quiet: true });
+config({ path: ".env.local", quiet: true });
 
 export default {
   schema: "./src/lib/db/schema.ts",
