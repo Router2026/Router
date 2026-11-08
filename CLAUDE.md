@@ -45,7 +45,7 @@ npm run ihike-only   # Israel Hiking Map only
 ### Backend (`backend/src/`)
 - **`app/api/`** — Next.js route handlers, organized by feature (auth, ai, locations, regions, trips, users, videos, reports, reviews, community-pois, trip-bucket, routes, admin)
 - **`lib/db/schema.ts`** — Drizzle ORM schema (14 tables): `locations`, `regions`, `routes`, `routeStops`, `routerUsers`, `reviews`, `communityReports`, `videoPosts`, etc.
-- **`lib/llm/`** — LLM provider abstraction with factory pattern; provider selected via `LLM_PROVIDER` env var (ollama/openai/anthropic)
+- **`lib/ai-route/`** — AI route planner: PostGIS candidate retrieval from `locations`, Groq LLM selects candidate keys only, server validates/rebuilds stops from DB, orders and schedules them; deterministic fallback; Postgres rate limit
 - **`lib/`** — Feature modules mirror `app/api/` structure (locations, trips, users, auth, reviews, reports, etc.)
 - TypeScript path alias: `@/*` maps to `src/*`
 
@@ -65,7 +65,7 @@ npm run ihike-only   # Israel Hiking Map only
 ## Environment Setup
 
 Copy `backend/.env.example` to `backend/.env`. Key variables:
-- `LLM_PROVIDER` — `ollama`, `openai`, or `anthropic`
+- `GROQ_API_KEY` / `GROQ_MODEL` — AI route planner (Groq, default `llama-3.3-70b-versatile`)
 - `DATABASE_URL` — PostgreSQL connection string
 - `SUPABASE_URL` / `SUPABASE_KEY` — Supabase project credentials
 - `JWT_SECRET` — Token signing secret

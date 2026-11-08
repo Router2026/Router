@@ -106,15 +106,6 @@ function RequireAuth({ children, allowGuest = false }: Readonly<{ children: Reac
   return <>{children}</>;
 }
 
-function RequireAdmin({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
-  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>טוען...</div>;
-  if (!user || ('isGuest' in user && user.isGuest)) return <Navigate to="/Login" state={{ from: location }} replace />;
-  if (!('is_admin' in user) || !user.is_admin) return <Navigate to="/" replace />;
-  return <>{children}</>;
-}
-
 /** Inner app rendered inside Router so GuestBanner can use useNavigate */
 function AppRoutes() {
   const { user, isGuest } = useAuth();
@@ -160,7 +151,8 @@ function AppRoutes() {
         <Route path="/CommunityVideos" element={<RequireAuth allowGuest><Wrap name="CommunityVideos"><CommunityVideos /></Wrap></RequireAuth>} />
 
         {/* ── Registered users only ────────────────────────── */}
-        <Route path="/TripPlanner" element={<RequireAdmin><Wrap name="TripPlanner"><TripPlanner /></Wrap></RequireAdmin>} />
+        {/* Public: anyone can explore the planner; the page asks for sign-in before generating. */}
+        <Route path="/TripPlanner" element={<Wrap name="TripPlanner"><TripPlanner /></Wrap>} />
         <Route path="/TripDetail" element={<RequireAuth><Wrap name="TripDetail"><TripDetail /></Wrap></RequireAuth>} />
         <Route path="/Profile" element={<RequireAuth><Wrap name="Profile"><Profile /></Wrap></RequireAuth>} />
         <Route path="/AddReport" element={<RequireAuth><Wrap name="AddReport"><AddReport /></Wrap></RequireAuth>} />

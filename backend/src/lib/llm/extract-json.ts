@@ -1,5 +1,11 @@
 import { jsonrepair } from "jsonrepair";
-import { LLMOutputError } from "@/types/llm";
+/** Thrown when no JSON value can be recovered from an LLM response. */
+export class LLMOutputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LLMOutputError";
+  }
+}
 
 /**
  * Extracts and parses JSON from a raw LLM response string.

@@ -12,10 +12,13 @@ export function getAuthToken() { return _token; }
 export class ApiError extends Error {
   code?: string;
   status?: number;
-  constructor(message: string, code?: string, status?: number) {
+  /** Seconds from the Retry-After header (e.g. on 429), when present. */
+  retryAfterSec?: number;
+  constructor(message: string, code?: string, status?: number, retryAfterSec?: number) {
     super(message);
     this.code = code;
     this.status = status;
+    this.retryAfterSec = retryAfterSec;
   }
 }
 
@@ -88,7 +91,9 @@ async function singleAttempt<T>(url: string, init: RequestInit): Promise<Attempt
       let message = `HTTP ${res.status}`;
       let code: string | undefined;
       try { const j = await res.json(); message = j.error?.message || j.error || message; code = j.error?.code; } catch { /* intentional */ }
-      return { ok: false, err: new ApiError(message, code, res.status), status: res.status };
+      const retryAfter = Number.parseInt(res.headers?.get('Retry-After') ?? '', 10);
+      const retryAfterSec = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined;
+      return { ok: false, err: new ApiError(message, code, res.status, retryAfterSec), status: res.status };
     }
     return { ok: true, data: await res.json() };
   } catch (err) {
@@ -198,6 +203,52 @@ export interface Trip {
   total_duration_hours: number; total_distance_km?: number;
   difficulty?: string; group_type?: string; style?: string;
   stops: TripStop[];
+}
+
+// ── AI route planner (POST /api/ai/generate-route) ─────────────────────────
+export type AiGroupType = 'solo' | 'couple' | 'family' | 'friends';
+
+export interface AiRouteRequest {
+  region: string;
+  groupType: AiGroupType;
+  styles: string[];
+  startTime: string;
+  endTime: string;
+  maxStops?: number;
+  userLocation?: { lat: number; lng: number } | null;
+}
+
+export interface AiRouteStop {
+  location_id: number;
+  poi_name: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  main_image: string | null;
+  order_index: number;
+  arrival_time: string;
+  departure_time: string;
+  duration_minutes: number;
+  drive_minutes_from_prev: number;
+  distance_from_prev_km: number;
+  smart_insight: string;
+}
+
+export interface AiRoute {
+  name: string;
+  description: string;
+  region: string;
+  region_id: number;
+  group_type: string;
+  style: string;
+  /** "fallback" means the AI was unavailable and a deterministic plan was used. */
+  source: 'ai' | 'ai_partial' | 'fallback';
+  start_time: string;
+  end_time: string;
+  total_duration_hours: number;
+  total_distance_km: number;
+  total_drive_minutes: number;
+  stops: AiRouteStop[];
 }
 
 export interface Review {
@@ -600,10 +651,16 @@ export const api = {
   },
 
   // ── Trips (AI generator routes) ──────────────────────────────
+  ai: {
+    /** Plans a route from DB locations only. Pass an AbortSignal to support cancel. */
+    generateRoute: async (body: AiRouteRequest, signal?: AbortSignal): Promise<AiRoute> =>
+      (await apiFetch<{ data: AiRoute }>('/ai/generate-route', { method: 'POST', body: JSON.stringify(body), signal })).data,
+  },
+
   trips: {
     list: async (): Promise<Trip[]> => (await apiFetch<{ data: any[] }>('/routes')).data.map(mapTrip),
     get: async (id: string): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`)).data),
-    create: async (data: Partial<Trip>): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
+    create: async (data: Partial<Trip> & { region_id?: number }): Promise<Trip> => mapTrip((await apiFetch<{ data: any }>('/routes', { method: 'POST', body: JSON.stringify(data) })).data),
     update: async (id: string, data: Partial<Trip>): Promise<Trip> =>
       mapTrip((await apiFetch<{ data: any }>(`/routes/${id}`, { method: 'PATCH', body: JSON.stringify(data) })).data),
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
@@ -919,32 +976,6 @@ export const base44 = {
   integrations: {
     Core: {
       UploadFile: async (_a: { file: File }) => ({ file_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800' }),
-      InvokeLLM: async ({ body }: { body: string }) => {
-        const req = JSON.parse(body);
-        const GROUP_TYPE_MAP: Record<string, string> = { 'יחיד': 'solo', 'זוג': 'couple', 'משפחה': 'family', 'חברים': 'friends' };
-        const STYLE_MAP: Record<string, string> = { 'היסטוריה ותרבות': 'history', 'מים ומעיינות': 'water', 'צילום ונוף': 'photo', 'צילום': 'photo', 'נופים ומצפים': 'nature', 'טיולים ומסלולים': 'hiking', 'חופים וים': 'beach', 'גיאולוגיה': 'geology', 'יין ואוכל': 'wine', 'כפרים ומסורת': 'village', 'פעילויות לילדים': 'family_activities' };
-        const groupTypeId = GROUP_TYPE_MAP[req.group_type] ?? req.group_type;
-        const styleIds = req.style ? req.style.split(', ').map((s: string) => STYLE_MAP[s.trim()] ?? s.trim()) : [];
-        const res = await fetch(BASE_URL + '/ai/generate-route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) },
-          body: JSON.stringify({
-            region: req.region,
-            groupType: groupTypeId,
-            styles: styleIds,
-            startTime: req.start_time,
-            endTime: req.end_time,
-            includeFood: req.include_food,
-            includeCoffee: req.include_coffee,
-            userLocation: req.user_location,
-          }),
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`AI endpoint error: ${res.status} — ${errText}`);
-        }
-        return res.json();
-      },
     },
   },
 };

@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType, index, primaryKey } from "drizzle-orm/pg-core";
 
 const tsvector = customType<{ data: string }>({
   dataType() { return "tsvector"; },
@@ -216,6 +216,16 @@ export const videoPosts = pgTable("video_posts", {
   viewsCount:   integer("views_count").notNull().default(0),
   createdAt:    timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+// AI route planner rate limiting (migration 0008). One row per user per hour.
+export const aiRouteRateLimits = pgTable("ai_route_rate_limits", {
+  userId:       integer("user_id").notNull().references(() => routerUsers.id, { onDelete: "cascade" }),
+  windowStart:  timestamp("window_start", { withTimezone: true }).notNull(),
+  requestCount: integer("request_count").notNull().default(0),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.windowStart] }),
+  index("ai_route_rate_limits_window_idx").on(t.windowStart),
+]);
 
 // Router inferred types
 export type Region = typeof regions.$inferSelect;
