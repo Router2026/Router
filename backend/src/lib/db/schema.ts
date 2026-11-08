@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType, index, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType, index, primaryKey, vector, char } from "drizzle-orm/pg-core";
 
 const tsvector = customType<{ data: string }>({
   dataType() { return "tsvector"; },
@@ -227,6 +227,16 @@ export const aiRouteRateLimits = pgTable("ai_route_rate_limits", {
   index("ai_route_rate_limits_window_idx").on(t.windowStart),
 ]);
 
+// Embeddings for hybrid search — see migrations/0009_location_embeddings.sql.
+// Dimension must match EMBEDDING_DIMENSIONS used when calling the embedding API.
+export const locationEmbeddings = pgTable("location_embeddings", {
+  locationId:  integer("location_id").primaryKey().references(() => locations.id, { onDelete: "cascade" }),
+  embedding:   vector("embedding", { dimensions: 768 }).notNull(),
+  contentHash: char("content_hash", { length: 64 }).notNull(),
+  model:       varchar("model", { length: 100 }).notNull(),
+  updatedAt:   timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Router inferred types
 export type Region = typeof regions.$inferSelect;
 export type Location = typeof locations.$inferSelect;
@@ -237,3 +247,4 @@ export type SyncJob = typeof syncJobs.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type CommunityReport = typeof communityReports.$inferSelect;
 export type VideoPost = typeof videoPosts.$inferSelect;
+export type LocationEmbedding = typeof locationEmbeddings.$inferSelect;
