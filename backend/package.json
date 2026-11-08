@@ -20,7 +20,8 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "embed:sync": "npx tsx scripts/embed-sync.ts",
-    "search:eval": "npx tsx scripts/search-eval.ts"
+    "search:eval": "npx tsx scripts/search-eval.ts",
+    "assistant:eval": "npx tsx scripts/assistant-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
