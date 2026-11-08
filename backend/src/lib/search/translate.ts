@@ -3,7 +3,7 @@
 // (e.g. "waterfall in the Golan" ranked a Dead Sea spring above Gamla).
 
 import OpenAI from "openai";
-import { DEFAULT_GROQ_MODEL, GROQ_BASE_URL, defaultReasoningEffort } from "@/lib/ai-route/groq";
+import { GROQ_BASE_URL, defaultReasoningEffort } from "@/lib/ai-route/groq";
 import { MAX_QUERY_CHARS } from "@/lib/embeddings";
 import { containsHebrew } from "./regions";
 
@@ -11,6 +11,8 @@ export interface QueryTranslator {
   /** Returns a Hebrew query, or null if translation is unavailable / unusable. Never throws. */
   toHebrew(query: string, opts: { timeoutMs: number }): Promise<string | null>;
 }
+
+export const DEFAULT_TRANSLATE_MODEL = "openai/gpt-oss-120b";
 
 const LATIN_RE = /[a-z]/i;
 
@@ -50,7 +52,10 @@ export class GroqQueryTranslator implements QueryTranslator {
 
   constructor(apiKey = process.env.GROQ_API_KEY, model?: string) {
     this.client = apiKey ? new OpenAI({ apiKey, baseURL: GROQ_BASE_URL, maxRetries: 0 }) : null;
-    this.model = model ?? process.env.GROQ_TRANSLATE_MODEL ?? process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
+    // Independent of GROQ_MODEL (the planner's model). npm run search:eval measured
+    // gpt-oss-120b vs 20b: English known-item MRR 0.889 vs 0.333 (20b mangles place names,
+    // e.g. Masada → "מגדל דוד"), at equal latency (p50 ~370 ms).
+    this.model = model ?? process.env.GROQ_TRANSLATE_MODEL ?? DEFAULT_TRANSLATE_MODEL;
   }
 
   async toHebrew(query: string, opts: { timeoutMs: number }): Promise<string | null> {

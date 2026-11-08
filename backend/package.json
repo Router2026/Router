@@ -19,7 +19,8 @@
     "db:seed:v3": "npx tsx src/lib/db/seed-v3.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "embed:sync": "npx tsx scripts/embed-sync.ts"
+    "embed:sync": "npx tsx scripts/embed-sync.ts",
+    "search:eval": "npx tsx scripts/search-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
