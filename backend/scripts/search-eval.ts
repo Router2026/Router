@@ -7,11 +7,10 @@
  *
  * Variants:
  *   legacy         existing /api/locations?search= (FTS/ILIKE, sorted by rating)
- *   fts            new full-text rank only (no translation, no vectors)
  *   vector         vector only, original query (no translation)
- *   hybrid-no-tr   fts + vector + region boost, no translation
- *   hybrid-no-boost  fts + vector with translation, no region boost
- *   hybrid         production path: searchLocations()
+ *   no-attr        hybrid with translation + region boost, attributes ignored
+ *   attr-filter    as no-attr, but detected attributes are hard filters
+ *   hybrid         production path: searchLocations() (attributes as boost)
  */
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
@@ -27,6 +26,7 @@ async function main() {
   const { getEmbeddingProvider, toPgVector, EMBEDDING_DIMENSIONS } = await import("../src/lib/embeddings");
   const { buildHybridSql } = await import("../src/lib/search/hybrid");
   const { detectRegions } = await import("../src/lib/search/regions");
+  const { detectAttributes } = await import("../src/lib/search/attributes");
   const { GroqQueryTranslator, needsTranslation } = await import("../src/lib/search/translate");
   const { searchLocations } = await import("../src/lib/search/search");
   const { normalizeName } = await import("../src/lib/ai-route/text");
@@ -53,22 +53,23 @@ async function main() {
       return true;
     }).slice(0, K).map((r) => Number(r.id));
   };
-  const runHybrid = async (ftsText: string, vector: string | null, boost: string[]) => {
-    const { sql, params } = buildHybridSql({ ftsText, vector, boostRegionSlugs: boost, limit: K + 10 });
+  type Attr = Parameters<typeof buildHybridSql>[0]["attributes"];
+  const runHybrid = async (ftsText: string, vector: string | null, boost: string[], attributes: Attr = [], attributeMode: "boost" | "filter" = "boost") => {
+    const { sql, params } = buildHybridSql({ ftsText, vector, boostRegionSlugs: boost, attributes, attributeMode, limit: K + 10 });
     return dedupeIds((await rawDb.query<Row>(sql, params)).rows);
   };
 
   const variants: Record<string, (q: string, hebrew: string) => Promise<number[]>> = {
     legacy: async (q) => dedupeIds((await getLocations({ search: q, limit: K + 10 })) as unknown as Row[]),
-    fts: (q) => runHybrid(q, null, []),
     vector: async (q) => {
       const { rows } = await rawDb.query<Row>(
         `SELECT l.id, l.name FROM location_embeddings e JOIN locations l ON l.id = e.location_id
          ORDER BY e.embedding <=> $1::vector LIMIT $2`, [await embed(q), K + 10]);
       return dedupeIds(rows);
     },
-    "hybrid-no-tr": async (q) => runHybrid(q, await embed(q), detectRegions(q).slugs),
-    "hybrid-no-boost": async (_q, he) => runHybrid(he, await embed(he), []),
+    "no-attr": async (q, he) => runHybrid(he, await embed(he), detectRegions(q).slugs),
+    "attr-filter": async (q, he) =>
+      runHybrid(he, await embed(he), detectRegions(q).slugs, detectAttributes(q, he === q ? null : he), "filter"),
     hybrid: async (q) => (await searchLocations({ q, limit: K })).results.map((r) => r.id),
   };
   const names = Object.keys(variants);

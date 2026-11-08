@@ -62,6 +62,7 @@ describe('searchLocations', () => {
       searchedAs: 'מפל בגולן',
       translated: true,
       boostedRegions: ['golan_hermon'],
+      attributes: [],
       mode: 'hybrid',
     })
     const params = db.query.mock.calls[0][1] as unknown[]
@@ -70,6 +71,13 @@ describe('searchLocations', () => {
     expect(out.results.map((r) => r.id)).toEqual([1, 2])
     expect(out.results[0].score).toBe(0.05)
     expect(out.results[1].distance_meters).toBe(1234.5)
+  })
+
+  it('detects attributes in the original and translated query and passes them to SQL', async () => {
+    const { deps, db } = makeDeps({ translation: 'שמורת טבע נגישה' })
+    const out = await searchLocations({ q: 'shaded nature reserve' }, deps)
+    expect(out.meta.attributes).toEqual(['accessible', 'shade'])
+    expect(db.query.mock.calls[0][0]).toContain('l.accessible = TRUE AND l.has_shade = TRUE')
   })
 
   it('does not translate Hebrew queries', async () => {

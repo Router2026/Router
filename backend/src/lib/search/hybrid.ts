@@ -2,6 +2,7 @@
 // names a region), fused with Reciprocal Rank Fusion. Hard filters apply to every list.
 
 import { LIST_COLUMNS } from "@/lib/locations/location-service";
+import { ATTRIBUTE_SQL, type AttributeKey } from "./attributes";
 
 /** RRF constant (standard value from the RRF paper). */
 export const RRF_K = 60;
@@ -9,6 +10,10 @@ export const RRF_K = 60;
 export const PER_LIST_LIMIT = 50;
 /** Added to locations in a region the query mentioned — equal to a #1 rank in one list. */
 export const REGION_BOOST = 1 / (RRF_K + 1);
+/** Added per detected attribute the location has (accessible, shaded, ...). */
+export const ATTRIBUTE_BOOST = 1 / (RRF_K + 1);
+
+export type AttributeMode = "boost" | "filter";
 
 export interface HybridSqlParams {
   /** Text for full-text / name matching (Hebrew translation if we have one). */
@@ -20,6 +25,10 @@ export interface HybridSqlParams {
   regions?: string[];
   categories?: string[];
   near?: { lat: number; lng: number; radiusM?: number } | null;
+  /** Attributes detected in the query. */
+  attributes?: AttributeKey[];
+  /** "boost" (default): rank matching places higher. "filter": require all of them. */
+  attributeMode?: AttributeMode;
   limit: number;
 }
 
@@ -47,6 +56,16 @@ export function buildHybridSql(p: HybridSqlParams): { sql: string; params: unkno
     if (p.near.radiusM) filters.push(`ST_DWithin(l.geom::geography, ${point}, ${add(p.near.radiusM)}::float8)`);
   }
 
+  // Attribute SQL comes from a fixed whitelist keyed by AttributeKey — no user text.
+  const attrConds = (p.attributes ?? []).filter((a) => a in ATTRIBUTE_SQL).map((a) => ATTRIBUTE_SQL[a]);
+  const attributeMode = p.attributeMode ?? "boost";
+  if (attributeMode === "filter") filters.push(...attrConds);
+  const boostAttrs = attributeMode === "boost" ? attrConds : [];
+  const attrMatchAll = boostAttrs.length ? boostAttrs.join(" AND ") : "FALSE";
+  const attrBoostExpr = boostAttrs.length
+    ? boostAttrs.map((c) => `CASE WHEN ${c} THEN ${ATTRIBUTE_BOOST}::float8 ELSE 0 END`).join(" + ")
+    : "0";
+
   const q = add(p.ftsText);
   const like = add(`%${p.ftsText.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
   const vec = add(p.vector);
@@ -58,7 +77,7 @@ export function buildHybridSql(p: HybridSqlParams): { sql: string; params: unkno
 
   const sql = `
 WITH filtered AS (
-  SELECT l.id, r.slug AS region_slug
+  SELECT l.id, r.slug AS region_slug, (${attrMatchAll}) AS attr_match
   FROM locations l
   LEFT JOIN regions r ON r.id = l.region_id
   WHERE ${filters.join("\n    AND ")}
@@ -93,8 +112,18 @@ vec_region AS (
   ORDER BY rnk
   LIMIT ${perList}
 ),
+vec_attr AS (
+  SELECT e.location_id AS id,
+         ROW_NUMBER() OVER (ORDER BY e.embedding <=> ${vec}::vector, e.location_id) AS rnk
+  FROM location_embeddings e
+  JOIN filtered f ON f.id = e.location_id
+  WHERE ${vec}::vector IS NOT NULL
+    AND f.attr_match
+  ORDER BY rnk
+  LIMIT ${perList}
+),
 ids AS (
-  SELECT id FROM fts UNION SELECT id FROM vec UNION SELECT id FROM vec_region
+  SELECT id FROM fts UNION SELECT id FROM vec UNION SELECT id FROM vec_region UNION SELECT id FROM vec_attr
 ),
 fused AS (
   SELECT ids.id,
@@ -102,17 +131,21 @@ fused AS (
          vec.rnk AS vec_rank,
          COALESCE(1.0 / (${k} + fts.rnk), 0)
        + COALESCE(1.0 / (${k} + vec.rnk), 0)
-       + COALESCE(1.0 / (${k} + vec_region.rnk), 0) AS rrf
+       + COALESCE(1.0 / (${k} + vec_region.rnk), 0)
+       + COALESCE(1.0 / (${k} + vec_attr.rnk), 0) AS rrf
   FROM ids
   LEFT JOIN fts USING (id)
   LEFT JOIN vec USING (id)
   LEFT JOIN vec_region USING (id)
+  LEFT JOIN vec_attr USING (id)
 )
 SELECT ${LIST_COLUMNS},
        ${distanceSelect},
        fused.fts_rank,
        fused.vec_rank,
-       fused.rrf + CASE WHEN r.slug = ANY(${boost}::text[]) THEN ${boostWeight}::float8 ELSE 0 END AS score
+       fused.rrf
+         + CASE WHEN r.slug = ANY(${boost}::text[]) THEN ${boostWeight}::float8 ELSE 0 END
+         + (${attrBoostExpr}) AS score
 FROM fused
 JOIN locations l ON l.id = fused.id
 LEFT JOIN regions r ON r.id = l.region_id

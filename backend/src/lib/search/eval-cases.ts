@@ -29,6 +29,7 @@ const T = {
   deadSea: "(l.name ~ 'ים המלח' OR l.description ~ 'ים המלח')",
   beaches: "l.category = 'חוף'",
   forests: "l.category = 'יער'",
+  swimSprings: "l.has_water AND l.category = 'מעיין'",
 };
 
 export const EVAL_CASES: EvalCase[] = [
@@ -57,6 +58,8 @@ export const EVAL_CASES: EvalCase[] = [
   { id: "beach-en", q: "beach", lang: "en", kind: "topic", relevant: T.beaches },
   { id: "forest-he", q: "יער לפיקניק", lang: "he", kind: "topic", relevant: T.forests },
   { id: "forest-en", q: "forest for a picnic", lang: "en", kind: "topic", relevant: T.forests },
+  { id: "swim-spring-he", q: "מעיין עם מים לרחצה", lang: "he", kind: "topic", relevant: T.swimSprings },
+  { id: "swim-spring-en", q: "spring with water to swim in", lang: "en", kind: "topic", relevant: T.swimSprings },
 
   // ── known-item lookups ──
   { id: "ein-gedi-he", q: "עין גדי", lang: "he", kind: "known", relevant: "l.name = 'עין גדי'" },

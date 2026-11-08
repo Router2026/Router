@@ -9,7 +9,8 @@ import {
 } from "@/lib/embeddings";
 import { rowToLocationSlim, type LocationWithDistance } from "@/lib/locations/location-service";
 import { normalizeName } from "@/lib/ai-route/text";
-import { buildHybridSql } from "./hybrid";
+import { buildHybridSql, type AttributeMode } from "./hybrid";
+import { detectAttributes, type AttributeKey } from "./attributes";
 import { detectRegions } from "./regions";
 import { GroqQueryTranslator, needsTranslation, type QueryTranslator } from "./translate";
 
@@ -20,6 +21,8 @@ const QUERY_CACHE_TTL_S = 24 * 60 * 60; // translations / query vectors are dete
 const RESULT_CACHE_TTL_S = 5 * 60;
 export const MAX_SEARCH_LIMIT = 50;
 const DEDUPE_HEADROOM = 10;
+/** Chosen by npm run search:eval (boost vs filter). */
+export const ATTRIBUTE_MODE: AttributeMode = "boost";
 
 export interface SearchInput {
   q: string;
@@ -39,6 +42,8 @@ export interface SearchOutput {
     searchedAs: string;
     translated: boolean;
     boostedRegions: string[];
+    /** Structured attributes detected in the query (accessible, shade, water, challenging). */
+    attributes: AttributeKey[];
     /** "hybrid" = full-text + semantic; "fts" = semantic unavailable, full-text only. */
     mode: "hybrid" | "fts";
   };
@@ -101,10 +106,13 @@ export async function searchLocations(input: SearchInput, deps: SearchDeps = get
   const vector = await embedQuery(searchedAs, deps);
 
   // 3. Fused retrieval.
+  const attributes = detectAttributes(query, translated ? searchedAs : null);
   const { sql, params } = buildHybridSql({
     ftsText: searchedAs,
     vector,
     boostRegionSlugs: boostedRegions,
+    attributes,
+    attributeMode: ATTRIBUTE_MODE,
     regions: input.regions,
     categories: input.categories,
     near: input.near,
@@ -133,7 +141,7 @@ export async function searchLocations(input: SearchInput, deps: SearchDeps = get
 
   const output: SearchOutput = {
     results,
-    meta: { query, searchedAs, translated, boostedRegions, mode: vector ? "hybrid" : "fts" },
+    meta: { query, searchedAs, translated, boostedRegions, attributes, mode: vector ? "hybrid" : "fts" },
   };
   // Don't cache degraded results — the next request should retry the semantic path.
   if (vector) deps.cache.set(resultKey, output, RESULT_CACHE_TTL_S);
