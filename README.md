@@ -81,11 +81,11 @@ Copy `backend/.env.example` to `backend/.env` and fill in the values:
 
 | Variable | Description |
 | --- | --- |
-| `LLM_PROVIDER` | `ollama`, `openai`, or `anthropic` |
-| `OLLAMA_BASE_URL` | Ollama API base URL (default: `http://localhost:11434/v1`) |
-| `OLLAMA_MODEL` | Ollama model name (e.g. `llama3.1:8b`) |
-| `OPENAI_API_KEY` | Required if `LLM_PROVIDER=openai` |
-| `ANTHROPIC_API_KEY` | Required if `LLM_PROVIDER=anthropic` |
+| `GROQ_API_KEY` | Groq API key for the AI route planner (optional: without it a deterministic planner is used) |
+| `GROQ_MODEL` | Groq model (default: `llama-3.3-70b-versatile`) |
+| `GROQ_RESPONSE_MODE` | `auto` (default), `json_object`, `json_schema` or `json_schema_strict` |
+| `AI_ROUTE_HOURLY_LIMIT` | Max AI routes per user per hour (default: `10`) |
+| `ANTHROPIC_API_KEY` | Used by Trip Bucket "smart build" |
 | `SUPABASE_URL` | From Supabase → Project Settings → API |
 | `SUPABASE_KEY` | Supabase anon/public key |
 | `DATABASE_URL` | Supabase transaction pooler connection string |

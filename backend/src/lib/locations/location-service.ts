@@ -122,7 +122,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
  * description, source, source_id, created_at, updated_at are NOT fetched
  * in list queries — they add significant payload for no UI benefit.
  */
-function rowToLocationSlim(row: Record<string, unknown>): Location {
+export function rowToLocationSlim(row: Record<string, unknown>): Location {
   return {
     id: row.id as number,
     name: row.name as string,
@@ -152,7 +152,7 @@ function rowToLocationSlim(row: Record<string, unknown>): Location {
 // ── Slim column list for list/explore/map queries ─────────────────────────────
 // Excludes: description (~300 chars avg), images[] (JSON array), source,
 // source_id, created_at, updated_at — none are rendered in card/marker UI.
-const LIST_COLUMNS = `
+export const LIST_COLUMNS = `
   l.id, l.name, l.category,
   l.latitude, l.longitude,
   l.main_image,

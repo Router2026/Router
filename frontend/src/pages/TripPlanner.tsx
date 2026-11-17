@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { api, toast, type AiGroupType } from '../api';
+import { useAuth } from '../context/AuthContext';
+import RouteGeneratingOverlay, { type GeneratingPhase } from '../components/RouteGeneratingOverlay';
+import { describeRouteError, isAbortError, saveDraft, takeDraft, type RouteErrorInfo } from '../utils/aiRoutePlanner';
 
 // These stay local — UI-only choices not stored in backend
 const GROUP_TYPES = [
@@ -20,7 +23,7 @@ const STYLES = [
   { id: 'geology', name: 'גיאולוגיה',       icon: '🪨' },
   { id: 'wine',    name: 'יין ואוכל',       icon: '🍷' },
   { id: 'village', name: 'כפרים ומסורת',    icon: '🏡' },
-  { id: 'family',  name: 'פעילויות לילדים', icon: '🎠' },
+  { id: 'family_activities', name: 'פעילויות לילדים', icon: '🎠' },
 ];
 
 const STOP_COUNTS = ['3', '5', '7'];
@@ -32,35 +35,11 @@ const REGION_ICONS: Record<string, string> = {
   'עמק יזרעאל': '🌾', 'שרון': '🌸', 'נגב': '🏜️', 'ערבה': '🌵',
 };
 
-function buildTripPayload(params: {
-  region: string; groupType: string; styles: string[];
-  startTime: string; endTime: string; stops: string;
-  includeFood: boolean; includeCoffee: boolean; date: string;
-  userLocation: { lat: number; lng: number } | null;
-}): string {
-  const selectedRegionName = params.region;
-  const selectedGroupType = params.groupType;
-  const selectedStyles = params.styles.join(', ');
-  return JSON.stringify({
-    region: selectedRegionName,
-    group_type: selectedGroupType,
-    style: selectedStyles,
-    start_time: params.startTime,
-    end_time: params.endTime,
-    stops_count: Number.parseInt(params.stops),
-    include_food: params.includeFood,
-    include_coffee: params.includeCoffee,
-    date: params.date,
-    user_location: params.userLocation,
-    starting_point: params.userLocation
-      ? { lat: params.userLocation.lat, lng: params.userLocation.lng, label: 'מיקום נוכחי' }
-      : null,
-    optimize_order: true,
-  });
-}
-
 export default function TripPlanner() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isLoggedIn, isLoading: authLoading } = useAuth();
+  const needsLogin = !authLoading && !isLoggedIn;
   const [step, setStep] = useState(0);
   const [region, setRegion] = useState('');
   const [groupType, setGroupType] = useState('');
@@ -69,10 +48,25 @@ export default function TripPlanner() {
   const [endTime, setEndTime] = useState('16:00');
   const [stops, setStops] = useState('5');
   const [date, setDate] = useState('');
-  const [includeFood, setIncludeFood] = useState(false);
-  const [includeCoffee, setIncludeCoffee] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [genError, setGenError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<GeneratingPhase | null>(null);
+  const [genError, setGenError] = useState<RouteErrorInfo | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Restore the wizard after returning from the login page.
+  useEffect(() => {
+    const draft = takeDraft();
+    if (!draft) return;
+    setStep(draft.step);
+    setRegion(draft.region);
+    setGroupType(draft.groupType);
+    setStyles(draft.styles);
+    setStartTime(draft.startTime);
+    setEndTime(draft.endTime);
+    setStops(draft.stops);
+  }, []);
+
+  // Cancel an in-flight request if the user leaves the page.
+  useEffect(() => () => abortRef.current?.abort(), []);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [apiRegions, setApiRegions] = useState<Array<{ id: string; name: string; icon: string }>>([]);
@@ -111,45 +105,71 @@ export default function TripPlanner() {
     setStyles(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
   };
 
+  const goToLogin = () => {
+    // Keep the user's choices so they land back on the last step after login.
+    saveDraft({ step, region, groupType, styles, startTime, endTime, stops });
+    navigate('/Login', { state: { from: location } });
+  };
+
+  const cancelGenerate = () => {
+    abortRef.current?.abort();
+  };
+
   const handleGenerate = async () => {
-    setLoading(true);
+    if (needsLogin) {
+      goToLogin();
+      return;
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setPhase('planning');
     setGenError(null);
     try {
       const selectedRegionName = REGIONS.find(r => r.id === region)?.name || region;
-      const selectedGroupType = GROUP_TYPES.find(g => g.id === groupType)?.name || groupType;
-      const selectedStyles = styles.map(s => STYLES.find(st => st.id === s)?.name || s);
-
-      // Generate trip data (AI simulation via base44 shim)
-      const { base44 } = await import('../api');
-      const tripData = await base44.integrations.Core.InvokeLLM({
-        body: buildTripPayload({
-          region: selectedRegionName,
-          groupType: selectedGroupType,
-          styles: selectedStyles,
-          startTime,
-          endTime,
-          stops,
-          includeFood,
-          includeCoffee,
-          date,
-          userLocation,
-        }),
-      });
-
-      // Save the generated trip to the backend
-      const trip = tripData?.data ?? tripData;
-      const saved = await api.trips.create({
-        ...trip,
+      const route = await api.ai.generateRoute({
         region: selectedRegionName,
-        group_type: selectedGroupType,
-        style: selectedStyles.join(', '),
+        groupType: groupType as AiGroupType,
+        styles,
+        startTime,
+        endTime,
+        maxStops: Number.parseInt(stops, 10) || undefined,
+        userLocation,
+      }, controller.signal);
+
+      if (controller.signal.aborted) return;
+      setPhase('saving');
+      // Stops carry location_id, so the saved route links to real DB locations.
+      const saved = await api.trips.create({
+        name: route.name,
+        description: route.description,
+        region: route.region,
+        region_id: route.region_id,
+        group_type: GROUP_TYPES.find(g => g.id === route.group_type)?.name ?? route.group_type,
+        style: route.style,
+        total_duration_hours: route.total_duration_hours,
+        total_distance_km: route.total_distance_km,
+        stops: route.stops.map(s => ({
+          location_id: s.location_id,
+          poi_name: s.poi_name,
+          arrival_time: s.arrival_time,
+          duration_minutes: s.duration_minutes,
+          smart_insight: s.smart_insight,
+          order_index: s.order_index,
+        })),
       });
+
+      if (route.source === 'fallback') {
+        toast.info('ה-AI לא היה זמין כרגע, אז בנינו מסלול מהמקומות הקרובים והמומלצים באזור');
+      }
       navigate(`/TripDetail?id=${saved.id}`);
     } catch (e) {
+      if (isAbortError(e)) return;
       console.error('Trip generation failed:', e);
-      setGenError((e as Error)?.message || 'שגיאה בייצור המסלול');
+      setGenError(describeRouteError(e));
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      setPhase(null);
     }
-    setLoading(false);
   };
 
   const canNext = [
@@ -395,35 +415,6 @@ export default function TripPlanner() {
                 ))}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {[
-                  { state: includeFood, setState: setIncludeFood, label: 'כלול מקומות אכילה בדרך' },
-                  { state: includeCoffee, setState: setIncludeCoffee, label: 'כלול עגלות קפה' },
-                ].map(item => (
-                  <label key={item.label} style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    cursor: 'pointer', justifyContent: 'flex-end',
-                  }}>
-                    <span style={{ fontSize: 15, color: '#334155', fontWeight: 700 }}>{item.label}</span>
-                    <button type="button"
-                      onClick={() => item.setState(!item.state)}
-                      style={{
-                        width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                        border: `2px solid ${item.state ? '#0d9e6e' : '#cbd5e1'}`,
-                        background: item.state ? '#0d9e6e' : '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', transition: 'all 0.15s ease', padding: 0,
-                      }}
-                    >
-                      {item.state && (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </button>
-                  </label>
-                ))}
-              </div>
             </div>
           )}
         </div>
@@ -467,29 +458,48 @@ export default function TripPlanner() {
             </button>
           ) : (
             <button
-              onClick={handleGenerate}
-              disabled={loading}
+              onClick={needsLogin ? goToLogin : handleGenerate}
+              disabled={phase !== null || authLoading}
               style={{
                 flex: 2, padding: '18px', border: 'none',
                 borderRadius: 16,
-                background: '#6ee7b7',
-                color: '#064e3b', fontSize: 16, fontWeight: 800,
-                cursor: loading ? 'wait' : 'pointer',
+                background: needsLogin ? '#0d9e6e' : '#6ee7b7',
+                color: needsLogin ? '#fff' : '#064e3b', fontSize: 16, fontWeight: 800,
+                cursor: phase !== null ? 'wait' : 'pointer',
                 fontFamily: 'Heebo, sans-serif',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 transition: 'all 0.2s ease'
               }}
             >
-              {loading ? 'יוצר...' : '✨ צור מסלול'}
+              {needsLogin ? '🔑 התחבר כדי לתכנן מסלול' : '✨ צור מסלול'}
             </button>
           )}
         </div>
 
+        {needsLogin && step === 3 && (
+          <p style={{ margin: '12px 0 0', fontSize: 13, color: '#64748b', textAlign: 'center', direction: 'rtl' }}>
+            הבחירות שלך יישמרו ותחזור לכאן אחרי ההתחברות
+          </p>
+        )}
+
         {genError && (
-          <div style={{ margin: '12px 0', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', color: '#dc2626', fontSize: 13, fontWeight: 600, textAlign: 'center', direction: 'rtl' }}>
-            ⚠️ {genError}
+          <div role="alert" style={{ margin: '12px 0', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', color: '#dc2626', fontSize: 13, fontWeight: 600, textAlign: 'center', direction: 'rtl' }}>
+            ⚠️ {genError.message}
+            {(genError.canRetry || genError.kind === 'auth') && (
+              <div style={{ marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={genError.kind === 'auth' ? goToLogin : handleGenerate}
+                  style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif' }}
+                >
+                  {genError.kind === 'auth' ? 'התחברות' : 'נסו שוב'}
+                </button>
+              </div>
+            )}
           </div>
         )}
+
+        {phase && <RouteGeneratingOverlay phase={phase} onCancel={cancelGenerate} />}
 
       </div>
     </div>

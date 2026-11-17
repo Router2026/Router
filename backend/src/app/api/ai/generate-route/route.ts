@@ -1,221 +1,92 @@
+// POST /api/ai/generate-route
+// Plans a one-day nature route for any signed-in user. All stops come from the
+// `locations` table; the LLM (Groq) only selects among pre-filtered candidates.
+// See src/lib/ai-route/ for the pipeline.
+
 import { NextRequest, NextResponse } from "next/server";
-import { generateTrip } from "@/lib/trips/trip-service";
 import { successResponse, errorResponse } from "@/lib/api/response";
+import { getUserFromRequest } from "@/lib/auth/tokens";
 import { rawDb } from "@/lib/db/raw-client";
-import type { TripInput } from "@/types/llm";
-import type { Poi } from "@/lib/db/schema";
+import { planRoute, NoCandidatesError } from "@/lib/ai-route/generate";
+import { createSelector } from "@/lib/ai-route/create-selector";
+import type { StopSelector } from "@/lib/ai-route/groq";
+import { parseRouteRequest, toApiRoute } from "@/lib/ai-route/http";
+import { consumeRouteQuota } from "@/lib/ai-route/rate-limit";
 
-export const maxDuration = 60; // seconds — LLM calls can take 10-30s
+// The AI step is capped at ~25s by planRoute; this leaves headroom for DB work.
+export const maxDuration = 60;
 
-// Maps Router app's region name to the main app's area/subArea keys
-const REGION_MAP: Record<string, { area: string; subArea: string }> = {
-  "גולן":           { area: "galilee",   subArea: "golan" },
-  "גליל עליון":    { area: "galilee",   subArea: "upper_galilee" },
-  "גליל תחתון":    { area: "galilee",   subArea: "lower_galilee" },
-  "כרמל":           { area: "galilee",   subArea: "haifa_carmel" },
-  "עמק יזרעאל":    { area: "galilee",   subArea: "jezreel_valley" },
-  "מרכז":           { area: "tel_aviv",  subArea: "dan_region" },
-  "שרון":           { area: "tel_aviv",  subArea: "sharon" },
-  "ירושלים":        { area: "jerusalem", subArea: "jerusalem_city" },
-  "דרום":           { area: "negev",     subArea: "beer_sheva" },
-  "אילת":           { area: "negev",     subArea: "arava_eilat" },
-  "נגב":            { area: "negev",     subArea: "mitzpe_ramon" },
-  "ערבה":           { area: "negev",     subArea: "arava_eilat" },
-};
+// Module scope: one instance per server process, so the fallback selector's
+// post-429 cooldown applies to every request, not just the one that hit it.
+const selector: StopSelector | null = createSelector();
 
-// Maps Router trip styles to POI categories
-const STYLE_TO_CATEGORIES: Record<string, string[]> = {
-  history:          ["attraction"],
-  water:            ["hiking_trail"],
-  photo:            ["attraction"],
-  nature:           ["hiking_trail"],
-  hiking:           ["hiking_trail"],
-  beach:            ["hiking_trail"],
-  geology:          ["hiking_trail"],
-  wine:             ["restaurant"],
-  village:          ["attraction"],
-  family_activities:["attraction"],
-};
-
-// Maps group type to traveler type + group size
-const GROUP_MAP: Record<string, { travelerType: TripInput["travelerType"]; groupSize: number }> = {
-  solo:    { travelerType: "solo",    groupSize: 1 },
-  couple:  { travelerType: "couple",  groupSize: 2 },
-  family:  { travelerType: "family",  groupSize: 4 },
-  friends: { travelerType: "friends", groupSize: 3 },
-};
-
-function buildRequestedCategories(
-  styles: string[],
-  includeFood: boolean,
-  includeCoffee: boolean,
-): Set<string> {
-  const cats = new Set<string>();
-  for (const style of styles) {
-    for (const cat of STYLE_TO_CATEGORIES[style] ?? []) {
-      cats.add(cat);
-    }
-  }
-  if (includeFood) cats.add("restaurant");
-  if (includeCoffee) cats.add("coffee_trail");
-  if (cats.size === 0) cats.add("attraction");
-  return cats;
+function fail(status: number, code: string, message: string, headers?: HeadersInit) {
+  return NextResponse.json(errorResponse(message, code), { status, headers });
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getUserFromRequest(req);
+  if (!user) return fail(401, "AUTH_REQUIRED", "יש להתחבר כדי ליצור מסלול");
+
+  const body = await req.json().catch(() => null);
+  const parsed = parseRouteRequest(body);
+  if (!parsed.ok) return fail(400, "VALIDATION_ERROR", parsed.message);
+  const input = parsed.value;
+
   try {
-    const { getUserFromRequest } = await import("@/lib/auth/tokens");
-    const user = await getUserFromRequest(req);
-    if (!user?.is_admin) {
-      return NextResponse.json(errorResponse("Admin access required", "FORBIDDEN"), { status: 403 });
-    }
-
-    const body = await req.json();
-    const {
-      region, groupType, styles = [],
-      startTime = "09:00", endTime = "16:00",
-      includeFood = false, includeCoffee = false,
-      userLocation = null,
-    } = body;
-
-    if (!region || !groupType) {
-      return NextResponse.json(errorResponse("region and groupType are required", "VALIDATION_ERROR"), { status: 400 });
-    }
-
-    const regionMapping = REGION_MAP[region];
-    if (!regionMapping) {
-      return NextResponse.json(errorResponse(`Unknown region: ${region}`, "VALIDATION_ERROR"), { status: 400 });
-    }
-
-    const groupMapping = GROUP_MAP[groupType] ?? GROUP_MAP["friends"];
-    const times = { start: startTime, end: endTime };
-
-    const requestedCategories = buildRequestedCategories(styles, includeFood, includeCoffee);
-
-    // Always include attraction + hiking_trail as a base so the query never returns empty
-    const queryCategories = [...new Set([...requestedCategories, "attraction", "hiking_trail"])];
-
-    // Resolve region_id once — avoids a JOIN and an unindexed name scan on every call
-    const { rows: regionRows } = await rawDb.query(
-      `SELECT id FROM regions WHERE name = $1 LIMIT 1`,
-      [region]
+    const { rows: regionRows } = await rawDb.query<{ id: number; name: string }>(
+      `SELECT id, name FROM regions WHERE name = $1 OR slug = $1 LIMIT 1`,
+      [input.region],
     );
-    if (!regionRows.length) {
-      return NextResponse.json(errorResponse(`Unknown region: ${region}`, "VALIDATION_ERROR"), { status: 400 });
-    }
-    const regionId = regionRows[0].id;
+    const region = regionRows[0];
+    if (!region) return fail(400, "UNKNOWN_REGION", "האזור שנבחר לא נמצא");
 
-    // Fetch locations using the indexed (region_id, category) lookup — no JOIN needed
-    const { rows: locationRows } = await rawDb.query(
-      `SELECT name, description, category, latitude, longitude, duration_minutes
-       FROM locations
-       WHERE region_id = $1
-         AND category = ANY($2)
-       ORDER BY RANDOM()
-       LIMIT 40`,
-      [regionId, queryCategories]
-    );
-
-    // Only tell the LLM about categories that actually have locations in the DB
-    const presentCategories = new Set(locationRows.map(r => r.category as string));
-    const finalCategories = [...requestedCategories].filter(c => presentCategories.has(c));
-    if (finalCategories.length === 0) {
-      // Fallback: use whatever categories are present
-      finalCategories.push(...presentCategories);
-    }
-    if (finalCategories.length === 0) {
-      return NextResponse.json(errorResponse("No locations found for the selected region and styles", "NOT_FOUND"), { status: 404 });
-    }
-
-    const input: TripInput = {
-      travelerType: groupMapping.travelerType,
-      groupSize: groupMapping.groupSize,
-      durationDays: 1,
-      poiCategories: finalCategories,
-      areas: [regionMapping.area],
-      subAreas: [regionMapping.subArea],
-      dayStartTime: times.start,
-      dayEndTime: times.end,
-      difficulty: "moderate",
-      userLocation: userLocation ?? undefined,
+    // Counted only after the request is valid, so typos do not burn quota.
+    const quota = await consumeRouteQuota(user.id);
+    const rateHeaders = {
+      "X-RateLimit-Limit": String(quota.limit),
+      "X-RateLimit-Remaining": String(quota.remaining),
+      "X-RateLimit-Reset": String(Math.floor(quota.resetAt.getTime() / 1000)),
     };
+    if (!quota.allowed) {
+      const retryAfter = Math.max(1, Math.ceil((quota.resetAt.getTime() - Date.now()) / 1000));
+      return fail(429, "RATE_LIMITED", "הגעת למספר המסלולים המרבי לשעה. נסו שוב מאוחר יותר", {
+        ...rateHeaders,
+        "Retry-After": String(retryAfter),
+      });
+    }
 
-    // Map Router locations to Poi shape for the LLM (only categories the LLM will use)
-    const finalCategorySet = new Set(finalCategories);
-    const hebrewPois: Poi[] = locationRows
-      .filter(r => finalCategorySet.has(r.category as string))
-      .map((r, i) => ({
-      id: String(i),
-      name: r.name as string,
-      category: (r.category as Poi["category"]) ?? "attraction",
-      region: regionMapping.area,
-      description: (r.description as string) || "",
-      address: "",
-      latitude: Number.parseFloat(r.latitude as string),
-      longitude: Number.parseFloat(r.longitude as string),
-      subRegion: regionMapping.subArea,
-      visitDurationMinutes: (r.duration_minutes as number) ?? 60,
-      openingHours: null,
-      sourceUrl: null,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    const route = await planRoute(
+      {
+        regionId: region.id,
+        prefs: {
+          regionName: region.name,
+          groupType: input.groupType,
+          styles: input.styles,
+          dayStart: input.dayStart,
+          dayEnd: input.dayEnd,
+          start: input.start,
+          maxStops: input.maxStops,
+        },
+        seed: crypto.randomUUID(),
+        signal: req.signal,
+      },
+      { selector },
+    );
+
+    // Structured log for monitoring AI quality (no PII beyond the numeric user id).
+    console.info("[ai-route] planned", JSON.stringify({
+      userId: user.id, regionId: region.id, source: route.source, stops: route.stops.length, ...route.diagnostics,
     }));
 
-    const poisForLLM = hebrewPois.length > 0 ? hebrewPois : undefined;
-    const { uuid, plan } = await generateTrip(input, poisForLLM);
-
-    // Convert the rich plan to the Router app's Trip format
-    const stops = plan.days[0]?.stops.map((s, i) => {
-      const [startH, startM] = times.start.split(":").map(Number);
-      const offsetMinutes = plan.days[0].stops
-        .slice(0, i)
-        .reduce((acc, prev) => acc + prev.visitDurationMinutes + 15, 0);
-      const arrivalMin = startH * 60 + startM + offsetMinutes;
-      const h = Math.floor(arrivalMin / 60).toString().padStart(2, "0");
-      const m = (arrivalMin % 60).toString().padStart(2, "0");
-      return {
-        poi_name: s.name,
-        arrival_time: `${h}:${m}`,
-        duration_minutes: s.visitDurationMinutes,
-        smart_insight: s.reasoning,
-        order_index: i,
-      };
-    }) ?? [];
-
-    const totalHours = stops.reduce((acc, s) => acc + s.duration_minutes, 0) / 60;
-
-    const STYLE_LABELS: Record<string, string> = {
-      history: "היסטוריה", water: "מים", photo: "צילום", nature: "טבע",
-      hiking: "טיולים", beach: "חוף", geology: "גיאולוגיה",
-      wine: "יין ואוכל", village: "כפרים", family_activities: "לילדים",
-    };
-    const GROUP_LABELS: Record<string, string> = { solo: "יחיד", couple: "זוג", family: "משפחה", friends: "חברים" };
-    const styleLabel = (styles as string[]).map(s => STYLE_LABELS[s] ?? s).join("/") || "טבע";
-    const groupLabel = GROUP_LABELS[groupType] ?? groupType;
-
-    return NextResponse.json(
-      successResponse({
-        id: uuid,
-        name: `טיול ${styleLabel} ב${region}`,
-        description: `מסלול מותאם ל${groupLabel} באזור ${region}`,
-        region,
-        group_type: groupType,
-        style: (styles as string[]).map(s => STYLE_LABELS[s] ?? s).join(", "),
-        total_duration_hours: Math.round(totalHours * 10) / 10,
-        stops,
-      }),
-      { status: 201 }
-    );
+    return NextResponse.json(successResponse(toApiRoute(route, input, region)), { status: 200, headers: rateHeaders });
   } catch (err) {
+    if (err instanceof NoCandidatesError) {
+      return fail(404, "NO_LOCATIONS", "לא נמצאו מקומות באזור שנבחר");
+    }
+    // Details stay in server logs; the client gets a generic message.
     console.error("[POST /api/ai/generate-route]", err);
-    return NextResponse.json(
-      errorResponse(
-        err instanceof Error ? err.message : "Route generation failed",
-        "GENERATION_ERROR"
-      ),
-      { status: 500 }
-    );
+    return fail(500, "GENERATION_ERROR", "יצירת המסלול נכשלה. נסו שוב בעוד רגע");
   }
 }
 

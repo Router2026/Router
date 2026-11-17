@@ -105,8 +105,8 @@ export async function deleteRoute(id: number): Promise<void> {
 
 export async function createRoute(data: Partial<Route> & { user_id?: number }): Promise<Route> {
   const { rows } = await rawDb.query(
-    `INSERT INTO routes (name, description, region_id, total_duration_hours, difficulty, group_type, style, user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    `INSERT INTO routes (name, description, region_id, total_duration_hours, difficulty, group_type, style, user_id, total_distance_km)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
     [
       data.name || "מסלול חדש",
       data.description || null,
@@ -116,6 +116,10 @@ export async function createRoute(data: Partial<Route> & { user_id?: number }): 
       data.group_type || "משפחה",
       data.style || "טבע",
       data.user_id || null,
+      // Set by the AI planner; numeric(6,2) column, so clamp to its range.
+      typeof data.total_distance_km === "number" && Number.isFinite(data.total_distance_km)
+        ? Math.min(9999.99, Math.max(0, data.total_distance_km))
+        : null,
     ]
   );
   const route = rows[0];
