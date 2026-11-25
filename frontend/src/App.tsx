@@ -63,6 +63,7 @@ function PageLoader() {
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TripBucketProvider } from './context/TripBucketContext';
+import { AssistantProvider } from './context/AssistantContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import GuestBanner from './components/GuestBanner';
 import OnboardingTour, { useShouldShowTour } from './components/OnboardingTour';
@@ -174,6 +175,7 @@ export default function App() {
   return (
     <AuthProvider>
       <TripBucketProvider>
+        <AssistantProvider>
         <FavoritesProvider>
           <Router>
             <AppRoutes />
@@ -189,6 +191,7 @@ export default function App() {
             }}
           />
         </FavoritesProvider>
+        </AssistantProvider>
       </TripBucketProvider>
     </AuthProvider>
   );
