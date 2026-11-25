@@ -347,6 +347,25 @@ describe('updateLocation', () => {
     expect(sql).toContain('coords_verified = TRUE') // a person placed the point
   })
 
+  it('clears description_source when a person edits the description', async () => {
+    mockDb.query.mockResolvedValue({ rows: [sampleRow] })
+    await updateLocation(1, { description: 'נכתב ידנית' })
+    const [sql] = mockDb.query.mock.calls[0]
+    expect(sql).toContain('description_source = NULL')
+    expect(sql).toContain('description_source_url = NULL')
+
+    mockDb.query.mockClear()
+    await updateLocation(1, { name: 'x' })
+    expect(mockDb.query.mock.calls[0][0]).not.toContain('description_source')
+  })
+
+  it('maps description_source fields from the row', async () => {
+    mockDb.query.mockResolvedValue({ rows: [{ ...sampleRow, description_source: 'wikipedia', description_source_url: 'https://he.wikipedia.org/wiki/x' }] })
+    const loc = await updateLocation(1, { name: 'x' })
+    expect(loc.description_source).toBe('wikipedia')
+    expect(loc.description_source_url).toBe('https://he.wikipedia.org/wiki/x')
+  })
+
   it('keeps the other coordinate when only one changes, and leaves geom alone otherwise', async () => {
     mockDb.query.mockResolvedValue({ rows: [sampleRow] })
     await updateLocation(1, { latitude: 31.5 })

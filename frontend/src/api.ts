@@ -187,6 +187,10 @@ export interface POI {
   owner_user_id?: number | null;
   /** The community_pois.id this location was created from (null for official POIs) */
   community_poi_id?: number | null;
+  /** 'wikipedia' → the description is CC BY-SA text and must be shown with attribution */
+  description_source?: 'wikipedia' | 'facts';
+  /** Article the description was taken from (when description_source is 'wikipedia') */
+  description_source_url?: string;
 }
 
 export interface NearbyPOI extends POI {
@@ -415,6 +419,8 @@ function mapLocation(r: any): POI {
       ? Number.parseFloat(r.distance_meters) : undefined,
     owner_user_id: r.owner_user_id ?? null,
     community_poi_id: r.community_poi_id ?? null,
+    description_source: r.description_source || undefined,
+    description_source_url: r.description_source_url || undefined,
   };
 }
 
