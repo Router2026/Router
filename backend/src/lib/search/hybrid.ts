@@ -28,6 +28,8 @@ export interface HybridSqlParams {
   /** Attributes the user selected as filter chips — always required. */
   requiredAttributes?: AttributeKey[];
   near?: { lat: number; lng: number; radiusM?: number } | null;
+  /** Route planning: only places whose coordinates are verified (migration 0010). */
+  verifiedCoordsOnly?: boolean;
   /** Attributes detected in the query. */
   attributes?: AttributeKey[];
   /** "boost" (default): rank matching places higher. "filter": require all of them. */
@@ -54,6 +56,7 @@ export function buildHybridSql(p: HybridSqlParams): { sql: string; params: unkno
   if (p.difficulties?.length) filters.push(`l.difficulty = ANY(${add(p.difficulties)}::text[])`);
   // UI filter chips are explicit choices → always hard filters (fixed SQL whitelist).
   for (const a of p.requiredAttributes ?? []) if (a in ATTRIBUTE_SQL) filters.push(ATTRIBUTE_SQL[a]);
+  if (p.verifiedCoordsOnly) filters.push("l.coords_verified");
 
   let distanceSelect = "NULL::float8 AS distance_meters";
   if (p.near) {

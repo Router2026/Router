@@ -137,3 +137,12 @@ describe("fetchCandidatesWithFallback", () => {
     expect(res.candidates.map((c) => c.locationId)).toEqual([1, 2]);
   });
 });
+
+describe("coords_verified", () => {
+  beforeEach(() => mockQuery.mockReset());
+  it("excludes places with unverified coordinates from planner candidates", async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+    await fetchCandidates({ regionId: 1, categories: null });
+    expect(mockQuery.mock.calls[0][0]).toMatch(/AND l\.coords_verified/);
+  });
+});

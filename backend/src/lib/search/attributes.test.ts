@@ -67,6 +67,13 @@ describe('buildHybridSql attributes', () => {
     expect(sql).toContain('(l.has_shade = TRUE) AS attr_match') // detected → still a boost
   })
 
+  it('verifiedCoordsOnly adds a hard filter; omitted by default (search / map keep showing all places)', () => {
+    const on = buildHybridSql({ ftsText: 'x', vector: null, boostRegionSlugs: [], limit: 5, verifiedCoordsOnly: true })
+    expect(on.sql).toMatch(/AND l\.coords_verified/)
+    const off = buildHybridSql({ ftsText: 'x', vector: null, boostRegionSlugs: [], limit: 5 })
+    expect(off.sql).not.toContain('coords_verified')
+  })
+
   it('ignores unknown attribute keys', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { sql } = buildHybridSql({ ftsText: 'x', vector: null, boostRegionSlugs: [], limit: 5, attributes: ['1=1; DROP' as any] })

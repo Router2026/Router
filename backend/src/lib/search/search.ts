@@ -33,6 +33,8 @@ export interface SearchInput {
   /** Filter chips (has_water / has_shade / accessible) — hard filters. */
   requiredAttributes?: AttributeKey[];
   near?: { lat: number; lng: number; radiusM?: number } | null;
+  /** Route planning only: skip places with unverified coordinates (migration 0010). */
+  verifiedCoordsOnly?: boolean;
   limit?: number;
 }
 
@@ -90,6 +92,7 @@ export async function searchLocations(input: SearchInput, deps: SearchDeps = get
     d: input.difficulties?.length ? input.difficulties : null,
     a: input.requiredAttributes?.length ? [...input.requiredAttributes].sort() : null,
     n: input.near ?? null,
+    v: input.verifiedCoordsOnly ? 1 : 0,
     limit,
   })}`;
   const cached = deps.cache.get<SearchOutput>(resultKey);
@@ -130,6 +133,7 @@ export async function searchLocations(input: SearchInput, deps: SearchDeps = get
     difficulties: input.difficulties,
     requiredAttributes: input.requiredAttributes,
     near: input.near,
+    verifiedCoordsOnly: input.verifiedCoordsOnly,
     // Over-fetch so duplicates removed below don't leave the page short.
     limit: limit + DEDUPE_HEADROOM,
   });
