@@ -115,6 +115,8 @@ describe('runSummaryAgent', () => {
     expect(s.safetyFooter).toBe(SAFETY_FOOTER.he)
     const prompt = ((parse.mock.calls[0] as any[])[0]).messages[0].content as string
     expect(prompt).toContain('Use ONLY the facts below')
+    expect(prompt).toContain('never claim a place has no water')
+    expect(prompt).not.toMatch(/"water":false|"shade":false/)
   })
 
   it('fallbackSummary uses plan facts only', async () => {
