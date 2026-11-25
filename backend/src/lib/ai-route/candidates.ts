@@ -36,6 +36,8 @@ interface CandidateRow {
   duration_minutes: number | null;
   difficulty: string | null;
   has_water: boolean | null;
+  /** Absent on rows from before migration 0012. */
+  water_seasonal?: boolean | null;
   has_shade: boolean | null;
   accessible: boolean | null;
   average_rating: string | number | null;
@@ -50,7 +52,7 @@ const CANDIDATES_SQL = `
 WITH base AS (
   SELECT
     l.id, l.name, l.description, l.category, l.latitude, l.longitude,
-    l.duration_minutes, l.difficulty, l.has_water, l.has_shade, l.accessible,
+    l.duration_minutes, l.difficulty, l.has_water, l.water_seasonal, l.has_shade, l.accessible,
     l.average_rating, l.main_image, l.is_featured,
     CASE WHEN $3::float8 IS NULL OR $4::float8 IS NULL THEN NULL
     ELSE ST_Distance(
@@ -81,7 +83,7 @@ ranked AS (
   FROM base
 )
 SELECT id, name, description, category, latitude, longitude, duration_minutes,
-       difficulty, has_water, has_shade, accessible, average_rating, main_image,
+       difficulty, has_water, water_seasonal, has_shade, accessible, average_rating, main_image,
        distance_m
 FROM ranked
 WHERE rn <= $6
@@ -125,7 +127,9 @@ export function rowsToCandidates(rows: CandidateRow[]): Candidate[] {
       lng,
       durationMinutes: duration,
       difficulty: row.difficulty ?? null,
-      hasWater: !!row.has_water,
+      // Seasonal water (migration 0012) is not "has water" for planning.
+      hasWater: !!row.has_water && !row.water_seasonal,
+      waterSeasonal: !!row.water_seasonal,
       hasShade: !!row.has_shade,
       accessible: !!row.accessible,
       rating: toNumber(row.average_rating),

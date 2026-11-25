@@ -27,6 +27,8 @@ export interface Location {
   difficulty?: string;
   duration_minutes?: number;
   has_water?: boolean;
+  /** Water is unreliable (dry most of the year) — see migration 0012. */
+  water_seasonal?: boolean;
   has_shade?: boolean;
   accessible?: boolean;
   is_featured?: boolean;
@@ -108,6 +110,7 @@ function rowToLocation(row: Record<string, unknown>): Location {
     difficulty: (row.difficulty as string) || "בינוני",
     duration_minutes: row.duration_minutes as number | undefined,
     has_water: row.has_water as boolean | undefined,
+    water_seasonal: (row.water_seasonal as boolean | undefined) ?? undefined,
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     is_featured: row.is_featured as boolean | undefined,
@@ -143,6 +146,7 @@ export function rowToLocationSlim(row: Record<string, unknown>): Location {
     difficulty: (row.difficulty as string) || "בינוני",
     duration_minutes: row.duration_minutes as number | undefined,
     has_water: row.has_water as boolean | undefined,
+    water_seasonal: (row.water_seasonal as boolean | undefined) ?? undefined,
     has_shade: row.has_shade as boolean | undefined,
     accessible: row.accessible as boolean | undefined,
     is_featured: row.is_featured as boolean | undefined,
@@ -162,7 +166,7 @@ export const LIST_COLUMNS = `
   l.latitude, l.longitude,
   l.main_image,
   l.difficulty, l.duration_minutes,
-  l.has_water, l.has_shade, l.accessible, l.is_featured,
+  l.has_water, l.water_seasonal, l.has_shade, l.accessible, l.is_featured,
   l.average_rating,
   l.photo_credit, l.uploaded_by,
   l.region_id,
@@ -201,7 +205,7 @@ function buildLocationConditions(query: Omit<LocationQuery, "limit" | "offset">)
   }
 
   // Boolean feature flags
-  if (query.has_water) conditions.push(`l.has_water = TRUE`);
+  if (query.has_water) conditions.push(`l.has_water = TRUE AND NOT l.water_seasonal`);
   if (query.has_shade) conditions.push(`l.has_shade = TRUE`);
   if (query.accessible) conditions.push(`l.accessible = TRUE`);
 

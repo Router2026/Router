@@ -146,3 +146,13 @@ describe("coords_verified", () => {
     expect(mockQuery.mock.calls[0][0]).toMatch(/AND l\.coords_verified/);
   });
 });
+
+describe("water_seasonal", () => {
+  it("a seasonal water site is not hasWater for planning", () => {
+    const [c] = rowsToCandidates([row(1, { has_water: true, water_seasonal: true })]);
+    expect(c.hasWater).toBe(false);
+    expect(c.waterSeasonal).toBe(true);
+    const [d] = rowsToCandidates([row(2, { has_water: true })]);
+    expect(d.hasWater).toBe(true);
+  });
+});

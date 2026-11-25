@@ -51,7 +51,7 @@ describe('buildHybridSql attributes', () => {
     const { sql } = buildHybridSql({
       ftsText: 'x', vector: '[1]', boostRegionSlugs: [], limit: 5, attributes: ['water'], attributeMode: 'filter',
     })
-    expect(sql).toMatch(/AND l\.has_water = TRUE/)
+    expect(sql).toMatch(/AND l\.has_water = TRUE AND NOT l\.water_seasonal/)
     expect(sql).toContain('(FALSE) AS attr_match')
     expect(sql).not.toContain('CASE WHEN l.has_water')
   })
