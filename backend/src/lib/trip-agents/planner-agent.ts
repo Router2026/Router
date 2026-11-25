@@ -31,7 +31,13 @@ export const AFTER_SUNSET_GRACE = 30;
 export const SUNSET_ARRIVE_BEFORE = 60;
 export const MAX_SUNSET_WAIT = 90;
 /** If slot order costs this much more driving than the shortest order, use the shortest order. */
-export const SLOT_ORDER_MAX_EXTRA_DRIVE = 60;
+export const SLOT_ORDER_MAX_EXTRA_DRIVE = 30;
+/**
+ * Hard limit on driving between consecutive stops. Stops are chosen as a geographic cluster and
+ * any longer leg drops the lower-priority stop: a shorter day beats a 68-minute jump to a
+ * 45-minute stop. 30 (not 25) so winding roads in the Golan / Galilee / south don't cut close stops.
+ */
+export const MAX_LEG_MINUTES = 30;
 /** Used when the forecast had no sunset (November-ish in Israel). */
 export const DEFAULT_SUNSET = "16:45";
 
@@ -48,7 +54,7 @@ export interface PlannedStop {
   conditions: ConditionNote[];
 }
 
-export type DropReason = "too_many_stops" | "second_hard_hike" | "hiking_limit" | "no_daylight" | "day_full";
+export type DropReason = "too_many_stops" | "second_hard_hike" | "hiking_limit" | "no_daylight" | "day_full" | "too_far";
 
 export interface DayPlan {
   stops: PlannedStop[];
@@ -125,27 +131,63 @@ export function shortestOrder(slots: Slot[], m: DistanceMatrix): number[] {
   return heldKarp(sub, true).map((k) => nodes[k]).reverse();
 }
 
+export interface SelectOptions {
+  /** Trip Bucket: the user picked these places, so no hard-hike / hiking-time / distance limits. */
+  respectSelection?: boolean;
+  /** Geographic cluster rule: may place `k` join the already chosen indices? */
+  isNear?: (k: number, chosen: number[]) => boolean;
+  /** Places from this index on are spares: skipped silently instead of reported as dropped. */
+  sparesFrom?: number;
+}
+
 /** Chooses which places make the day, in priority order (agent 2's ranking). */
-export function selectStops(places: AssessedPlace[], maxStops: number, opts: { respectSelection?: boolean } = {}): {
+export function selectStops(places: AssessedPlace[], maxStops: number, opts: SelectOptions = {}): {
   chosen: AssessedPlace[];
+  chosenIdx: number[];
   dropped: DayPlan["dropped"];
 } {
-  const chosen: AssessedPlace[] = [];
+  const chosenIdx: number[] = [];
   const dropped: DayPlan["dropped"] = [];
   let hard = 0;
   let hiking = 0;
-  for (const a of places) {
+  places.forEach((a, k) => {
     const p = a.place;
-    if (chosen.length >= maxStops) { dropped.push({ place: p, reason: "too_many_stops" }); continue; }
+    const drop = (reason: DropReason) => { if (k < (opts.sparesFrom ?? Infinity)) dropped.push({ place: p, reason }); };
+    if (chosenIdx.length >= maxStops) return drop("too_many_stops");
     // A user-picked list (Trip Bucket) keeps every place; only daylight can drop one later.
     if (!opts.respectSelection) {
-      if (isHike(p) && p.difficulty === "מאתגר" && hard >= MAX_HARD_HIKES) { dropped.push({ place: p, reason: "second_hard_hike" }); continue; }
-      if (isHike(p) && hiking + visitMinutes(p) > MAX_HIKING_MINUTES) { dropped.push({ place: p, reason: "hiking_limit" }); continue; }
+      if (isHike(p) && p.difficulty === "מאתגר" && hard >= MAX_HARD_HIKES) return drop("second_hard_hike");
+      if (isHike(p) && hiking + visitMinutes(p) > MAX_HIKING_MINUTES) return drop("hiking_limit");
+      if (opts.isNear && chosenIdx.length && !opts.isNear(k, chosenIdx)) return drop("too_far");
     }
     if (isHike(p)) { hiking += visitMinutes(p); if (p.difficulty === "מאתגר") hard++; }
-    chosen.push(a);
+    chosenIdx.push(k);
+  });
+  return { chosen: chosenIdx.map((k) => places[k]), chosenIdx, dropped };
+}
+
+/** Driving minutes between two places in either direction (Mapbox matrices are not symmetric). */
+const legMinutes = (m: DistanceMatrix, a: number, b: number) => Math.max(m[a][b], m[b][a]);
+
+/** Slots with at most one sunset spot (the first chosen viewpoint). */
+function assignSlots(chosen: AssessedPlace[]): Slot[] {
+  let sawSunset = false;
+  return chosen.map((a): Slot => {
+    const s = slotFor(a.place);
+    if (s !== "sunset") return s;
+    if (sawSunset) return "afternoon";
+    sawSunset = true;
+    return s;
+  });
+}
+
+function chooseOrder(slots: Slot[], m: DistanceMatrix): { order: number[]; strategy: DayPlan["orderStrategy"] } {
+  const order = slotOrder(slots, m);
+  if (slots.length > 2) {
+    const short = shortestOrder(slots, m);
+    if (pathDrive(order, m) - pathDrive(short, m) > SLOT_ORDER_MAX_EXTRA_DRIVE) return { order: short, strategy: "shortest_drive" };
   }
-  return { chosen, dropped };
+  return { order, strategy: "time_of_day" };
 }
 
 // ── Agent ─────────────────────────────────────────────────────────────────────
@@ -169,36 +211,42 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
   const sunset = input.sunset ?? DEFAULT_SUNSET;
   const sunsetMin = parseTime(sunset);
   const startMin = parseTime(input.intent.start_time);
-  const { chosen, dropped: shortlistDropped } = selectStops(input.places, input.intent.max_stops, { respectSelection: input.respectSelection });
-  // Fill free stops from spares (same rules); spares that don't fit aren't reported as dropped.
-  const free = input.intent.max_stops - chosen.length;
-  if (free > 0 && input.spares?.length) {
-    const fill = selectStops([...chosen, ...input.spares], input.intent.max_stops).chosen.slice(chosen.length);
-    chosen.push(...fill);
-  }
-  const dropped = shortlistDropped;
+  const respect = !!input.respectSelection;
+  // Shortlist first, then spares (used only to fill free stops). One travel matrix for all of them.
+  const pool = [...input.places, ...(input.spares ?? [])];
+  const { matrix: full, source } = await (deps.matrix ?? travelMatrix)(pool.map((a) => a.place));
 
-  // Slots, with at most one sunset spot (the first chosen viewpoint).
-  let sawSunset = false;
-  const slots = chosen.map((a): Slot => {
-    const s = slotFor(a.place);
-    if (s !== "sunset") return s;
-    if (sawSunset) return "afternoon";
-    sawSunset = true;
-    return s;
+  // 1. Choose stops as a geographic cluster: each new stop within MAX_LEG_MINUTES of a chosen one.
+  const sel = selectStops(pool, input.intent.max_stops, {
+    respectSelection: respect,
+    sparesFrom: input.places.length,
+    isNear: (k, chosenNow) => chosenNow.some((j) => legMinutes(full, j, k) <= MAX_LEG_MINUTES),
   });
+  const dropped = sel.dropped;
+  let idx = sel.chosenIdx; // indices into `pool` / `full`
 
-  const places = chosen.map((a) => a.place);
-  const { matrix, source } = await (deps.matrix ?? travelMatrix)(places);
-
-  let order = slotOrder(slots, matrix);
-  let strategy: DayPlan["orderStrategy"] = "time_of_day";
-  if (places.length > 2) {
-    const short = shortestOrder(slots, matrix);
-    if (pathDrive(order, matrix) - pathDrive(short, matrix) > SLOT_ORDER_MAX_EXTRA_DRIVE) {
-      order = short;
-      strategy = "shortest_drive";
-    }
+  // 2. Order. A leg that is still too long (near the cluster is not next to its neighbour in the
+  //    order) drops the lower-priority stop of the pair, then re-order.
+  let chosen: AssessedPlace[];
+  let slots: Slot[];
+  let matrix: DistanceMatrix;
+  let order: number[];
+  let strategy: DayPlan["orderStrategy"];
+  for (;;) {
+    chosen = idx.map((k) => pool[k]);
+    slots = assignSlots(chosen);
+    const sub = idx;
+    matrix = sub.map((a) => sub.map((b) => full[a][b]));
+    ({ order, strategy } = chooseOrder(slots, matrix));
+    if (respect) break;
+    const m = matrix;
+    const o = order;
+    const long = o.findIndex((i, n) => n > 0 && m[o[n - 1]][i] > MAX_LEG_MINUTES);
+    if (long < 0) break;
+    const [a, b] = [o[long - 1], o[long]];
+    const loser = idx[a] > idx[b] ? a : b; // higher pool index = lower priority
+    if (idx[loser] < input.places.length) dropped.push({ place: pool[idx[loser]].place, reason: "too_far" });
+    idx = idx.filter((_, n) => n !== loser);
   }
 
   const stops: PlannedStop[] = [];

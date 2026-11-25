@@ -13,7 +13,10 @@ export interface PoiCandidate {
   /** null when the DB has no value; planners fall back to a per-category default. */
   durationMinutes: number | null;
   difficulty: string | null;
+  /** Reliable water only: false for seasonal sites (migration 0012). */
   hasWater: boolean;
+  /** Water site that is dry most of the year — excluded from water-themed requests. */
+  waterSeasonal?: boolean;
   hasShade: boolean;
   accessible: boolean;
   rating: number | null;

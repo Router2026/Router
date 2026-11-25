@@ -11,8 +11,8 @@ import { sanitizeForPrompt } from "@/lib/ai-route/text";
 import { runConditionsAgent, type AssessedPlace, type ConditionsReport, type WeatherFetcher } from "./conditions-agent";
 import { MIN_STOPS, type TripIntent } from "./intent-agent";
 import { addUsage, assertUsableStop, getAnthropic, tripAgentsModel, type AgentUsage } from "./llm";
-import { runPlannerAgent, type DayPlan, type PlannerDeps } from "./planner-agent";
-import { CandidatePool, defaultPostgisSearch, defaultSemanticSearch, executeSearchTool, SEARCH_TOOLS, type SearchAgentDeps } from "./search-agent";
+import { MAX_LEG_MINUTES, runPlannerAgent, type DayPlan, type PlannerDeps } from "./planner-agent";
+import { CandidatePool, defaultPostgisSearch, defaultSemanticSearch, executeSearchTool, SEARCH_TOOLS, wantsWater, type SearchAgentDeps } from "./search-agent";
 import type { PoiCandidate } from "./types";
 
 const AGENT = "review";
@@ -33,7 +33,8 @@ export type PlanIssueCode =
   | "too_hard"
   | "not_hard_enough"
   | "far_from_anchor"
-  | "long_drive";
+  | "long_drive"
+  | "long_leg";
 
 export interface PlanIssue {
   code: PlanIssueCode;
@@ -67,6 +68,11 @@ export function checkPlan(plan: DayPlan, intent: TripIntent): PlanIssue[] {
   }
   if (intent.difficulty === "hard" && stops.length && !stops.some((s) => s.place.difficulty === "מאתגר")) {
     issues.push({ code: "not_hard_enough", detail: "user asked for hard; no challenging stop" });
+  }
+  for (const s of stops) {
+    if (s.driveMinutesFromPrev > MAX_LEG_MINUTES) {
+      issues.push({ code: "long_leg", detail: `${s.driveMinutesFromPrev} min drive to this stop`, placeId: s.place.id });
+    }
   }
   const span = end - parseTime(plan.startTime);
   if (span > 0 && plan.totalDriveMinutes > span * MAX_DRIVE_SHARE) {
@@ -220,7 +226,7 @@ export async function runReviewAgent(input: ReviewInput, deps: ReviewDeps = {}):
     const results = await Promise.all(
       uses.map(async (u): Promise<Anthropic.ToolResultBlockParam> => {
         try {
-          const out = await executeSearchTool(u.name, u.input, pool, toolDeps, intent.anchor);
+          const out = await executeSearchTool(u.name, u.input, pool, toolDeps, intent.anchor, { excludeSeasonalWater: wantsWater(intent) });
           return { type: "tool_result", tool_use_id: u.id, content: JSON.stringify(out) };
         } catch (err) {
           console.error(`[trip-agents:review] tool ${u.name} failed`, err);
