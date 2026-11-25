@@ -19,11 +19,11 @@ const JERUSALEM_25KM =
 const T = {
   golanWaterfalls: "(l.name ~ 'מפל' OR l.description ~ 'מפל') AND r.slug = 'golan_hermon'",
   jerusalemSprings: `(l.category = 'מעיין' OR l.name ~ '^עין ') AND ${JERUSALEM_25KM}`,
-  negevViewpoints: "l.category = 'מצפה' AND r.slug = 'negev'",
+  negevViewpoints: "l.category = 'מצפה' AND r.slug IN ('negev', 'negev_w')",
   accessibleReserves: "l.accessible AND l.category = 'שמורת טבע'",
   challengingDesert: "l.difficulty = 'מאתגר' AND r.slug IN ('negev', 'judean_desert', 'paran_eilat')",
   craters: "(l.name ~ 'מכתש' OR l.description ~ 'מכתש')",
-  galileeSprings: "l.category = 'מעיין' AND r.slug IN ('galil_u', 'galil_t')",
+  galileeSprings: "l.category = 'מעיין' AND r.slug IN ('galil_u', 'galil_w', 'galil_t')",
   shadedEasy: "l.has_shade AND l.difficulty LIKE 'קל%'",
   ruins: "(l.category = 'אתר היסטורי' OR l.description ~ 'עתיק')",
   deadSea: "(l.name ~ 'ים המלח' OR l.description ~ 'ים המלח')",

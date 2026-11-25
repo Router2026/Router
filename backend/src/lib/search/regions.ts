@@ -5,21 +5,28 @@
 /** slug → aliases. Longer aliases win over shorter overlapping ones (e.g. "גליל עליון" vs "גליל"). */
 export const REGION_ALIASES: Record<string, string[]> = {
   golan_hermon: ["רמת הגולן", "גולן", "חרמון", "golan heights", "golan", "hermon"],
-  galil_u: ["גליל עליון", "צפת", "upper galilee", "safed", "tzfat"],
-  galil_t: ["גליל תחתון", "כנרת", "טבריה", "lower galilee", "sea of galilee", "kinneret", "tiberias"],
-  carmel_emek: ["כרמל", "חיפה", "עמק יזרעאל", "גלבוע", "carmel", "haifa", "jezreel", "gilboa"],
-  coast_sharon: ["השרון", "שרון", "תל אביב", "נתניה", "sharon", "tel aviv", "netanya"],
-  yehuda: ["יהודה ושומרון", "שומרון", "samaria"],
+  galil_u: ["גליל עליון", "גליל העליון", "צפת", "upper galilee", "safed", "tzfat"],
+  galil_w: ["גליל מערבי", "גליל המערבי", "נהריה", "עכו", "ראש הנקרה", "אכזיב", "western galilee", "nahariya", "akko", "acre", "rosh hanikra"],
+  galil_t: ["גליל תחתון", "גליל התחתון", "כנרת", "טבריה", "lower galilee", "sea of galilee", "kinneret", "tiberias"],
+  carmel_emek: ["כרמל", "חיפה", "זכרון יעקב", "carmel", "haifa", "zichron yaakov"],
+  emek: ["עמק יזרעאל", "גלבוע", "בית שאן", "עמק המעיינות", "עפולה", "jezreel valley", "jezreel", "gilboa", "beit shean"],
+  coast_sharon: ["השרון", "שרון", "תל אביב", "נתניה", "אשקלון", "sharon", "tel aviv", "netanya", "ashkelon"],
+  shfela: ["שפלה", "שפלת יהודה", "בית שמש", "בית גוברין", "לכיש", "לטרון", "מודיעין", "shephelah", "beit shemesh", "beit guvrin", "latrun", "modiin"],
+  shomron: ["שומרון", "בקעת הירדן", "samaria", "jordan valley"],
+  yehuda: ["גוש עציון", "הרי חברון", "חברון", "gush etzion", "hebron hills", "hebron"],
   jerusalem_gates: ["הרי ירושלים", "ירושלים", "jerusalem hills", "jerusalem"],
   judean_desert: ["מדבר יהודה", "ים המלח", "עין גדי", "מצדה", "judean desert", "dead sea", "ein gedi", "masada"],
+  negev_w: ["נגב מערבי", "נגב המערבי", "עוטף עזה", "הבשור", "אשכול", "western negev", "gaza envelope", "besor"],
   negev: ["מצפה רמון", "מכתש רמון", "באר שבע", "נגב", "mitzpe ramon", "ramon crater", "beer sheva", "beersheba", "negev"],
   paran_eilat: ["אילת", "ערבה", "פארן", "eilat", "arava", "paran"],
 };
 
 /** Ambiguous umbrella terms that map to several regions. */
 const MULTI_REGION_ALIASES: Record<string, string[]> = {
-  "גליל": ["galil_u", "galil_t"],
-  "galilee": ["galil_u", "galil_t"],
+  "גליל": ["galil_u", "galil_w", "galil_t"],
+  "galilee": ["galil_u", "galil_w", "galil_t"],
+  "יהודה ושומרון": ["yehuda", "shomron"],
+  "judea and samaria": ["yehuda", "shomron"],
 };
 
 const HEBREW_PREFIXES = "[והבלמשכ]{0,3}"; // ו/ה/ב/ל/מ/ש/כ and combos: "ובגולן", "מהכנרת"

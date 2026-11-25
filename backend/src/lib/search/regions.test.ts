@@ -21,7 +21,7 @@ describe('detectRegions', () => {
   })
 
   it('maps ambiguous umbrella terms to several regions', () => {
-    expect(detectRegions('hikes in the Galilee').slugs.sort()).toEqual(['galil_t', 'galil_u'])
+    expect(detectRegions('hikes in the Galilee').slugs.sort()).toEqual(['galil_t', 'galil_u', 'galil_w'])
   })
 
   it('detects multiple regions', () => {
@@ -43,5 +43,21 @@ describe('containsHebrew', () => {
   it('detects Hebrew characters', () => {
     expect(containsHebrew('ein gedi עין גדי')).toBe(true)
     expect(containsHebrew('ein gedi')).toBe(false)
+  })
+})
+
+describe('split regions (2026-11)', () => {
+  it.each([
+    ['טיול בנהריה', ['galil_w']],
+    ['מעיינות בגלבוע', ['emek']],
+    ['מערות בית גוברין', ['shfela']],
+    ['פריחה בנגב המערבי', ['negev_w']],
+    ['טיול ביהודה ושומרון', ['shomron', 'yehuda']],
+    ['גוש עציון', ['yehuda']],
+    ['מסלול מים קל בגליל המערבי', ['galil_w']],
+    ['טיול בגליל העליון', ['galil_u']],
+    ['מעיין בגליל התחתון', ['galil_t']],
+  ])('%s → %j', (q, slugs) => {
+    expect(detectRegions(q).slugs.sort()).toEqual([...slugs].sort())
   })
 })

@@ -755,7 +755,16 @@ export default function POIDetail() {
               <span style={{ background: '#f0fdf8', color: '#0d9e6e', borderRadius: 10, padding: '6px 14px', fontSize: 13, fontWeight: 800 }}>{poi.category}</span>
               <StarRating locationId={poiIdNum} initialSummary={ratingSummary} isLoggedIn={isLoggedIn} />
             </div>
-            <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.8, textAlign: 'right', marginBottom: 24 }}>{poi.description}</p>
+            <p style={{ fontSize: 15, color: '#475569', lineHeight: 1.8, textAlign: 'right', marginBottom: poi.description_source === 'wikipedia' ? 6 : 24 }}>{poi.description}</p>
+            {poi.description_source === 'wikipedia' && poi.description_source_url && (
+              // CC BY-SA 4.0 requires attribution with a link to the source and the license.
+              <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginTop: 0, marginBottom: 24, direction: 'rtl' }}>
+                מתוך{' '}
+                <a href={poi.description_source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#64748b' }}>ויקיפדיה</a>
+                {' · '}
+                <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.he" target="_blank" rel="noopener noreferrer" style={{ color: '#64748b' }}>CC BY-SA 4.0</a>
+              </p>
+            )}
             {poi.uploaded_by && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f0fdf8', borderRadius: 12, padding: '10px 14px', marginBottom: 16, direction: 'rtl', border: '1px solid #d1fae5' }}>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👤</div>

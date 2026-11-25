@@ -33,6 +33,9 @@ export interface Location {
   average_rating: number;
   photo_credit?: string;
   uploaded_by?: string;
+  /** 'wikipedia' → show attribution linking description_source_url (CC BY-SA). See migration 0011. */
+  description_source?: "wikipedia" | "facts";
+  description_source_url?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -111,6 +114,8 @@ function rowToLocation(row: Record<string, unknown>): Location {
     average_rating: Number.parseFloat(row.average_rating as string) || 4,
     photo_credit: (row.photo_credit as string) || undefined,
     uploaded_by: (row.uploaded_by as string) || undefined,
+    description_source: (row.description_source as Location["description_source"]) || undefined,
+    description_source_url: (row.description_source_url as string) || undefined,
     created_at: row.created_at as Date,
     updated_at: row.updated_at as Date,
   };
@@ -654,6 +659,20 @@ export async function updateLocation(id: number, input: UpdateLocationInput): Pr
   }
 
   if (!fields.length) throw Object.assign(new Error("No fields to update"), { code: "VALIDATION_ERROR" });
+
+  // A person rewrote the description: it no longer comes from Wikipedia / the facts template.
+  if (input.description !== undefined) fields.push(`description_source = NULL`, `description_source_url = NULL`);
+
+  // geom has no trigger: keep it in sync with latitude/longitude. Right-hand-side column
+  // references in SET read the OLD row, so take new values from the params when given.
+  if (input.latitude !== undefined || input.longitude !== undefined) {
+    params.push(input.longitude ?? null, input.latitude ?? null);
+    const lng = `COALESCE($${params.length - 1}::float8, longitude::float8)`;
+    const lat = `COALESCE($${params.length}::float8, latitude::float8)`;
+    fields.push(`geom = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`);
+    // A person placed the point: treat it as verified (see migration 0010).
+    fields.push(`coords_verified = TRUE`);
+  }
 
   params.push(id);
   const { rows } = await rawDb.query(

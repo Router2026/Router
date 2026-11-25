@@ -66,6 +66,8 @@ WITH base AS (
     AND l.latitude IS NOT NULL
     AND l.longitude IS NOT NULL
     AND NOT (l.latitude = 0 AND l.longitude = 0)
+    -- Unverified (rounded / wrong) coordinates would break distances and ordering (migration 0010).
+    AND l.coords_verified
 ),
 ranked AS (
   SELECT base.*,
