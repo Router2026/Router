@@ -442,7 +442,7 @@ function StrategyCards({
   selected, onSelect,
 }: Readonly<{ selected: BuildMode | null; onSelect: (m: BuildMode) => void }>) {
   const strategies: Array<{ id: BuildMode; icon: string; label: string; description: string; detail: string; comingSoon?: boolean }> = [
-    { id: 'smart', icon: '🤖', label: 'בנייה חכמה', description: 'סידור זמנים חכם מבוסס AI', detail: 'מערכת ה-AI מנתחת את אופי המקום ומסדרת הגיונית - הליכות בבוקר, בתי קפה בצהריים ותצפיות בשקיעה.', comingSoon: true },
+    { id: 'smart', icon: '🤖', label: 'בנייה חכמה', description: 'סדר ושעות לפי אופי המקום', detail: 'מסלולים קשים בבוקר, מעיינות וצל בצהריים ותצפית לשקיעה. בודק את תחזית מזג האוויר ומסיים לפני החשכה.' },
     { id: 'proximity', icon: '📍', label: 'לפי מרחק', description: 'המסלול הקצר ביותר', detail: 'שימוש באלגוריתם למציאת המסלול המיטבי המזער את מרחק הנסיעה הכולל בין כל העצירות.' },
   ];
 
