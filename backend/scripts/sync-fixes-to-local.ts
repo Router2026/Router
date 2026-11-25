@@ -9,7 +9,7 @@
 //  - regions: every production row by id (updates the 10 existing, inserts the new ones), then
 //    resets the id sequence;
 //  - locations, only rows whose id AND name match in both databases: latitude, longitude, geom,
-//    coords_verified, region_id, description, main_image, images, photo_credit;
+//    coords_verified, region_id, description, main_image, images, photo_credit, description_source(_url);
 //  - deletions: rows listed in --deleted (apply-deletions.ts input), only if id + name match;
 //  - community_pois.region_id synced to its live locations row.
 // Local-only rows and local test data (favorites, routes, reviews…) are left alone.
@@ -25,7 +25,8 @@ function arg(name: string): string | null {
   return i >= 0 ? process.argv[i + 1] ?? null : null;
 }
 
-const LOC_COLS = ["latitude", "longitude", "coords_verified", "region_id", "description", "main_image", "images", "photo_credit"] as const;
+const LOC_COLS = ["latitude", "longitude", "coords_verified", "region_id", "description", "main_image", "images", "photo_credit",
+  "description_source", "description_source_url"] as const;
 
 async function main() {
   const confirm = process.argv.includes("--confirm");
@@ -53,9 +54,9 @@ async function main() {
 
     await local.query("BEGIN");
     await local.query("SET LOCAL search_path TO router, public");
-    // Local schema must already have migration 0010.
-    const hasCol = (await local.query(`SELECT 1 FROM information_schema.columns WHERE table_schema='router' AND table_name='locations' AND column_name='coords_verified'`)).rowCount;
-    if (!hasCol) throw new Error("local DB is missing migration 0010 (coords_verified)");
+    // Local schema must already have migrations 0010 and 0011.
+    const cols = (await local.query(`SELECT column_name FROM information_schema.columns WHERE table_schema='router' AND table_name='locations' AND column_name IN ('coords_verified','description_source')`)).rowCount;
+    if (cols !== 2) throw new Error("local DB is missing migration 0010 or 0011");
 
     // ── Regions ────────────────────────────────────────────────────────────
     let regUpd = 0, regIns = 0;
@@ -80,12 +81,15 @@ async function main() {
       if (localNames.get(l.id) !== l.name) { skipped++; continue; }
       const r = await local.query(`
         UPDATE locations SET latitude=$2, longitude=$3, coords_verified=$4, region_id=$5, description=$6, main_image=$7,
-               images=$8::jsonb, photo_credit=$9, geom=ST_GeomFromEWKT($10)::geography
+               images=$8::jsonb, photo_credit=$9, geom=ST_GeomFromEWKT($10)::geography,
+               description_source=$11, description_source_url=$12
         WHERE id=$1 AND (latitude IS DISTINCT FROM $2::numeric OR longitude IS DISTINCT FROM $3::numeric
                OR coords_verified IS DISTINCT FROM $4 OR region_id IS DISTINCT FROM $5 OR description IS DISTINCT FROM $6
                OR main_image IS DISTINCT FROM $7 OR images::jsonb IS DISTINCT FROM $8::jsonb OR photo_credit IS DISTINCT FROM $9
-               OR ST_AsEWKT(geom::geometry) IS DISTINCT FROM $10)`,
-        [l.id, l.latitude, l.longitude, l.coords_verified, l.region_id, l.description, l.main_image, JSON.stringify(l.images ?? []), l.photo_credit, l.geom_wkt]);
+               OR ST_AsEWKT(geom::geometry) IS DISTINCT FROM $10
+               OR description_source IS DISTINCT FROM $11 OR description_source_url IS DISTINCT FROM $12)`,
+        [l.id, l.latitude, l.longitude, l.coords_verified, l.region_id, l.description, l.main_image, JSON.stringify(l.images ?? []), l.photo_credit, l.geom_wkt,
+         l.description_source, l.description_source_url]);
       locUpd += r.rowCount ?? 0;
     }
     console.log(`locations: ${locUpd} updated (${skipped} production rows not matched locally by id + name)`);
