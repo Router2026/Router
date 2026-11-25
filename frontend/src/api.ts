@@ -474,6 +474,76 @@ function mapUser(r: any): UserProfile {
 
 // ── Main API Object ────────────────────────────────────────────────────────
 
+// ── Trip agents (admin preview) ──────────────────────────────────────────────
+
+export type AgentStep = 'intent' | 'search' | 'conditions' | 'planner' | 'review' | 'summary';
+
+export interface AgentPlanStop {
+  id: number; name: string; category: string; region: string | null;
+  lat: number; lng: number; image: string | null; difficulty: string | null;
+  hasWater: boolean; hasShade: boolean; accessible: boolean;
+  arrival: string; departure: string; visitMinutes: number;
+  driveMinutesFromPrev: number; distanceFromPrevKm: number; waitMinutes: number;
+  slot: 'morning' | 'midday' | 'afternoon' | 'sunset';
+  tip: string | null; conditions: string[];
+}
+
+export interface AgentPlan {
+  title: string; overview: string; why: string; conditionsNote: string | null; safetyFooter: string;
+  date: string; startTime: string; endTime: string; sunset: string; forecastAvailable: boolean;
+  totalDriveMinutes: number; totalDistanceKm: number;
+  stops: AgentPlanStop[];
+  dropped: { id: number; name: string; reason: string }[];
+  rejected: { id: number; name: string; codes: string[] }[];
+}
+
+export type AgentEvent =
+  | { type: 'step'; step: AgentStep; phase: 'start' | 'done' }
+  | { type: 'result'; data: { plan: AgentPlan; debug: Record<string, unknown> } }
+  | { type: 'error'; code: string; message: string };
+
+/**
+ * POST /api/ai/trip-agents — reads the NDJSON stream and calls onEvent per line.
+ * Resolves with the final event (result or error). Pass an AbortSignal to cancel.
+ */
+export async function streamTripAgents(query: string, onEvent: (e: AgentEvent) => void, signal?: AbortSignal): Promise<AgentEvent> {
+  const token = _token ?? localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(`${BASE_URL}/ai/trip-agents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ query }),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    let message = `HTTP ${res.status}`;
+    let code: string | undefined;
+    try { const j = await res.json(); message = j.error?.message || message; code = j.error?.code; } catch { /* not JSON */ }
+    const retryAfter = Number.parseInt(res.headers.get('Retry-After') ?? '', 10);
+    throw new ApiError(message, code, res.status, Number.isFinite(retryAfter) ? retryAfter : undefined);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let last: AgentEvent = { type: 'error', code: 'NO_RESULT', message: 'השרת לא החזיר תוצאה. נסו שוב.' };
+  const handle = (line: string) => {
+    if (!line.trim()) return;
+    try {
+      const ev = JSON.parse(line) as AgentEvent;
+      if (ev.type !== 'step') last = ev;
+      onEvent(ev);
+    } catch { /* ignore a malformed line */ }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf('\n')) >= 0) { handle(buffer.slice(0, nl)); buffer = buffer.slice(nl + 1); }
+  }
+  handle(buffer + decoder.decode());
+  return last;
+}
+
 export const api = {
   // ── Auth ──────────────────────────────────────────────────────
   auth: {
