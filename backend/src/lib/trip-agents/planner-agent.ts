@@ -126,7 +126,7 @@ export function shortestOrder(slots: Slot[], m: DistanceMatrix): number[] {
 }
 
 /** Chooses which places make the day, in priority order (agent 2's ranking). */
-export function selectStops(places: AssessedPlace[], maxStops: number): {
+export function selectStops(places: AssessedPlace[], maxStops: number, opts: { respectSelection?: boolean } = {}): {
   chosen: AssessedPlace[];
   dropped: DayPlan["dropped"];
 } {
@@ -137,8 +137,11 @@ export function selectStops(places: AssessedPlace[], maxStops: number): {
   for (const a of places) {
     const p = a.place;
     if (chosen.length >= maxStops) { dropped.push({ place: p, reason: "too_many_stops" }); continue; }
-    if (isHike(p) && p.difficulty === "מאתגר" && hard >= MAX_HARD_HIKES) { dropped.push({ place: p, reason: "second_hard_hike" }); continue; }
-    if (isHike(p) && hiking + visitMinutes(p) > MAX_HIKING_MINUTES) { dropped.push({ place: p, reason: "hiking_limit" }); continue; }
+    // A user-picked list (Trip Bucket) keeps every place; only daylight can drop one later.
+    if (!opts.respectSelection) {
+      if (isHike(p) && p.difficulty === "מאתגר" && hard >= MAX_HARD_HIKES) { dropped.push({ place: p, reason: "second_hard_hike" }); continue; }
+      if (isHike(p) && hiking + visitMinutes(p) > MAX_HIKING_MINUTES) { dropped.push({ place: p, reason: "hiking_limit" }); continue; }
+    }
     if (isHike(p)) { hiking += visitMinutes(p); if (p.difficulty === "מאתגר") hard++; }
     chosen.push(a);
   }
@@ -154,6 +157,8 @@ export interface PlannerInput {
   /** Approved spares from the wider pool: used only to fill free stops, after `places`. */
   spares?: AssessedPlace[];
   sunset: string | null;
+  /** Trip Bucket: the user picked these places — don't apply the hard-hike / hiking-time limits. */
+  respectSelection?: boolean;
 }
 
 export interface PlannerDeps {
@@ -164,7 +169,7 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
   const sunset = input.sunset ?? DEFAULT_SUNSET;
   const sunsetMin = parseTime(sunset);
   const startMin = parseTime(input.intent.start_time);
-  const { chosen, dropped: shortlistDropped } = selectStops(input.places, input.intent.max_stops);
+  const { chosen, dropped: shortlistDropped } = selectStops(input.places, input.intent.max_stops, { respectSelection: input.respectSelection });
   // Fill free stops from spares (same rules); spares that don't fit aren't reported as dropped.
   const free = input.intent.max_stops - chosen.length;
   if (free > 0 && input.spares?.length) {

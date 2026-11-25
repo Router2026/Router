@@ -1,39 +1,24 @@
 /**
  * POST /api/trip-bucket/smart-build
  * ----------------------------------
- * Implements the RAG (Retrieval-Augmented Generation) flow for the
- * "Smart Build" route generation mode.
+ * "Smart Build" for the Trip Bucket, using the trip agents (lib/trip-agents/bucket.ts):
+ *   1. Fetch the picked POIs from the DB.
+ *   2. Agent 3 — weather / safety (Open-Meteo); unsafe places are left out with a warning.
+ *   3. Agent 4 — order and schedule (time-of-day slots, travel times, daylight); keeps every
+ *      place the user picked unless it no longer fits before dark.
+ *   4. Agent 5 — title, overview and one tip per stop (falls back to plain text without the model).
  *
- * Flow:
- *   1. Retrieval   — Fetch full POI metadata from the database for the
- *                    given IDs, including description, category, difficulty,
- *                    amenities, and coordinates.
- *   2. Augmentation — Inject the retrieved metadata into a structured prompt
- *                    that instructs the LLM on scheduling logic
- *                    (e.g. hike in the morning, café at noon, viewpoint at sunset).
- *   3. Generation  — The LLM returns a strictly typed JSON plan with
- *                    chronologically ordered stops and smart insights.
- *
- * Request body:
- *   { poi_ids: string[] }   — 2 to 15 POI IDs
- *
- * Response:
- *   {
- *     data: {
- *       mode: "smart",
- *       stops: SmartRouteStop[],
- *       smart_plan: SmartPlan,
- *       total_duration_minutes: number
- *     }
- *   }
+ * Request body:  { poi_ids: string[] }   — 2 to 15 POI IDs
+ * Response:      { data: { mode: "smart", stops, smart_plan, total_duration_minutes,
+ *                          total_distance_km, warnings: string[], safety_footer, sunset } }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { successResponse, errorResponse } from '@/lib/api/response';
 import { fetchBucketPois } from '@/lib/trip-bucket/bucket-db';
-import { runSmartBuild } from '@/lib/trip-bucket/smart-build';
+import { runBucketPipeline, toSmartPlan } from '@/lib/trip-agents/bucket';
 
-export const maxDuration = 60; // seconds — LLM calls can take 15–30 s
+export const maxDuration = 60; // seconds — weather + one summary model call
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,17 +49,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[SmartBuild] Starting RAG flow for ${pois.length} POIs`);
+    // ── Steps 2 & 3: trip agents 3 (conditions) → 4 (planner) → 5 (summary) ─
+    const result = await runBucketPipeline(pois);
+    const smartPlan = toSmartPlan(result);
+    console.log(`[SmartBuild] ${pois.length} POIs → ${smartPlan.stops.length} stops, ${result.warnings.length} warnings, model calls ${result.usage.calls}`);
 
-    // ── Steps 2 & 3: Augmentation + Generation (LLM call) ────────────────────
-    const smartPlan = await runSmartBuild(pois);
-
-    // ── Map the LLM result to the unified RouteStop shape ─────────────────────
-    // Calculate total duration including visits
-    const totalDurationMinutes = smartPlan.stops.reduce(
-      (acc, stop) => acc + stop.duration_minutes,
-      0,
-    );
+    // Day length from first arrival to last departure (visits + driving).
+    const [sh, sm] = result.plan.startTime.split(':').map(Number);
+    const [eh, em] = result.plan.endTime.split(':').map(Number);
+    const totalDurationMinutes = Math.max(0, eh * 60 + em - (sh * 60 + sm));
 
     const stops = smartPlan.stops.map((stop, i) => ({
       poi_id:           stop.location_id,
@@ -92,16 +75,19 @@ export async function POST(req: NextRequest) {
         stops,
         smart_plan:             smartPlan,  // full plan for rich UI rendering
         total_duration_minutes: totalDurationMinutes,
+        total_distance_km:      result.plan.totalDistanceKm,
+        // Places left out (unsafe conditions / no daylight) — never drop a user's place silently.
+        warnings:               result.warnings,
+        safety_footer:          result.summary.safetyFooter,
+        sunset:                 result.plan.sunset,
       }),
       { status: 200 },
     );
   } catch (err) {
     console.error('[POST /api/trip-bucket/smart-build]', err);
     return NextResponse.json(
-      errorResponse(
-        err instanceof Error ? err.message : 'Smart Build generation failed',
-        'GENERATION_ERROR',
-      ),
+      // Internal error details stay in the server log.
+      errorResponse('Smart Build generation failed', 'GENERATION_ERROR'),
       { status: 500 },
     );
   }
