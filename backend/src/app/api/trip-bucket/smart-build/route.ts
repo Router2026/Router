@@ -17,10 +17,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { successResponse, errorResponse } from '@/lib/api/response';
 import { fetchBucketPois } from '@/lib/trip-bucket/bucket-db';
 import { runBucketPipeline, toSmartPlan } from '@/lib/trip-agents/bucket';
+import { checkRateLimit, clientIp } from '@/lib/auth/rate-limit';
+
+/** Public endpoint that calls a paid model (agent 5) — limit per IP. */
+const RATE_LIMIT_PER_MIN = 10;
 
 export const maxDuration = 60; // seconds — weather + one summary model call
 
 export async function POST(req: NextRequest) {
+  if (!(await checkRateLimit(`smart-build:${clientIp(req)}`, RATE_LIMIT_PER_MIN, 60_000))) {
+    return NextResponse.json(errorResponse('Too many requests, try again in a minute', 'RATE_LIMITED'), {
+      status: 429,
+      headers: { 'Retry-After': '60' },
+    });
+  }
   try {
     const body = await req.json();
     const { poi_ids } = body as { poi_ids?: string[] };
