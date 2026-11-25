@@ -163,11 +163,12 @@ function validateSmartPlan(raw: unknown, expectedIds: Set<string>): SmartPlan {
  * @returns    Validated SmartPlan with chronologically ordered stops
  */
 export async function runSmartBuild(pois: BucketPoi[]): Promise<SmartPlan> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not configured');
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
+    throw new Error('ANTHROPIC_AUTH_TOKEN (or ANTHROPIC_API_KEY) is not configured');
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // Zero-arg client: the SDK reads ANTHROPIC_BASE_URL, ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN from env.
+  const client = new Anthropic();
   const prompt = buildSmartBuildPrompt(pois);
   const expectedIds = new Set(pois.map(p => p.id));
 
