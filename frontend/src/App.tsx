@@ -39,6 +39,7 @@ const ForgotPassword  = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword   = lazy(() => import('./pages/ResetPassword'));
 const RouteGenerator  = lazy(() => import('./pages/RouteGenerator'));
 const AdminPanel      = lazy(() => import('./pages/AdminPanel'));
+const AgentPlanner    = lazy(() => import('./pages/AgentPlanner'));
 const AdminPlaces     = lazy(() => import('./pages/AdminPlaces'));
 const ContributePOI   = lazy(() => import('./pages/ContributePOI'));
 const PublicTrips     = lazy(() => import('./pages/PublicTrips'));
@@ -163,6 +164,8 @@ function AppRoutes() {
         <Route path="/RouteGenerator" element={<RequireAuth><Wrap name="RouteGenerator"><RouteGenerator /></Wrap></RequireAuth>} />
         <Route path="/Admin" element={<RequireAuth><Wrap name="Admin"><AdminPanel /></Wrap></RequireAuth>} />
         <Route path="/Admin/places" element={<RequireAuth><Wrap name="AdminPlaces"><AdminPlaces /></Wrap></RequireAuth>} />
+        {/* Admin preview of the six trip agents (the page redirects non-admins). */}
+        <Route path="/AgentPlanner" element={<RequireAuth><Wrap name="AgentPlanner"><AgentPlanner /></Wrap></RequireAuth>} />
         <Route path="/favorites" element={<RequireAuth><Wrap name="Favorites"><Favorites /></Wrap></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><Wrap name="ProfileEdit"><ProfileEdit /></Wrap></RequireAuth>} />
       </Routes>

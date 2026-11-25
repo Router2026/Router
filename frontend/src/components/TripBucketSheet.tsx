@@ -9,6 +9,7 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useTripBucket } from '../context/TripBucketContext';
 import RouterLogo from '../assets/logo.jpeg';
 import type { BucketItem, GeoState, UserLocation, BuildMode } from '../utils/types';
@@ -474,6 +475,9 @@ interface RouteApiResponse {
   total_distance_km?: number;
   total_duration_minutes?: number;
   smart_plan?: unknown;
+  /** Smart build: places left out (unsafe conditions / no daylight), in Hebrew. */
+  warnings?: string[];
+  safety_footer?: string;
 }
 
 async function callBuildApi(buildMode: BuildMode, poiIds: string[], userLocation: UserLocation): Promise<RouteApiResponse> {
@@ -596,6 +600,8 @@ export default function TripBucketSheet() {
     setGenerationError(null);
     try {
       const data = await callBuildApi(buildMode, items.map(i => i.poi.id), userLocation);
+      // Never drop a picked place silently: say which ones were left out and why.
+      for (const w of data.warnings ?? []) toast.warning(w, { duration: 9000 });
       const poiMap = new Map(items.map(i => [i.poi.id, i.poi]));
       const orderedPois = data.stops.map(s => poiMap.get(s.poi_id)).filter(Boolean);
       clearBucket(); closeSheet(); setStep(1);

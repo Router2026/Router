@@ -554,6 +554,10 @@ export default function AdminPanel() {
               <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
                 ברוך הבא, {user?.username}
               </p>
+              <button type="button" onClick={() => navigate('/AgentPlanner')}
+                style={{ marginTop: 8, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10, padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                תכנון יום עם סוכנים (בדיקה)
+              </button>
             </div>
           </div>
 
