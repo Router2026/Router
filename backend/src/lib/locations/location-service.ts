@@ -655,6 +655,17 @@ export async function updateLocation(id: number, input: UpdateLocationInput): Pr
 
   if (!fields.length) throw Object.assign(new Error("No fields to update"), { code: "VALIDATION_ERROR" });
 
+  // geom has no trigger: keep it in sync with latitude/longitude. Right-hand-side column
+  // references in SET read the OLD row, so take new values from the params when given.
+  if (input.latitude !== undefined || input.longitude !== undefined) {
+    params.push(input.longitude ?? null, input.latitude ?? null);
+    const lng = `COALESCE($${params.length - 1}::float8, longitude::float8)`;
+    const lat = `COALESCE($${params.length}::float8, latitude::float8)`;
+    fields.push(`geom = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`);
+    // A person placed the point: treat it as verified (see migration 0010).
+    fields.push(`coords_verified = TRUE`);
+  }
+
   params.push(id);
   const { rows } = await rawDb.query(
     `UPDATE locations

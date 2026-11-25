@@ -334,6 +334,30 @@ describe('updateLocation', () => {
     const [, params] = mockDb.query.mock.calls[0]
     expect(params).toContain(JSON.stringify(['img1.jpg', 'img2.jpg']))
   })
+
+  it('rebuilds geom from the NEW coordinates when latitude/longitude change', async () => {
+    mockDb.query.mockResolvedValue({ rows: [sampleRow] })
+    await updateLocation(1, { latitude: 31.5, longitude: 35.1 })
+    const [sql, params] = mockDb.query.mock.calls[0]
+    expect(sql).toMatch(/geom = ST_SetSRID\(ST_MakePoint\(COALESCE\(\$(\d+)::float8, longitude::float8\), COALESCE\(\$(\d+)::float8, latitude::float8\)\), 4326\)::geography/)
+    const [, lngIdx, latIdx] = /COALESCE\(\$(\d+)::float8, longitude.*COALESCE\(\$(\d+)::float8, latitude/.exec(sql)!
+    expect(params[Number(lngIdx) - 1]).toBe(35.1)
+    expect(params[Number(latIdx) - 1]).toBe(31.5)
+    expect(params.at(-1)).toBe(1) // id stays last
+    expect(sql).toContain('coords_verified = TRUE') // a person placed the point
+  })
+
+  it('keeps the other coordinate when only one changes, and leaves geom alone otherwise', async () => {
+    mockDb.query.mockResolvedValue({ rows: [sampleRow] })
+    await updateLocation(1, { latitude: 31.5 })
+    const [sql, params] = mockDb.query.mock.calls[0]
+    expect(sql).toContain('geom = ')
+    expect(params).toContain(null) // longitude param → COALESCE falls back to the current column
+
+    mockDb.query.mockClear()
+    await updateLocation(1, { name: 'x' })
+    expect(mockDb.query.mock.calls[0][0]).not.toContain('geom')
+  })
 })
 
 describe('deleteLocation', () => {
