@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import RouteMap from "../components/RouteMap";
+import { fromMinutes, googleMapsRouteUrl, toMinutes } from "../utils/routeSchedule";
 import { api } from "../api";
 import XpToast from "../components/XpToast";
 
@@ -38,6 +39,7 @@ export default function TripDetail() {
   const [sharing, setSharing] = useState(false);
   const [shareXp, setShareXp] = useState<any>(null);
   const [shared, setShared] = useState(false);
+  const [activeStop, setActiveStop] = useState<string | number | null>(null);
 
   useEffect(() => {
     if (!tripId) { setLoading(false); return; }
@@ -83,6 +85,9 @@ export default function TripDetail() {
   );
 
   const stopsWithCoords = (trip.stops || []).filter((s: any) => s.latitude && s.longitude);
+  const stopKey = (s: any, i: number) => s.location_id ?? `${i}-${s.poi_name}`;
+  const mapsUrl = googleMapsRouteUrl(stopsWithCoords.map((s: any) => ({ lat: s.latitude, lng: s.longitude })));
+  const first = stopsWithCoords[0];
 
   return (
     <>
@@ -123,13 +128,27 @@ export default function TripDetail() {
             )}
           </div>
 
+          {(trip.description || trip.why) && (
+            <div style={{ background: "#fff", borderRadius: 20, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", textAlign: "right" }}>
+              {trip.description && <p style={{ fontSize: 14, color: "#334155", lineHeight: 1.7, margin: 0 }}>{trip.description}</p>}
+              {trip.why && (
+                <div style={{ marginTop: trip.description ? 10 : 0, background: "#f0fdf8", borderRadius: 12, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: "#065f46", marginBottom: 2 }}>🧭 למה המסלול בנוי ככה</div>
+                  <div style={{ fontSize: 14, color: "#065f46", lineHeight: 1.7 }}>{trip.why}</div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Map */}
           {stopsWithCoords.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <RouteMap
                 height={300}
+                activeId={activeStop}
+                onSelect={setActiveStop}
                 stops={stopsWithCoords.map((s: any, i: number) => ({
-                  id: s.location_id ?? `${i}-${s.poi_name}`,
+                  id: stopKey(s, i),
                   name: s.poi_name,
                   lat: s.latitude,
                   lng: s.longitude,
@@ -144,14 +163,19 @@ export default function TripDetail() {
           <div style={{ background: "#fff", borderRadius: 20, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
             <h2 style={{ fontSize: 18, fontWeight: 900, color: "#1a2e2a", marginBottom: 16, textAlign: "right" }}>עצירות במסלול</h2>
             {(trip.stops || []).map((stop: any, index: number) => (
-              <div key={stop.location_id ?? stop.poi_name ?? index} style={{ display: "flex", gap: 12, marginBottom: 16, direction: "rtl" }}>
+              <div key={stop.location_id ?? stop.poi_name ?? index} role="button" tabIndex={0}
+                onClick={() => setActiveStop(stopKey(stop, stopsWithCoords.indexOf(stop)))}
+                onKeyDown={e => { if (e.key === "Enter") setActiveStop(stopKey(stop, stopsWithCoords.indexOf(stop))); }}
+                style={{ display: "flex", gap: 12, marginBottom: 16, direction: "rtl", cursor: "pointer", borderRadius: 14, outline: activeStop !== null && activeStop === stopKey(stop, stopsWithCoords.indexOf(stop)) ? "2px solid #0d9e6e" : "none", outlineOffset: 4 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
                   <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #0d9e6e, #34d399)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 13 }}>{index + 1}</div>
                   {index < (trip.stops || []).length - 1 && <div style={{ flex: 1, width: 2, background: "#e2e8f0", minHeight: 24 }} />}
                 </div>
                 <div style={{ flex: 1, paddingBottom: index < (trip.stops || []).length - 1 ? 16 : 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", background: "#e2e8f0", padding: "2px 6px", borderRadius: 6 }}>{stop.arrival_time}</span>
+                    <bdi dir="ltr" style={{ fontSize: 11, fontWeight: 800, color: "#0d9e6e", background: "#f0fdf8", padding: "2px 6px", borderRadius: 6, fontVariantNumeric: "tabular-nums" }}>
+                      {stop.arrival_time ? `${stop.arrival_time}–${fromMinutes(toMinutes(stop.arrival_time) + (stop.duration_minutes || 60))}` : ""}
+                    </bdi>
                     <span style={{ fontSize: 11, color: "#94a3b8" }}>{stop.duration_minutes} דק'</span>
                   </div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -160,6 +184,9 @@ export default function TripDetail() {
                     )}
                     <div style={{ fontWeight: 800, fontSize: 15, color: "#1a2e2a", textAlign: "right" }}>{stop.poi_name}</div>
                   </div>
+                  {stop.reason && (
+                    <div style={{ background: "#f0fdf8", borderRadius: 10, padding: "7px 12px", marginTop: 6, fontSize: 12.5, color: "#065f46", lineHeight: 1.5, textAlign: "right" }}>🧭 {stop.reason}</div>
+                  )}
                   {stop.smart_insight && (
                     <div style={{ background: "#fffbeb", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6 }}>
                       <span style={{ fontSize: 12, color: "#d97706", fontWeight: 600, flex: 1, textAlign: "right", lineHeight: 1.4 }}>{stop.smart_insight}</span>
@@ -179,12 +206,23 @@ export default function TripDetail() {
               {getShareIcon(sharing, shared)}
             </button>
             <button
-              onClick={() => { const addr = encodeURIComponent(trip.stops?.[0]?.poi_name || trip.region); window.open(`https://waze.com/ul?q=${addr}`, "_blank"); }}
+              onClick={() => {
+                const url = mapsUrl
+                  ?? (first ? `https://waze.com/ul?ll=${first.latitude},${first.longitude}&navigate=yes` : `https://waze.com/ul?q=${encodeURIComponent(trip.stops?.[0]?.poi_name || trip.region || "")}`);
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
               style={{ flex: 1, padding: "16px", border: "none", borderRadius: 16, background: "linear-gradient(135deg, #0d9e6e, #0bba7e)", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", fontFamily: "Heebo, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 12px rgba(13, 158, 110, 0.2)" }}>
-              התחל ניווט
+              {stopsWithCoords.length > 1 ? "נווט בכל המסלול" : "התחל ניווט"}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
             </button>
           </div>
+
+          {first && (
+            <a href={`https://waze.com/ul?ll=${first.latitude},${first.longitude}&navigate=yes`} target="_blank" rel="noopener noreferrer"
+              style={{ display: "block", marginTop: 10, textAlign: "center", fontSize: 13, color: "#0d9e6e", fontWeight: 700, textDecoration: "none" }}>
+              או ב-Waze לעצירה הראשונה ({first.poi_name})
+            </a>
+          )}
 
           {shared && (
             <div style={{ marginTop: 10, textAlign: "center", fontSize: 13, color: "#0d9e6e", fontWeight: 700 }}>

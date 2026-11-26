@@ -147,6 +147,7 @@ export default function TripPlanner() {
       const saved = await api.trips.create({
         name: route.name,
         description: route.description,
+        why: route.why ?? null,
         region: route.region,
         region_id: route.region_id,
         group_type: GROUP_TYPES.find(g => g.id === route.group_type)?.name ?? route.group_type,
@@ -159,6 +160,7 @@ export default function TripPlanner() {
           arrival_time: s.arrival_time,
           duration_minutes: s.duration_minutes,
           smart_insight: s.smart_insight,
+          reason: s.reason ?? null,
           order_index: s.order_index,
         })),
       });

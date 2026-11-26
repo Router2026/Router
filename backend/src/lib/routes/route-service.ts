@@ -9,6 +9,8 @@ export interface RouteStop {
   arrival_time: string;
   duration_minutes: number;
   smart_insight?: string;
+  /** Why this stop is here, at this time (trip agents). */
+  reason?: string | null;
   latitude?: number;
   longitude?: number;
   main_image?: string | null;
@@ -19,6 +21,8 @@ export interface Route {
   id: number;
   name: string;
   description?: string;
+  /** How the trip agents built the day. */
+  why?: string | null;
   region_id?: number;
   region?: string;
   user_id?: number;
@@ -107,14 +111,51 @@ export async function deleteRoute(id: number): Promise<void> {
   await rawDb.query("DELETE FROM routes WHERE id = $1", [id]);
 }
 
+/** Region id from the body, or looked up by the region name the client sent. */
+async function resolveRegionId(data: Partial<Route>): Promise<number | null> {
+  if (data.region_id) return data.region_id;
+  if (!data.region) return null;
+  const { rows } = await rawDb.query(`SELECT id FROM regions WHERE name = $1 OR slug = $1 LIMIT 1`, [data.region]);
+  return (rows[0]?.id as number | undefined) ?? null;
+}
+
+const clip = (v: unknown, max: number): string | null =>
+  typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+
+/** One multi-row INSERT for all stops (avoids a round trip per stop). */
+async function insertStops(routeId: number, stops: RouteStop[]): Promise<void> {
+  if (stops.length === 0) return;
+  const COLS = 8;
+  const values: unknown[] = [];
+  const placeholders = stops.map((s, i) => {
+    values.push(
+      routeId,
+      s.location_id || null,
+      s.poi_name || null,
+      i,
+      s.arrival_time || "09:00",
+      s.duration_minutes || 60,
+      clip(s.smart_insight, 500),
+      clip(s.reason, 300),
+    );
+    return `(${Array.from({ length: COLS }, (_, k) => `$${i * COLS + k + 1}`).join(",")})`;
+  });
+  await rawDb.query(
+    `INSERT INTO route_stops
+       (route_id, location_id, poi_name, order_index, arrival_time, duration_minutes, smart_insight, reason)
+     VALUES ${placeholders.join(",")}`,
+    values
+  );
+}
+
 export async function createRoute(data: Partial<Route> & { user_id?: number }): Promise<Route> {
   const { rows } = await rawDb.query(
-    `INSERT INTO routes (name, description, region_id, total_duration_hours, difficulty, group_type, style, user_id, total_distance_km)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    `INSERT INTO routes (name, description, region_id, total_duration_hours, difficulty, group_type, style, user_id, total_distance_km, why)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
     [
       data.name || "מסלול חדש",
       data.description || null,
-      data.region_id || null,
+      await resolveRegionId(data),
       data.total_duration_hours || 0,
       data.difficulty || "בינוני",
       data.group_type || "משפחה",
@@ -124,37 +165,11 @@ export async function createRoute(data: Partial<Route> & { user_id?: number }): 
       typeof data.total_distance_km === "number" && Number.isFinite(data.total_distance_km)
         ? Math.min(9999.99, Math.max(0, data.total_distance_km))
         : null,
+      clip(data.why, 1000),
     ]
   );
-  const route = rows[0];
-  const routeId = route.id as number;
-
-  const stops = data.stops || [];
-  // FIX: Bulk-insert all stops in a single query instead of N sequential awaits.
-  // The old loop did one round-trip per stop, making saves with many stops
-  // very slow and prone to partial writes if the connection dropped mid-way.
-  if (stops.length > 0) {
-    const stopValues: unknown[] = [];
-    const stopPlaceholders = stops.map((s, i) => {
-      const base = i * 7;
-      stopValues.push(
-        routeId,
-        s.location_id || null,
-        s.poi_name || null,
-        i,
-        s.arrival_time || "09:00",
-        s.duration_minutes || 60,
-        s.smart_insight || null
-      );
-      return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7})`;
-    });
-    await rawDb.query(
-      `INSERT INTO route_stops
-         (route_id, location_id, poi_name, order_index, arrival_time, duration_minutes, smart_insight)
-       VALUES ${stopPlaceholders.join(",")}`,
-      stopValues
-    );
-  }
+  const routeId = rows[0].id as number;
+  await insertStops(routeId, data.stops || []);
 
   const result = await getRouteById(routeId);
   if (!result) throw new Error("Failed to retrieve created route");
@@ -177,6 +192,7 @@ export async function updateRoute(
   if (data.group_type !== undefined)           { fields.push(`group_type = $${idx++}`);             values.push(data.group_type); }
   if (data.style !== undefined)                { fields.push(`style = $${idx++}`);                  values.push(data.style); }
   if (data.total_distance_km !== undefined)    { fields.push(`total_distance_km = $${idx++}`);      values.push(data.total_distance_km); }
+  if (data.why !== undefined)                  { fields.push(`why = $${idx++}`);                    values.push(clip(data.why, 1000)); }
 
   if (fields.length > 0) {
     values.push(id);
@@ -190,29 +206,7 @@ export async function updateRoute(
   if (data.stops) {
     await rawDb.query("DELETE FROM route_stops WHERE route_id = $1", [id]);
 
-    if (data.stops.length > 0) {
-      // Build a single multi-row INSERT for all stops (avoids N round trips)
-      const stopValues: unknown[] = [];
-      const stopPlaceholders = data.stops.map((s, i) => {
-        const base = i * 7;
-        stopValues.push(
-          id,
-          s.location_id || null,
-          s.poi_name || null,
-          i,
-          s.arrival_time || "09:00",
-          s.duration_minutes || 60,
-          s.smart_insight || null
-        );
-        return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7})`;
-      });
-      await rawDb.query(
-        `INSERT INTO route_stops
-           (route_id, location_id, poi_name, order_index, arrival_time, duration_minutes, smart_insight)
-         VALUES ${stopPlaceholders.join(",")}`,
-        stopValues
-      );
-    }
+    await insertStops(id, data.stops);
   }
 
   const result = await getRouteById(id);

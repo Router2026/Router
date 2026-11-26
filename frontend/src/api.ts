@@ -223,12 +223,16 @@ export interface NearbyPOI extends POI {
 export interface TripStop {
   poi_name: string; arrival_time: string; duration_minutes: number;
   smart_insight?: string; location_id?: number; order_index?: number;
+  /** Why the agents put this stop here, at this time. */
+  reason?: string | null;
   /** From the joined `locations` row (GET /routes/:id only). */
   latitude?: number | null; longitude?: number | null; main_image?: string | null; category?: string | null;
 }
 
 export interface Trip {
   id: string; name: string; description?: string; region?: string;
+  /** How the agents built the day (null for hand-built routes). */
+  why?: string | null;
   total_duration_hours: number; total_distance_km?: number;
   difficulty?: string; group_type?: string; style?: string;
   stops: TripStop[];
@@ -461,14 +465,14 @@ function mapNearbyLocation(r: any): NearbyPOI {
 
 function mapTrip(r: any): Trip {
   return {
-    id: String(r.id), name: r.name, description: r.description,
+    id: String(r.id), name: r.name, description: r.description, why: r.why ?? null,
     region: r.region || r.region_name,
     total_duration_hours: Number.parseFloat(r.total_duration_hours) || 0,
     total_distance_km: r.total_distance_km, difficulty: r.difficulty,
     group_type: r.group_type, style: r.style,
     stops: (r.stops || []).map((s: any) => ({
       poi_name: s.poi_name || s.location_name || '', arrival_time: s.arrival_time || '',
-      duration_minutes: s.duration_minutes || 60, smart_insight: s.smart_insight,
+      duration_minutes: s.duration_minutes || 60, smart_insight: s.smart_insight, reason: s.reason ?? null,
       location_id: s.location_id, order_index: s.order_index,
       latitude: s.latitude ?? null, longitude: s.longitude ?? null,
       main_image: s.main_image ?? null, category: s.category ?? null,

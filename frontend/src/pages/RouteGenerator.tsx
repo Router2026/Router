@@ -8,9 +8,10 @@ import { MapContainer, Marker, useMap } from 'react-leaflet';
 import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { api, type POI, type Region } from '../api';
+import { api, toast, type POI, type Region } from '../api';
 import { useRegions } from '../hooks/useLocations';
-import RouteMap from '../components/RouteMap';
+import RouteReview, { type RouteDetails } from '../components/RouteReview';
+import { buildSchedule, haversineKm as haversineLatLng, type PlanMeta } from '../utils/routeSchedule';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -159,14 +160,7 @@ function RegionLabel({ region, count }: Readonly<{ region: Region | null; count:
 }
 
 function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
-  const R = 6371;
-  const dLat = (b.latitude - a.latitude) * Math.PI / 180;
-  const dLng = (b.longitude - a.longitude) * Math.PI / 180;
-  const x = Math.sin(dLat / 2) ** 2 +
-    Math.cos(a.latitude * Math.PI / 180) *
-    Math.cos(b.latitude * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  return haversineLatLng({ lat: a.latitude, lng: a.longitude }, { lat: b.latitude, lng: b.longitude });
 }
 
 function totalDistance(stops: POI[]): number {
@@ -205,6 +199,11 @@ function optimizeRoute(pois: POI[], startPoint?: LatLng | null): POI[] {
   return result;
 }
 
+function toMinutesSafe(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 const REGION_ICONS: Record<string, string> = {
   'גולן': '🏔️', 'גליל עליון': '🌲', 'גליל תחתון': '💧', 'כרמל': '🌿',
   'מרכז': '🏙️', 'ירושלים': '🕌', 'דרום': '🏜️', 'נגב': '🏜️',
@@ -233,10 +232,13 @@ export default function RouteGenerator() {
   const [publishing, setPublishing] = useState(false);
   const [search, setSearch] = useState('');
 
-  const [tripType, setTripType] = useState<string>('משפחה');
-  const [tripStyle, setTripStyle] = useState<string>('טבע');
-  const [tripDifficulty, setTripDifficulty] = useState<string>('בינוני');
-  const [tripDuration, setTripDuration] = useState<string>('');
+  // Stored as Hebrew labels, same as the AI planner saves them.
+  const [details, setDetails] = useState<RouteDetails>({ tripType: 'משפחה', tripStyle: 'טבע', tripDifficulty: 'בינוני' });
+  // The trip agents' plan when the route came from Smart Build / the free-text planner.
+  const [plan, setPlan] = useState<PlanMeta | null>(null);
+  const [planDistanceKm, setPlanDistanceKm] = useState<number | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [safetyFooter, setSafetyFooter] = useState<string | null>(null);
 
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -248,12 +250,23 @@ export default function RouteGenerator() {
       bucketPois?: POI[];
       userLocation?: { lat: number; lng: number } | null;
       alreadyOrdered?: boolean;
+      routeMeta?: {
+        smart_plan?: PlanMeta;
+        total_distance_km?: number;
+        warnings?: string[];
+        safety_footer?: string;
+      };
     } | null;
     if (state?.bucketPois && state.bucketPois.length >= 2) {
       const incoming = state.bucketPois;
+      const meta = state.routeMeta;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPois(incoming);
-      setRouteName(`מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
+      setPlan(meta?.smart_plan ?? null);
+      setPlanDistanceKm(typeof meta?.total_distance_km === 'number' ? meta.total_distance_km : null);
+      setWarnings(meta?.warnings ?? []);
+      setSafetyFooter(meta?.safety_footer ?? null);
+      setRouteName(meta?.smart_plan?.route_title || `מסלול נבחר — ${new Date().toLocaleDateString('he-IL')}`);
 
       // If the user already set a start point in TripBucketSheet, use it
       // directly — no need to request GPS again.
@@ -334,39 +347,57 @@ export default function RouteGenerator() {
   const handleOptimize = useCallback(() => {
     const opt = optimizeRoute([...selectedPois], startPoint);
     setOptimized(opt);
+    setPlan(null);
+    setPlanDistanceKm(null);
+    setWarnings([]);
+    setSafetyFooter(null);
     setRouteName(`מסלול ב${selectedRegion?.name || ''} — ${new Date().toLocaleDateString('he-IL')}`);
     setStep('route');
   }, [selectedPois, startPoint, selectedRegion?.name]);
 
+  const schedule = useMemo(() => buildSchedule(optimized, plan, startPoint), [optimized, plan, startPoint]);
+  const dist = useMemo(
+    () => (schedule.planned && planDistanceKm !== null ? planDistanceKm : totalDistance(optimized)),
+    [schedule.planned, planDistanceKm, optimized],
+  );
+  const regionName = selectedRegion?.name || optimized[0]?.region || '';
+
   const handleSave = async () => {
-    if (!optimized.length) return;
+    if (!schedule.stops.length) return;
     setSaving(true);
     try {
-      const stops = optimized.map((p, i) => ({
-        poi_name: p.name,
-        location_id: Number.parseInt(p.id),
-        arrival_time: `${String(8 + i * 2).padStart(2, '0')}:00`,
-        duration_minutes: p.duration_minutes || 60,
-        order_index: i,
-      }));
-      const dist = totalDistance(optimized);
-      const autoHours = Number.parseFloat(
-        (stops.reduce((s, st) => s + st.duration_minutes, 0) / 60).toFixed(1)
-      );
+      const minutes = Math.max(0, toMinutesSafe(schedule.endTime) - toMinutesSafe(schedule.startTime));
       const saved = await api.trips.create({
-        name: routeName || `מסלול ב${selectedRegion?.name}`,
-        region: selectedRegion?.name,
-        total_duration_hours: tripDuration ? Number.parseFloat(tripDuration) : autoHours,
-        total_distance_km: Number.parseFloat(dist.toFixed(1)),
-        difficulty: tripDifficulty,
-        group_type: tripType,
-        style: tripStyle,
-        stops,
+        name: routeName.trim() || `מסלול ב${regionName}`,
+        description: schedule.planned ? (plan?.overview || plan?.route_description || undefined) : undefined,
+        why: schedule.planned ? (plan?.why || null) : null,
+        region: regionName || undefined,
+        total_duration_hours: Math.round((minutes / 60) * 10) / 10,
+        total_distance_km: Math.round(dist * 10) / 10,
+        difficulty: details.tripDifficulty,
+        group_type: details.tripType,
+        style: details.tripStyle,
+        stops: schedule.stops.map((st, i) => ({
+          poi_name: st.poi.name,
+          location_id: Number.parseInt(st.poi.id, 10),
+          arrival_time: st.arrival,
+          duration_minutes: st.durationMinutes,
+          smart_insight: st.tip ?? undefined,
+          reason: st.reason,
+          order_index: i,
+        })),
       });
       navigate(`/TripDetail?id=${saved.id}`);
-    } catch {
+    } catch (e) {
+      console.error('Saving the route failed:', e);
+      toast.error('שמירת המסלול נכשלה. נסו שוב.');
       setSaving(false);
     }
+  };
+
+  const removeStop = (id: string) => {
+    setOptimized(prev => prev.filter(p => p.id !== id));
+    setSelectedPois(prev => prev.filter(p => p.id !== id));
   };
 
   const handlePublish = async () => {
@@ -374,7 +405,7 @@ export default function RouteGenerator() {
     setPublishing(true);
     try {
       const publicTrip = await api.publicTrips.create({
-        title: routeName || `מסלול ב${selectedRegion?.name}`,
+        title: routeName || `מסלול ב${regionName}`,
         description: publishDesc || undefined,
         is_public: true,
         location_ids: optimized.map(p => Number.parseInt(p.id)),
@@ -393,11 +424,6 @@ export default function RouteGenerator() {
     }
   };
 
-  const dist = useMemo(() => totalDistance(optimized), [optimized]);
-  const totalMin = useMemo(
-    () => optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0),
-    [optimized],
-  );
   const filteredPois = useMemo(
     () => pois.filter(p => !search || p.name.includes(search) || p.category.includes(search)),
     [pois, search],
@@ -753,228 +779,26 @@ export default function RouteGenerator() {
           </>
         )}
 
-        {/* ── Step 3: Route preview ───────────────────────────────────────────── */}
+        {/* ── Step 3: Review & save ───────────────────────────────────────────── */}
         {step === 'route' && (
-          <>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between',
-              alignItems: 'center', marginBottom: 16,
-            }}>
-              <button onClick={() => setStep('pois')}
-                style={{
-                  background: 'none', border: 'none', color: '#0d9e6e',
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
-                }}>← ערוך</button>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>המסלול שלך</div>
-            </div>
-
-            {/* Stats */}
-            <div style={{
-              background: '#fff', borderRadius: 20, padding: '16px 20px',
-              marginBottom: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-              textAlign: 'center', direction: 'rtl',
-            }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>{optimized.length}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>עצירות</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>{dist.toFixed(1)} ק"מ</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>מרחק</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#0d9e6e' }}>{(totalMin / 60).toFixed(1)} ש'</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>זמן</div>
-              </div>
-            </div>
-
-            {startPoint && (
-              <div style={{
-                background: '#eff6ff', borderRadius: 14, padding: '10px 14px',
-                marginBottom: 12, display: 'flex', alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                  {startPoint.lat.toFixed(4)}, {startPoint.lng.toFixed(4)}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
-                  📡 מתחיל מנקודת ההתחלה
-                </span>
-              </div>
-            )}
-
-            {/* Map */}
-            <div style={{ marginBottom: 16 }}>
-              <RouteMap
-                height={300}
-                start={startPoint}
-                stops={optimized.map(p => ({ id: p.id, name: p.name, lat: p.latitude, lng: p.longitude, image: p.main_image }))}
-              />
-            </div>
-
-            {/* Route name */}
-            <div style={{
-              background: '#fff', borderRadius: 16, padding: '14px 16px',
-              marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            }}>
-              <input value={routeName} onChange={e => setRouteName(e.target.value)}
-                placeholder="שם המסלול..."
-                style={{
-                  width: '100%', border: 'none', outline: 'none',
-                  fontSize: 15, fontWeight: 700, color: '#1a2e2a',
-                  textAlign: 'right', fontFamily: 'Heebo, sans-serif',
-                  background: 'transparent', boxSizing: 'border-box',
-                }} />
-            </div>
-
-            {/* Ordered stop list */}
-            <div style={{
-              background: '#fff', borderRadius: 20, padding: '16px',
-              marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            }}>
-              <div style={{
-                fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-                marginBottom: 12, textAlign: 'right',
-              }}>
-                סדר העצירות {startPoint ? '(מסודר)' : '(מותאם אוטומטית)'}
-              </div>
-
-              {startPoint && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '10px 0', borderBottom: '1px solid #f1f5f9', direction: 'rtl',
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
-                      📡 נקודת התחלה
-                    </div>
-                  </div>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: '#2563eb', color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 900, flexShrink: 0,
-                  }}>🏠</div>
-                </div>
-              )}
-
-              {optimized.map((poi, i) => (
-                <div key={poi.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '10px 0',
-                  borderBottom: i < optimized.length - 1 ? '1px solid #f1f5f9' : 'none',
-                  direction: 'rtl',
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a' }}>{poi.name}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {poi.category}{poi.duration_minutes ? ` · ${poi.duration_minutes} דק'` : ''}
-                    </div>
-                  </div>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: '#0d9e6e', color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 900, flexShrink: 0,
-                  }}>{i + 1}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Trip metadata */}
-            <div style={{ background: '#fff', borderRadius: 20, padding: '18px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', direction: 'rtl' }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#1a2e2a', marginBottom: 14 }}>פרטי המסלול</div>
-
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>סוג הטיול</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[['solo', '🚶 יחיד'], ['couple', '👫 זוג'], ['family', '👨‍👩‍👧‍👦 משפחה'], ['friends', '👥 חברים']].map(([id, label]) => (
-                    <button key={id} onClick={() => setTripType(id)}
-                      style={{ padding: '6px 14px', borderRadius: 20, border: `2px solid ${tripType === id ? '#0d9e6e' : '#e2e8f0'}`, background: tripType === id ? '#f0fdf8' : '#fff', color: tripType === id ? '#0d9e6e' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: tripType === id ? 700 : 500, fontSize: 12, cursor: 'pointer' }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>סגנון</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {['טבע', 'היסטוריה', 'מים', 'נוף', 'מסלולים', 'חופים', 'גיאולוגיה', 'יין ואוכל'].map(s => (
-                    <button key={s} onClick={() => setTripStyle(s)}
-                      style={{ padding: '6px 14px', borderRadius: 20, border: `2px solid ${tripStyle === s ? '#0d9e6e' : '#e2e8f0'}`, background: tripStyle === s ? '#f0fdf8' : '#fff', color: tripStyle === s ? '#0d9e6e' : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: tripStyle === s ? 700 : 500, fontSize: 12, cursor: 'pointer' }}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>רמת קושי</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[['קל - משפחות', '#16a34a'], ['בינוני', '#d97706'], ['קשה', '#dc2626'], ['מאתגר', '#7c3aed']].map(([d, color]) => (
-                    <button key={d} onClick={() => setTripDifficulty(d)}
-                      style={{ padding: '6px 14px', borderRadius: 20, border: `2px solid ${tripDifficulty === d ? color : '#e2e8f0'}`, background: tripDifficulty === d ? `${color}15` : '#fff', color: tripDifficulty === d ? color : '#64748b', fontFamily: 'Heebo, sans-serif', fontWeight: tripDifficulty === d ? 700 : 500, fontSize: 12, cursor: 'pointer' }}>
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>אורך משוער בשעות (אופציונלי)</div>
-                <input
-                  type="number" min="0.5" max="24" step="0.5"
-                  value={tripDuration}
-                  onChange={e => setTripDuration(e.target.value)}
-                  placeholder={`${Number.parseFloat((optimized.reduce((s, p) => s + (p.duration_minutes || 60), 0) / 60).toFixed(1))} שעות (אוטומטי)`}
-                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '9px 12px', fontSize: 13, fontFamily: 'Heebo, sans-serif', direction: 'ltr', outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <button onClick={handleSave} disabled={saving}
-                style={{
-                  width: '100%', padding: '16px', border: 'none', borderRadius: 18,
-                  background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                  color: '#fff', fontSize: 16, fontWeight: 800,
-                  cursor: saving ? 'default' : 'pointer',
-                  fontFamily: 'Heebo, sans-serif', opacity: saving ? 0.7 : 1,
-                  boxShadow: '0 8px 24px rgba(13,158,110,0.25)',
-                }}>
-                {saving ? 'שומר...' : '💾 שמור מסלול'}
-              </button>
-              <button onClick={() => setShowPublishModal(true)} disabled={saving}
-                style={{
-                  width: '100%', padding: '14px', border: '2px solid #7c3aed', borderRadius: 18,
-                  background: '#faf5ff', color: '#7c3aed', fontSize: 15, fontWeight: 800,
-                  cursor: 'pointer', fontFamily: 'Heebo, sans-serif',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}>
-                🌐 פרסם כמסלול ציבורי
-              </button>
-              <button onClick={() => {
-                const target = startPoint ?? {
-                  lat: optimized[0].latitude,
-                  lng: optimized[0].longitude,
-                };
-                window.open(`https://waze.com/ul?q=${target.lat},${target.lng}`, '_blank');
-              }}
-                style={{
-                  width: '100%', padding: '14px',
-                  border: '2px solid #0d9e6e', borderRadius: 18,
-                  background: '#fff', color: '#0d9e6e',
-                  fontSize: 15, fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
-                }}>
-                🚗 נווט לנקודת ההתחלה
-              </button>
-            </div>
-          </>
+          <RouteReview
+            schedule={schedule}
+            start={startPoint}
+            overview={schedule.planned ? (plan?.overview || null) : null}
+            why={schedule.planned ? (plan?.why || null) : null}
+            warnings={warnings}
+            safetyFooter={safetyFooter}
+            distanceKm={dist}
+            routeName={routeName}
+            onRouteName={setRouteName}
+            details={details}
+            onDetails={setDetails}
+            onRemove={!schedule.planned && optimized.length > 2 ? removeStop : undefined}
+            onEdit={selectedRegion ? () => setStep('pois') : undefined}
+            saving={saving}
+            onSave={handleSave}
+            onPublish={() => setShowPublishModal(true)}
+          />
         )}
       </div>
 
@@ -1003,8 +827,8 @@ export default function RouteGenerator() {
               <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ fontSize: 28 }}>🗺️</div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>{routeName || `מסלול ב${selectedRegion?.name}`}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{optimized.length} עצירות · {selectedRegion?.name}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>{routeName || `מסלול ב${regionName}`}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{optimized.length} עצירות · {regionName}</div>
                 </div>
               </div>
 

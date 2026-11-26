@@ -145,7 +145,7 @@ describe('createRoute', () => {
     const newRoute = { ...sampleRoute, id: 6 }
     const stops = [
       { order_index: 0, arrival_time: '09:00', duration_minutes: 60 },
-      { order_index: 1, arrival_time: '11:00', duration_minutes: 90 },
+      { order_index: 1, arrival_time: '11:00', duration_minutes: 90, reason: 'מים בצהריים' },
     ]
     mockDb.query
       .mockResolvedValueOnce({ rows: [newRoute] })  // INSERT route
@@ -154,10 +154,12 @@ describe('createRoute', () => {
       .mockResolvedValueOnce({ rows: [] })           // getRouteById stops
     await createRoute({ name: 'Multi-stop', stops })
     // call 0 = INSERT route, call 1 = single bulk INSERT for all stops
-    // params layout per stop (7 each): [routeId, loc_id, poi_name, order_index, arrival, duration, insight]
+    // params layout per stop (8 each): [routeId, loc_id, poi_name, order_index, arrival, duration, insight, reason]
     const bulkParams = mockDb.query.mock.calls[1][1] as unknown[]
     expect(bulkParams[3]).toBe(0)   // first stop order_index (param index 3)
-    expect(bulkParams[10]).toBe(1)  // second stop order_index (param index 10)
+    expect(bulkParams[11]).toBe(1)  // second stop order_index (param index 11)
+    expect(bulkParams[7]).toBeNull()             // no reason on a hand-built stop
+    expect(bulkParams[15]).toBe('מים בצהריים')   // second stop reason
   })
 })
 
