@@ -5,95 +5,9 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import RouteMap from "../components/RouteMap";
 import { api } from "../api";
 import XpToast from "../components/XpToast";
-
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
-
-// ── Photo marker ──────────────────────────────────────────────────────────────
-
-function PhotoStopMarker({ stop, index }: Readonly<{ stop: any; index: number }>) {
-  const map = useMap();
-  const icon = L.divIcon({
-    html: stop.main_image
-      ? String.raw`<div style="
-            position:relative;width:52px;height:52px;border-radius:12px;
-            overflow:hidden;border:3px solid #0d9e6e;
-            box-shadow:0 3px 12px rgba(0,0,0,0.35);cursor:pointer;">
-          <img src="${stop.main_image}" style="width:100%;height:100%;object-fit:cover;"
-            onerror="this.onerror=null;var fb=document.createElement('div');fb.setAttribute('style','width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900');fb.textContent='${index + 1}';this.parentElement.replaceChild(fb,this)"/>
-          <div style="
-            position:absolute;bottom:0;left:0;right:0;
-            background:linear-gradient(transparent,rgba(0,0,0,0.65));
-            color:#fff;font-size:9px;font-weight:700;
-            padding:4px 4px 3px;text-align:center;font-family:Heebo,Arial;">
-            ${index + 1}
-          </div>
-        </div>`
-      : `<div style="
-            width:40px;height:40px;border-radius:12px;
-            background:linear-gradient(135deg,#0d9e6e,#0bba7e);
-            border:3px solid #fff;
-            display:flex;align-items:center;justify-content:center;
-            color:#fff;font-size:15px;font-weight:900;
-            box-shadow:0 3px 10px rgba(13,158,110,0.4);font-family:Heebo,Arial;">
-          ${index + 1}
-        </div>`,
-    className: "",
-    iconSize: stop.main_image ? [52, 52] : [40, 40],
-    iconAnchor: stop.main_image ? [26, 26] : [20, 20],
-  });
-
-  return (
-    <Marker
-      position={[stop.latitude, stop.longitude]}
-      icon={icon}
-      eventHandlers={{
-        click: () => map.flyTo([stop.latitude, stop.longitude], Math.max(map.getZoom(), 13), { duration: 0.6 }),
-      }}
-    />
-  );
-}
-
-// ── FitBounds ─────────────────────────────────────────────────────────────────
-
-function FitBounds({ points }: Readonly<{ points: [number, number][] }>) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length > 1) map.fitBounds(L.latLngBounds(points).pad(0.18));
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot: fit bounds once on mount only
-  }, []);
-  return null;
-}
-
-// ── RegionLabel ───────────────────────────────────────────────────────────────
-
-function RegionLabel({ name }: Readonly<{ name: string }>) {
-  return (
-    <div style={{
-      position: "absolute", top: "50%", left: "50%",
-      transform: "translate(-50%, -50%)",
-      pointerEvents: "none", textAlign: "center", zIndex: 500,
-    }}>
-      <div style={{
-        color: "#1a1a1a",
-        textShadow: "0 1px 4px rgba(255,255,255,0.9), 0 -1px 4px rgba(255,255,255,0.9), 1px 0 4px rgba(255,255,255,0.9), -1px 0 4px rgba(255,255,255,0.9)",
-        fontFamily: "Heebo, Arial",
-        fontSize: 20, fontWeight: 900,
-      }}>
-        {name}
-      </div>
-    </div>
-  );
-}
 
 // ── Share icon helper ─────────────────────────────────────────────────────────
 
@@ -169,9 +83,6 @@ export default function TripDetail() {
   );
 
   const stopsWithCoords = (trip.stops || []).filter((s: any) => s.latitude && s.longitude);
-  const polylinePoints: [number, number][] = stopsWithCoords.map((s: any) => [s.latitude, s.longitude]);
-  const center: [number, number] | null = stopsWithCoords.length > 0
-    ? [stopsWithCoords[0].latitude, stopsWithCoords[0].longitude] : null;
 
   return (
     <>
@@ -212,33 +123,20 @@ export default function TripDetail() {
             )}
           </div>
 
-          {/* Map with photo markers */}
-          {center && (
-            <div style={{
-              borderRadius: 20, overflow: "hidden", marginBottom: 16,
-              height: 280, position: "relative",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-            }}>
-              <MapContainer
-                center={center} zoom={11}
-                style={{ height: "100%", width: "100%" }}
-                zoomControl={false} scrollWheelZoom={false}
-              >
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-                {polylinePoints.length > 1 && (
-                  <Polyline positions={polylinePoints} pathOptions={{ color: "#0d9e6e", weight: 3, opacity: 0.8, dashArray: "8,6" }} />
-                )}
-                {stopsWithCoords.map((s: any, i: number) => (
-                  <PhotoStopMarker key={s.location_id ?? s.poi_name ?? i} stop={s} index={i} />
-                ))}
-                <FitBounds points={polylinePoints} />
-              </MapContainer>
-              {trip.region && <RegionLabel name={trip.region} />}
-              <div style={{
-                position: "absolute", bottom: 0, left: 0, right: 0, height: 50,
-                background: "linear-gradient(transparent, rgba(0,0,0,0.06))",
-                pointerEvents: "none", zIndex: 500,
-              }} />
+          {/* Map */}
+          {stopsWithCoords.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <RouteMap
+                height={300}
+                stops={stopsWithCoords.map((s: any, i: number) => ({
+                  id: s.location_id ?? `${i}-${s.poi_name}`,
+                  name: s.poi_name,
+                  lat: s.latitude,
+                  lng: s.longitude,
+                  image: s.main_image,
+                  time: s.arrival_time || null,
+                }))}
+              />
             </div>
           )}
 

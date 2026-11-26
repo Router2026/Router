@@ -11,6 +11,8 @@ export interface RouteStop {
   smart_insight?: string;
   latitude?: number;
   longitude?: number;
+  main_image?: string | null;
+  category?: string | null;
 }
 
 export interface Route {
@@ -78,7 +80,9 @@ export async function getRouteById(id: number): Promise<Route | null> {
     `SELECT rs.*,
        COALESCE(l.name, rs.poi_name) AS location_name,
        COALESCE(l.latitude, l2.latitude)::float AS latitude,
-       COALESCE(l.longitude, l2.longitude)::float AS longitude
+       COALESCE(l.longitude, l2.longitude)::float AS longitude,
+       COALESCE(l.main_image, l2.main_image) AS main_image,
+       COALESCE(l.category, l2.category) AS category
      FROM route_stops rs
      LEFT JOIN locations l ON rs.location_id = l.id
      LEFT JOIN locations l2 ON rs.location_id IS NULL AND l2.name = rs.poi_name

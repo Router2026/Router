@@ -101,6 +101,8 @@ export interface ApiRouteStop {
   drive_minutes_from_prev: number;
   distance_from_prev_km: number;
   smart_insight: string;
+  /** Why this stop is here, at this time (trip agents only). */
+  reason?: string;
 }
 
 export interface ApiRoute {
@@ -116,6 +118,9 @@ export interface ApiRoute {
   total_duration_hours: number;
   total_distance_km: number;
   total_drive_minutes: number;
+  /** How the day was built (trip agents only). */
+  why?: string;
+  sunset?: string;
   stops: ApiRouteStop[];
 }
 

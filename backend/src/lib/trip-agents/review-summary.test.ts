@@ -5,7 +5,7 @@ vi.mock('@/lib/db/raw-client', () => ({ rawDb: { query: vi.fn() } }))
 vi.mock('@/lib/trip-bucket/mapbox-matrix', () => ({ fetchMapboxMatrix: vi.fn(async () => null) }))
 
 import { checkPlan, runReviewAgent } from './review-agent'
-import { runSummaryAgent, fallbackSummary, SAFETY_FOOTER } from './summary-agent'
+import { runSummaryAgent, fallbackSummary, withoutMissingInfo, SAFETY_FOOTER } from './summary-agent'
 import { runTripPipeline } from './pipeline'
 import { runPlannerAgent } from './planner-agent'
 import type { AssessedPlace, ConditionsReport } from './conditions-agent'
@@ -149,5 +149,14 @@ describe('runTripPipeline', () => {
     expect(r.summary.safetyFooter).toBe(SAFETY_FOOTER.he)
     expect(r.conditions.forecastAvailable).toBe(false)
     expect(r.meta.usage.calls).toBe(3)
+  })
+})
+
+describe('withoutMissingInfo', () => {
+  it('drops "I have no info" clauses but keeps the advice', () => {
+    expect(withoutMissingInfo('כדאי להביא מים וכובע, כי אין לי מידע על צל במקום.')).toBe('כדאי להביא מים וכובע.')
+    expect(withoutMissingInfo('הביאו מצלמה וכובע, כי אין לי מידע על צל במקום.')).toBe('הביאו מצלמה וכובע.')
+    expect(withoutMissingInfo('אין מידע על צל.')).toBe('')
+    expect(withoutMissingInfo('הביאו נעלי מים.')).toBe('הביאו נעלי מים.')
   })
 })

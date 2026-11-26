@@ -13,7 +13,9 @@ import { rawDb } from "@/lib/db/raw-client";
 import { planRoute, NoCandidatesError } from "@/lib/ai-route/generate";
 import { createSelector } from "@/lib/ai-route/create-selector";
 import type { StopSelector } from "@/lib/ai-route/groq";
-import { parseRouteRequest, toApiRoute } from "@/lib/ai-route/http";
+import { parseRouteRequest, toApiRoute, type ApiRoute, type ParsedRouteRequest } from "@/lib/ai-route/http";
+import { ndjsonResponse, wantsNdjson, type StreamSend } from "@/lib/api/ndjson";
+import type { StepListener } from "@/lib/trip-agents/progress";
 import { consumeRouteQuota } from "@/lib/ai-route/rate-limit";
 import { AgentsTimeoutError, planWithAgents, routePlanner } from "@/lib/trip-agents/wizard-planner";
 
@@ -60,51 +62,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 1. Trip agents (default). Any failure falls through to the Groq planner below.
-    let agentsTimedOut = false;
-    if (routePlanner() === "agents") {
-      const started = Date.now();
-      try {
-        const agentRoute = await planWithAgents(input, region);
-        if (agentRoute) {
-          console.info("[ai-route] planned", JSON.stringify({
-            userId: user.id, regionId: region.id, planner: "agents", stops: agentRoute.stops.length, ms: Date.now() - started,
-          }));
-          return NextResponse.json(successResponse(agentRoute), { status: 200, headers: rateHeaders });
+    // With `Accept: application/x-ndjson` the client gets the agents' progress live, then the
+    // route; otherwise one JSON response as before.
+    if (wantsNdjson(req)) {
+      return ndjsonResponse(async (send) => {
+        try {
+          const route = await planForUser(input, region, user.id, req.signal, send);
+          send({ type: "result", data: route });
+        } catch (err) {
+          if (err instanceof NoCandidatesError) {
+            send({ type: "error", code: "NO_LOCATIONS", message: "לא נמצאו מקומות באזור שנבחר" });
+            return;
+          }
+          console.error("[POST /api/ai/generate-route] stream", err);
+          send({ type: "error", code: "GENERATION_ERROR", message: "יצירת המסלול נכשלה. נסו שוב בעוד רגע" });
         }
-        console.warn("[ai-route] agents found fewer than 2 stops; using the Groq planner");
-      } catch (err) {
-        agentsTimedOut = err instanceof AgentsTimeoutError;
-        console.error(`[ai-route] agents ${agentsTimedOut ? "timed out; using the quick deterministic planner" : "failed; using the Groq planner"}`, err);
-      }
+      }, rateHeaders);
     }
 
-    // 2. Groq planner (backup, or forced with ROUTE_PLANNER=groq).
-    const route = await planRoute(
-      {
-        regionId: region.id,
-        prefs: {
-          regionName: region.name,
-          groupType: input.groupType,
-          styles: input.styles,
-          dayStart: input.dayStart,
-          dayEnd: input.dayEnd,
-          start: input.start,
-          maxStops: input.maxStops,
-        },
-        seed: crypto.randomUUID(),
-        signal: req.signal,
-      },
-      // After an agents timeout there's no time left for Groq's model: plan deterministically.
-      { selector: agentsTimedOut ? null : selector },
-    );
-
-    // Structured log for monitoring AI quality (no PII beyond the numeric user id).
-    console.info("[ai-route] planned", JSON.stringify({
-      userId: user.id, regionId: region.id, planner: "groq", source: route.source, stops: route.stops.length, ...route.diagnostics,
-    }));
-
-    return NextResponse.json(successResponse(toApiRoute(route, input, region)), { status: 200, headers: rateHeaders });
+    const route = await planForUser(input, region, user.id, req.signal);
+    return NextResponse.json(successResponse(route), { status: 200, headers: rateHeaders });
   } catch (err) {
     if (err instanceof NoCandidatesError) {
       return fail(404, "NO_LOCATIONS", "לא נמצאו מקומות באזור שנבחר");
@@ -113,6 +90,64 @@ export async function POST(req: NextRequest) {
     console.error("[POST /api/ai/generate-route]", err);
     return fail(500, "GENERATION_ERROR", "יצירת המסלול נכשלה. נסו שוב בעוד רגע");
   }
+}
+
+/**
+ * 1. Trip agents (default); any failure falls through to 2. the Groq planner (backup, or forced
+ * with ROUTE_PLANNER=groq). `send` streams progress lines to the client when given.
+ */
+async function planForUser(
+  input: ParsedRouteRequest,
+  region: { id: number; name: string; slug: string },
+  userId: number | string,
+  signal: AbortSignal,
+  send?: StreamSend,
+): Promise<ApiRoute> {
+  let agentsTimedOut = false;
+  if (routePlanner() === "agents") {
+    const started = Date.now();
+    try {
+      const onStep: StepListener | undefined = send && ((step, phase, detail) => send({ type: "step", step, phase, ...(detail ? { detail } : {}) }));
+      const agentRoute = await planWithAgents(input, region, undefined, onStep);
+      if (agentRoute) {
+        console.info("[ai-route] planned", JSON.stringify({
+          userId, regionId: region.id, planner: "agents", stops: agentRoute.stops.length, ms: Date.now() - started,
+        }));
+        return agentRoute;
+      }
+      console.warn("[ai-route] agents found fewer than 2 stops; using the Groq planner");
+    } catch (err) {
+      agentsTimedOut = err instanceof AgentsTimeoutError;
+      console.error(`[ai-route] agents ${agentsTimedOut ? "timed out; using the quick deterministic planner" : "failed; using the Groq planner"}`, err);
+    }
+    send?.({ type: "step", step: "fallback", phase: "start", detail: "הסוכנים לא סיימו בזמן — עובר לתכנון מהיר" });
+  }
+
+  const route = await planRoute(
+    {
+      regionId: region.id,
+      prefs: {
+        regionName: region.name,
+        groupType: input.groupType,
+        styles: input.styles,
+        dayStart: input.dayStart,
+        dayEnd: input.dayEnd,
+        start: input.start,
+        maxStops: input.maxStops,
+      },
+      seed: crypto.randomUUID(),
+      signal,
+    },
+    // After an agents timeout there's no time left for Groq's model: plan deterministically.
+    { selector: agentsTimedOut ? null : selector },
+  );
+  send?.({ type: "step", step: "fallback", phase: "done", detail: `${route.stops.length} עצירות` });
+
+  // Structured log for monitoring AI quality (no PII beyond the numeric user id).
+  console.info("[ai-route] planned", JSON.stringify({
+    userId, regionId: region.id, planner: "groq", source: route.source, stops: route.stops.length, ...route.diagnostics,
+  }));
+  return toApiRoute(route, input, region);
 }
 
 export { OPTIONS } from "@/lib/api/cors";

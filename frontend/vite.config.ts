@@ -20,11 +20,11 @@ export default defineConfig({
 
         runtimeCaching: [
           {
-            // CARTO map tiles — rarely change, cache aggressively
-            urlPattern: /https:\/\/[a-d]\.basemaps\.cartocdn\.com\/.*/i,
+            // Esri basemap tiles (utils/mapTiles.tsx) — rarely change, cache aggressively
+            urlPattern: /^https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/World_Street_Map\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'carto-tiles-v1',
+              cacheName: 'basemap-tiles-v2',
               expiration: { maxEntries: 1000, maxAgeSeconds: 7 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },

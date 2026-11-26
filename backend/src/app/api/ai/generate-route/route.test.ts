@@ -164,6 +164,36 @@ describe("POST /api/ai/generate-route", () => {
       expect(mockPlan.mock.calls[0][1]).toEqual({ selector: null });
     });
 
+    it("streams the agents' progress and then the route when asked for NDJSON", async () => {
+      (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("agents");
+      (planWithAgents as ReturnType<typeof vi.fn>).mockImplementation(async (_i: unknown, _r: unknown, _b: unknown, onStep: (s: string, p: string, d?: string) => void) => {
+        onStep("search", "start");
+        onStep("search", "done", "מצאתי 8 מקומות");
+        return agentRoute;
+      });
+      const req = new NextRequest("http://localhost/api/ai/generate-route", {
+        method: "POST", body: JSON.stringify(validBody),
+        headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", Authorization: "Bearer t" },
+      });
+      const res = await POST(req);
+      expect(res.headers.get("content-type")).toContain("application/x-ndjson");
+      const ev = (await res.text()).trim().split(String.fromCharCode(10)).map((l) => JSON.parse(l));
+      expect(ev[0]).toEqual({ type: "step", step: "search", phase: "start" });
+      expect(ev[1]).toEqual({ type: "step", step: "search", phase: "done", detail: "מצאתי 8 מקומות" });
+      expect(ev.at(-1)).toMatchObject({ type: "result", data: { name: "יום מים בגולן" } });
+    });
+
+    it("streams a fallback step when the agents fail", async () => {
+      (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("agents");
+      (planWithAgents as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("down"));
+      const req = new NextRequest("http://localhost/api/ai/generate-route", {
+        method: "POST", body: JSON.stringify(validBody),
+        headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", Authorization: "Bearer t" },
+      });
+      const ev = (await (await POST(req)).text()).trim().split(String.fromCharCode(10)).map((l) => JSON.parse(l));
+      expect(ev.map((e) => e.step ?? e.type)).toEqual(["fallback", "fallback", "result"]);
+    });
+
     it("ROUTE_PLANNER=groq skips the agents entirely", async () => {
       await POST(request(validBody));
       expect(planWithAgents).not.toHaveBeenCalled();

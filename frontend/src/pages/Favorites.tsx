@@ -2,7 +2,8 @@
 // Shows the authenticated user's saved locations with a map.
 
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
+import { MapContainer, CircleMarker, Tooltip } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
 import { useFavorites } from '../context/FavoritesContext';
@@ -52,7 +53,7 @@ export default function Favorites() {
       {pinsWithCoords.length > 0 && (
         <div style={{ height: 220 }}>
           <MapContainer center={mapCenter} zoom={8} style={{ height: '100%' }} zoomControl={false} attributionControl={false}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <BaseTileLayer />
             {pinsWithCoords.map(f => (
               <CircleMarker
                 key={f.id}

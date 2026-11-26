@@ -14,7 +14,8 @@
 
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
+import { MapContainer, Polyline, Marker, useMap } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment } from '../api';
@@ -77,7 +78,7 @@ const RouteMapCard = memo(function RouteMapCard({ trip }: { trip: PublicTrip }) 
         zoomControl={false} dragging={false} scrollWheelZoom={false}
         doubleClickZoom={false} touchZoom={false} attributionControl={false}
       >
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <BaseTileLayer />
         {points.length > 1 && (
           <Polyline positions={points} color="#0d9e6e" weight={3} opacity={0.9} dashArray="10 6" />
         )}

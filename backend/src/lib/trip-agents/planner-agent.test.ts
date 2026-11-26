@@ -90,6 +90,14 @@ describe('runPlannerAgent', () => {
     expect(plan.stops.map((s) => [s.place.id, s.slot, s.arrivalTime, s.waitMinutes])).toEqual([[2, 'afternoon', '09:00', 0], [1, 'sunset', '15:40', 80]])
   })
 
+  it('stays at the sunset spot until sunset, not just the usual visit length', async () => {
+    const places = [poi(1, { category: 'מצפה', durationMinutes: 20 }), poi(2, { durationMinutes: 300 })]
+    const plan = await runPlannerAgent({ intent: { start_time: '09:00', max_stops: 4 }, places: places.map(ok), sunset: '16:40' }, deps())
+    const sunsetStop = plan.stops.find((s) => s.slot === 'sunset')!
+    expect([sunsetStop.arrivalTime, sunsetStop.departureTime, sunsetStop.visitMinutes]).toEqual(['15:40', '16:40', 60])
+    expect(plan.endTime).toBe('16:40')
+  })
+
   it('switches to the shortest order (sunset still last) when time-of-day order backtracks', async () => {
     // 0 = hard hike (morning), 1 and 2 = sites (afternoon), 3 = viewpoint (sunset).
     // time-of-day: hike → site2 → site1 → viewpoint = 10 + 10 + 45 = 65

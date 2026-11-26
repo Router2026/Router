@@ -13,6 +13,10 @@ import { toast } from 'sonner';
 import { useTripBucket } from '../context/TripBucketContext';
 import RouterLogo from '../assets/logo.jpeg';
 import type { BucketItem, GeoState, UserLocation, BuildMode } from '../utils/types';
+import { streamSmartBuild, type AgentStepEvent } from '../api';
+import { useAgentRun } from '../hooks/useAgentRun';
+import { SMART_BUILD_AGENTS } from '../utils/agents';
+import RouteGeneratingOverlay from './RouteGeneratingOverlay';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -480,10 +484,15 @@ interface RouteApiResponse {
   safety_footer?: string;
 }
 
-async function callBuildApi(buildMode: BuildMode, poiIds: string[], userLocation: UserLocation): Promise<RouteApiResponse> {
+async function callBuildApi(
+  buildMode: BuildMode, poiIds: string[], userLocation: UserLocation,
+  onStep: (e: AgentStepEvent) => void, signal: AbortSignal,
+): Promise<RouteApiResponse> {
+  // Smart Build streams each agent's progress (conditions → planner → summary) for the overlay.
+  if (buildMode === 'smart') return streamSmartBuild<RouteApiResponse>(poiIds, { lat: userLocation.lat, lng: userLocation.lng }, onStep, signal);
   const base = import.meta.env.VITE_API_URL ?? '';
-  const endpoint = buildMode === 'smart' ? `${base}/api/trip-bucket/smart-build` : `${base}/api/trip-bucket/proximity`;
-  const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ poi_ids: poiIds, user_location: { lat: userLocation.lat, lng: userLocation.lng } }) });
+  const endpoint = `${base}/api/trip-bucket/proximity`;
+  const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ poi_ids: poiIds, user_location: { lat: userLocation.lat, lng: userLocation.lng } }), signal });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.error?.message || err?.error || `HTTP ${res.status}`);
@@ -588,6 +597,9 @@ export default function TripBucketSheet() {
   const dragHandlers = useDragReorder(reorderItems);
   const [step, setStep] = useState<SheetStep>(1);
   const [buildMode, setBuildMode] = useState<BuildMode | null>(null);
+  const agents = useAgentRun(SMART_BUILD_AGENTS);
+  const [showAgents, setShowAgents] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleClose = useCallback(() => { closeSheet(); setTimeout(() => setStep(1), 300); }, [closeSheet]);
 
@@ -598,27 +610,46 @@ export default function TripBucketSheet() {
 
     setIsGenerating(true);
     setGenerationError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    if (buildMode === 'smart') { agents.reset(); setShowAgents(true); }
     try {
-      const data = await callBuildApi(buildMode, items.map(i => i.poi.id), userLocation);
-      // Never drop a picked place silently: say which ones were left out and why.
+      const data = await callBuildApi(buildMode, items.map(i => i.poi.id), userLocation, agents.onStep, controller.signal);
+      // Never drop a picked place silently: say which ones were left out and why (also shown on the next page).
       for (const w of data.warnings ?? []) toast.warning(w, { duration: 9000 });
       const poiMap = new Map(items.map(i => [i.poi.id, i.poi]));
       const orderedPois = data.stops.map(s => poiMap.get(s.poi_id)).filter(Boolean);
       clearBucket(); closeSheet(); setStep(1);
-      navigate('/RouteGenerator', { state: { bucketPois: orderedPois, userLocation, alreadyOrdered: true, routeMeta: { mode: buildMode, total_distance_km: data.total_distance_km, total_duration_minutes: data.total_duration_minutes, smart_plan: data.smart_plan } } });
+      navigate('/RouteGenerator', { state: { bucketPois: orderedPois, userLocation, alreadyOrdered: true, routeMeta: { mode: buildMode, total_distance_km: data.total_distance_km, total_duration_minutes: data.total_duration_minutes, smart_plan: data.smart_plan, warnings: data.warnings ?? [], safety_footer: data.safety_footer } } });
     } catch (e) {
+      if ((e as Error)?.name === 'AbortError') return;
       setGenerationError((e as Error)?.message || 'יצירת המסלול נכשלה. אנא נסה שוב.');
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      agents.stop();
+      setShowAgents(false);
       setIsGenerating(false);
     }
-  }, [userLocation, buildMode, items, setIsGenerating, setGenerationError, clearBucket, closeSheet, navigate]);
+  }, [userLocation, buildMode, items, setIsGenerating, setGenerationError, clearBucket, closeSheet, navigate, agents]);
 
   if (!isSheetOpen) return null;
+
+  const agentsOverlay = showAgents && (
+    <RouteGeneratingOverlay
+      phase="planning"
+      keys={agents.visible}
+      state={agents.state}
+      startedAt={agents.startedAt}
+      title="הסוכנים מסדרים את המקומות שבחרת"
+      onCancel={() => abortRef.current?.abort()}
+    />
+  );
 
   const canBuild = !!userLocation && !!buildMode && count >= 2 && !isGenerating;
 
   return (
     <>
+      {agentsOverlay}
       <button type="button" aria-label="סגור" onClick={handleClose} style={{ position: 'fixed', inset: 0, zIndex: 4000, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', border: 'none', cursor: 'default', padding: 0 }} />
 
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 4001, background: '#f8fafc', borderRadius: '24px 24px 0 0', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflowY: 'hidden', direction: 'rtl' }}>

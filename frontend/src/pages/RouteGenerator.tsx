@@ -2,13 +2,15 @@
 // Feature 1: Injects user location (or selected location) as the starting point
 // into routeGenerate, and displays a visual start-point marker on the map.
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, Marker, useMap } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type POI, type Region } from '../api';
 import { useRegions } from '../hooks/useLocations';
+import RouteMap from '../components/RouteMap';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -34,35 +36,6 @@ function StartMarker({ position }: { position: LatLng }) {
   return <Marker position={[position.lat, position.lng]} icon={_startIcon} />;
 }
 
-
-function RoutePolyline({ stops, startPoint }: { stops: POI[]; startPoint: LatLng | null }) {
-  const map = useMap();
-  const lineRef = useRef<L.Polyline | null>(null);
-
-  useEffect(() => {
-    lineRef.current?.remove();
-    if (stops.length < 2 && !startPoint) return;
-
-    const coords: [number, number][] = [
-      ...(startPoint ? [[startPoint.lat, startPoint.lng] as [number, number]] : []),
-      ...stops.map(s => [s.latitude, s.longitude] as [number, number]),
-    ];
-
-    if (coords.length < 2) return;
-
-    lineRef.current = L.polyline(coords, {
-      color: '#0d9e6e',
-      weight: 3,
-      opacity: 0.8,
-      dashArray: '8,6',
-    }).addTo(map);
-
-    map.fitBounds(L.latLngBounds(coords).pad(0.15));
-    return () => { lineRef.current?.remove(); };
-  }, [stops, startPoint, map]);
-
-  return null;
-}
 
 function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; selected: boolean }) {
   const map = useMap();
@@ -673,7 +646,7 @@ export default function RouteGenerator() {
                     dragging={false}
                     doubleClickZoom={false}
                   >
-                    <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" subdomains="abcd" />
+                    <BaseTileLayer />
                     {startPoint && <StartMarker position={startPoint} />}
                     {selectedPois.map((poi, i) => (
                       <PhotoMarker key={poi.id} poi={poi} index={i} selected={true} />
@@ -832,35 +805,13 @@ export default function RouteGenerator() {
               </div>
             )}
 
-            {/* Map with photo markers */}
-            <div style={{
-              borderRadius: 20, overflow: 'hidden',
-              marginBottom: 16, height: 280, position: 'relative',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-            }}>
-              {optimized.length > 0 && (
-                <>
-                  <MapContainer
-                    center={
-                      startPoint
-                        ? [startPoint.lat, startPoint.lng]
-                        : [optimized[0].latitude, optimized[0].longitude]
-                    }
-                    zoom={11}
-                    style={{ height: '100%', width: '100%' }}
-                    zoomControl={false}
-                    scrollWheelZoom={false}
-                  >
-                    <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" subdomains="abcd" />
-                    {startPoint && <StartMarker position={startPoint} />}
-                    {optimized.map((poi, i) => (
-                      <PhotoMarker key={poi.id} poi={poi} index={i} selected={true} />
-                    ))}
-                    <RoutePolyline stops={optimized} startPoint={startPoint} />
-                  </MapContainer>
-                  <RegionLabel region={selectedRegion} count={0} />
-                </>
-              )}
+            {/* Map */}
+            <div style={{ marginBottom: 16 }}>
+              <RouteMap
+                height={300}
+                start={startPoint}
+                stops={optimized.map(p => ({ id: p.id, name: p.name, lat: p.latitude, lng: p.longitude, image: p.main_image }))}
+              />
             </div>
 
             {/* Route name */}
