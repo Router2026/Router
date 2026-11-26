@@ -233,6 +233,8 @@ export interface Trip {
   id: string; name: string; description?: string; region?: string;
   /** How the agents built the day (null for hand-built routes). */
   why?: string | null;
+  /** ISO timestamp of when the route was saved. */
+  created_at?: string;
   total_duration_hours: number; total_distance_km?: number;
   difficulty?: string; group_type?: string; style?: string;
   stops: TripStop[];
@@ -465,7 +467,7 @@ function mapNearbyLocation(r: any): NearbyPOI {
 
 function mapTrip(r: any): Trip {
   return {
-    id: String(r.id), name: r.name, description: r.description, why: r.why ?? null,
+    id: String(r.id), name: r.name, description: r.description, why: r.why ?? null, created_at: r.created_at,
     region: r.region || r.region_name,
     total_duration_hours: Number.parseFloat(r.total_duration_hours) || 0,
     total_distance_km: r.total_distance_km, difficulty: r.difficulty,

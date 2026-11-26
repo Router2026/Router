@@ -53,7 +53,9 @@ export async function getRoutes(userId?: number): Promise<Route[]> {
 
   const routeIds = routeRows.map(r => r.id);
   const { rows: stopRows } = await rawDb.query(
-    `SELECT rs.*, l.name AS location_name
+    // Image / coordinates / category feed the My Trips cards (cover photos, navigate button).
+    `SELECT rs.*, l.name AS location_name,
+       l.main_image, l.category, l.latitude::float AS latitude, l.longitude::float AS longitude
      FROM route_stops rs
      LEFT JOIN locations l ON rs.location_id = l.id
      WHERE rs.route_id = ANY($1)
