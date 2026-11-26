@@ -1,162 +1,31 @@
-// src/pages/RouteGenerator.tsx
-// Feature 1: Injects user location (or selected location) as the starting point
-// into routeGenerate, and displays a visual start-point marker on the map.
+// src/pages/RouteGenerator.tsx — build a route yourself, and review/save any route.
+// Steps: 1 region (+ optional start point) → 2 pick places on a map/list → 3 review & save.
+// From step 2 the picks are built either by the trip agents (Smart Build, streamed live) or by
+// shortest distance. Smart Build / the free-text planner also land directly on step 3.
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { MapContainer, Marker, useMap } from 'react-leaflet';
-import { BaseTileLayer } from '../utils/mapTiles';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { api, toast, type POI, type Region } from '../api';
+import { api, streamSmartBuild, toast, type POI, type Region } from '../api';
 import { useRegions } from '../hooks/useLocations';
+import { useAgentRun } from '../hooks/useAgentRun';
+import { SMART_BUILD_AGENTS } from '../utils/agents';
 import RouteReview, { type RouteDetails } from '../components/RouteReview';
+import RouteGeneratingOverlay from '../components/RouteGeneratingOverlay';
+import RegionStep from '../components/route-builder/RegionStep';
+import PlacesStep, { SMART_BUILD_MAX } from '../components/route-builder/PlacesStep';
 import { buildSchedule, haversineKm as haversineLatLng, type PlanMeta } from '../utils/routeSchedule';
-
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import type { LatLng } from '../utils/types';
 
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl: markerIcon,
-  iconRetinaUrl: markerIcon2x,
-  shadowUrl: markerShadow,
-});
+/** Places per region request (the API caps a page at 100) and how many pages to load at most. */
+const PLACES_PAGE = 100;
+const PLACES_MAX_PAGES = 6; // the largest region (Negev) has ~480 places
 
-// Static icon — created once for the entire session
-const _startIcon = L.divIcon({
-  html: `<div style="width:36px;height:36px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;box-shadow:0 3px 10px rgba(37,99,235,0.45);transform:rotate(-45deg);"><span style="transform:rotate(45deg)">📍</span></div>`,
-  className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-});
-
-function StartMarker({ position }: { position: LatLng }) {
-  return <Marker position={[position.lat, position.lng]} icon={_startIcon} />;
-}
-
-
-function PhotoMarker({ poi, index, selected }: { poi: POI; index: number; selected: boolean }) {
-  const map = useMap();
-
-  const icon = useMemo(() => {
-    const dim = selected ? 52 : 44;
-    const noDim = selected ? 44 : 36;
-    const anchor = selected ? 26 : 22;
-    const imgBorderColor = selected ? '#0d9e6e' : '#fff';
-    const fallbackBorderColor = selected ? '#fff' : '#e2e8f0';
-    return L.divIcon({
-      html: poi.main_image
-        ? String.raw`<div style="
-            position:relative;
-            width:${dim}px;
-            height:${dim}px;
-            border-radius:12px;
-            overflow:hidden;
-            border:3px solid ${imgBorderColor};
-            box-shadow:0 3px 12px rgba(0,0,0,0.35);
-            cursor:pointer;
-          ">
-            <img src="${poi.main_image}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;var fb=document.createElement('div');fb.setAttribute('style','width:100%;height:100%;background:#0d9e6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:900');fb.textContent='${index + 1}';this.parentElement.replaceChild(fb,this)"/>
-            <div style="
-              position:absolute;bottom:0;left:0;right:0;
-              background:linear-gradient(transparent,rgba(0,0,0,0.6));
-              color:#fff;font-size:9px;font-weight:700;
-              padding:4px 4px 3px;text-align:center;
-              font-family:Heebo,Arial;
-            ">${index + 1}</div>
-          </div>`
-        : `<div style="
-            width:${noDim}px;
-            height:${noDim}px;
-            border-radius:12px;
-            background:linear-gradient(135deg,#0d9e6e,#0bba7e);
-            border:3px solid ${fallbackBorderColor};
-            display:flex;align-items:center;justify-content:center;
-            color:#fff;font-size:14px;font-weight:900;
-            box-shadow:0 3px 10px rgba(13,158,110,0.4);
-            font-family:Heebo,Arial;
-          ">${index + 1}</div>`,
-      className: '',
-      iconSize: [dim, dim],
-      iconAnchor: [anchor, anchor],
-    });
-  }, [poi.main_image, index, selected]);
-
-  return (
-    <Marker
-      position={[poi.latitude, poi.longitude]}
-      icon={icon}
-      eventHandlers={{
-        click: () => {
-          map.flyTo([poi.latitude, poi.longitude], Math.max(map.getZoom(), 13), { duration: 0.6 });
-        }
-      }}
-    />
-  );
-}
-
-function FitBoundsToSelection({ pois, startPoint, region }: {
-  pois: POI[];
-  startPoint: LatLng | null;
-  region: Region | null;
-}) {
-  const map = useMap();
-  useEffect(() => {
-    if (pois.length > 0) {
-      const coords: [number, number][] = [
-        ...(startPoint ? [[startPoint.lat, startPoint.lng] as [number, number]] : []),
-        ...pois.map(p => [p.latitude, p.longitude] as [number, number]),
-      ];
-      map.fitBounds(L.latLngBounds(coords).pad(0.2));
-    } else if (region) {
-      map.flyTo([region.center_lat, region.center_lng], region.zoom || 11, { duration: 0.8 });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- map is a stable Leaflet instance; pois.length avoids refit on content-only changes
-  }, [map, pois.length, startPoint, region]);
-  return null;
-}
-
-function RegionLabel({ region, count }: Readonly<{ region: Region | null; count: number }>) {
-  if (!region) return null;
-  return (
-    <div style={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      pointerEvents: 'none',
-      textAlign: 'center',
-      zIndex: 500,
-    }}>
-      <div style={{
-        color: '#1a1a1a',
-        textShadow: '0 1px 4px rgba(255,255,255,0.9), 0 -1px 4px rgba(255,255,255,0.9), 1px 0 4px rgba(255,255,255,0.9), -1px 0 4px rgba(255,255,255,0.9)',
-        fontFamily: 'Heebo, Arial',
-        direction: 'rtl',
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.8 }}>{region.name}</div>
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>{region.name_en || region.name}</div>
-        {count > 0 && (
-          <div style={{
-            marginTop: 4,
-            display: 'inline-block',
-            background: '#0d9e6e',
-            color: '#fff',
-            borderRadius: 20,
-            padding: '3px 10px',
-            fontSize: 11,
-            fontWeight: 700,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-          }}>
-            {count} אתרים נבחרו
-          </div>
-        )}
-      </div>
-    </div>
-  );
+interface SmartBuildResult {
+  stops: Array<{ poi_id: string }>;
+  total_distance_km?: number;
+  smart_plan?: PlanMeta;
+  warnings?: string[];
+  safety_footer?: string;
 }
 
 function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
@@ -204,11 +73,6 @@ function toMinutesSafe(t: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
-const REGION_ICONS: Record<string, string> = {
-  'גולן': '🏔️', 'גליל עליון': '🌲', 'גליל תחתון': '💧', 'כרמל': '🌿',
-  'מרכז': '🏙️', 'ירושלים': '🕌', 'דרום': '🏜️', 'נגב': '🏜️',
-  'ערבה': '🌵', 'אילת': '🏖️', 'עמק יזרעאל': '🌾', 'שרון': '🌸',
-};
 
 type Step = 'region' | 'pois' | 'route';
 
@@ -230,7 +94,6 @@ export default function RouteGenerator() {
   const [publishPOI, setPublishPOI] = useState('');
   const [publishStops, setPublishStops] = useState('');
   const [publishing, setPublishing] = useState(false);
-  const [search, setSearch] = useState('');
 
   // Stored as Hebrew labels, same as the AI planner saves them.
   const [details, setDetails] = useState<RouteDetails>({ tripType: 'משפחה', tripStyle: 'טבע', tripDifficulty: 'בינוני' });
@@ -243,7 +106,13 @@ export default function RouteGenerator() {
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState('');
-  const [useCurrentLocation, setUseCurrentLocation] = useState(false);
+  const [loadingRegionId, setLoadingRegionId] = useState<number | null>(null);
+
+  // Smart Build from the picked places: live agent progress in an overlay.
+  const agents = useAgentRun(SMART_BUILD_AGENTS);
+  const [building, setBuilding] = useState(false);
+  const buildAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => buildAbortRef.current?.abort(), []);
 
   useEffect(() => {
     const state = routerLocation.state as {
@@ -260,7 +129,6 @@ export default function RouteGenerator() {
     if (state?.bucketPois && state.bucketPois.length >= 2) {
       const incoming = state.bucketPois;
       const meta = state.routeMeta;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPois(incoming);
       setPlan(meta?.smart_plan ?? null);
       setPlanDistanceKm(typeof meta?.total_distance_km === 'number' ? meta.total_distance_km : null);
@@ -273,7 +141,6 @@ export default function RouteGenerator() {
       if (state.userLocation) {
         const sp: LatLng = { lat: state.userLocation.lat, lng: state.userLocation.lng };
         setStartPoint(sp);
-        setUseCurrentLocation(true);
         setOptimized(
           state.alreadyOrdered
             ? [...incoming]
@@ -310,7 +177,6 @@ export default function RouteGenerator() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setStartPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setUseCurrentLocation(true);
         setGeoLoading(false);
       },
       () => {
@@ -323,17 +189,33 @@ export default function RouteGenerator() {
 
   const clearStartPoint = () => {
     setStartPoint(null);
-    setUseCurrentLocation(false);
     setGeoError('');
   };
 
   const selectRegion = useCallback(async (region: Region) => {
-    setSelectedRegion(region);
+    setLoadingRegionId(region.id);
     setLoadingPois(true);
-    const data = await api.locations.list({ region: region.name, limit: 100 }).catch(() => []);
-    setPois(data);
-    setLoadingPois(false);
-    setStep('pois');
+    try {
+      const all: POI[] = [];
+      for (let page = 0; page < PLACES_MAX_PAGES; page++) {
+        const batch = await api.locations.list({ region: region.name, limit: PLACES_PAGE, offset: page * PLACES_PAGE });
+        all.push(...batch);
+        if (batch.length < PLACES_PAGE) break;
+      }
+      // Keep earlier picks only if they're in this region.
+      const ids = new Set(all.map(p => p.id));
+      setSelectedPois(prev => prev.filter(p => ids.has(p.id)));
+      setSelectedRegion(region);
+      setPois(all);
+      setStep('pois');
+      globalThis.scrollTo({ top: 0 });
+    } catch (e) {
+      console.error('Loading places failed:', e);
+      toast.error('לא הצלחנו לטעון את המקומות באזור. נסו שוב.');
+    } finally {
+      setLoadingPois(false);
+      setLoadingRegionId(null);
+    }
   }, []);
 
   const togglePOI = useCallback((poi: POI) => {
@@ -353,7 +235,38 @@ export default function RouteGenerator() {
     setSafetyFooter(null);
     setRouteName(`מסלול ב${selectedRegion?.name || ''} — ${new Date().toLocaleDateString('he-IL')}`);
     setStep('route');
+    globalThis.scrollTo({ top: 0 });
   }, [selectedPois, startPoint, selectedRegion?.name]);
+
+  const handleBuildSmart = useCallback(async () => {
+    if (selectedPois.length < 2 || selectedPois.length > SMART_BUILD_MAX || building) return;
+    buildAbortRef.current?.abort();
+    const controller = new AbortController();
+    buildAbortRef.current = controller;
+    setBuilding(true);
+    agents.reset();
+    try {
+      const data = await streamSmartBuild<SmartBuildResult>(selectedPois.map(p => p.id), startPoint, agents.onStep, controller.signal);
+      const byId = new Map(selectedPois.map(p => [p.id, p]));
+      const ordered = data.stops.map(s => byId.get(String(s.poi_id))).filter((p): p is POI => !!p);
+      setOptimized(ordered);
+      setPlan(data.smart_plan ?? null);
+      setPlanDistanceKm(typeof data.total_distance_km === 'number' ? data.total_distance_km : null);
+      setWarnings(data.warnings ?? []);
+      setSafetyFooter(data.safety_footer ?? null);
+      setRouteName(data.smart_plan?.route_title || `מסלול ב${selectedRegion?.name || ''}`);
+      setStep('route');
+      globalThis.scrollTo({ top: 0 });
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError') return;
+      console.error('Smart Build failed:', e);
+      toast.error((e as Error)?.message || 'הבנייה החכמה נכשלה. נסו שוב או בנו לפי מרחק.');
+    } finally {
+      if (buildAbortRef.current === controller) buildAbortRef.current = null;
+      agents.stop();
+      setBuilding(false);
+    }
+  }, [selectedPois, startPoint, selectedRegion?.name, building, agents]);
 
   const schedule = useMemo(() => buildSchedule(optimized, plan, startPoint), [optimized, plan, startPoint]);
   const dist = useMemo(
@@ -424,10 +337,6 @@ export default function RouteGenerator() {
     }
   };
 
-  const filteredPois = useMemo(
-    () => pois.filter(p => !search || p.name.includes(search) || p.category.includes(search)),
-    [pois, search],
-  );
 
   return (
     <div style={{ background: '#f0f4f3', minHeight: '100vh', direction: 'rtl' }}>
@@ -438,7 +347,8 @@ export default function RouteGenerator() {
         boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
         display: 'flex', alignItems: 'center', gap: 12, direction: 'rtl',
       }}>
-        <button onClick={() => navigate(-1)}
+        <button type="button" aria-label="חזרה"
+          onClick={() => { if (step === 'pois') setStep('region'); else if (step === 'route' && selectedRegion) setStep('pois'); else navigate(-1); }}
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="#1a2e2a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -446,8 +356,8 @@ export default function RouteGenerator() {
           </svg>
         </button>
         <div style={{ flex: 1, textAlign: 'right' }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>🗺️ בנה מסלול עצמאי</div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>בחר אתרים וצור מסלול מותאם אישית</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#1a2e2a' }}>🗺️ {step === 'route' ? 'המסלול שלך' : 'בנה מסלול בעצמך'}</div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>{step === 'route' ? 'בדקו, תנו שם ושמרו' : 'בוחרים מקומות, ואנחנו מסדרים את היום'}</div>
         </div>
       </div>
 
@@ -494,289 +404,32 @@ export default function RouteGenerator() {
 
         {/* ── Step 1: Region ─────────────────────────────────────────────────── */}
         {step === 'region' && (
-          <>
-            <div style={{
-              background: '#fff', borderRadius: 20, padding: '16px 18px',
-              marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            }}>
-              <div style={{
-                fontSize: 14, fontWeight: 800, color: '#1a2e2a',
-                marginBottom: 12, textAlign: 'right',
-              }}>
-                📍 נקודת התחלה (אופציונלי)
-              </div>
-
-              {startPoint ? (
-                <div style={{
-                  background: '#f0fdf8', borderRadius: 12, padding: '10px 14px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                }}>
-                  <button onClick={clearStartPoint}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: '#94a3b8', fontSize: 18, lineHeight: 1, padding: 0,
-                    }}>×</button>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0d9e6e' }}>
-                      {useCurrentLocation ? '📡 המיקום הנוכחי שלך' : '📍 מיקום נבחר'}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {startPoint.lat.toFixed(5)}, {startPoint.lng.toFixed(5)}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    onClick={requestGeolocation}
-                    disabled={geoLoading}
-                    style={{
-                      flex: 1, padding: '10px 14px',
-                      border: '2px solid #0d9e6e', borderRadius: 12,
-                      background: '#f0fdf8', color: '#0d9e6e',
-                      fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                      fontFamily: 'Heebo, sans-serif',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      opacity: geoLoading ? 0.7 : 1,
-                    }}
-                  >
-                    {geoLoading ? (
-                      <span style={{
-                        width: 14, height: 14, border: '2px solid #e2e8f0',
-                        borderTopColor: '#0d9e6e', borderRadius: '50%',
-                        display: 'inline-block',
-                        animation: 'spin 0.7s linear infinite',
-                      }} />
-                    ) : '📡'}
-                    {geoLoading ? 'מאתר...' : 'מיקום נוכחי'}
-                  </button>
-                </div>
-              )}
-
-              {geoError && (
-                <div style={{ marginTop: 8, fontSize: 11, color: '#ef4444', textAlign: 'right' }}>
-                  {geoError}
-                </div>
-              )}
-            </div>
-
-            <div style={{
-              fontSize: 16, fontWeight: 800, color: '#1a2e2a',
-              marginBottom: 16, textAlign: 'right',
-            }}>
-              באיזה אזור תרצה לטייל?
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              {regions.map(r => (
-                <button key={r.id} onClick={() => selectRegion(r)}
-                  style={{
-                    background: '#fff', border: 'none', borderRadius: 18,
-                    overflow: 'hidden', cursor: 'pointer',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
-                    padding: 0, textAlign: 'right',
-                    fontFamily: 'Heebo, sans-serif', transition: 'transform 0.15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.02)')}
-                  onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
-                  <div style={{
-                    height: 70,
-                    background: `linear-gradient(135deg, ${r.color}cc, ${r.color}77)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36,
-                  }}>
-                    {REGION_ICONS[r.name] || '📍'}
-                  </div>
-                  <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#1a2e2a' }}>{r.name}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </>
+          <RegionStep
+            regions={regions}
+            hasStart={!!startPoint}
+            geoLoading={geoLoading}
+            geoError={geoError}
+            loadingRegionId={loadingRegionId}
+            onLocate={requestGeolocation}
+            onClearStart={clearStartPoint}
+            onSelect={selectRegion}
+          />
         )}
 
-        {/* ── Step 2: Select POIs ─────────────────────────────────────────────── */}
+        {/* ── Step 2: Pick places ────────────────────────────────────────────── */}
         {step === 'pois' && (
-          <>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between',
-              alignItems: 'center', marginBottom: 16,
-            }}>
-              <button onClick={() => setStep('region')}
-                style={{
-                  background: 'none', border: 'none', color: '#0d9e6e',
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'Heebo, sans-serif',
-                }}>← שנה אזור</button>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#1a2e2a' }}>
-                בחר אתרים — {selectedRegion?.name}
-              </div>
-            </div>
-
-            {startPoint && (
-              <div style={{
-                background: '#eff6ff', borderRadius: 14, padding: '10px 14px',
-                marginBottom: 12, display: 'flex', alignItems: 'center',
-                justifyContent: 'flex-end', gap: 8,
-              }}>
-                <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 700 }}>
-                  המסלול יתחיל ממיקומך ויותאם לנקודת הפתיחה
-                </span>
-                <span>📡</span>
-              </div>
-            )}
-
-            {selectedPois.length > 0 && (
-              <div style={{
-                background: '#fff', borderRadius: 16, padding: '12px 16px',
-                marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-              }}>
-                <div style={{
-                  fontSize: 13, fontWeight: 700, color: '#0d9e6e',
-                  marginBottom: 8, textAlign: 'right'
-                }}>
-                  {selectedPois.length} אתרים נבחרו
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {selectedPois.map((p, i) => (
-                    <span key={p.id} style={{
-                      background: '#f0fdf8', color: '#0d9e6e', borderRadius: 20,
-                      padding: '4px 10px', fontSize: 11, fontWeight: 700,
-                      display: 'flex', alignItems: 'center', gap: 4,
-                    }}>
-                      {i + 1}. {p.name}
-                      <button onClick={() => togglePOI(p)}
-                        style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          padding: 0, color: '#0d9e6e', fontSize: 12, lineHeight: 1
-                        }}>×</button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Google Maps-style region overview map ── */}
-            <div style={{
-              borderRadius: 20, overflow: 'hidden',
-              marginBottom: 14, height: 220, position: 'relative',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-            }}>
-              {selectedRegion && (
-                <>
-                  <MapContainer
-                    center={[selectedRegion.center_lat, selectedRegion.center_lng]}
-                    zoom={selectedRegion.zoom || 11}
-                    style={{ height: '100%', width: '100%' }}
-                    zoomControl={false}
-                    scrollWheelZoom={false}
-                    dragging={false}
-                    doubleClickZoom={false}
-                  >
-                    <BaseTileLayer />
-                    {startPoint && <StartMarker position={startPoint} />}
-                    {selectedPois.map((poi, i) => (
-                      <PhotoMarker key={poi.id} poi={poi} index={i} selected={true} />
-                    ))}
-                    <FitBoundsToSelection pois={selectedPois} startPoint={startPoint} region={selectedRegion} />
-                  </MapContainer>
-                  <RegionLabel region={selectedRegion} count={selectedPois.length} />
-                  <div style={{
-                    position: 'absolute', bottom: 0, left: 0, right: 0, height: 50,
-                    background: 'linear-gradient(transparent, rgba(0,0,0,0.08))',
-                    pointerEvents: 'none', zIndex: 500,
-                  }} />
-                </>
-              )}
-            </div>
-
-            {selectedPois.length === 0 && (
-              <div style={{
-                background: '#fffbeb', borderRadius: 14, padding: '10px 14px',
-                marginBottom: 12, textAlign: 'right', fontSize: 12,
-                color: '#92400e', fontWeight: 600, border: '1px solid #fde68a',
-              }}>
-                💡 בחר אתרים מהרשימה — הם יופיעו על המפה
-              </div>
-            )}
-
-            {/* Search bar */}
-            <div style={{
-              background: '#f8fafc', borderRadius: 14, padding: '10px 14px',
-              display: 'flex', alignItems: 'center', gap: 8,
-              border: '2px solid #e2e8f0', marginBottom: 12,
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="חפש אתר..."
-                style={{
-                  flex: 1, border: 'none', background: 'transparent', outline: 'none',
-                  fontSize: 14, fontFamily: 'Heebo, sans-serif', textAlign: 'right',
-                  color: '#1a2e2a',
-                }} />
-            </div>
-
-            {loadingPois ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
-                טוען אתרים...
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filteredPois.map(poi => {
-                  const sel = selectedPois.some(p => p.id === poi.id);
-                  return (
-                    <button key={poi.id} onClick={() => togglePOI(poi)}
-                      style={{
-                        background: sel ? '#f0fdf8' : '#fff',
-                        border: `2px solid ${sel ? '#0d9e6e' : '#e2e8f0'}`,
-                        borderRadius: 16, padding: '12px 14px', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        fontFamily: 'Heebo, sans-serif', transition: 'all 0.15s',
-                      }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: '50%',
-                          background: sel ? '#0d9e6e' : '#f1f5f9',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: sel ? '#fff' : '#94a3b8', fontSize: 12, fontWeight: 800,
-                        }}>
-                          {sel ? '✓' : '+'}
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>
-                            {poi.category} · {poi.duration_minutes ? `${poi.duration_minutes} דק'` : ''}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1a2e2a' }}>
-                        {poi.name}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {selectedPois.length >= 2 && (
-              <div style={{
-                position: 'fixed', bottom: 80, left: 16, right: 16,
-                zIndex: 100, maxWidth: 568, margin: '0 auto',
-              }}>
-                <button onClick={handleOptimize}
-                  style={{
-                    width: '100%', padding: '16px', border: 'none', borderRadius: 18,
-                    background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)',
-                    color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer',
-                    fontFamily: 'Heebo, sans-serif',
-                    boxShadow: '0 8px 24px rgba(13,158,110,0.3)',
-                  }}>
-                  {startPoint ? '🗺️ בנה מסלול ממיקומי' : 'בנה מסלול אופטימלי →'}
-                </button>
-              </div>
-            )}
-          </>
+          <PlacesStep
+            region={selectedRegion}
+            places={pois}
+            loading={loadingPois}
+            picked={selectedPois}
+            start={startPoint}
+            onToggle={togglePOI}
+            onClear={() => setSelectedPois([])}
+            onChangeRegion={() => setStep('region')}
+            onBuildSmart={handleBuildSmart}
+            onBuildDistance={handleOptimize}
+          />
         )}
 
         {/* ── Step 3: Review & save ───────────────────────────────────────────── */}
@@ -803,6 +456,17 @@ export default function RouteGenerator() {
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {building && (
+        <RouteGeneratingOverlay
+          phase="planning"
+          keys={agents.visible}
+          state={agents.state}
+          startedAt={agents.startedAt}
+          title="הסוכנים מסדרים את המקומות שבחרת"
+          onCancel={() => buildAbortRef.current?.abort()}
+        />
+      )}
 
       {/* ── Publish Modal ───────────────────────────────────────────── */}
       {showPublishModal && (

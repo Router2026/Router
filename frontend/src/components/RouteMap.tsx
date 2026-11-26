@@ -95,7 +95,7 @@ export default function RouteMap({
   }
 
   return (
-    <div style={{ height, borderRadius: 20, overflow: 'hidden', position: 'relative', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+    <div style={{ height, borderRadius: 20, overflow: 'hidden', position: 'relative', isolation: 'isolate', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
       <style>{`.route-map-label{background:rgba(255,255,255,.95);border:none;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.18);padding:2px 7px;font:700 11px Heebo,Arial;color:#1a2e2a;direction:rtl;white-space:nowrap}.route-map-label:before{display:none}`}</style>
       <MapContainer center={points[0]} zoom={11} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false} attributionControl>
         <BaseTileLayer />
