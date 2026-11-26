@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { api, toast, type AiGroupType } from '../api';
+import { api, streamGenerateRoute, toast, type AiGroupType } from '../api';
 import { useAuth } from '../context/AuthContext';
 import RouteGeneratingOverlay, { type GeneratingPhase } from '../components/RouteGeneratingOverlay';
+import { useAgentRun } from '../hooks/useAgentRun';
+import { FORM_AGENTS } from '../utils/agents';
 import { describeRouteError, isAbortError, saveDraft, takeDraft, type RouteErrorInfo } from '../utils/aiRoutePlanner';
 
 // These stay local — UI-only choices not stored in backend
@@ -51,6 +53,7 @@ export default function TripPlanner() {
   const [phase, setPhase] = useState<GeneratingPhase | null>(null);
   const [genError, setGenError] = useState<RouteErrorInfo | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const agents = useAgentRun(FORM_AGENTS);
 
   // Restore the wizard after returning from the login page.
   useEffect(() => {
@@ -124,9 +127,11 @@ export default function TripPlanner() {
     abortRef.current = controller;
     setPhase('planning');
     setGenError(null);
+    agents.reset();
     try {
       const selectedRegionName = REGIONS.find(r => r.id === region)?.name || region;
-      const route = await api.ai.generateRoute({
+      // Streams each agent's progress into the overlay, then resolves with the route.
+      const route = await streamGenerateRoute({
         region: selectedRegionName,
         groupType: groupType as AiGroupType,
         styles,
@@ -134,7 +139,7 @@ export default function TripPlanner() {
         endTime,
         maxStops: Number.parseInt(stops, 10) || undefined,
         userLocation,
-      }, controller.signal);
+      }, agents.onStep, controller.signal);
 
       if (controller.signal.aborted) return;
       setPhase('saving');
@@ -142,6 +147,7 @@ export default function TripPlanner() {
       const saved = await api.trips.create({
         name: route.name,
         description: route.description,
+        why: route.why ?? null,
         region: route.region,
         region_id: route.region_id,
         group_type: GROUP_TYPES.find(g => g.id === route.group_type)?.name ?? route.group_type,
@@ -154,6 +160,7 @@ export default function TripPlanner() {
           arrival_time: s.arrival_time,
           duration_minutes: s.duration_minutes,
           smart_insight: s.smart_insight,
+          reason: s.reason ?? null,
           order_index: s.order_index,
         })),
       });
@@ -168,6 +175,7 @@ export default function TripPlanner() {
       setGenError(describeRouteError(e));
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
+      agents.stop();
       setPhase(null);
     }
   };
@@ -255,6 +263,26 @@ export default function TripPlanner() {
             );
           })}
         </div>
+
+        {/* Free-text alternative: the same agents, from a sentence */}
+        {step === 0 && (
+          <button
+            type="button"
+            onClick={() => navigate('/AgentPlanner')}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, padding: '12px 16px',
+              background: '#f0fdf8', border: '1.5px dashed #6ee7b7', borderRadius: 18, cursor: 'pointer',
+              fontFamily: 'Heebo, sans-serif', direction: 'rtl', textAlign: 'right',
+            }}
+          >
+            <span style={{ fontSize: 24 }} aria-hidden="true">✍️</span>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#065f46' }}>מעדיפים לכתוב במילים שלכם?</span>
+              <span style={{ display: 'block', fontSize: 12, color: '#047857' }}>למשל "טיול קל עם ילדים בגליל עם מים, מחר מ-9" — והסוכנים יבנו את היום</span>
+            </span>
+            <span aria-hidden="true" style={{ color: '#0d9e6e', fontWeight: 900 }}>←</span>
+          </button>
+        )}
 
         {/* Step Content */}
         <div style={{
@@ -499,7 +527,16 @@ export default function TripPlanner() {
           </div>
         )}
 
-        {phase && <RouteGeneratingOverlay phase={phase} onCancel={cancelGenerate} />}
+        {phase && (
+          <RouteGeneratingOverlay
+            phase={phase}
+            keys={agents.visible}
+            state={agents.state}
+            startedAt={agents.startedAt}
+            withSaving
+            onCancel={cancelGenerate}
+          />
+        )}
 
       </div>
     </div>

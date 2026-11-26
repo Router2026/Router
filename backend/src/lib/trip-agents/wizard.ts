@@ -10,6 +10,7 @@ import { parseTime } from "@/lib/ai-route/sequence";
 import type { TripIntent } from "./intent-agent";
 import { israelToday } from "./llm";
 import type { PipelineResult } from "./pipeline";
+import { planReason, stopReasons } from "./reasons";
 
 /** Hebrew search phrase per style (agent 2's semantic search). */
 const STYLE_PHRASE: Record<TripStyle, string> = {
@@ -70,9 +71,12 @@ export function wizardRequestText(req: ParsedRouteRequest, regionName: string): 
 /** Agents result → the route planner's existing response shape. */
 export function agentsToApiRoute(r: PipelineResult, req: ParsedRouteRequest, region: { id: number; name: string }): ApiRoute {
   const totalMinutes = Math.max(0, parseTime(r.plan.endTime) - parseTime(req.dayStart));
+  const reasons = stopReasons(r.plan, !!req.start);
   return {
     name: r.summary.title,
     description: r.summary.overview,
+    why: r.summary.whyThisRoute || planReason(r.plan),
+    sunset: r.plan.sunset,
     region: region.name,
     region_id: region.id,
     group_type: req.groupType,
@@ -97,6 +101,7 @@ export function agentsToApiRoute(r: PipelineResult, req: ParsedRouteRequest, reg
       drive_minutes_from_prev: s.driveMinutesFromPrev,
       distance_from_prev_km: s.distanceFromPrevKm,
       smart_insight: r.summary.tips[s.place.id] ?? "",
+      reason: reasons[i],
     })),
   };
 }

@@ -223,10 +223,16 @@ export interface NearbyPOI extends POI {
 export interface TripStop {
   poi_name: string; arrival_time: string; duration_minutes: number;
   smart_insight?: string; location_id?: number; order_index?: number;
+  /** Why the agents put this stop here, at this time. */
+  reason?: string | null;
+  /** From the joined `locations` row (GET /routes/:id only). */
+  latitude?: number | null; longitude?: number | null; main_image?: string | null; category?: string | null;
 }
 
 export interface Trip {
   id: string; name: string; description?: string; region?: string;
+  /** How the agents built the day (null for hand-built routes). */
+  why?: string | null;
   total_duration_hours: number; total_distance_km?: number;
   difficulty?: string; group_type?: string; style?: string;
   stops: TripStop[];
@@ -259,6 +265,8 @@ export interface AiRouteStop {
   drive_minutes_from_prev: number;
   distance_from_prev_km: number;
   smart_insight: string;
+  /** Why this stop is here, at this time (trip agents only). */
+  reason?: string;
 }
 
 export interface AiRoute {
@@ -275,6 +283,9 @@ export interface AiRoute {
   total_duration_hours: number;
   total_distance_km: number;
   total_drive_minutes: number;
+  /** How the day was built (trip agents only). */
+  why?: string;
+  sunset?: string;
   stops: AiRouteStop[];
 }
 
@@ -454,15 +465,17 @@ function mapNearbyLocation(r: any): NearbyPOI {
 
 function mapTrip(r: any): Trip {
   return {
-    id: String(r.id), name: r.name, description: r.description,
+    id: String(r.id), name: r.name, description: r.description, why: r.why ?? null,
     region: r.region || r.region_name,
     total_duration_hours: Number.parseFloat(r.total_duration_hours) || 0,
     total_distance_km: r.total_distance_km, difficulty: r.difficulty,
     group_type: r.group_type, style: r.style,
     stops: (r.stops || []).map((s: any) => ({
       poi_name: s.poi_name || s.location_name || '', arrival_time: s.arrival_time || '',
-      duration_minutes: s.duration_minutes || 60, smart_insight: s.smart_insight,
+      duration_minutes: s.duration_minutes || 60, smart_insight: s.smart_insight, reason: s.reason ?? null,
       location_id: s.location_id, order_index: s.order_index,
+      latitude: s.latitude ?? null, longitude: s.longitude ?? null,
+      main_image: s.main_image ?? null, category: s.category ?? null,
     })),
   };
 }
@@ -498,9 +511,10 @@ function mapUser(r: any): UserProfile {
 
 // ── Main API Object ────────────────────────────────────────────────────────
 
-// ── Trip agents (admin preview) ──────────────────────────────────────────────
+// ── Trip agents ──────────────────────────────────────────────
 
-export type AgentStep = 'intent' | 'search' | 'conditions' | 'planner' | 'review' | 'summary';
+/** The six trip agents, plus 'fallback' (the quick backup planner when the agents fail). */
+export type AgentStep = 'intent' | 'search' | 'conditions' | 'planner' | 'review' | 'summary' | 'fallback';
 
 export interface AgentPlanStop {
   id: number; name: string; category: string; region: string | null;
@@ -509,7 +523,7 @@ export interface AgentPlanStop {
   arrival: string; departure: string; visitMinutes: number;
   driveMinutesFromPrev: number; distanceFromPrevKm: number; waitMinutes: number;
   slot: 'morning' | 'midday' | 'afternoon' | 'sunset';
-  tip: string | null; conditions: string[];
+  tip: string | null; reason?: string; conditions: string[];
 }
 
 export interface AgentPlan {
@@ -521,21 +535,21 @@ export interface AgentPlan {
   rejected: { id: number; name: string; codes: string[] }[];
 }
 
-export type AgentEvent =
-  | { type: 'step'; step: AgentStep; phase: 'start' | 'done' }
-  | { type: 'result'; data: { plan: AgentPlan; debug: Record<string, unknown> } }
-  | { type: 'error'; code: string; message: string };
+/** One line of an agents progress stream. `detail` (on 'done') says what the agent found. */
+export type AgentStepEvent = { type: 'step'; step: AgentStep; phase: 'start' | 'done'; detail?: string };
+export type StreamEvent<T> = AgentStepEvent | { type: 'result'; data: T } | { type: 'error'; code: string; message: string };
+export type AgentEvent = StreamEvent<{ plan: AgentPlan; debug?: Record<string, unknown> }>;
 
 /**
- * POST /api/ai/trip-agents — reads the NDJSON stream and calls onEvent per line.
- * Resolves with the final event (result or error). Pass an AbortSignal to cancel.
+ * POSTs to an NDJSON progress endpoint, calls onEvent per line, and resolves with the final line
+ * (result or error). Non-2xx responses (validation, quota, auth) throw ApiError like apiFetch.
  */
-export async function streamTripAgents(query: string, onEvent: (e: AgentEvent) => void, signal?: AbortSignal): Promise<AgentEvent> {
+async function postNdjson<T>(path: string, body: unknown, onEvent: (e: StreamEvent<T>) => void, signal?: AbortSignal): Promise<StreamEvent<T>> {
   const token = _token ?? localStorage.getItem(TOKEN_KEY);
-  const res = await fetch(`${BASE_URL}/ai/trip-agents`, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({ query }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
     signal,
   });
   if (!res.ok || !res.body) {
@@ -548,11 +562,11 @@ export async function streamTripAgents(query: string, onEvent: (e: AgentEvent) =
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let last: AgentEvent = { type: 'error', code: 'NO_RESULT', message: 'השרת לא החזיר תוצאה. נסו שוב.' };
+  let last: StreamEvent<T> = { type: 'error', code: 'NO_RESULT', message: 'השרת לא החזיר תוצאה. נסו שוב.' };
   const handle = (line: string) => {
     if (!line.trim()) return;
     try {
-      const ev = JSON.parse(line) as AgentEvent;
+      const ev = JSON.parse(line) as StreamEvent<T>;
       if (ev.type !== 'step') last = ev;
       onEvent(ev);
     } catch { /* ignore a malformed line */ }
@@ -566,6 +580,29 @@ export async function streamTripAgents(query: string, onEvent: (e: AgentEvent) =
   }
   handle(buffer + decoder.decode());
   return last;
+}
+
+/** Resolves with the result, or throws ApiError for an error line. */
+async function streamResult<T>(path: string, body: unknown, onStep: (e: AgentStepEvent) => void, signal?: AbortSignal): Promise<T> {
+  const last = await postNdjson<T>(path, body, (e) => { if (e.type === 'step') onStep(e); }, signal);
+  if (last.type === 'result') return last.data;
+  if (last.type === 'error') throw new ApiError(last.message, last.code, 500);
+  throw new ApiError('השרת לא החזיר תוצאה. נסו שוב.', 'NO_RESULT', 500);
+}
+
+/** POST /api/ai/generate-route with live agent progress. */
+export function streamGenerateRoute(body: AiRouteRequest, onStep: (e: AgentStepEvent) => void, signal?: AbortSignal): Promise<AiRoute> {
+  return streamResult<AiRoute>('/ai/generate-route', body, onStep, signal);
+}
+
+/** POST /api/ai/trip-agents — free text → plan, with live agent progress. Resolves with the final line. */
+export function streamTripAgents(query: string, onEvent: (e: AgentEvent) => void, signal?: AbortSignal): Promise<AgentEvent> {
+  return postNdjson('/ai/trip-agents', { query }, onEvent, signal);
+}
+
+/** POST /api/trip-bucket/smart-build with live agent progress. */
+export function streamSmartBuild<T>(poiIds: string[], userLocation: { lat: number; lng: number } | null, onStep: (e: AgentStepEvent) => void, signal?: AbortSignal): Promise<T> {
+  return streamResult<T>('/trip-bucket/smart-build', { poi_ids: poiIds, user_location: userLocation }, onStep, signal);
 }
 
 export const api = {

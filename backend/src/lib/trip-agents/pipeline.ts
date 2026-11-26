@@ -14,7 +14,9 @@ import { runReviewAgent, type ReviewResult } from "./review-agent";
 import { runSearchAgent, type SearchAgentDeps } from "./search-agent";
 import { fallbackSummary, runSummaryAgent, type TripSummary } from "./summary-agent";
 
-export type AgentStep = "intent" | "search" | "conditions" | "planner" | "review" | "summary";
+import { conditionsDetail, intentDetail, plannerDetail, reviewDetail, searchDetail, summaryDetail, type AgentStep, type StepListener } from "./progress";
+
+export type { AgentStep } from "./progress";
 
 export interface PipelineResult {
   intent: TripIntent;
@@ -39,7 +41,7 @@ export interface PipelineDeps extends Pick<SearchAgentDeps, "postgis" | "semanti
   fetchWeather?: WeatherFetcher;
   planner?: PlannerDeps;
   /** Progress callback, e.g. to stream "agent 3 is checking the weather" to the UI. */
-  onStep?: (step: AgentStep, phase: "start" | "done") => void;
+  onStep?: StepListener;
 }
 
 /** Free-text request: agent 1 parses it, then agents 2–6. */
@@ -63,24 +65,27 @@ async function runPipeline(query: string, givenIntent: TripIntent | null, deps: 
   const llm = { client: deps.client, model, usage };
   const today = israelToday(deps.now ?? new Date()).date;
 
-  async function step<T>(name: AgentStep, fn: () => Promise<T>): Promise<T> {
+  async function step<T>(name: AgentStep, fn: () => Promise<T>, describe?: (r: T) => string): Promise<T> {
     deps.onStep?.(name, "start");
     const t = Date.now();
+    let detail: string | undefined;
     try {
-      return await fn();
+      const r = await fn();
+      try { detail = describe?.(r); } catch { /* a progress line must never fail the run */ }
+      return r;
     } finally {
       timings[name] = Date.now() - t;
-      deps.onStep?.(name, "done");
+      deps.onStep?.(name, "done", detail);
     }
   }
 
-  const intent = givenIntent ?? (await step("intent", () => runIntentAgent(query, { ...llm, now: deps.now })));
+  const intent = givenIntent ?? (await step("intent", () => runIntentAgent(query, { ...llm, now: deps.now }), intentDetail));
   const search = await step("search", () =>
-    runSearchAgent(intent, { ...llm, postgis: deps.postgis, semantic: deps.semantic }));
+    runSearchAgent(intent, { ...llm, postgis: deps.postgis, semantic: deps.semantic }), searchDetail);
   const conditions = await step("conditions", () =>
-    runConditionsAgent(intent, search.candidates, search.pool, { today, fetchWeather: deps.fetchWeather }));
+    runConditionsAgent(intent, search.candidates, search.pool, { today, fetchWeather: deps.fetchWeather }), conditionsDetail);
   const firstPlan = await step("planner", () =>
-    runPlannerAgent({ intent, places: conditions.approved, spares: conditions.approvedSpares, sunset: conditions.sunset }, deps.planner));
+    runPlannerAgent({ intent, places: conditions.approved, spares: conditions.approvedSpares, sunset: conditions.sunset }, deps.planner), plannerDetail);
 
   const review = await step("review", async (): Promise<ReviewResult> => {
     try {
@@ -92,7 +97,7 @@ async function runPipeline(query: string, givenIntent: TripIntent | null, deps: 
       console.error("[trip-agents] review failed; keeping the planner's plan", err);
       return { plan: firstPlan, verdict: "skipped", notes: "review unavailable", issuesBefore: [], issuesAfter: [], added: [], removed: [] };
     }
-  });
+  }, reviewDetail);
   const plan = review.plan;
 
   const summary = await step("summary", async () => {
@@ -102,7 +107,7 @@ async function runPipeline(query: string, givenIntent: TripIntent | null, deps: 
       console.error("[trip-agents] summary failed; using plain summary", err);
       return fallbackSummary(intent, plan);
     }
-  });
+  }, summaryDetail);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { plan: _omit, ...reviewMeta } = review;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../context/AuthContext';
@@ -351,7 +352,7 @@ export default function ContributePOI() {
           </button>
           <div style={{ borderRadius: 16, overflow: 'hidden', height: 240, border: `2px solid ${pickedPoint ? '#0d9e6e' : '#e2e8f0'}`, transition: 'border-color 0.2s' }}>
             <MapContainer center={[defaultCenter.lat, defaultCenter.lng]} zoom={8} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <BaseTileLayer />
               <MapClickHandler onPick={handlePickPoint} />
               <MapRecenter position={pickedPoint} />
               {pickedPoint && <PickedMarker position={pickedPoint} />}

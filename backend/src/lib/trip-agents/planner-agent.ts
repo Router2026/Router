@@ -286,7 +286,8 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
         slot = "afternoon";
       }
     }
-    const departure = arrival + visit;
+    // A sunset spot is for the sunset: stay until the sun is down, not just the usual visit length.
+    const departure = slot === "sunset" ? Math.max(arrival + visit, sunsetMin) : arrival + visit;
     const darkLimit = sunsetMin + (VIEWPOINT.has(p.category) ? AFTER_SUNSET_GRACE : 0);
 
     const needsLight = isHike(p) && arrival > sunsetMin - HIKE_DAYLIGHT_BUFFER;
@@ -305,7 +306,7 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
     stops.push({
       place: p,
       slot,
-      visitMinutes: visit,
+      visitMinutes: departure - arrival,
       arrivalTime: formatTime(arrival),
       departureTime: formatTime(departure),
       driveMinutesFromPrev: drive,

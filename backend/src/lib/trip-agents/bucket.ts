@@ -9,6 +9,8 @@ import { runConditionsAgent, type ConditionsReport, type WeatherFetcher } from "
 import type { TripIntent } from "./intent-agent";
 import { emptyUsage, israelToday, type AgentUsage } from "./llm";
 import { MAX_LEG_MINUTES, runPlannerAgent, type DayPlan, type PlannerDeps, type Slot } from "./planner-agent";
+import { planReason, stopReasons } from "./reasons";
+import { conditionsDetail, plannerDetail, summaryDetail, type StepListener } from "./progress";
 import { fallbackSummary, runSummaryAgent, type SummaryDeps, type TripSummary } from "./summary-agent";
 import type { PoiCandidate } from "./types";
 
@@ -68,6 +70,10 @@ export interface BucketResult {
 
 export interface BucketDeps {
   now?: Date;
+  /** The user's starting point: the first stop is the one nearest to it, with the drive there. */
+  origin?: { lat: number; lng: number } | null;
+  /** Live progress for the UI (agents 3 → 4 → 5). */
+  onStep?: StepListener;
   fetchWeather?: WeatherFetcher;
   planner?: PlannerDeps;
   summary?: Omit<SummaryDeps, "usage">;
@@ -77,14 +83,22 @@ export async function runBucketPipeline(pois: BucketPoi[], deps: BucketDeps = {}
   const usage = emptyUsage();
   const today = israelToday(deps.now ?? new Date()).date;
   const places = pois.map(bucketPoiToCandidate);
-  const intent = bucketIntent(places.length, today);
+  const intent = { ...bucketIntent(places.length, today), origin: deps.origin ?? null };
 
+  const onStep = deps.onStep ?? (() => {});
+
+  onStep("conditions", "start");
   const conditions = await runConditionsAgent(intent, places, [], { today, fetchWeather: deps.fetchWeather });
+  onStep("conditions", "done", conditionsDetail(conditions));
+
+  onStep("planner", "start");
   const plan = await runPlannerAgent(
     { intent, places: conditions.approved, sunset: conditions.sunset, respectSelection: true },
     deps.planner,
   );
+  onStep("planner", "done", plannerDetail(plan));
 
+  onStep("summary", "start");
   let summary: TripSummary;
   try {
     summary = await runSummaryAgent("", intent, plan, { ...deps.summary, usage });
@@ -92,30 +106,41 @@ export async function runBucketPipeline(pois: BucketPoi[], deps: BucketDeps = {}
     console.error("[trip-agents:bucket] summary failed; using plain summary", err);
     summary = fallbackSummary(intent, plan);
   }
+  onStep("summary", "done", summaryDetail(summary));
 
   const warnings = [
     ...conditions.rejected.map((r) => `${r.place.name} הוצא מהמסלול: ${r.notes.filter((n) => n.severity === "reject").map((n) => CONDITION_HE[n.code] ?? n.code).join(", ")}`),
     ...plan.dropped.map((d) => `${d.place.name} לא נכנס למסלול: ${DROP_REASON_HE[d.reason] ?? d.reason}`),
     // The user picked the places, so a long leg stays in the plan, but say so.
+    // (Not the first stop: its drive is from the user's start point, which is expected to be long.)
     ...plan.stops
-      .filter((s) => s.driveMinutesFromPrev > MAX_LEG_MINUTES)
+      .filter((s, i) => i > 0 && s.driveMinutesFromPrev > MAX_LEG_MINUTES)
       .map((s) => `הנסיעה אל ${s.place.name} ארוכה: כ-${s.driveMinutesFromPrev} דקות מהעצירה הקודמת`),
   ];
   return { plan, summary, conditions, warnings, usage };
 }
 
 /** The existing smart-build response shape (frontend TripBucketSheet / RouteGenerator). */
-export function toSmartPlan(r: BucketResult): SmartPlan {
+export function toSmartPlan(r: BucketResult, hasOrigin = false): SmartPlan {
+  const reasons = stopReasons(r.plan, hasOrigin);
   return {
     route_title: r.summary.title,
     route_description: [r.summary.overview, r.summary.whyThisRoute].filter(Boolean).join(" "),
-    stops: r.plan.stops.map((s) => ({
+    overview: r.summary.overview,
+    why: r.summary.whyThisRoute || planReason(r.plan),
+    sunset: r.plan.sunset,
+    total_drive_minutes: r.plan.totalDriveMinutes,
+    stops: r.plan.stops.map((s, i) => ({
       location_id: String(s.place.id),
       poi_name: s.place.name,
       arrival_time: s.arrivalTime,
       duration_minutes: s.visitMinutes,
       smart_insight: r.summary.tips[s.place.id] ?? "",
       visit_type: SLOT_LABEL_HE[s.slot],
+      reason: reasons[i],
+      departure_time: s.departureTime,
+      drive_minutes_from_prev: s.driveMinutesFromPrev,
+      distance_from_prev_km: s.distanceFromPrevKm,
     })),
   };
 }

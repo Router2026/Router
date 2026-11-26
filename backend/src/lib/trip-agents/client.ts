@@ -6,6 +6,7 @@ import type { ConditionCode } from "./conditions-agent";
 import type { PipelineResult } from "./pipeline";
 import type { DayPlan, DropReason, Slot } from "./planner-agent";
 import type { TripSummary } from "./summary-agent";
+import { stopReasons } from "./reasons";
 
 export interface ClientStop {
   id: number;
@@ -27,6 +28,8 @@ export interface ClientStop {
   waitMinutes: number;
   slot: Slot;
   tip: string | null;
+  /** Why this stop is here, at this time. */
+  reason: string;
   conditions: ConditionCode[];
 }
 
@@ -50,7 +53,8 @@ export interface ClientPlan {
 }
 
 export function toClientStops(plan: DayPlan, summary: TripSummary): ClientStop[] {
-  return plan.stops.map((s) => ({
+  const reasons = stopReasons(plan);
+  return plan.stops.map((s, i) => ({
     id: s.place.id,
     name: s.place.name,
     category: s.place.category,
@@ -70,6 +74,7 @@ export function toClientStops(plan: DayPlan, summary: TripSummary): ClientStop[]
     waitMinutes: s.waitMinutes,
     slot: s.slot,
     tip: summary.tips[s.place.id] ?? null,
+    reason: reasons[i],
     conditions: s.conditions.map((c) => c.code),
   }));
 }

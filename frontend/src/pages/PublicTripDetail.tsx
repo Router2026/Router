@@ -2,7 +2,8 @@
 // src/pages/PublicTripDetail.tsx — Enhanced detail page with full social features + React Query Cache
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
+import { MapContainer, Polyline, Marker, useMap } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, type PublicTrip, type RouteComment, type RouteImage, type CommunityMedia } from '../api';
@@ -421,7 +422,7 @@ export default function PublicTripDetail() {
       {pts.length > 0 && (
         <div style={{ height: hasImage ? 260 : 300, position: 'relative' }}>
           <MapContainer center={center} zoom={9} style={{ height: '100%', width: '100%' }} zoomControl attributionControl={false}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <BaseTileLayer />
             {pts.length > 1 && (
               <Polyline positions={pts} pathOptions={{ color: '#0d9e6e', weight: 3.5, opacity: 0.9, dashArray: '10,6' }} />
             )}

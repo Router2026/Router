@@ -17,10 +17,36 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+/**
+ * Changing a route needs a signed-in owner (or an admin). Returns the route id, or the error
+ * response to send.
+ */
+async function authorizeOwner(req: NextRequest, rawId: string): Promise<{ routeId: number } | { error: NextResponse }> {
+  const auth = await getUserFromRequest(req);
+  if (!auth) {
+    return { error: NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 }) };
+  }
+  const routeId = Number.parseInt(rawId, 10);
+  if (Number.isNaN(routeId)) {
+    return { error: NextResponse.json(errorResponse("Invalid route id", "VALIDATION_ERROR"), { status: 400 }) };
+  }
+  const existing = await getRouteById(routeId);
+  if (!existing) {
+    return { error: NextResponse.json(errorResponse("Route not found", "NOT_FOUND"), { status: 404 }) };
+  }
+  if (!auth.is_admin && existing.user_id !== auth.id) {
+    return { error: NextResponse.json(errorResponse("Forbidden", "FORBIDDEN"), { status: 403 }) };
+  }
+  return { routeId };
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await deleteRoute(Number.parseInt(id));
+    const authz = await authorizeOwner(req, id);
+    if ("error" in authz) return authz.error;
+
+    await deleteRoute(authz.routeId);
     return NextResponse.json(successResponse({ deleted: true }));
   } catch (err) {
     console.error("[DELETE /api/routes/[id]]", err);
@@ -30,28 +56,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = await getUserFromRequest(req);
-    if (!auth) {
-      return NextResponse.json(errorResponse("Unauthorized", "AUTH_ERROR"), { status: 401 });
-    }
-
     const { id } = await params;
-    const routeId = Number.parseInt(id, 10);
-    if (Number.isNaN(routeId)) {
-      return NextResponse.json(errorResponse("Invalid route id", "VALIDATION_ERROR"), { status: 400 });
-    }
-
-    // Verify the route belongs to this user (or user is admin)
-    const existing = await getRouteById(routeId);
-    if (!existing) {
-      return NextResponse.json(errorResponse("Route not found", "NOT_FOUND"), { status: 404 });
-    }
-    if (!auth.is_admin && existing.user_id !== auth.id) {
-      return NextResponse.json(errorResponse("Forbidden", "FORBIDDEN"), { status: 403 });
-    }
+    const authz = await authorizeOwner(req, id);
+    if ("error" in authz) return authz.error;
 
     const body = await req.json();
-    const updated = await updateRoute(routeId, body);
+    const updated = await updateRoute(authz.routeId, body);
     return NextResponse.json(successResponse(updated));
   } catch (err) {
     console.error("[PATCH /api/routes/[id]]", err);

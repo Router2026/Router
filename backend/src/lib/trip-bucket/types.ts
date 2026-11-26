@@ -39,10 +39,21 @@ export interface SmartStop {
     duration_minutes: number;
     smart_insight: string;      // One-sentence rationale for this slot
     visit_type: string;         // e.g. "morning hike", "afternoon coffee", "sunset viewpoint"
+    /** Why this stop is here, at this time (agents/reasons.ts). */
+    reason?: string;
+    departure_time?: string;    // "HH:MM"
+    drive_minutes_from_prev?: number;
+    distance_from_prev_km?: number;
 }
 
 export interface SmartPlan {
     route_title: string;
     route_description: string;
+    /** Agent 5's overview of the day. */
+    overview?: string;
+    /** How the day was built — the model's why_this_route, or a factual fallback. */
+    why?: string;
+    sunset?: string;
+    total_drive_minutes?: number;
     stops: SmartStop[];
 }

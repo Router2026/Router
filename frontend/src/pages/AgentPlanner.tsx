@@ -1,21 +1,16 @@
 /**
- * AgentPlanner — free-text request → a full day plan by the six trip agents (admin preview).
+ * AgentPlanner — free-text request → a full day plan by the six trip agents (any signed-in user).
  * Streams progress from POST /api/ai/trip-agents, then shows the plan and hands the stops to
  * RouteGenerator (same state shape the Trip Bucket uses) for the map and saving.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { streamTripAgents, ApiError, type AgentEvent, type AgentPlan, type AgentPlanStop, type AgentStep, type POI } from '../api';
-
-const STEPS: { key: AgentStep; label: string }[] = [
-  { key: 'intent', label: 'מבין את הבקשה' },
-  { key: 'search', label: 'מחפש מקומות במאגר' },
-  { key: 'conditions', label: 'בודק מזג אוויר ובטיחות' },
-  { key: 'planner', label: 'מתכנן סדר ושעות' },
-  { key: 'review', label: 'בודק את התוכנית מול הבקשה' },
-  { key: 'summary', label: 'כותב הסבר וטיפים' },
-];
+import { streamTripAgents, ApiError, type AgentEvent, type AgentPlan, type AgentPlanStop, type POI } from '../api';
+import AgentWorkflow from '../components/AgentWorkflow';
+import { useAgentRun } from '../hooks/useAgentRun';
+import { FREE_TEXT_AGENTS } from '../utils/agents';
+import RouteMap from '../components/RouteMap';
 
 const EXAMPLES = [
   'בא לי מסלול מים בצפון',
@@ -38,8 +33,6 @@ const DROP_LABEL: Record<string, string> = {
   too_far: 'רחוק מדי מהעצירה הקודמת', past_end_time: 'לא נכנס עד שעת הסיום',
 };
 
-type StepState = 'pending' | 'running' | 'done';
-
 const C = { ink: '#0f172a', muted: '#64748b', line: '#e2e8f0', accent: '#0d9e6e', accentSoft: '#f0fdf8', warn: '#b45309', warnSoft: '#fffbeb', danger: '#b91c1c' };
 const card: React.CSSProperties = { background: '#fff', borderRadius: 18, boxShadow: '0 4px 20px rgba(15,23,42,0.06)', padding: '18px 18px', direction: 'rtl' };
 
@@ -60,28 +53,25 @@ function stopsToPois(stops: AgentPlanStop[]): POI[] {
 
 export default function AgentPlanner() {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
-  const isAdmin = !!(user as Record<string, unknown> | null)?.is_admin;
+  const { isLoggedIn, isLoading } = useAuth();
 
   const [query, setQuery] = useState('');
   const [running, setRunning] = useState(false);
-  const [steps, setSteps] = useState<Record<AgentStep, StepState>>(() => Object.fromEntries(STEPS.map((s) => [s.key, 'pending'])) as Record<AgentStep, StepState>);
-  const [elapsed, setElapsed] = useState(0);
+  const agents = useAgentRun(FREE_TEXT_AGENTS);
   const [plan, setPlan] = useState<AgentPlan | null>(null);
   const [debug, setDebug] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeStop, setActiveStop] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const resultRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!isLoading && !isAdmin) navigate('/');
-  }, [isLoading, isAdmin, navigate]);
+    if (!isLoading && !isLoggedIn) navigate('/Login', { state: { from: { pathname: '/AgentPlanner' } } });
+  }, [isLoading, isLoggedIn, navigate]);
 
   useEffect(() => {
-    if (!running) return;
-    const started = Date.now();
-    const t = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
-    return () => clearInterval(t);
-  }, [running]);
+    if (plan) resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [plan]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -91,20 +81,21 @@ export default function AgentPlanner() {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    setRunning(true); setElapsed(0); setPlan(null); setDebug(null); setError(null);
-    setSteps(Object.fromEntries(STEPS.map((s) => [s.key, 'pending'])) as Record<AgentStep, StepState>);
+    setRunning(true); setPlan(null); setDebug(null); setError(null); setActiveStop(null);
+    agents.reset();
     try {
       const last = await streamTripAgents(q, (ev: AgentEvent) => {
-        if (ev.type === 'step') setSteps((prev) => ({ ...prev, [ev.step]: ev.phase === 'start' ? 'running' : 'done' }));
+        if (ev.type === 'step') agents.onStep(ev);
       }, ac.signal);
-      if (last.type === 'result') { setPlan(last.data.plan); setDebug(last.data.debug); }
+      if (last.type === 'result') { setPlan(last.data.plan); setDebug(last.data.debug ?? null); }
       else if (last.type === 'error') setError(last.message);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       if (e instanceof ApiError && e.status === 429) setError(`יותר מדי בקשות. נסו שוב בעוד ${e.retryAfterSec ?? 60} שניות.`);
-      else if (e instanceof ApiError && e.status === 403) setError('הדף זמין למנהלים בלבד.');
+      else if (e instanceof ApiError && e.status === 401) setError('צריך להתחבר כדי לתכנן מסלול.');
       else setError('לא הצלחנו להתחבר לשרת. בדקו את החיבור ונסו שוב.');
     } finally {
+      agents.stop();
       setRunning(false);
     }
   }
@@ -117,12 +108,40 @@ export default function AgentPlanner() {
 
   function openOnMap() {
     if (!plan) return;
-    navigate('/RouteGenerator', { state: { bucketPois: stopsToPois(plan.stops), alreadyOrdered: true } });
+    // Same hand-off as Smart Build: the stops plus the agents' plan (times, reasons, tips) for saving.
+    navigate('/RouteGenerator', {
+      state: {
+        bucketPois: stopsToPois(plan.stops),
+        alreadyOrdered: true,
+        routeMeta: {
+          mode: 'agents',
+          total_distance_km: plan.totalDistanceKm,
+          smart_plan: {
+            route_title: plan.title,
+            route_description: [plan.overview, plan.why].filter(Boolean).join(' '),
+            overview: plan.overview,
+            why: plan.why,
+            sunset: plan.sunset,
+            total_drive_minutes: plan.totalDriveMinutes,
+            stops: plan.stops.map((s) => ({
+              location_id: String(s.id), poi_name: s.name, arrival_time: s.arrival, departure_time: s.departure,
+              duration_minutes: s.visitMinutes, smart_insight: s.tip ?? '', visit_type: SLOT_LABEL[s.slot], reason: s.reason,
+              drive_minutes_from_prev: s.driveMinutesFromPrev, distance_from_prev_km: s.distanceFromPrevKm,
+            })),
+          },
+          warnings: [
+            ...plan.rejected.map((r) => `${r.name} לא נכלל: ${r.codes.map((c) => CONDITION_LABEL[c] ?? c).join(', ')}`),
+            ...plan.dropped.map((d) => `${d.name} לא נכנס ליום: ${DROP_LABEL[d.reason] ?? d.reason}`),
+          ],
+          safety_footer: plan.safetyFooter,
+        },
+      },
+    });
   }
 
-  if (isLoading || !isAdmin) return null;
+  if (isLoading || !isLoggedIn) return null;
 
-  const showProgress = running || (!plan && !error && Object.values(steps).some((s) => s !== 'pending'));
+  const showProgress = running;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f1f5f4', paddingBottom: 80 }}>
@@ -132,7 +151,6 @@ export default function AgentPlanner() {
           <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 900, margin: 0 }}>תכנון יום עם סוכנים</h1>
           <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: '6px 0 0' }}>
             כתבו מה בא לכם, והסוכנים יחפשו מקומות, יבדקו את התחזית, יתכננו סדר ושעות ויסבירו את הבחירה.
-            <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 999, padding: '1px 8px', fontSize: 11, marginInlineStart: 8 }}>תצוגה למנהלים</span>
           </p>
         </div>
       </div>
@@ -155,7 +173,7 @@ export default function AgentPlanner() {
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button type="button" onClick={() => void run()} disabled={running || query.trim().length < 3}
               style={{ flex: 1, background: running || query.trim().length < 3 ? '#94a3b8' : C.accent, color: '#fff', border: 'none', borderRadius: 12, padding: '12px 16px', fontSize: 15, fontWeight: 800, cursor: running ? 'default' : 'pointer' }}>
-              {running ? `בונה יום טיול… ${elapsed} שנ׳` : 'בנה יום טיול'}
+              {running ? 'הסוכנים עובדים…' : 'בנה יום טיול'}
             </button>
             {running && (
               <button type="button" onClick={cancel} style={{ background: '#fff', color: C.danger, border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 16px', fontSize: 14, cursor: 'pointer' }}>ביטול</button>
@@ -164,23 +182,8 @@ export default function AgentPlanner() {
         </div>
 
         {showProgress && (
-          <div style={card} aria-live="polite">
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 10 }}>מה הסוכנים עושים עכשיו</div>
-            <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
-              {STEPS.map((s, i) => {
-                const st = steps[s.key];
-                const color = st === 'done' ? C.accent : st === 'running' ? C.ink : '#94a3b8';
-                return (
-                  <li key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 10, color, fontSize: 14, fontWeight: st === 'running' ? 700 : 500 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800,
-                      background: st === 'done' ? C.accent : st === 'running' ? C.accentSoft : '#f1f5f9', color: st === 'done' ? '#fff' : color, border: st === 'running' ? `2px solid ${C.accent}` : 'none' }}>
-                      {st === 'done' ? '✓' : i + 1}
-                    </span>
-                    {s.label}
-                  </li>
-                );
-              })}
-            </ol>
+          <div style={card}>
+            <AgentWorkflow keys={agents.visible} state={agents.state} startedAt={agents.startedAt} />
           </div>
         )}
 
@@ -190,11 +193,15 @@ export default function AgentPlanner() {
 
         {plan && (
           <>
-            <div style={card}>
+            <div ref={resultRef} style={card}>
               <div style={{ fontSize: 12, color: C.muted }}>{formatDate(plan.date)} · <bdi dir="ltr">{plan.startTime}–{plan.endTime}</bdi> · שקיעה <bdi dir="ltr">{plan.sunset}</bdi></div>
               <h2 style={{ fontSize: 21, fontWeight: 900, color: C.ink, margin: '6px 0 8px' }}>{plan.title}</h2>
               <p style={{ fontSize: 15, color: '#334155', lineHeight: 1.7, margin: 0 }}>{plan.overview}</p>
-              {plan.why && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, margin: '8px 0 0' }}>{plan.why}</p>}
+              {plan.why && (
+                <div style={{ marginTop: 10, background: C.accentSoft, borderRadius: 12, padding: '10px 12px', fontSize: 14, color: '#065f46', lineHeight: 1.7 }}>
+                  <strong>למה בניתי ככה: </strong>{plan.why}
+                </div>
+              )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12, fontSize: 13, color: C.muted }}>
                 <span>{plan.stops.length} עצירות</span>
                 <span>{plan.totalDriveMinutes} דק׳ נסיעה</span>
@@ -215,9 +222,16 @@ export default function AgentPlanner() {
               </div>
             )}
 
+            <RouteMap
+              height={300}
+              activeId={activeStop}
+              onSelect={(id) => setActiveStop(Number(id))}
+              stops={plan.stops.map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, image: s.image, time: s.arrival }))}
+            />
+
             <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 10 }}>
               {plan.stops.map((s, i) => (
-                <li key={s.id} style={{ ...card, display: 'grid', gap: 6 }}>
+                <li key={s.id} onClick={() => setActiveStop(s.id)} style={{ ...card, display: 'grid', gap: 6, cursor: 'pointer', outline: activeStop === s.id ? `2px solid ${C.accent}` : 'none' }}>
                   {i > 0 && s.driveMinutesFromPrev > 0 && (
                     <div style={{ fontSize: 12, color: C.muted }}>🚗 {s.driveMinutesFromPrev} דק׳ נסיעה ({s.distanceFromPrevKm} ק״מ){s.waitMinutes > 0 ? ` · המתנה ${s.waitMinutes} דק׳ לשקיעה` : ''}</div>
                   )}
@@ -235,7 +249,8 @@ export default function AgentPlanner() {
                     {s.hasShade && <span>· צל</span>}
                     {s.accessible && <span>· נגיש</span>}
                   </div>
-                  {s.tip && <div style={{ fontSize: 14, color: '#334155', lineHeight: 1.6 }}>{s.tip}</div>}
+                  {s.reason && <div style={{ fontSize: 13, color: '#065f46', background: C.accentSoft, borderRadius: 10, padding: '6px 10px', lineHeight: 1.5 }}>🧭 {s.reason}</div>}
+                  {s.tip && <div style={{ fontSize: 14, color: '#334155', lineHeight: 1.6 }}>💡 {s.tip}</div>}
                   {s.conditions.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {s.conditions.map((c) => (

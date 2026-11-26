@@ -13,7 +13,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, Marker, useMap } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -259,7 +260,7 @@ function MiniMap({ poi }: { poi: POI }) {
       </div>
       <div style={{ height: 220, position: 'relative' }}>
         <MapContainer center={poiCoords} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false} scrollWheelZoom={false}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <BaseTileLayer />
           <Marker position={poiCoords} />
           {userCoords && <RouteLayer userCoords={userCoords} poiCoords={poiCoords} onRouteLoaded={onRouteLoaded} />}
         </MapContainer>

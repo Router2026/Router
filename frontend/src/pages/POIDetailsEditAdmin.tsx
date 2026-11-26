@@ -18,7 +18,8 @@ import { useState, useRef } from 'react';
 import { BASE_URL, api, type POI, type Region } from '../api';
 import { CATEGORIES } from '../utils/constants';
 import RouterLogo from '../assets/logo.jpeg';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, useMapEvents } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -91,7 +92,7 @@ function LocationPickerMap({ lat, lng, onChange }: { lat: number; lng: number; o
     return (
         <div style={{ height: 220, width: '100%', borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0' }}>
             <MapContainer center={[lat || 31.5, lng || 35]} zoom={11} style={{ height: '100%', width: '100%' }}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <BaseTileLayer />
                 {!!(lat && lng) && <Marker position={[lat, lng]} />}
                 <MapEvents />
             </MapContainer>

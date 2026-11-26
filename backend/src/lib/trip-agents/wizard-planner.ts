@@ -2,6 +2,7 @@
 // file may only export handlers and route config).
 
 import type { ApiRoute, ParsedRouteRequest } from "@/lib/ai-route/http";
+import type { StepListener } from "./progress";
 
 /** "groq" forces the old planner; anything else (default) tries the agents first. */
 export function routePlanner(): "agents" | "groq" {
@@ -24,16 +25,22 @@ export async function planWithAgents(
   input: ParsedRouteRequest,
   region: { id: number; name: string; slug: string },
   budgetMs: number = AGENTS_BUDGET_MS,
+  onStep?: StepListener,
 ): Promise<ApiRoute | null> {
   const [{ runTripPipelineFromIntent }, { wizardIntent, wizardRequestText, agentsToApiRoute }] = await Promise.all([
     import("@/lib/trip-agents/pipeline"),
     import("@/lib/trip-agents/wizard"),
   ]);
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new AgentsTimeoutError()), budgetMs); });
+  let timedOut = false;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { timedOut = true; reject(new AgentsTimeoutError()); }, budgetMs);
+  });
+  // A late run keeps going in the background: its progress must not reach the client any more.
+  const listener: StepListener | undefined = onStep && ((step, phase, detail) => { if (!timedOut) onStep(step, phase, detail); });
   try {
     const result = await Promise.race([
-      runTripPipelineFromIntent(wizardIntent(input, region.slug), wizardRequestText(input, region.name)),
+      runTripPipelineFromIntent(wizardIntent(input, region.slug), wizardRequestText(input, region.name), { onStep: listener }),
       timeout,
     ]);
     if (result.plan.stops.length < 2) return null;

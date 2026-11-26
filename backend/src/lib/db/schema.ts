@@ -137,6 +137,8 @@ export const routes = pgTable("routes", {
   difficulty:         varchar("difficulty", { length: 50 }).default("בינוני"),
   groupType:          varchar("group_type", { length: 100 }).default("משפחה"),
   style:              varchar("style", { length: 100 }).default("טבע"),
+  /** How the trip agents built the day (migration 0013); null for hand-built routes. */
+  why:                text("why"),
   createdAt:          timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
   // user_id already indexed as idx_routes_user (migration 0003)
@@ -156,6 +158,8 @@ export const routeStops = pgTable("route_stops", {
   arrivalTime:     varchar("arrival_time", { length: 10 }),
   durationMinutes: integer("duration_minutes").default(60),
   smartInsight:    text("smart_insight"),
+  /** Why this stop is here, at this time (migration 0013). */
+  reason:          text("reason"),
   createdAt:       timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
   // route_id already indexed as idx_route_stops_route (migration 0001)

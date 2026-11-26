@@ -6,11 +6,13 @@ vi.mock('@/lib/auth/tokens', () => ({ getUserFromRequest: vi.fn() }))
 vi.mock('@/lib/auth/rate-limit', () => ({ checkRateLimit: vi.fn(async () => true) }))
 vi.mock('@/lib/db/raw-client', () => ({ rawDb: { query: vi.fn() } }))
 vi.mock('@/lib/trip-agents/pipeline', () => ({ runTripPipeline: vi.fn() }))
+vi.mock('@/lib/ai-route/rate-limit', () => ({ consumeRouteQuota: vi.fn() }))
 
 import { POST } from './route'
 import { getUserFromRequest } from '@/lib/auth/tokens'
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { runTripPipeline } from '@/lib/trip-agents/pipeline'
+import { consumeRouteQuota } from '@/lib/ai-route/rate-limit'
 
 const mockUser = getUserFromRequest as ReturnType<typeof vi.fn>
 const mockRun = runTripPipeline as ReturnType<typeof vi.fn>
@@ -33,12 +35,32 @@ const result = {
   meta: { model: 'm', usage: { calls: 5, inputTokens: 1, outputTokens: 1 }, timingsMs: {}, searchUsedFallback: false },
 }
 
-beforeEach(() => { vi.clearAllMocks(); (checkRateLimit as any).mockResolvedValue(true) })
+const quota = (allowed: boolean) => ({ allowed, limit: 10, remaining: allowed ? 9 : 0, resetAt: new Date(Date.now() + 600_000) })
+
+beforeEach(() => { vi.clearAllMocks(); (checkRateLimit as any).mockResolvedValue(true); (consumeRouteQuota as any).mockResolvedValue(quota(true)) })
 
 describe('POST /api/ai/trip-agents', () => {
-  it('rejects non-admins', async () => {
-    mockUser.mockResolvedValue({ id: 1, is_admin: false })
-    expect((await POST(request({ query: 'מסלול מים' }))).status).toBe(403)
+  it('rejects anonymous users', async () => {
+    mockUser.mockResolvedValue(null)
+    expect((await POST(request({ query: 'מסלול מים' }))).status).toBe(401)
+    expect(mockRun).not.toHaveBeenCalled()
+  })
+
+  it('lets any signed-in user plan, charges the hourly quota, and hides debug data from non-admins', async () => {
+    mockUser.mockResolvedValue({ id: 7, is_admin: false })
+    mockRun.mockResolvedValue(result)
+    const ev = await lines(await POST(request({ query: 'מסלול מים בצפון' })))
+    expect(consumeRouteQuota).toHaveBeenCalledWith(7)
+    expect(ev.at(-1).type).toBe('result')
+    expect(ev.at(-1).data.debug).toBeUndefined()
+  })
+
+  it('returns 429 when a non-admin is over the hourly quota', async () => {
+    mockUser.mockResolvedValue({ id: 7, is_admin: false });
+    (consumeRouteQuota as any).mockResolvedValue(quota(false))
+    const res = await POST(request({ query: 'מסלול מים' }))
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBeTruthy()
     expect(mockRun).not.toHaveBeenCalled()
   })
 
@@ -58,17 +80,19 @@ describe('POST /api/ai/trip-agents', () => {
   it('streams step events then the client plan, without internal match reasons', async () => {
     mockUser.mockResolvedValue({ id: 1, is_admin: true })
     mockRun.mockImplementation(async (_q: string, deps: any) => {
-      deps.onStep('intent', 'start'); deps.onStep('intent', 'done')
+      deps.onStep('intent', 'start'); deps.onStep('intent', 'done', 'הבנתי')
       return result
     })
     const res = await POST(request({ query: 'מסלול מים בצפון' }))
     expect(res.headers.get('content-type')).toContain('application/x-ndjson')
     const ev = await lines(res)
-    expect(ev.slice(0, 2)).toEqual([{ type: 'step', step: 'intent', phase: 'start' }, { type: 'step', step: 'intent', phase: 'done' }])
+    expect(ev.slice(0, 2)).toEqual([{ type: 'step', step: 'intent', phase: 'start' }, { type: 'step', step: 'intent', phase: 'done', detail: 'הבנתי' }])
     const last = ev.at(-1)
     expect(last.type).toBe('result')
     expect(last.data.plan.stops[0]).toMatchObject({ id: 1, name: 'עין גדי', tip: 'טיפ', arrival: '08:00' })
     expect(JSON.stringify(last.data.plan)).not.toContain('internal')
+    expect(last.data.debug).toBeDefined() // admin
+    expect(consumeRouteQuota).not.toHaveBeenCalled()
   })
 
   it('streams a Hebrew error when the pipeline fails or finds nothing', async () => {

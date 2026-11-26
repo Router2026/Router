@@ -11,7 +11,8 @@
 //      but keeps the place on the map.
 
 import { useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, useMapEvents } from 'react-leaflet';
+import { BaseTileLayer } from '../utils/mapTiles';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -82,7 +83,7 @@ function MapPicker({ lat, lng, onChange }: Readonly<{ lat: number; lng: number; 
   return (
     <div style={{ height: 200, borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', marginBottom: 8 }}>
       <MapContainer center={[lat || 31.5, lng || 35]} zoom={12} style={{ height: '100%', width: '100%' }}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <BaseTileLayer />
         {!!(lat && lng) && <Marker position={[lat, lng]} />}
         <MapPickerEvents onChange={onChange} />
       </MapContainer>
