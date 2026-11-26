@@ -8,7 +8,7 @@ import type { BucketPoi, SmartPlan } from "@/lib/trip-bucket/types";
 import { runConditionsAgent, type ConditionsReport, type WeatherFetcher } from "./conditions-agent";
 import type { TripIntent } from "./intent-agent";
 import { emptyUsage, israelToday, type AgentUsage } from "./llm";
-import { runPlannerAgent, type DayPlan, type PlannerDeps, type Slot } from "./planner-agent";
+import { MAX_LEG_MINUTES, runPlannerAgent, type DayPlan, type PlannerDeps, type Slot } from "./planner-agent";
 import { fallbackSummary, runSummaryAgent, type SummaryDeps, type TripSummary } from "./summary-agent";
 import type { PoiCandidate } from "./types";
 
@@ -20,6 +20,8 @@ const DROP_REASON_HE: Record<string, string> = {
   too_many_stops: "יותר מדי עצירות ליום אחד",
   second_hard_hike: "מסלול מאתגר שני באותו יום",
   hiking_limit: "יותר מדי שעות הליכה ביום אחד",
+  too_far: "רחוק מדי מהעצירה הקודמת",
+  past_end_time: "לא נכנס עד שעת הסיום",
 };
 const CONDITION_HE: Record<string, string> = {
   flash_flood_risk: "סכנת שיטפונות בנחל מדברי",
@@ -94,6 +96,10 @@ export async function runBucketPipeline(pois: BucketPoi[], deps: BucketDeps = {}
   const warnings = [
     ...conditions.rejected.map((r) => `${r.place.name} הוצא מהמסלול: ${r.notes.filter((n) => n.severity === "reject").map((n) => CONDITION_HE[n.code] ?? n.code).join(", ")}`),
     ...plan.dropped.map((d) => `${d.place.name} לא נכנס למסלול: ${DROP_REASON_HE[d.reason] ?? d.reason}`),
+    // The user picked the places, so a long leg stays in the plan, but say so.
+    ...plan.stops
+      .filter((s) => s.driveMinutesFromPrev > MAX_LEG_MINUTES)
+      .map((s) => `הנסיעה אל ${s.place.name} ארוכה: כ-${s.driveMinutesFromPrev} דקות מהעצירה הקודמת`),
   ];
   return { plan, summary, conditions, warnings, usage };
 }

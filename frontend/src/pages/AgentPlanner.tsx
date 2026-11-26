@@ -35,6 +35,7 @@ const CONDITION_LABEL: Record<string, string> = {
 const DROP_LABEL: Record<string, string> = {
   no_daylight: 'לא נשאר אור יום', day_full: 'לא נכנס עד החשכה', too_many_stops: 'יותר מדי עצירות',
   second_hard_hike: 'מסלול מאתגר שני', hiking_limit: 'יותר מדי שעות הליכה',
+  too_far: 'רחוק מדי מהעצירה הקודמת', past_end_time: 'לא נכנס עד שעת הסיום',
 };
 
 type StepState = 'pending' | 'running' | 'done';
@@ -190,7 +191,7 @@ export default function AgentPlanner() {
         {plan && (
           <>
             <div style={card}>
-              <div style={{ fontSize: 12, color: C.muted }}>{formatDate(plan.date)} · {plan.startTime}–{plan.endTime} · שקיעה {plan.sunset}</div>
+              <div style={{ fontSize: 12, color: C.muted }}>{formatDate(plan.date)} · <bdi dir="ltr">{plan.startTime}–{plan.endTime}</bdi> · שקיעה <bdi dir="ltr">{plan.sunset}</bdi></div>
               <h2 style={{ fontSize: 21, fontWeight: 900, color: C.ink, margin: '6px 0 8px' }}>{plan.title}</h2>
               <p style={{ fontSize: 15, color: '#334155', lineHeight: 1.7, margin: 0 }}>{plan.overview}</p>
               {plan.why && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, margin: '8px 0 0' }}>{plan.why}</p>}
@@ -221,7 +222,7 @@ export default function AgentPlanner() {
                     <div style={{ fontSize: 12, color: C.muted }}>🚗 {s.driveMinutesFromPrev} דק׳ נסיעה ({s.distanceFromPrevKm} ק״מ){s.waitMinutes > 0 ? ` · המתנה ${s.waitMinutes} דק׳ לשקיעה` : ''}</div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800, color: C.accent, fontSize: 15, minWidth: 92 }}>{s.arrival}–{s.departure}</span>
+                    <bdi dir="ltr" style={{ unicodeBidi: 'isolate', fontVariantNumeric: 'tabular-nums', fontWeight: 800, color: C.accent, fontSize: 15, minWidth: 92 }}>{s.arrival}–{s.departure}</bdi>
                     <button type="button" onClick={() => navigate(`/POIDetail?id=${s.id}`)}
                       style={{ background: 'none', border: 'none', padding: 0, fontSize: 16, fontWeight: 800, color: C.ink, cursor: 'pointer', textAlign: 'right' }}>{s.name}</button>
                   </div>
@@ -230,7 +231,7 @@ export default function AgentPlanner() {
                     {s.region && <span>· {s.region}</span>}
                     <span>· {SLOT_LABEL[s.slot]}</span>
                     {s.difficulty === 'מאתגר' && <span>· מאתגר</span>}
-                    {s.hasWater && <span>· מים</span>}
+                    {s.hasWater && s.category !== 'מים' && <span>· מים</span>}
                     {s.hasShade && <span>· צל</span>}
                     {s.accessible && <span>· נגיש</span>}
                   </div>

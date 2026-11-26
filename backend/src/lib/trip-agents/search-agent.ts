@@ -124,7 +124,7 @@ function fromAiRouteCandidate(c: Candidate, regionName: string, anchored: boolea
     ...(anchored ? { distanceKm: toKm(c.distanceFromStartM) } : {}),
     id: c.locationId, name: c.name, category: c.category, regionName,
     lat: c.lat, lng: c.lng, durationMinutes: c.durationMinutes, difficulty: c.difficulty,
-    hasWater: c.hasWater, hasShade: c.hasShade, accessible: c.accessible, rating: c.rating,
+    hasWater: c.hasWater, waterSeasonal: !!c.waterSeasonal, hasShade: c.hasShade, accessible: c.accessible, rating: c.rating,
     description: c.description, mainImage: c.mainImage, sources: ["postgis"],
   };
 }
@@ -134,7 +134,7 @@ function fromSearchItem(r: SearchResultItem, anchored: boolean): PoiCandidate {
     ...(anchored ? { distanceKm: toKm(r.distance_meters) } : {}),
     id: r.id, name: r.name, category: r.category, regionName: r.region_name ?? null,
     lat: r.latitude, lng: r.longitude, durationMinutes: r.duration_minutes ?? null, difficulty: r.difficulty ?? null,
-    hasWater: !!r.has_water, hasShade: !!r.has_shade, accessible: !!r.accessible,
+    hasWater: !!r.has_water && !r.water_seasonal, waterSeasonal: !!r.water_seasonal, hasShade: !!r.has_shade, accessible: !!r.accessible,
     rating: Number.isFinite(r.average_rating) ? r.average_rating : null,
     description: "", mainImage: r.main_image || null, sources: ["semantic"],
   };
@@ -227,12 +227,18 @@ function cleanRegions(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((r): r is string => typeof r === "string" && REGION_SLUGS.includes(r)) : [];
 }
 
+/** "מסלול מים" / needs_water: the user wants water they can count on. */
+export function wantsWater(intent: Pick<TripIntent, "needs_water" | "styles">): boolean {
+  return intent.needs_water || intent.styles.includes("water");
+}
+
 export async function executeSearchTool(
   name: string,
   input: unknown,
   pool: CandidatePool,
   deps: Required<Pick<SearchAgentDeps, "postgis" | "semantic">>,
   anchor: LatLngPoint | null = null,
+  opts: { excludeSeasonalWater?: boolean } = {},
 ): Promise<unknown> {
   const args = (input ?? {}) as Record<string, unknown>;
   let items: PoiCandidate[];
@@ -256,6 +262,8 @@ export async function executeSearchTool(
   } else {
     return { error: `unknown tool ${name}` };
   }
+  // Water request: places that are dry most of the year never enter the pool.
+  if (opts.excludeSeasonalWater) items = items.filter((c) => !c.waterSeasonal);
   pool.add(items);
   return { count: items.length, places: toolView(items) };
 }
@@ -356,7 +364,7 @@ export async function runSearchAgent(intent: TripIntent, deps: SearchAgentDeps =
     const results = await Promise.all(
       uses.map(async (u): Promise<Anthropic.ToolResultBlockParam> => {
         try {
-          const out = await executeSearchTool(u.name, u.input, pool, toolDeps, intent.anchor);
+          const out = await executeSearchTool(u.name, u.input, pool, toolDeps, intent.anchor, { excludeSeasonalWater: wantsWater(intent) });
           const isError = typeof out === "object" && out !== null && "error" in out;
           return { type: "tool_result", tool_use_id: u.id, content: JSON.stringify(out), ...(isError ? { is_error: true } : {}) };
         } catch (err) {

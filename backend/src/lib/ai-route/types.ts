@@ -23,6 +23,8 @@ export interface Candidate {
   durationMinutes: number;
   difficulty: string | null;
   hasWater: boolean;
+  /** Water site that is dry most of the year (hasWater is then false). */
+  waterSeasonal?: boolean;
   hasShade: boolean;
   accessible: boolean;
   rating: number | null;

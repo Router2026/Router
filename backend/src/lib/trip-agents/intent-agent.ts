@@ -37,6 +37,10 @@ export type TripIntent = z.infer<typeof TripIntentSchema> & {
   date: string;
   start_time: string;
   max_stops: number;
+  /** Latest end of the day, "HH:MM" (the route planner form). The day also ends by dark. */
+  end_time?: string | null;
+  /** Where the user starts driving from: adds the drive to the first stop. */
+  origin?: { lat: number; lng: number } | null;
 };
 
 export function buildIntentSystemPrompt(today: { date: string; weekday: string }): string {

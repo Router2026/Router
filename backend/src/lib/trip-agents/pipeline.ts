@@ -42,7 +42,21 @@ export interface PipelineDeps extends Pick<SearchAgentDeps, "postgis" | "semanti
   onStep?: (step: AgentStep, phase: "start" | "done") => void;
 }
 
+/** Free-text request: agent 1 parses it, then agents 2–6. */
 export async function runTripPipeline(query: string, deps: PipelineDeps = {}): Promise<PipelineResult> {
+  return runPipeline(query, null, deps);
+}
+
+/**
+ * Structured request (the route planner form): the intent is already known, so agent 1 is
+ * skipped. `query` is a Hebrew description of the request, used by agents 6 and 5 as "what the
+ * user asked".
+ */
+export async function runTripPipelineFromIntent(intent: TripIntent, query: string, deps: PipelineDeps = {}): Promise<PipelineResult> {
+  return runPipeline(query, intent, deps);
+}
+
+async function runPipeline(query: string, givenIntent: TripIntent | null, deps: PipelineDeps): Promise<PipelineResult> {
   const usage = emptyUsage();
   const timings: PipelineResult["meta"]["timingsMs"] = {};
   const model = deps.model ?? tripAgentsModel();
@@ -60,7 +74,7 @@ export async function runTripPipeline(query: string, deps: PipelineDeps = {}): P
     }
   }
 
-  const intent = await step("intent", () => runIntentAgent(query, { ...llm, now: deps.now }));
+  const intent = givenIntent ?? (await step("intent", () => runIntentAgent(query, { ...llm, now: deps.now })));
   const search = await step("search", () =>
     runSearchAgent(intent, { ...llm, postgis: deps.postgis, semantic: deps.semantic }));
   const conditions = await step("conditions", () =>

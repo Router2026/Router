@@ -45,7 +45,7 @@ export async function fetchBucketPois(ids: string[]): Promise<BucketPoi[]> {
        )                                              AS longitude,
        COALESCE(l.duration_minutes, 60)              AS duration_minutes,
        COALESCE(l.difficulty, 'בינוני')               AS difficulty,
-       COALESCE(l.has_water,   false)                AS has_water,
+       (COALESCE(l.has_water, false) AND NOT l.water_seasonal) AS has_water,  -- seasonal water doesn't count
        COALESCE(l.has_shade,   false)                AS has_shade,
        COALESCE(l.accessible,  false)                AS accessible,
        COALESCE(l.average_rating, 4.0)::float        AS average_rating

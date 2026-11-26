@@ -112,6 +112,8 @@ export const locations = pgTable("locations", {
   isFeatured:      boolean("is_featured").default(false),
   // FALSE = coordinates not from a precise source (migration 0010); excluded from route planning
   coordsVerified:  boolean("coords_verified").notNull().default(true),
+  // TRUE = water is unreliable (dry most of the year); see migration 0012
+  waterSeasonal:   boolean("water_seasonal").notNull().default(false),
   // 'wikipedia' (CC BY-SA: show attribution) | 'facts' | null = human-written (migration 0011)
   descriptionSource:    varchar("description_source", { length: 20 }),
   descriptionSourceUrl: text("description_source_url"),

@@ -432,7 +432,8 @@ function mapLocation(r: any): POI {
     longitude: Number.parseFloat(r.longitude),
     images,
     main_image: mainImage, thumbnail: mainImage, difficulty: r.difficulty || 'בינוני',
-    duration_minutes: r.duration_minutes, has_water: r.has_water,
+    // Seasonal water (dry most of the year) doesn't get the "מים" tag anywhere in the app.
+    duration_minutes: r.duration_minutes, has_water: !!r.has_water && !r.water_seasonal,
     has_shade: r.has_shade, accessible: r.accessible,
     is_featured: r.is_featured ?? false,
     average_rating: Number.parseFloat(r.average_rating) || 4,

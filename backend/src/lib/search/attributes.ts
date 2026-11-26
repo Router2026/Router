@@ -10,7 +10,8 @@ export type AttributeKey = "accessible" | "shade" | "water" | "challenging";
 export const ATTRIBUTE_SQL: Record<AttributeKey, string> = {
   accessible: "l.accessible = TRUE",
   shade: "l.has_shade = TRUE",
-  water: "l.has_water = TRUE",
+  // Seasonal water (dry most of the year) doesn't count — migration 0012.
+  water: "l.has_water = TRUE AND NOT l.water_seasonal",
   challenging: "l.difficulty = 'מאתגר'",
 };
 

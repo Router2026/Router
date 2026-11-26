@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('@/lib/trip-bucket/mapbox-matrix', () => ({ fetchMapboxMatrix: vi.fn(async () => null) }))
 
-import { runPlannerAgent, selectStops, slotFor, slotOrder, visitMinutes, travelMatrix, MAX_HIKING_MINUTES } from './planner-agent'
+import { runPlannerAgent, selectStops, slotFor, slotOrder, visitMinutes, travelMatrix, MAX_HIKING_MINUTES, MAX_LEG_MINUTES } from './planner-agent'
 import type { AssessedPlace } from './conditions-agent'
 import type { PoiCandidate } from './types'
 
@@ -91,17 +91,61 @@ describe('runPlannerAgent', () => {
   })
 
   it('switches to the shortest order (sunset still last) when time-of-day order backtracks', async () => {
-    // hike (0) and viewpoint (2) are next to each other, the site (1) is 100 min away from both.
-    // time-of-day: hike → site → viewpoint = 200; shortest with viewpoint last: site → hike → viewpoint = 105.
-    const m = [[0, 100, 5], [100, 0, 100], [5, 100, 0]]
-    const places = [poi(1, { category: 'נחל', difficulty: 'מאתגר', durationMinutes: 60 }), poi(2, { durationMinutes: 30 }), poi(3, { category: 'מצפה', durationMinutes: 30 })]
+    // 0 = hard hike (morning), 1 and 2 = sites (afternoon), 3 = viewpoint (sunset).
+    // time-of-day: hike → site2 → site1 → viewpoint = 10 + 10 + 45 = 65
+    // shortest with the viewpoint last: site1 → site2 → hike → viewpoint = 10 + 10 + 10 = 30 (no leg over 30)
+    const m = [
+      [0, 30, 10, 10],
+      [30, 0, 10, 45],
+      [10, 10, 0, 20],
+      [10, 45, 20, 0],
+    ]
+    const places = [
+      poi(1, { category: 'נחל', difficulty: 'מאתגר', durationMinutes: 60 }),
+      poi(2, { durationMinutes: 30 }), poi(3, { durationMinutes: 30 }),
+      poi(4, { category: 'מצפה', durationMinutes: 30 }),
+    ]
     const plan = await runPlannerAgent({ intent, places: places.map(ok), sunset: '18:00' }, deps(m))
     expect(plan.orderStrategy).toBe('shortest_drive')
-    expect(plan.stops.map((s) => s.place.id)).toEqual([2, 1, 3])
-    expect(plan.totalDriveMinutes).toBe(105)
+    expect(plan.stops.map((s) => s.place.id)).toEqual([2, 3, 1, 4])
+    expect(plan.totalDriveMinutes).toBe(30)
 
-    const near = [[0, 10, 5], [10, 0, 10], [5, 10, 0]]
+    const near = [[0, 10, 5, 5], [10, 0, 10, 10], [5, 10, 0, 5], [5, 10, 5, 0]]
     expect((await runPlannerAgent({ intent, places: places.map(ok), sunset: '18:00' }, deps(near))).orderStrategy).toBe('time_of_day')
+  })
+
+  it('keeps the day inside one area: a place over MAX_LEG_MINUTES from every chosen stop is dropped as too_far', async () => {
+    // 0 and 1 are close (15 min); 2 is 68 min from both (the Banias → far-away-spring case).
+    const m = [[0, 15, 68], [15, 0, 68], [68, 68, 0]]
+    const places = [poi(1), poi(2), poi(3, { category: 'מעיין', durationMinutes: 45 })]
+    const plan = await runPlannerAgent({ intent, places: places.map(ok), sunset: '16:40' }, deps(m))
+    expect(plan.stops.map((s) => s.place.id).sort()).toEqual([1, 2])
+    expect(plan.dropped).toEqual([{ place: expect.objectContaining({ id: 3 }), reason: 'too_far' }])
+    expect(plan.stops.every((s) => s.driveMinutesFromPrev <= MAX_LEG_MINUTES)).toBe(true)
+  })
+
+  it('drops the lower-priority stop when the final order still has a leg over the limit', async () => {
+    // 0–1 = 25 and 1–2 = 25 keep all three in one cluster, but 0–2 = 50.
+    // Slots: 0 morning hike, 2 afternoon, 1 sunset viewpoint → order 0 → 2 → 1 has a 50-min leg.
+    const m = [[0, 25, 50], [25, 0, 25], [50, 25, 0]]
+    const places = [poi(1, { category: 'נחל', difficulty: 'מאתגר', durationMinutes: 60 }), poi(2, { category: 'מצפה', durationMinutes: 30 }), poi(3, { durationMinutes: 30 })]
+    const plan = await runPlannerAgent({ intent: { start_time: '12:00', max_stops: 4 }, places: places.map(ok), sunset: '18:00' }, deps(m))
+    expect(plan.stops.every((s) => s.driveMinutesFromPrev <= MAX_LEG_MINUTES)).toBe(true)
+    expect(plan.dropped.map((d) => [d.place.id, d.reason])).toEqual([[3, 'too_far']])
+  })
+
+  it('never drops for distance in a user-picked list (Trip Bucket)', async () => {
+    const m = [[0, 68], [68, 0]]
+    const plan = await runPlannerAgent({ intent, places: [poi(1), poi(2)].map(ok), sunset: '16:40', respectSelection: true }, deps(m))
+    expect(plan.stops).toHaveLength(2)
+    expect(plan.stops[1].driveMinutesFromPrev).toBe(68)
+  })
+
+  it('does not use a far spare to fill the day', async () => {
+    const m = [[0, 10, 80], [10, 0, 80], [80, 80, 0]]
+    const plan = await runPlannerAgent({ intent, places: [poi(1), poi(2)].map(ok), spares: [poi(9)].map(ok), sunset: '16:40' }, deps(m))
+    expect(plan.stops.map((s) => s.place.id).sort()).toEqual([1, 2])
+    expect(plan.dropped).toEqual([]) // spares are skipped silently
   })
 
   it('fills free stops from spares under the same rules, after the shortlist', async () => {
