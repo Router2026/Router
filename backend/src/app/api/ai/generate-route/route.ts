@@ -1,7 +1,10 @@
 // POST /api/ai/generate-route
-// Plans a one-day nature route for any signed-in user. All stops come from the
-// `locations` table; the LLM (Groq) only selects among pre-filtered candidates.
-// See src/lib/ai-route/ for the pipeline.
+// Plans a one-day nature route for any signed-in user (the TripPlanner form). All stops come
+// from the `locations` table.
+//
+// Planner: the trip agents (src/lib/trip-agents/, agents 2–6; the form replaces agent 1) by
+// default. The older Groq planner (src/lib/ai-route/) is the backup: it runs when the agents
+// fail or find nothing, and always when ROUTE_PLANNER=groq (switchable on Vercel without a deploy).
 
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse, errorResponse } from "@/lib/api/response";
@@ -12,8 +15,9 @@ import { createSelector } from "@/lib/ai-route/create-selector";
 import type { StopSelector } from "@/lib/ai-route/groq";
 import { parseRouteRequest, toApiRoute } from "@/lib/ai-route/http";
 import { consumeRouteQuota } from "@/lib/ai-route/rate-limit";
+import { AgentsTimeoutError, planWithAgents, routePlanner } from "@/lib/trip-agents/wizard-planner";
 
-// The AI step is capped at ~25s by planRoute; this leaves headroom for DB work.
+// The agents take ~25-30 s; the Groq backup is capped at ~25 s. Vercel Hobby allows up to 60 s.
 export const maxDuration = 60;
 
 // Module scope: one instance per server process, so the fallback selector's
@@ -34,8 +38,8 @@ export async function POST(req: NextRequest) {
   const input = parsed.value;
 
   try {
-    const { rows: regionRows } = await rawDb.query<{ id: number; name: string }>(
-      `SELECT id, name FROM regions WHERE name = $1 OR slug = $1 LIMIT 1`,
+    const { rows: regionRows } = await rawDb.query<{ id: number; name: string; slug: string }>(
+      `SELECT id, name, slug FROM regions WHERE name = $1 OR slug = $1 LIMIT 1`,
       [input.region],
     );
     const region = regionRows[0];
@@ -56,6 +60,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 1. Trip agents (default). Any failure falls through to the Groq planner below.
+    let agentsTimedOut = false;
+    if (routePlanner() === "agents") {
+      const started = Date.now();
+      try {
+        const agentRoute = await planWithAgents(input, region);
+        if (agentRoute) {
+          console.info("[ai-route] planned", JSON.stringify({
+            userId: user.id, regionId: region.id, planner: "agents", stops: agentRoute.stops.length, ms: Date.now() - started,
+          }));
+          return NextResponse.json(successResponse(agentRoute), { status: 200, headers: rateHeaders });
+        }
+        console.warn("[ai-route] agents found fewer than 2 stops; using the Groq planner");
+      } catch (err) {
+        agentsTimedOut = err instanceof AgentsTimeoutError;
+        console.error(`[ai-route] agents ${agentsTimedOut ? "timed out; using the quick deterministic planner" : "failed; using the Groq planner"}`, err);
+      }
+    }
+
+    // 2. Groq planner (backup, or forced with ROUTE_PLANNER=groq).
     const route = await planRoute(
       {
         regionId: region.id,
@@ -71,12 +95,13 @@ export async function POST(req: NextRequest) {
         seed: crypto.randomUUID(),
         signal: req.signal,
       },
-      { selector },
+      // After an agents timeout there's no time left for Groq's model: plan deterministically.
+      { selector: agentsTimedOut ? null : selector },
     );
 
     // Structured log for monitoring AI quality (no PII beyond the numeric user id).
     console.info("[ai-route] planned", JSON.stringify({
-      userId: user.id, regionId: region.id, source: route.source, stops: route.stops.length, ...route.diagnostics,
+      userId: user.id, regionId: region.id, planner: "groq", source: route.source, stops: route.stops.length, ...route.diagnostics,
     }));
 
     return NextResponse.json(successResponse(toApiRoute(route, input, region)), { status: 200, headers: rateHeaders });

@@ -35,7 +35,7 @@ const CONDITION_LABEL: Record<string, string> = {
 const DROP_LABEL: Record<string, string> = {
   no_daylight: 'לא נשאר אור יום', day_full: 'לא נכנס עד החשכה', too_many_stops: 'יותר מדי עצירות',
   second_hard_hike: 'מסלול מאתגר שני', hiking_limit: 'יותר מדי שעות הליכה',
-  too_far: 'רחוק מדי מהעצירה הקודמת',
+  too_far: 'רחוק מדי מהעצירה הקודמת', past_end_time: 'לא נכנס עד שעת הסיום',
 };
 
 type StepState = 'pending' | 'running' | 'done';

@@ -4,6 +4,12 @@ import { NextRequest } from "next/server";
 vi.mock("@/lib/auth/tokens", () => ({ getUserFromRequest: vi.fn() }));
 vi.mock("@/lib/db/raw-client", () => ({ rawDb: { query: vi.fn() } }));
 vi.mock("@/lib/ai-route/rate-limit", () => ({ consumeRouteQuota: vi.fn() }));
+// The planner switch: Groq by default in these tests; the agent tests below opt in.
+vi.mock("@/lib/trip-agents/wizard-planner", () => ({
+  routePlanner: vi.fn(() => "groq"),
+  planWithAgents: vi.fn(),
+  AgentsTimeoutError: class AgentsTimeoutError extends Error {},
+}));
 vi.mock("@/lib/ai-route/generate", async (orig) => ({
   ...(await orig<typeof import("@/lib/ai-route/generate")>()),
   planRoute: vi.fn(),
@@ -15,6 +21,7 @@ import { rawDb } from "@/lib/db/raw-client";
 import { consumeRouteQuota } from "@/lib/ai-route/rate-limit";
 import { planRoute, NoCandidatesError, type PlannedRoute } from "@/lib/ai-route/generate";
 import { makeCandidate } from "@/lib/ai-route/test-fixtures";
+import { AgentsTimeoutError, planWithAgents, routePlanner } from "@/lib/trip-agents/wizard-planner";
 
 const mockUser = getUserFromRequest as ReturnType<typeof vi.fn>;
 const mockQuery = (rawDb as unknown as { query: ReturnType<typeof vi.fn> }).query;
@@ -52,7 +59,8 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   mockUser.mockResolvedValue({ id: 5, email: "a@b.c", is_admin: false });
-  mockQuery.mockResolvedValue({ rows: [{ id: 3, name: "גולן" }] });
+  mockQuery.mockResolvedValue({ rows: [{ id: 3, name: "גולן", slug: "golan_hermon" }] });
+  (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("groq");
   mockQuota.mockResolvedValue({ allowed: true, limit: 10, remaining: 9, resetAt });
   mockPlan.mockResolvedValue(planned);
 });
@@ -114,5 +122,52 @@ describe("POST /api/ai/generate-route", () => {
     const text = JSON.stringify(await res.json());
     expect(text).not.toContain("hunter2");
     expect(text).toContain("GENERATION_ERROR");
+  });
+
+  describe("trip agents (default planner)", () => {
+    const agentRoute = {
+      name: "יום מים בגולן", description: "תכננתי לך יום ש…", region: "גולן", region_id: 3, group_type: "family",
+      style: "מים", source: "ai", start_time: "09:00", end_time: "14:00", total_duration_hours: 5, total_distance_km: 20,
+      total_drive_minutes: 30, stops: [{ location_id: 9, poi_name: "יהודיה", category: "שמורת טבע", latitude: 32.9, longitude: 35.7,
+        main_image: null, order_index: 0, arrival_time: "09:00", departure_time: "11:00", duration_minutes: 120,
+        drive_minutes_from_prev: 0, distance_from_prev_km: 0, smart_insight: "הביאו נעלי מים" }],
+    };
+
+    it("uses the agents and skips Groq when they return a route", async () => {
+      (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("agents");
+      (planWithAgents as ReturnType<typeof vi.fn>).mockResolvedValue(agentRoute);
+      const res = await POST(request(validBody));
+      expect(res.status).toBe(200);
+      expect((await res.json()).data.name).toBe("יום מים בגולן");
+      expect(mockPlan).not.toHaveBeenCalled();
+      expect((planWithAgents as ReturnType<typeof vi.fn>).mock.calls[0][1]).toMatchObject({ id: 3, slug: "golan_hermon" });
+    });
+
+    it("falls back to Groq when the agents fail or find too little", async () => {
+      (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("agents");
+      (planWithAgents as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("anthropic down"));
+      let res = await POST(request(validBody));
+      expect(res.status).toBe(200);
+      expect((await res.json()).data.stops[0].poi_name).toBe("בניאס");
+
+      (planWithAgents as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+      res = await POST(request(validBody));
+      expect((await res.json()).data.stops[0].poi_name).toBe("בניאס");
+      expect(mockPlan).toHaveBeenCalledTimes(2);
+    });
+
+    it("after an agents timeout, plans deterministically (no Groq model call) so the request ends in time", async () => {
+      (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("agents");
+      (planWithAgents as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new AgentsTimeoutError("slow"));
+      const res = await POST(request(validBody));
+      expect(res.status).toBe(200);
+      expect(mockPlan.mock.calls[0][1]).toEqual({ selector: null });
+    });
+
+    it("ROUTE_PLANNER=groq skips the agents entirely", async () => {
+      await POST(request(validBody));
+      expect(planWithAgents).not.toHaveBeenCalled();
+      expect(mockPlan).toHaveBeenCalled();
+    });
   });
 });

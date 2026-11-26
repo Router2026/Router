@@ -54,7 +54,7 @@ export interface PlannedStop {
   conditions: ConditionNote[];
 }
 
-export type DropReason = "too_many_stops" | "second_hard_hike" | "hiking_limit" | "no_daylight" | "day_full" | "too_far";
+export type DropReason = "too_many_stops" | "second_hard_hike" | "hiking_limit" | "no_daylight" | "day_full" | "too_far" | "past_end_time";
 
 export interface DayPlan {
   stops: PlannedStop[];
@@ -104,15 +104,20 @@ function pathDrive(order: number[], m: DistanceMatrix): number {
 }
 
 /** Slot order; within a slot, nearest neighbour from the previous stop. */
-export function slotOrder(slots: Slot[], m: DistanceMatrix): number[] {
+/**
+ * Slot order; within a slot, nearest neighbour from the previous stop. The very first stop is the
+ * one nearest the user's starting point when `fromOrigin` (minutes per place) is given.
+ */
+export function slotOrder(slots: Slot[], m: DistanceMatrix, fromOrigin?: number[] | null): number[] {
   const idx = slots.map((_, i) => i).sort((a, b) => SLOT_RANK[slots[a]] - SLOT_RANK[slots[b]] || a - b);
   const order: number[] = [];
   for (const rank of [0, 1, 2, 3]) {
     const group = new Set(idx.filter((i) => SLOT_RANK[slots[i]] === rank));
     while (group.size) {
       const last = order.at(-1);
+      const cost = (i: number) => (last !== undefined ? m[last][i] : fromOrigin ? fromOrigin[i] : 0);
       let best = -1;
-      for (const i of group) if (best < 0 || (last !== undefined && m[last][i] < m[last][best])) best = i;
+      for (const i of group) if (best < 0 || cost(i) < cost(best)) best = i;
       order.push(best);
       group.delete(best);
     }
@@ -181,11 +186,14 @@ function assignSlots(chosen: AssessedPlace[]): Slot[] {
   });
 }
 
-function chooseOrder(slots: Slot[], m: DistanceMatrix): { order: number[]; strategy: DayPlan["orderStrategy"] } {
-  const order = slotOrder(slots, m);
+function chooseOrder(slots: Slot[], m: DistanceMatrix, fromOrigin?: number[] | null): { order: number[]; strategy: DayPlan["orderStrategy"] } {
+  const order = slotOrder(slots, m, fromOrigin);
+  const withStart = (o: number[]) => pathDrive(o, m) + (fromOrigin && o.length ? fromOrigin[o[0]] : 0);
   if (slots.length > 2) {
-    const short = shortestOrder(slots, m);
-    if (pathDrive(order, m) - pathDrive(short, m) > SLOT_ORDER_MAX_EXTRA_DRIVE) return { order: short, strategy: "shortest_drive" };
+    let short = shortestOrder(slots, m);
+    // No sunset spot pinned last: start from the end nearer the user.
+    if (fromOrigin && !slots.includes("sunset") && fromOrigin[short.at(-1)!] < fromOrigin[short[0]]) short = [...short].reverse();
+    if (withStart(order) - withStart(short) > SLOT_ORDER_MAX_EXTRA_DRIVE) return { order: short, strategy: "shortest_drive" };
   }
   return { order, strategy: "time_of_day" };
 }
@@ -193,7 +201,7 @@ function chooseOrder(slots: Slot[], m: DistanceMatrix): { order: number[]; strat
 // ── Agent ─────────────────────────────────────────────────────────────────────
 
 export interface PlannerInput {
-  intent: Pick<TripIntent, "start_time" | "max_stops">;
+  intent: Pick<TripIntent, "start_time" | "max_stops" | "end_time" | "origin">;
   /** Approved places, best first. */
   places: AssessedPlace[];
   /** Approved spares from the wider pool: used only to fill free stops, after `places`. */
@@ -215,6 +223,9 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
   // Shortlist first, then spares (used only to fill free stops). One travel matrix for all of them.
   const pool = [...input.places, ...(input.spares ?? [])];
   const { matrix: full, source } = await (deps.matrix ?? travelMatrix)(pool.map((a) => a.place));
+  // Drive from the user's start point (estimate; the leg limit doesn't apply to getting there).
+  const origin = input.intent.origin ?? null;
+  const originFull = origin ? pool.map((a) => estimateDriveMinutes(haversineMeters(origin, a.place))) : null;
 
   // 1. Choose stops as a geographic cluster: each new stop within MAX_LEG_MINUTES of a chosen one.
   const sel = selectStops(pool, input.intent.max_stops, {
@@ -237,7 +248,7 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
     slots = assignSlots(chosen);
     const sub = idx;
     matrix = sub.map((a) => sub.map((b) => full[a][b]));
-    ({ order, strategy } = chooseOrder(slots, matrix));
+    ({ order, strategy } = chooseOrder(slots, matrix, originFull ? sub.map((k) => originFull[k]) : null));
     if (respect) break;
     const m = matrix;
     const o = order;
@@ -249,6 +260,7 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
     idx = idx.filter((_, n) => n !== loser);
   }
 
+  const endMin = input.intent.end_time ? parseTime(input.intent.end_time) : Number.POSITIVE_INFINITY;
   const stops: PlannedStop[] = [];
   let clock = startMin;
   let prev = -1;
@@ -260,7 +272,7 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
     const a = chosen[i];
     const p = a.place;
     const visit = visitMinutes(p);
-    const drive = prev < 0 ? 0 : Math.round(matrix[prev][i]);
+    const drive = prev < 0 ? (originFull ? originFull[idx[i]] : 0) : Math.round(matrix[prev][i]);
     let arrival = clock + drive;
     let wait = 0;
     let slot = slots[i];
@@ -275,15 +287,21 @@ export async function runPlannerAgent(input: PlannerInput, deps: PlannerDeps = {
       }
     }
     const departure = arrival + visit;
-    const limit = sunsetMin + (VIEWPOINT.has(p.category) ? AFTER_SUNSET_GRACE : 0);
+    const darkLimit = sunsetMin + (VIEWPOINT.has(p.category) ? AFTER_SUNSET_GRACE : 0);
 
     const needsLight = isHike(p) && arrival > sunsetMin - HIKE_DAYLIGHT_BUFFER;
-    if (stops.length > 0 && (needsLight || departure > limit)) {
-      dropped.push({ place: p, reason: needsLight ? "no_daylight" : "day_full" });
+    // A stop dropped above can leave two far-apart stops next to each other: same leg limit here.
+    if (!respect && stops.length > 0 && drive > MAX_LEG_MINUTES) {
+      dropped.push({ place: p, reason: "too_far" });
+      continue;
+    }
+    if (stops.length > 0 && (needsLight || departure > darkLimit || departure > endMin)) {
+      const reason: DropReason = needsLight ? "no_daylight" : departure > endMin && endMin < darkLimit ? "past_end_time" : "day_full";
+      dropped.push({ place: p, reason });
       continue; // later stops may still fit (e.g. a short viewpoint)
     }
 
-    const meters = prev < 0 ? 0 : haversineMeters(chosen[prev].place, p);
+    const meters = prev < 0 ? (origin ? haversineMeters(origin, p) : 0) : haversineMeters(chosen[prev].place, p);
     stops.push({
       place: p,
       slot,

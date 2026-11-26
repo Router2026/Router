@@ -21,6 +21,7 @@ const DROP_REASON_HE: Record<string, string> = {
   second_hard_hike: "מסלול מאתגר שני באותו יום",
   hiking_limit: "יותר מדי שעות הליכה ביום אחד",
   too_far: "רחוק מדי מהעצירה הקודמת",
+  past_end_time: "לא נכנס עד שעת הסיום",
 };
 const CONDITION_HE: Record<string, string> = {
   flash_flood_risk: "סכנת שיטפונות בנחל מדברי",

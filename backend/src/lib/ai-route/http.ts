@@ -77,13 +77,13 @@ export function parseRouteRequest(body: unknown): ParseResult {
   };
 }
 
-const STYLE_LABELS: Record<TripStyle, string> = {
+export const STYLE_LABELS: Record<TripStyle, string> = {
   history: "היסטוריה", water: "מים", photo: "צילום", nature: "טבע",
   hiking: "טיולים", beach: "חוף", geology: "גיאולוגיה",
   wine: "נוף", village: "כפרים", family_activities: "לילדים",
 };
 
-const GROUP_LABELS: Record<RoutePreferences["groupType"], string> = {
+export const GROUP_LABELS: Record<RoutePreferences["groupType"], string> = {
   solo: "יחיד", couple: "זוג", family: "משפחה", friends: "חברים",
 };
 
