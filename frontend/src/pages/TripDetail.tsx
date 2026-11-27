@@ -237,6 +237,14 @@ export default function TripDetail() {
             ))}
           </div>
 
+          {/* Live trip mode — the day itself: next stop, on-time status, sunset */}
+          {(trip.stops || []).length > 0 && (
+            <button onClick={() => navigate(`/TripLive?id=${trip.id}`)}
+              style={{ width: "100%", marginBottom: 12, padding: "16px", border: "none", borderRadius: 16, background: "#1a2e2a", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", fontFamily: "Heebo, sans-serif" }}>
+              ▶ יוצאים לדרך – מצב טיול
+            </button>
+          )}
+
           {/* Action Buttons */}
           <div style={{ display: "flex", gap: 12 }}>
             <button onClick={handleShare} disabled={sharing}

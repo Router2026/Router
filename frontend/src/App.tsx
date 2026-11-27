@@ -24,6 +24,7 @@ const MapView         = lazy(() => import('./pages/MapView'));
 const TripPlanner     = lazy(() => import('./pages/TripPlanner'));
 const POIDetail       = lazy(() => import('./pages/POIDetail'));
 const TripDetail      = lazy(() => import('./pages/TripDetail'));
+const TripLive        = lazy(() => import('./pages/TripLive'));
 const Profile         = lazy(() => import('./pages/Profile'));
 const PublicUserProfile = lazy(() => import('./pages/PublicUserProfile'));
 const Reports         = lazy(() => import('./pages/Reports'));
@@ -156,6 +157,7 @@ function AppRoutes() {
         {/* Public: anyone can explore the planner; the page asks for sign-in before generating. */}
         <Route path="/TripPlanner" element={<Wrap name="TripPlanner"><TripPlanner /></Wrap>} />
         <Route path="/TripDetail" element={<RequireAuth><Wrap name="TripDetail"><TripDetail /></Wrap></RequireAuth>} />
+        <Route path="/TripLive" element={<RequireAuth><Wrap name="TripLive"><TripLive /></Wrap></RequireAuth>} />
         <Route path="/Profile" element={<RequireAuth><Wrap name="Profile"><Profile /></Wrap></RequireAuth>} />
         <Route path="/AddReport" element={<RequireAuth><Wrap name="AddReport"><AddReport /></Wrap></RequireAuth>} />
         <Route path="/AddReview" element={<RequireAuth><Wrap name="AddReview"><AddReview /></Wrap></RequireAuth>} />
