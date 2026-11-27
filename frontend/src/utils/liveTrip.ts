@@ -170,3 +170,49 @@ export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng
 
 /** Within this distance of the next stop we mark it as arrived on our own. */
 export const ARRIVE_RADIUS_M = 300;
+
+// ── "How was it?" — trips waiting for a recap ───────────────────────────────
+// Kept apart from live progress (which only keeps today) so the reminder survives to the next
+// days, until the user writes the recap or dismisses it.
+
+const RECAP_KEY = 'router_pending_recaps';
+/** Older than this, a reminder is just noise. */
+const RECAP_MAX_AGE_DAYS = 7;
+
+export interface PendingRecap { tripId: string; name: string; date: string; done: string[]; finished: boolean }
+
+function readRecaps(): Record<string, PendingRecap> {
+  try { return JSON.parse(localStorage.getItem(RECAP_KEY) || '{}') as Record<string, PendingRecap>; } catch { return {}; }
+}
+
+function writeRecaps(all: Record<string, PendingRecap>) {
+  try { localStorage.setItem(RECAP_KEY, JSON.stringify(all)); } catch { /* storage blocked */ }
+}
+
+/** Called as stops are marked done; nothing is recorded until at least one stop is done. */
+export function recordPendingRecap(r: PendingRecap) {
+  if (r.done.length === 0) return;
+  writeRecaps({ ...readRecaps(), [r.tripId]: r });
+}
+
+export function getPendingRecap(tripId: string): PendingRecap | null {
+  return readRecaps()[tripId] ?? null;
+}
+
+export function clearPendingRecap(tripId: string) {
+  const all = readRecaps();
+  delete all[tripId];
+  writeRecaps(all);
+}
+
+const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+
+/** Recaps to remind about: a finished day, or any day before today; newest first. */
+export function listDueRecaps(today = localDate()): PendingRecap[] {
+  return Object.values(readRecaps())
+    .filter(r => daysBetween(r.date, today) <= RECAP_MAX_AGE_DAYS && (r.finished || r.date < today))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Places where it's worth asking "was there water?" — a quick, valuable data point. */
+export const WATER_CATEGORIES = ['מעיין', 'נחל', 'מים'];

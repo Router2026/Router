@@ -3,6 +3,7 @@ import type { TripStop } from '../api';
 import {
   computeLiveState, distanceM, emptyProgress, loadProgress, markArrived, markDone, markSkipped,
   saveProgress, sunsetAt, toLiveStops, undoLast,
+  clearPendingRecap, getPendingRecap, listDueRecaps, recordPendingRecap,
 } from './liveTrip';
 
 const stops = toLiveStops([
@@ -85,4 +86,29 @@ describe('progress storage', () => {
 
 it('distanceM: 0.1° of latitude is ~11.1km', () => {
   expect(Math.round(distanceM({ lat: 33, lng: 35.6 }, { lat: 33.1, lng: 35.6 }) / 100)).toBe(111);
+});
+
+describe('pending recaps', () => {
+  beforeEach(() => localStorage.clear());
+  const base = { tripId: 't1', name: 'יום בגליל', done: ['1'], finished: false };
+
+  it('ignores a trip with nothing done', () => {
+    recordPendingRecap({ ...base, date: '2026-11-27', done: [] });
+    expect(getPendingRecap('t1')).toBeNull();
+  });
+
+  it('is due once finished, or from the next day, and expires after a week', () => {
+    recordPendingRecap({ ...base, date: '2026-11-27' });
+    expect(listDueRecaps('2026-11-27')).toHaveLength(0);
+    expect(listDueRecaps('2026-11-28')).toHaveLength(1);
+    expect(listDueRecaps('2026-12-10')).toHaveLength(0);
+    recordPendingRecap({ ...base, date: '2026-11-27', finished: true });
+    expect(listDueRecaps('2026-11-27')).toHaveLength(1);
+  });
+
+  it('clears', () => {
+    recordPendingRecap({ ...base, date: '2026-11-27', finished: true });
+    clearPendingRecap('t1');
+    expect(listDueRecaps('2026-11-27')).toEqual([]);
+  });
 });

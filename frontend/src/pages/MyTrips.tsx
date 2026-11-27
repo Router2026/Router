@@ -11,6 +11,7 @@ import XpToast from '../components/XpToast';
 import { useMyRoutes, useDeleteRoute, tripKeys } from '../hooks/useTrips';
 import { googleMapsRouteUrl } from '../utils/routeSchedule';
 import { listSavedTrips } from '../utils/offlineTrips';
+import RecapReminder from '../components/RecapReminder';
 
 const GROUP_ICONS: Record<string, string> = {
   'משפחה עם ילדים': '👨‍👩‍👧‍👦', 'משפחה': '👨‍👩‍👧‍👦',
@@ -315,6 +316,8 @@ export default function MyTrips() {
 
         <div style={{ maxWidth: 860, margin: '-32px auto 0', padding: '0 16px 100px' }}>
           {/* Search + filters */}
+          <RecapReminder />
+
           {trips.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 18, padding: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.06)', marginBottom: 16, display: 'grid', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', border: `1.5px solid ${C.line}`, borderRadius: 12, padding: '8px 12px' }}>

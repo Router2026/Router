@@ -9,6 +9,7 @@ export const XP_REWARDS = {
   REPORT:       15,
   TRIP_CREATED: 25,
   TRIP_SHARED:  15,
+  TRIP_COMPLETED: 30,
 } as const;
 
 /** Level formula: floor(sqrt(xp / 50)) — mirrors the frontend exactly. */

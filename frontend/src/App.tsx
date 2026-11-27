@@ -26,6 +26,7 @@ const POIDetail       = lazy(() => import('./pages/POIDetail'));
 const TripDetail      = lazy(() => import('./pages/TripDetail'));
 const TripLive        = lazy(() => import('./pages/TripLive'));
 const Invite          = lazy(() => import('./pages/Invite'));
+const TripRecap       = lazy(() => import('./pages/TripRecap'));
 const Profile         = lazy(() => import('./pages/Profile'));
 const PublicUserProfile = lazy(() => import('./pages/PublicUserProfile'));
 const Reports         = lazy(() => import('./pages/Reports'));
@@ -161,6 +162,7 @@ function AppRoutes() {
         <Route path="/TripPlanner" element={<Wrap name="TripPlanner"><TripPlanner /></Wrap>} />
         <Route path="/TripDetail" element={<RequireAuth><Wrap name="TripDetail"><TripDetail /></Wrap></RequireAuth>} />
         <Route path="/TripLive" element={<RequireAuth><Wrap name="TripLive"><TripLive /></Wrap></RequireAuth>} />
+        <Route path="/TripRecap" element={<RequireAuth><Wrap name="TripRecap"><TripRecap /></Wrap></RequireAuth>} />
         <Route path="/Profile" element={<RequireAuth><Wrap name="Profile"><Profile /></Wrap></RequireAuth>} />
         <Route path="/AddReport" element={<RequireAuth><Wrap name="AddReport"><AddReport /></Wrap></RequireAuth>} />
         <Route path="/AddReview" element={<RequireAuth><Wrap name="AddReview"><AddReview /></Wrap></RequireAuth>} />
