@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { api, type UserProfile } from "../api";
+import { api, ApiError, type UserProfile } from "../api";
+import { clearSavedTrips } from "../utils/offlineTrips";
 
 export interface GuestUser {
   isGuest: true;
@@ -31,7 +32,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const TOKEN_KEY = 'router_auth_token';
 const REFRESH_KEY = 'router_refresh_token';
 const GUEST_KEY = 'router_guest_mode';
+/** Last profile the server returned, so a signed-in user stays signed in with no connection. */
+const CACHED_USER_KEY = 'router_cached_user';
 const GUEST_USER: GuestUser = { isGuest: true, username: 'אורח', id: 'guest', xp_points: 0, level: 'אורח' };
+
+function readCachedUser(): UserProfile | null {
+  try {
+    const raw = localStorage.getItem(CACHED_USER_KEY);
+    return raw ? (JSON.parse(raw) as UserProfile) : null;
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [state, setState] = useState<AuthState>({
@@ -45,7 +57,15 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     if (stored) {
       api.auth.me(stored)
         .then(user => setState({ user, token: stored, isLoggedIn: true, isGuest: false, isLoading: false }))
-        .catch(() => {
+        .catch((err) => {
+          // Only a real rejection ends the session. A network error (offline in the field) or a
+          // 5xx keeps the token and uses the last profile we saw, so saved trips still open.
+          const rejected = err instanceof ApiError && (err.status === 401 || err.status === 403);
+          const cached = rejected ? null : readCachedUser();
+          if (cached) {
+            setState({ user: cached, token: stored, isLoggedIn: true, isGuest: false, isLoading: false });
+            return;
+          }
           localStorage.removeItem(TOKEN_KEY);
           if (isGuest) {
             setState({ user: GUEST_USER, token: null, isLoggedIn: false, isGuest: true, isLoading: false });
@@ -60,6 +80,11 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       setState(s => ({ ...s, isLoading: false }));
     }
   }, []);
+
+  useEffect(() => {
+    if (!state.isLoggedIn || !state.user || 'isGuest' in state.user) return;
+    try { localStorage.setItem(CACHED_USER_KEY, JSON.stringify(state.user)); } catch { /* storage blocked */ }
+  }, [state.isLoggedIn, state.user]);
 
   const login = useCallback(async (email: string, password: string) => {
     const { user, token, refresh_token } = await api.auth.login(email, password);
@@ -95,6 +120,8 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(GUEST_KEY);
+    localStorage.removeItem(CACHED_USER_KEY);
+    clearSavedTrips();
     setState({ user: null, token: null, isLoggedIn: false, isGuest: false, isLoading: false });
   }, []);
 

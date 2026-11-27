@@ -25,7 +25,10 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'basemap-tiles-v2',
-              expiration: { maxEntries: 1000, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              // Also holds tiles saved for offline trips (utils/offlineTrips.ts writes into this
+              // cache by name). Workbox treats a tile older than maxAgeSeconds as a miss, so this
+              // must outlast the gap between saving a trip and taking it.
+              expiration: { maxEntries: 5000, maxAgeSeconds: 30 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

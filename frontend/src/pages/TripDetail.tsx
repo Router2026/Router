@@ -9,6 +9,8 @@ import RouteMap from "../components/RouteMap";
 import { fromMinutes, googleMapsRouteUrl, toMinutes } from "../utils/routeSchedule";
 import { api } from "../api";
 import XpToast from "../components/XpToast";
+import { getSavedTrip, isTripSaved, refreshSavedTrip, removeSavedTrip, saveTripOffline } from "../utils/offlineTrips";
+import { toast } from "sonner";
 
 // ── Share icon helper ─────────────────────────────────────────────────────────
 
@@ -40,12 +42,23 @@ export default function TripDetail() {
   const [shareXp, setShareXp] = useState<any>(null);
   const [shared, setShared] = useState(false);
   const [activeStop, setActiveStop] = useState<string | number | null>(null);
+  /** Showing the copy saved on this device because the server could not be reached. */
+  const [fromOffline, setFromOffline] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(() => isTripSaved(tripId));
+  const [saveProgress, setSaveProgress] = useState<number | null>(null);
 
   useEffect(() => {
     if (!tripId) { setLoading(false); return; }
     api.trips.get(tripId)
-      .then(data => { setTrip(data); setLoading(false); })
+      .then(data => { setTrip(data); refreshSavedTrip(data); setLoading(false); })
       .catch(() => {
+        const saved = getSavedTrip(tripId);
+        if (saved) {
+          setTrip(saved.trip);
+          setFromOffline(saved.savedAt);
+          setLoading(false);
+          return;
+        }
         api.trips.list()
           .then(trips => { if (trips.length > 0) { setTrip(trips[0]); } setLoading(false); })
           .catch(() => setLoading(false));
@@ -68,6 +81,26 @@ export default function TripDetail() {
       console.error("Share failed:", err);
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleOfflineToggle = async () => {
+    if (saveProgress !== null || !trip) return;
+    if (savedOffline) {
+      removeSavedTrip(trip.id);
+      setSavedOffline(false);
+      toast.success("המסלול הוסר מהשמורים במכשיר");
+      return;
+    }
+    setSaveProgress(0);
+    try {
+      await saveTripOffline(trip, (done, total) => setSaveProgress(Math.round((done / total) * 100)));
+      setSavedOffline(true);
+      toast.success("המסלול והמפה נשמרו – אפשר לפתוח גם בלי קליטה");
+    } catch {
+      toast.error("השמירה נכשלה. בדקו את החיבור ונסו שוב.");
+    } finally {
+      setSaveProgress(null);
     }
   };
 
@@ -109,6 +142,12 @@ export default function TripDetail() {
         </div>
 
         <div style={{ maxWidth: 600, margin: "0 auto", padding: "20px 16px", paddingBottom: 100 }}>
+
+          {fromOffline && (
+            <div role="status" style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 14, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#92400e", textAlign: "right", lineHeight: 1.5 }}>
+              📴 אין חיבור – מוצג העותק ששמרתם במכשיר ({new Date(fromOffline).toLocaleDateString("he-IL")}).
+            </div>
+          )}
 
           {/* Stats row */}
           <div style={{ background: "#fff", borderRadius: 20, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", display: "flex", justifyContent: "space-around", direction: "rtl" }}>
@@ -216,6 +255,14 @@ export default function TripDetail() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
             </button>
           </div>
+
+          <button onClick={handleOfflineToggle} disabled={saveProgress !== null}
+            aria-pressed={savedOffline}
+            style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 14, border: savedOffline ? "2px solid #0d9e6e" : "2px solid #e2e8f0", background: savedOffline ? "#f0fdf8" : "#fff", color: savedOffline ? "#0d9e6e" : "#334155", fontSize: 14, fontWeight: 800, cursor: saveProgress !== null ? "wait" : "pointer", fontFamily: "Heebo, sans-serif" }}>
+            {saveProgress !== null
+              ? `שומר מפה לשימוש בלי קליטה… ${saveProgress}%`
+              : savedOffline ? "✓ שמור במכשיר לשימוש בלי קליטה (הקישו להסרה)" : "📥 שמור לשימוש בלי קליטה"}
+          </button>
 
           {first && (
             <a href={`https://waze.com/ul?ll=${first.latitude},${first.longitude}&navigate=yes`} target="_blank" rel="noopener noreferrer"

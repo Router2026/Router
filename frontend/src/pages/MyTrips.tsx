@@ -10,6 +10,7 @@ import { api, toast, type Trip, type XpResult } from '../api';
 import XpToast from '../components/XpToast';
 import { useMyRoutes, useDeleteRoute, tripKeys } from '../hooks/useTrips';
 import { googleMapsRouteUrl } from '../utils/routeSchedule';
+import { listSavedTrips } from '../utils/offlineTrips';
 
 const GROUP_ICONS: Record<string, string> = {
   'משפחה עם ילדים': '👨‍👩‍👧‍👦', 'משפחה': '👨‍👩‍👧‍👦',
@@ -337,6 +338,7 @@ export default function MyTrips() {
               <div style={{ fontSize: 40, marginBottom: 8 }}>😕</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: C.ink, marginBottom: 12 }}>לא הצלחנו לטעון את המסלולים</div>
               <button type="button" onClick={() => refetch()} style={{ ...actionBtn, background: C.accent, borderColor: C.accent, color: '#fff', padding: '0 20px', minHeight: 40 }}>נסו שוב</button>
+              <OfflineSavedList onOpen={id => navigate(`/TripDetail?id=${id}`)} />
             </div>
           )}
 
@@ -460,5 +462,25 @@ export default function MyTrips() {
         </div>
       )}
     </>
+  );
+}
+
+/** Trips saved on this device; shown when the list can't be loaded (usually: no signal). */
+function OfflineSavedList({ onOpen }: Readonly<{ onOpen: (id: string) => void }>) {
+  const saved = useMemo(() => listSavedTrips(), []);
+  if (saved.length === 0) return null;
+  return (
+    <div style={{ marginTop: 24, textAlign: 'right' }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: C.deep, marginBottom: 10 }}>📥 שמורים במכשיר – נפתחים גם בלי קליטה</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {saved.map(({ trip }) => (
+          <button key={trip.id} type="button" onClick={() => onOpen(trip.id)}
+            style={{ ...actionBtn, justifyContent: 'space-between', width: '100%', minHeight: 44, padding: '0 14px', background: C.soft, borderColor: C.soft, color: C.ink }}>
+            <span style={{ fontWeight: 800 }}>{trip.name}</span>
+            <span style={{ fontSize: 12, color: C.muted }}>{trip.stops?.length || 0} עצירות</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
