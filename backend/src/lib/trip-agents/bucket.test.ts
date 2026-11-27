@@ -58,6 +58,14 @@ describe('runBucketPipeline', () => {
     expect(r.plan.stops).toHaveLength(2)
     expect(r.summary.safetyFooter).toBe(SAFETY_FOOTER.he)
   })
+
+  it('skips the summary model when useModel is false (daily AI budget spent)', async () => {
+    const parse = vi.fn()
+    const r = await runBucketPipeline([bp(1), bp(2)], { now: NOW, fetchWeather: sunny, planner: flat, summary: { client: { messages: { parse } } as never, model: 'm' }, useModel: false })
+    expect(parse).not.toHaveBeenCalled()
+    expect(r.plan.stops).toHaveLength(2)
+    expect(r.summary.safetyFooter).toBe(SAFETY_FOOTER.he)
+  })
 })
 
 describe('toSmartPlan / toClientPlan', () => {

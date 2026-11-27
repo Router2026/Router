@@ -17,6 +17,7 @@ import { parseRouteRequest, toApiRoute, type ApiRoute, type ParsedRouteRequest }
 import { ndjsonResponse, wantsNdjson, type StreamSend } from "@/lib/api/ndjson";
 import type { StepListener } from "@/lib/trip-agents/progress";
 import { consumeRouteQuota } from "@/lib/ai-route/rate-limit";
+import { consumeDailyAiBudget } from "@/lib/ai-route/daily-budget";
 import { AgentsTimeoutError, planWithAgents, routePlanner } from "@/lib/trip-agents/wizard-planner";
 
 // The agents take ~25-30 s; the Groq backup is capped at ~25 s. Vercel Hobby allows up to 60 s.
@@ -62,12 +63,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Site-wide daily cap: once it runs out, plan without any model (deterministic planner).
+    const useModels = await consumeDailyAiBudget();
+
     // With `Accept: application/x-ndjson` the client gets the agents' progress live, then the
     // route; otherwise one JSON response as before.
     if (wantsNdjson(req)) {
       return ndjsonResponse(async (send) => {
         try {
-          const route = await planForUser(input, region, user.id, req.signal, send);
+          const route = await planForUser(input, region, user.id, req.signal, useModels, send);
           send({ type: "result", data: route });
         } catch (err) {
           if (err instanceof NoCandidatesError) {
@@ -80,7 +84,7 @@ export async function POST(req: NextRequest) {
       }, rateHeaders);
     }
 
-    const route = await planForUser(input, region, user.id, req.signal);
+    const route = await planForUser(input, region, user.id, req.signal, useModels);
     return NextResponse.json(successResponse(route), { status: 200, headers: rateHeaders });
   } catch (err) {
     if (err instanceof NoCandidatesError) {
@@ -95,16 +99,18 @@ export async function POST(req: NextRequest) {
 /**
  * 1. Trip agents (default); any failure falls through to 2. the Groq planner (backup, or forced
  * with ROUTE_PLANNER=groq). `send` streams progress lines to the client when given.
+ * `useModels: false` (daily AI budget spent) skips both and plans deterministically.
  */
 async function planForUser(
   input: ParsedRouteRequest,
   region: { id: number; name: string; slug: string },
   userId: number | string,
   signal: AbortSignal,
+  useModels: boolean,
   send?: StreamSend,
 ): Promise<ApiRoute> {
   let agentsTimedOut = false;
-  if (routePlanner() === "agents") {
+  if (useModels && routePlanner() === "agents") {
     const started = Date.now();
     try {
       const onStep: StepListener | undefined = send && ((step, phase, detail) => send({ type: "step", step, phase, ...(detail ? { detail } : {}) }));
@@ -139,7 +145,7 @@ async function planForUser(
       signal,
     },
     // After an agents timeout there's no time left for Groq's model: plan deterministically.
-    { selector: agentsTimedOut ? null : selector },
+    { selector: agentsTimedOut || !useModels ? null : selector },
   );
   send?.({ type: "step", step: "fallback", phase: "done", detail: `${route.stops.length} עצירות` });
 
