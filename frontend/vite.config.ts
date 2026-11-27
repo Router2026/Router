@@ -13,6 +13,9 @@ export default defineConfig({
         // Pre-cache all build output
         globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff,woff2}'],
 
+        // iOS launch screens are fetched only by iOS at install time — don't precache ~3MB of them
+        globIgnores: ['**/icons/splash/**'],
+
         // SPA: serve index.html for all navigation requests
         navigateFallback: 'index.html',
         // Never intercept API calls
@@ -47,7 +50,7 @@ export default defineConfig({
         short_name: 'ראוטר',
         description: 'גלה אתרי טבע, צור מסלולים ושתף חוויות בטבע הישראלי',
         theme_color: '#0d9e6e',
-        background_color: '#f8fafc',
+        background_color: '#f7f3e8',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -56,23 +59,11 @@ export default defineConfig({
         dir: 'rtl',
         categories: ['travel', 'navigation', 'lifestyle'],
         icons: [
-          {
-            src: '/pwa-icon.jpg',
-            sizes: '192x192',
-            type: 'image/jpeg',
-          },
-          {
-            src: '/pwa-icon.jpg',
-            sizes: '512x512',
-            type: 'image/jpeg',
-          },
-          {
-            // Maskable: fill the entire icon area (safe zone ≈ inner 80%)
-            src: '/pwa-icon.jpg',
-            sizes: '512x512',
-            type: 'image/jpeg',
-            purpose: 'maskable',
-          },
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Maskable: emblem kept inside the 80% safe zone so Android's circle/squircle crop never cuts it
+          { src: '/icons/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),

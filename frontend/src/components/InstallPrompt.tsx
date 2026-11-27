@@ -136,7 +136,7 @@ export default function InstallPrompt() {
             <div style={{ fontSize: 15, fontWeight: 900, color: '#1a2e2a' }}>הוסף ראוטר למסך הבית</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>גישה מהירה, גם ללא אינטרנט</div>
           </div>
-          <img src="/pwa-icon.jpg" alt="ראוטר" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
+          <img src="/icons/icon-192.png" alt="ראוטר" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
         </div>
 
         <button onClick={handleInstall} style={{ width: '100%', padding: '12px', border: 'none', borderRadius: 14, background: 'linear-gradient(135deg, #0d9e6e, #0bba7e)', color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo, sans-serif', boxShadow: '0 4px 14px rgba(13,158,110,0.3)' }}>
