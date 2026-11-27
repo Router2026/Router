@@ -25,6 +25,7 @@ const TripPlanner     = lazy(() => import('./pages/TripPlanner'));
 const POIDetail       = lazy(() => import('./pages/POIDetail'));
 const TripDetail      = lazy(() => import('./pages/TripDetail'));
 const TripLive        = lazy(() => import('./pages/TripLive'));
+const Invite          = lazy(() => import('./pages/Invite'));
 const Profile         = lazy(() => import('./pages/Profile'));
 const PublicUserProfile = lazy(() => import('./pages/PublicUserProfile'));
 const Reports         = lazy(() => import('./pages/Reports'));
@@ -139,6 +140,8 @@ function AppRoutes() {
         {/* ── Fully public (no auth needed) ────────────────── */}
         <Route path="/trips" element={<Wrap name="Trips"><PublicTrips /></Wrap>} />
         <Route path="/trips/:id" element={<Wrap name="TripDetail"><PublicTripDetail /></Wrap>} />
+        {/* Invite links from WhatsApp: preview is public, joining asks to sign in */}
+        <Route path="/invite/:token" element={<Wrap name="Invite"><Invite /></Wrap>} />
         <Route path="/profile/:id" element={<Wrap name="UserProfile"><PublicUserProfile /></Wrap>} />
         <Route path="/my-places" element={<RequireAuth><Wrap name="MyPlaces"><MyPlaces /></Wrap></RequireAuth>} />
         <Route path="/my-places/:id/edit" element={<RequireAuth><Wrap name="EditMyPlace"><EditMyPlace /></Wrap></RequireAuth>} />

@@ -26,6 +26,8 @@ export interface Route {
   region_id?: number;
   region?: string;
   user_id?: number;
+  /** In a user's list: true when they joined the route rather than own it. */
+  is_shared?: boolean;
   total_distance_km?: number;
   total_duration_hours: number;
   difficulty?: string;
@@ -38,9 +40,11 @@ export interface Route {
 export async function getRoutes(userId?: number): Promise<Route[]> {
   const { rows: routeRows } = userId
     ? await rawDb.query(
-        `SELECT r.*, reg.name AS region FROM routes r
+        // Own routes plus routes the user joined through an invite link (migration 0015).
+        `SELECT r.*, reg.name AS region, (r.user_id IS DISTINCT FROM $1) AS is_shared FROM routes r
          LEFT JOIN regions reg ON r.region_id = reg.id
          WHERE r.user_id = $1
+            OR r.id IN (SELECT route_id FROM route_collaborators WHERE user_id = $1)
          ORDER BY r.created_at DESC`,
         [userId]
       )
