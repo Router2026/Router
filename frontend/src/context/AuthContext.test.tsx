@@ -4,6 +4,10 @@ import { AuthProvider, useAuth } from './AuthContext'
 
 // Mock the api module
 vi.mock('../api', () => ({
+  ApiError: class ApiError extends Error {
+    status?: number
+    constructor(message: string, public code?: string, status?: number) { super(message); this.status = status }
+  },
   api: {
     auth: {
       login: vi.fn(),
@@ -13,7 +17,7 @@ vi.mock('../api', () => ({
   },
 }))
 
-import { api } from '../api'
+import { api, ApiError } from '../api'
 
 const mockApi = api as unknown as {
   auth: {
@@ -156,6 +160,26 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('isLoggedIn').textContent).toBe('false')
     expect(screen.getByTestId('user').textContent).toBe('null')
     expect(localStorage.getItem('router_guest_mode')).toBeNull()
+  })
+
+  it('offline: a network error keeps the session with the cached profile', async () => {
+    localStorage.setItem('router_auth_token', 'good-token')
+    localStorage.setItem('router_cached_user', JSON.stringify({ id: '1', username: 'cached-user', xp_points: 0, level: 'x' }))
+    mockApi.auth.me.mockRejectedValue(new TypeError('Failed to fetch'))
+    render(<AuthProvider><TestConsumer /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('isLoading').textContent).toBe('false'))
+    expect(screen.getByTestId('isLoggedIn').textContent).toBe('true')
+    expect(localStorage.getItem('router_auth_token')).toBe('good-token')
+  })
+
+  it('a 401 ends the session even with a cached profile', async () => {
+    localStorage.setItem('router_auth_token', 'expired')
+    localStorage.setItem('router_cached_user', JSON.stringify({ id: '1', username: 'cached-user', xp_points: 0, level: 'x' }))
+    mockApi.auth.me.mockRejectedValue(new ApiError('Unauthorized', 'AUTH_ERROR', 401))
+    render(<AuthProvider><TestConsumer /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('isLoading').textContent).toBe('false'))
+    expect(screen.getByTestId('isLoggedIn').textContent).toBe('false')
+    expect(localStorage.getItem('router_auth_token')).toBeNull()
   })
 
   it('token restore failure falls back to guest when GUEST_KEY is set', async () => {
