@@ -9,7 +9,7 @@ import { getSavedTrip, refreshSavedTrip } from '../utils/offlineTrips';
 import { fromMinutes } from '../utils/routeSchedule';
 import {
   ARRIVE_RADIUS_M, computeLiveState, distanceM, loadProgress, localDate, markArrived, markDone,
-  markSkipped, minuteOfDay, emptyProgress, saveProgress, sunsetAt, toLiveStops, undoLast, type LiveProgress,
+  markSkipped, minuteOfDay, emptyProgress, recordPendingRecap, saveProgress, sunsetAt, toLiveStops, undoLast, type LiveProgress,
 } from '../utils/liveTrip';
 
 const C = { ink: '#1a2e2a', muted: '#64748b', faint: '#94a3b8', accent: '#0d9e6e', soft: '#f0fdf8', deep: '#065f46', amber: '#b45309', amberBg: '#fffbeb', red: '#b91c1c', redBg: '#fef2f2' };
@@ -73,7 +73,13 @@ export default function TripLive() {
   const update = useCallback((next: LiveProgress) => {
     setStored(next);
     saveProgress(tripId, next);
-  }, [tripId]);
+    // Remember the day for the "how was it?" recap, even if the app is closed mid-trip.
+    if (trip) {
+      const all = toLiveStops(trip.stops || []);
+      const finished = all.length > 0 && all.every(s => next.done.includes(s.key) || next.skipped.includes(s.key));
+      recordPendingRecap({ tripId, name: trip.name, date: next.date, done: next.done, finished });
+    }
+  }, [tripId, trip]);
 
   useEffect(() => () => {
     if (watchId.current != null) navigator.geolocation?.clearWatch(watchId.current);
@@ -166,7 +172,12 @@ export default function TripLive() {
             <div style={{ fontSize: 44 }}>🎉</div>
             <div style={{ fontSize: 18, fontWeight: 900, color: C.ink, margin: '8px 0 4px' }}>סיימתם את המסלול!</div>
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>{progress.done.length} עצירות בוקרו{progress.skipped.length ? `, ${progress.skipped.length} דולגו` : ''}.</div>
-            <button type="button" onClick={() => navigate(`/TripDetail?id=${tripId}`)} style={{ ...btn, background: C.accent, color: '#fff' }}>חזרה למסלול</button>
+            {progress.done.length > 0 && (
+              <button type="button" onClick={() => navigate(`/TripRecap?id=${tripId}`)} style={{ ...btn, width: '100%', background: C.accent, color: '#fff', marginBottom: 8 }}>
+                ✍️ איך היה? דרגו את העצירות (+XP)
+              </button>
+            )}
+            <button type="button" onClick={() => navigate(`/TripDetail?id=${tripId}`)} style={{ ...btn, width: '100%', background: C.soft, color: C.deep }}>חזרה למסלול</button>
           </div>
         ) : current && (
           <div style={card}>
