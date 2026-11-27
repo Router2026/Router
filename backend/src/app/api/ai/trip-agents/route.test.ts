@@ -7,12 +7,14 @@ vi.mock('@/lib/auth/rate-limit', () => ({ checkRateLimit: vi.fn(async () => true
 vi.mock('@/lib/db/raw-client', () => ({ rawDb: { query: vi.fn() } }))
 vi.mock('@/lib/trip-agents/pipeline', () => ({ runTripPipeline: vi.fn() }))
 vi.mock('@/lib/ai-route/rate-limit', () => ({ consumeRouteQuota: vi.fn() }))
+vi.mock('@/lib/ai-route/daily-budget', () => ({ consumeDailyAiBudget: vi.fn() }))
 
 import { POST } from './route'
 import { getUserFromRequest } from '@/lib/auth/tokens'
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { runTripPipeline } from '@/lib/trip-agents/pipeline'
 import { consumeRouteQuota } from '@/lib/ai-route/rate-limit'
+import { consumeDailyAiBudget } from '@/lib/ai-route/daily-budget'
 
 const mockUser = getUserFromRequest as ReturnType<typeof vi.fn>
 const mockRun = runTripPipeline as ReturnType<typeof vi.fn>
@@ -37,7 +39,7 @@ const result = {
 
 const quota = (allowed: boolean) => ({ allowed, limit: 10, remaining: allowed ? 9 : 0, resetAt: new Date(Date.now() + 600_000) })
 
-beforeEach(() => { vi.clearAllMocks(); (checkRateLimit as any).mockResolvedValue(true); (consumeRouteQuota as any).mockResolvedValue(quota(true)) })
+beforeEach(() => { vi.clearAllMocks(); (checkRateLimit as any).mockResolvedValue(true); (consumeRouteQuota as any).mockResolvedValue(quota(true)); (consumeDailyAiBudget as any).mockResolvedValue(true) })
 
 describe('POST /api/ai/trip-agents', () => {
   it('rejects anonymous users', async () => {
@@ -106,5 +108,17 @@ describe('POST /api/ai/trip-agents', () => {
     mockRun.mockResolvedValue({ ...result, plan: { ...result.plan, stops: [] } })
     ev = await lines(await POST(request({ query: 'מסלול מים' })))
     expect(ev.at(-1)).toMatchObject({ type: 'error', code: 'NO_PLACES' })
+  })
+  it('returns 503 for non-admins once the daily AI budget is spent; admins still run', async () => {
+    (consumeDailyAiBudget as any).mockResolvedValue(false)
+    mockUser.mockResolvedValue({ id: 7, is_admin: false })
+    const res = await POST(request({ query: 'מסלול מים' }))
+    expect(res.status).toBe(503)
+    expect(mockRun).not.toHaveBeenCalled()
+
+    mockUser.mockResolvedValue({ id: 1, is_admin: true })
+    mockRun.mockResolvedValue(result)
+    await lines(await POST(request({ query: 'מסלול מים' })))
+    expect(mockRun).toHaveBeenCalled()
   })
 })

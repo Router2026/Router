@@ -17,18 +17,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { successResponse, errorResponse } from '@/lib/api/response';
 import { fetchBucketPois } from '@/lib/trip-bucket/bucket-db';
 import { runBucketPipeline, toSmartPlan } from '@/lib/trip-agents/bucket';
-import { checkRateLimit, clientIp } from '@/lib/auth/rate-limit';
+import { checkRateLimit } from '@/lib/auth/rate-limit';
+import { getUserFromRequest } from '@/lib/auth/tokens';
+import { consumeDailyAiBudget } from '@/lib/ai-route/daily-budget';
 import { ndjsonResponse, wantsNdjson } from '@/lib/api/ndjson';
 import type { StepListener } from '@/lib/trip-agents/progress';
 import type { BucketPoi } from '@/lib/trip-bucket/types';
 
-/** Public endpoint that calls a paid model (agent 5) — limit per IP. */
+/** Calls a paid model (agent 5) — signed-in users only, limited per user. */
 const RATE_LIMIT_PER_MIN = 10;
 
 export const maxDuration = 60; // seconds — weather + one summary model call
 
 export async function POST(req: NextRequest) {
-  if (!(await checkRateLimit(`smart-build:${clientIp(req)}`, RATE_LIMIT_PER_MIN, 60_000))) {
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    return NextResponse.json(errorResponse('יש להתחבר כדי לבנות מסלול חכם', 'AUTH_REQUIRED'), { status: 401 });
+  }
+  if (!(await checkRateLimit(`smart-build:${user.id}`, RATE_LIMIT_PER_MIN, 60_000))) {
     return NextResponse.json(errorResponse('Too many requests, try again in a minute', 'RATE_LIMITED'), {
       status: 429,
       headers: { 'Retry-After': '60' },
@@ -66,12 +72,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Site-wide daily cap: once it runs out, agent 5 writes the plain summary (no model).
+    const useModel = await consumeDailyAiBudget();
+
     // ── Steps 2 & 3: trip agents 3 (conditions) → 4 (planner) → 5 (summary) ─
     // `Accept: application/x-ndjson` streams each agent's progress, then the result line.
     if (wantsNdjson(req)) {
       return ndjsonResponse(async (send) => {
         try {
-          const data = await buildSmart(pois, origin, (step, phase, detail) => send({ type: 'step', step, phase, ...(detail ? { detail } : {}) }));
+          const data = await buildSmart(pois, origin, useModel, (step, phase, detail) => send({ type: 'step', step, phase, ...(detail ? { detail } : {}) }));
           send({ type: 'result', data });
         } catch (err) {
           console.error('[POST /api/trip-bucket/smart-build] stream', err);
@@ -79,7 +88,7 @@ export async function POST(req: NextRequest) {
         }
       });
     }
-    return NextResponse.json(successResponse(await buildSmart(pois, origin)), { status: 200 });
+    return NextResponse.json(successResponse(await buildSmart(pois, origin, useModel)), { status: 200 });
   } catch (err) {
     console.error('[POST /api/trip-bucket/smart-build]', err);
     return NextResponse.json(
@@ -90,8 +99,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function buildSmart(pois: BucketPoi[], origin: { lat: number; lng: number } | null, onStep?: StepListener) {
-  const result = await runBucketPipeline(pois, { origin, onStep });
+async function buildSmart(pois: BucketPoi[], origin: { lat: number; lng: number } | null, useModel: boolean, onStep?: StepListener) {
+  const result = await runBucketPipeline(pois, { origin, onStep, useModel });
   const smartPlan = toSmartPlan(result, !!origin);
   console.log(`[SmartBuild] ${pois.length} POIs → ${smartPlan.stops.length} stops, ${result.warnings.length} warnings, model calls ${result.usage.calls}`);
 

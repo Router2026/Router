@@ -77,6 +77,8 @@ export interface BucketDeps {
   fetchWeather?: WeatherFetcher;
   planner?: PlannerDeps;
   summary?: Omit<SummaryDeps, "usage">;
+  /** false = skip the summary model and write the plain summary (daily AI budget spent). */
+  useModel?: boolean;
 }
 
 export async function runBucketPipeline(pois: BucketPoi[], deps: BucketDeps = {}): Promise<BucketResult> {
@@ -101,7 +103,9 @@ export async function runBucketPipeline(pois: BucketPoi[], deps: BucketDeps = {}
   onStep("summary", "start");
   let summary: TripSummary;
   try {
-    summary = await runSummaryAgent("", intent, plan, { ...deps.summary, usage });
+    summary = deps.useModel === false
+      ? fallbackSummary(intent, plan)
+      : await runSummaryAgent("", intent, plan, { ...deps.summary, usage });
   } catch (err) {
     console.error("[trip-agents:bucket] summary failed; using plain summary", err);
     summary = fallbackSummary(intent, plan);

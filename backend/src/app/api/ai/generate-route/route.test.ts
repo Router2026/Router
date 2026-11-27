@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 vi.mock("@/lib/auth/tokens", () => ({ getUserFromRequest: vi.fn() }));
 vi.mock("@/lib/db/raw-client", () => ({ rawDb: { query: vi.fn() } }));
 vi.mock("@/lib/ai-route/rate-limit", () => ({ consumeRouteQuota: vi.fn() }));
+vi.mock("@/lib/ai-route/daily-budget", () => ({ consumeDailyAiBudget: vi.fn() }));
 // The planner switch: Groq by default in these tests; the agent tests below opt in.
 vi.mock("@/lib/trip-agents/wizard-planner", () => ({
   routePlanner: vi.fn(() => "groq"),
@@ -19,6 +20,7 @@ import { POST } from "./route";
 import { getUserFromRequest } from "@/lib/auth/tokens";
 import { rawDb } from "@/lib/db/raw-client";
 import { consumeRouteQuota } from "@/lib/ai-route/rate-limit";
+import { consumeDailyAiBudget } from "@/lib/ai-route/daily-budget";
 import { planRoute, NoCandidatesError, type PlannedRoute } from "@/lib/ai-route/generate";
 import { makeCandidate } from "@/lib/ai-route/test-fixtures";
 import { AgentsTimeoutError, planWithAgents, routePlanner } from "@/lib/trip-agents/wizard-planner";
@@ -63,6 +65,7 @@ beforeEach(() => {
   (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("groq");
   mockQuota.mockResolvedValue({ allowed: true, limit: 10, remaining: 9, resetAt });
   mockPlan.mockResolvedValue(planned);
+  (consumeDailyAiBudget as ReturnType<typeof vi.fn>).mockResolvedValue(true);
 });
 
 describe("POST /api/ai/generate-route", () => {
@@ -198,6 +201,14 @@ describe("POST /api/ai/generate-route", () => {
       await POST(request(validBody));
       expect(planWithAgents).not.toHaveBeenCalled();
       expect(mockPlan).toHaveBeenCalled();
+    });
+    it("once the daily AI budget is spent, skips the agents and Groq and plans deterministically", async () => {
+      (routePlanner as ReturnType<typeof vi.fn>).mockReturnValue("agents");
+      (consumeDailyAiBudget as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+      const res = await POST(request(validBody));
+      expect(res.status).toBe(200);
+      expect(planWithAgents).not.toHaveBeenCalled();
+      expect(mockPlan.mock.calls[0][1]).toEqual({ selector: null });
     });
   });
 });

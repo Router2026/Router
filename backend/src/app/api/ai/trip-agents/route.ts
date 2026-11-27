@@ -15,6 +15,7 @@ import { errorResponse } from "@/lib/api/response";
 import { ndjsonResponse } from "@/lib/api/ndjson";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
 import { consumeRouteQuota } from "@/lib/ai-route/rate-limit";
+import { consumeDailyAiBudget } from "@/lib/ai-route/daily-budget";
 import { MAX_QUERY_CHARS } from "@/lib/trip-agents/intent-agent";
 
 export const maxDuration = 60;
@@ -58,6 +59,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(errorResponse("הגעת למספר המסלולים המרבי לשעה. נסו שוב מאוחר יותר", "RATE_LIMITED"), {
         status: 429,
         headers: { "Retry-After": String(retryAfter) },
+      });
+    }
+    // Site-wide daily cap. Free text has no model-free planner, so say so instead.
+    if (!(await consumeDailyAiBudget())) {
+      return NextResponse.json(errorResponse("מתכנן ה-AI עמוס היום. נסו שוב מחר, או בנו מסלול לפי אזור", "AI_DAILY_LIMIT"), {
+        status: 503,
+        headers: { "Retry-After": "3600" },
       });
     }
   }

@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType, index, primaryKey, vector, char } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, real, pgEnum, serial, numeric, varchar, customType, index, primaryKey, vector, char, date } from "drizzle-orm/pg-core";
 
 const tsvector = customType<{ data: string }>({
   dataType() { return "tsvector"; },
@@ -237,6 +237,12 @@ export const aiRouteRateLimits = pgTable("ai_route_rate_limits", {
   primaryKey({ columns: [t.userId, t.windowStart] }),
   index("ai_route_rate_limits_window_idx").on(t.windowStart),
 ]);
+
+// Site-wide daily AI budget (migration 0014). One row per Israel-time day.
+export const aiDailyBudget = pgTable("ai_daily_budget", {
+  day:          date("day").primaryKey(),
+  requestCount: integer("request_count").notNull().default(0),
+});
 
 // Embeddings for hybrid search — see migrations/0009_location_embeddings.sql.
 // Dimension must match EMBEDDING_DIMENSIONS used when calling the embedding API.
