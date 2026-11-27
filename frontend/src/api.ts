@@ -824,6 +824,9 @@ export const api = {
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
     share: async (id: string): Promise<ShareTripResult> =>
       (await apiFetch<{ data: ShareTripResult }>(`/routes/${id}/share`, { method: 'POST' })).data,
+    /** Finished in live mode: one-time completion XP. */
+    complete: async (id: string, stopsDone: number): Promise<{ xp_awarded: boolean; xp: XpResult | null }> =>
+      (await apiFetch<{ data: { xp_awarded: boolean; xp: XpResult | null } }>(`/routes/${id}/complete`, { method: 'POST', body: JSON.stringify({ stops_done: stopsDone }) })).data,
   },
 
   collab: {

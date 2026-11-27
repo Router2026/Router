@@ -4,6 +4,7 @@ import { type POI } from '../api';
 import { useFeaturedLocations, useRegions, useNearbyUserLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import Disclaimer from '../components/Disclaimer';
+import RecapReminder from '../components/RecapReminder';
 
 const CATEGORIES = [
   { name: 'מסלולי מים', icon: '💧', color: '#0891b2', bg: '#eff6ff', key: 'נחל' },
@@ -392,6 +393,9 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* ── After a trip: "how was it?" ── */}
+        {isLoggedIn && <div style={{ padding: '0 16px' }}><RecapReminder /></div>}
 
         {/* ── Recommended Regions ── */}
         <div style={{ marginBottom: 28 }}>
