@@ -95,6 +95,11 @@ function TripCard({
         <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 11, fontWeight: 800, borderRadius: 999, padding: '3px 9px', background: agents ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.55)', color: agents ? C.deep : '#fff' }}>
           {agents ? '🤖 תוכנן ע״י הסוכנים' : '✋ נבנה ידנית'}
         </span>
+        {trip.is_shared && (
+          <span style={{ position: 'absolute', top: 10, left: 10, fontSize: 11, fontWeight: 800, borderRadius: 999, padding: '3px 9px', background: 'rgba(124,58,237,0.92)', color: '#fff' }}>
+            👥 משותף איתי
+          </span>
+        )}
         <div style={{ position: 'absolute', bottom: 10, right: 12, left: 12, textAlign: 'right', direction: 'rtl' }}>
           <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', lineHeight: 1.25, textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>{trip.name}</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.92)', marginTop: 3 }}>
@@ -136,13 +141,16 @@ function TripCard({
               style={{ ...actionBtn, ...(shared ? { borderColor: C.accent, color: C.accent, background: C.soft } : {}) }}>
               {sharing ? '⏳' : shared ? '✓' : <ShareIcon />} {shared ? 'שותף' : 'שתף'}
             </button>
-            {published ? (
+            {/* Publishing and deleting belong to the owner; a joined member only plans along. */}
+            {!trip.is_shared && (published ? (
               <span style={{ ...actionBtn, cursor: 'default', borderColor: C.purple, color: C.purple, background: '#faf5ff' }}>✓ ציבורי</span>
             ) : (
               <button type="button" onClick={onPublish} title="פרסם לכולם וקבל +25 XP" style={{ ...actionBtn, borderColor: '#ddd6fe', color: C.purple }}>🌐 פרסם</button>
+            ))}
+            {!trip.is_shared && (
+              <button type="button" onClick={onAskDelete} aria-label={`מחק את ${trip.name}`} title="מחיקה"
+                style={{ ...actionBtn, marginInlineStart: 'auto', padding: '0 10px' }}>🗑</button>
             )}
-            <button type="button" onClick={onAskDelete} aria-label={`מחק את ${trip.name}`} title="מחיקה"
-              style={{ ...actionBtn, marginInlineStart: 'auto', padding: '0 10px' }}>🗑</button>
           </div>
         )}
       </div>

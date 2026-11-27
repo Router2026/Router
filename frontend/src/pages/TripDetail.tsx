@@ -9,6 +9,9 @@ import RouteMap from "../components/RouteMap";
 import { fromMinutes, googleMapsRouteUrl, toMinutes } from "../utils/routeSchedule";
 import { api } from "../api";
 import XpToast from "../components/XpToast";
+import TripExportButtons from "../components/TripExportButtons";
+import TripCollabPanel from "../components/TripCollabPanel";
+import { useAuth } from "../context/AuthContext";
 import { getSavedTrip, isTripSaved, refreshSavedTrip, removeSavedTrip, saveTripOffline } from "../utils/offlineTrips";
 import { toast } from "sonner";
 
@@ -44,6 +47,10 @@ export default function TripDetail() {
   const [activeStop, setActiveStop] = useState<string | number | null>(null);
   /** Showing the copy saved on this device because the server could not be reached. */
   const [fromOffline, setFromOffline] = useState<string | null>(null);
+  /** Bumped when a collaborator's suggestion is added, to reload the stops. */
+  const [reloadKey, setReloadKey] = useState(0);
+  const { user } = useAuth();
+  const userId = user && !("isGuest" in user) ? Number(user.id) || null : null;
   const [savedOffline, setSavedOffline] = useState(() => isTripSaved(tripId));
   const [saveProgress, setSaveProgress] = useState<number | null>(null);
 
@@ -63,7 +70,7 @@ export default function TripDetail() {
           .then(trips => { if (trips.length > 0) { setTrip(trips[0]); } setLoading(false); })
           .catch(() => setLoading(false));
       });
-  }, [tripId]);
+  }, [tripId, reloadKey]);
 
   const handleShare = async () => {
     if (sharing || !tripId) return;
@@ -198,6 +205,13 @@ export default function TripDetail() {
             </div>
           )}
 
+          {/* Plan together — needs the server, so not on the offline copy */}
+          {!fromOffline && (
+            <TripCollabPanel tripId={trip.id} tripName={trip.name} currentUserId={userId}
+              onRouteChanged={() => setReloadKey(k => k + 1)}
+              onLeft={() => navigate("/MyTrips")} />
+          )}
+
           {/* Stops */}
           <div style={{ background: "#fff", borderRadius: 20, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
             <h2 style={{ fontSize: 18, fontWeight: 900, color: "#1a2e2a", marginBottom: 16, textAlign: "right" }}>עצירות במסלול</h2>
@@ -271,6 +285,8 @@ export default function TripDetail() {
               ? `שומר מפה לשימוש בלי קליטה… ${saveProgress}%`
               : savedOffline ? "✓ שמור במכשיר לשימוש בלי קליטה (הקישו להסרה)" : "📥 שמור לשימוש בלי קליטה"}
           </button>
+
+          <TripExportButtons trip={trip} />
 
           {first && (
             <a href={`https://waze.com/ul?ll=${first.latitude},${first.longitude}&navigate=yes`} target="_blank" rel="noopener noreferrer"

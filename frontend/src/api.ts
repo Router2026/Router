@@ -237,8 +237,19 @@ export interface Trip {
   created_at?: string;
   total_duration_hours: number; total_distance_km?: number;
   difficulty?: string; group_type?: string; style?: string;
+  /** In My Trips: the user joined this trip through an invite link rather than own it. */
+  is_shared?: boolean;
   stops: TripStop[];
 }
+
+// ── Plan together (invite link, members, suggested stops) ───────────────────
+export interface CollabMember { id: number; name: string; avatar_url: string | null; is_owner: boolean }
+export interface CollabSuggestion {
+  id: number; location_id: number; name: string; main_image: string | null; category: string | null;
+  note: string | null; suggested_by: number; suggested_by_name: string; votes: number; my_vote: boolean;
+}
+export interface CollabState { is_owner: boolean; has_invite: boolean; members: CollabMember[]; suggestions: CollabSuggestion[] }
+export interface InvitePreview { route_id: number; name: string; region: string | null; stops: number; owner_name: string }
 
 // ── AI route planner (POST /api/ai/generate-route) ─────────────────────────
 export type AiGroupType = 'solo' | 'couple' | 'family' | 'friends';
@@ -471,7 +482,7 @@ function mapTrip(r: any): Trip {
     region: r.region || r.region_name,
     total_duration_hours: Number.parseFloat(r.total_duration_hours) || 0,
     total_distance_km: r.total_distance_km, difficulty: r.difficulty,
-    group_type: r.group_type, style: r.style,
+    group_type: r.group_type, style: r.style, is_shared: r.is_shared === true,
     stops: (r.stops || []).map((s: any) => ({
       poi_name: s.poi_name || s.location_name || '', arrival_time: s.arrival_time || '',
       duration_minutes: s.duration_minutes || 60, smart_insight: s.smart_insight, reason: s.reason ?? null,
@@ -813,6 +824,27 @@ export const api = {
     delete: async (id: string): Promise<void> => { await apiFetch(`/routes/${id}`, { method: 'DELETE' }); },
     share: async (id: string): Promise<ShareTripResult> =>
       (await apiFetch<{ data: ShareTripResult }>(`/routes/${id}/share`, { method: 'POST' })).data,
+  },
+
+  collab: {
+    get: async (routeId: string): Promise<CollabState> =>
+      (await apiFetch<{ data: CollabState }>(`/routes/${routeId}/collab`)).data,
+    createInvite: async (routeId: string): Promise<string> =>
+      (await apiFetch<{ data: { token: string } }>(`/routes/${routeId}/invite`, { method: 'POST' })).data.token,
+    revokeInvite: async (routeId: string): Promise<void> => { await apiFetch(`/routes/${routeId}/invite`, { method: 'DELETE' }); },
+    suggest: async (routeId: string, locationId: number, note?: string): Promise<void> => {
+      await apiFetch(`/routes/${routeId}/suggestions`, { method: 'POST', body: JSON.stringify({ location_id: locationId, note }) });
+    },
+    act: async (routeId: string, suggestionId: number, action: 'vote' | 'accept' | 'dismiss'): Promise<void> => {
+      await apiFetch(`/routes/${routeId}/suggestions/${suggestionId}`, { method: 'POST', body: JSON.stringify({ action }) });
+    },
+    removeMember: async (routeId: string, userId: number): Promise<void> => {
+      await apiFetch(`/routes/${routeId}/members/${userId}`, { method: 'DELETE' });
+    },
+    previewInvite: async (token: string): Promise<InvitePreview> =>
+      (await apiFetch<{ data: InvitePreview }>(`/invites/${encodeURIComponent(token)}`)).data,
+    acceptInvite: async (token: string): Promise<number> =>
+      (await apiFetch<{ data: { route_id: number } }>(`/invites/${encodeURIComponent(token)}`, { method: 'POST' })).data.route_id,
   },
 
   // ── Public trips ─────────────────────────────────────────────
