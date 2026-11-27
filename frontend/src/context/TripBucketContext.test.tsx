@@ -7,7 +7,7 @@ import type { POI } from '../api'
 const makePoi = (id: string): POI => ({
   id, name: `POI ${id}`, description: '', category: 'טבע',
   region: 'north', latitude: 32.0, longitude: 35.0,
-  images: [], main_image: '', difficulty: 'בינוני', average_rating: 4.0,
+  images: [], main_image: '', thumbnail: '', difficulty: 'בינוני', average_rating: 4.0,
 })
 
 function Harness({ fn }: { fn: (ctx: ReturnType<typeof useTripBucket>) => void }) {

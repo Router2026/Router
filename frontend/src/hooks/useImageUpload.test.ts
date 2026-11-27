@@ -116,7 +116,7 @@ describe('useImageUpload — uploadFile', () => {
     const { result } = renderHook(() => useImageUpload())
     act(() => { result.current.handleFileChange(makeChangeEvent(makeFile())) })
 
-    let url: string
+    let url = ''
     await act(async () => {
       url = await result.current.uploadFile()
     })

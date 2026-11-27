@@ -36,7 +36,7 @@ import {
   useInvalidateMe,
 } from './useUserProfile'
 
-const mockApi = api as {
+const mockApi = api as unknown as {
   users: {
     me: ReturnType<typeof vi.fn>
     updateMe: ReturnType<typeof vi.fn>

@@ -2,7 +2,7 @@
  * GuestBanner — sticky top bar shown when user is in guest mode.
  * Nudges the guest towards registration with a contextual message.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 

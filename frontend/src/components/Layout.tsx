@@ -92,7 +92,7 @@ export default function Layout({ children, currentPageName }: Readonly<{ childre
               if (isLoggedIn && user) {
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 20, padding: '6px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.1)', pointerEvents: 'all' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a', fontFamily: 'Heebo, sans-serif' }}>@{(user as Record<string, unknown>).username}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1a2e2a', fontFamily: 'Heebo, sans-serif' }}>@{user.username}</span>
                     <div aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: '#0d9e6e' }} />
                     <button onClick={logout} aria-label="יציאה מהחשבון" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#94a3b8', fontFamily: 'Heebo, sans-serif' }}>יציאה</button>
                   </div>

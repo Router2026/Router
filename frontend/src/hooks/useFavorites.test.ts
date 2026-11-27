@@ -19,7 +19,7 @@ import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useFavorites } from './useFavorites'
 
-const mockApi = api as {
+const mockApi = api as unknown as {
   favorites: {
     list: ReturnType<typeof vi.fn>
     add: ReturnType<typeof vi.fn>

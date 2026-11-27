@@ -71,6 +71,7 @@ async function fetchAllLocations(): Promise<POI[]> {
               longitude: Number.parseFloat(row.longitude as string),
               images: Array.isArray(row.images) ? row.images : parseImages(row.images),
               main_image: (row.main_image as string) || '',
+              thumbnail: (row.main_image as string) || '',
               difficulty: (row.difficulty as string) || 'בינוני',
               duration_minutes: row.duration_minutes as number,
               has_water: row.has_water as boolean,
@@ -193,12 +194,12 @@ export default function AdminPlaces() {
 
     // Auth guard
     useEffect(() => {
-        if (!isLoading && (!user || !(user as Record<string, unknown>).is_admin)) navigate('/');
+        if (!isLoading && (!user || !user.is_admin)) navigate('/');
     }, [user, isLoading, navigate]);
 
     // Load all places + regions
     useEffect(() => {
-        if (!user || !(user as Record<string, unknown>).is_admin) return;
+        if (!user || !user.is_admin) return;
         Promise.all([fetchAllLocations(), fetchRegions()])
             .then(([locs, regs]) => { setPois(locs); setRegions(regs); })
             .catch(err => console.error('AdminPlaces load error:', err))

@@ -226,6 +226,19 @@ function TagGrid({ items, selected, onToggle }: Readonly<{
   );
 }
 
+interface FilterPanelProps {
+  open: boolean; onClose: () => void;
+  selectedRegions: string[]; setSelectedRegions: (v: string[]) => void;
+  selectedCategories: string[]; setSelectedCategories: (v: string[]) => void;
+  selectedDifficulties: string[]; setSelectedDifficulties: (v: string[]) => void;
+  hasWater: boolean; setHasWater: (v: boolean) => void;
+  hasShade: boolean; setHasShade: (v: boolean) => void;
+  accessible: boolean; setAccessible: (v: boolean) => void;
+  dynamicRegions?: string[]; dynamicCategories?: string[];
+  sortByProximity: boolean; handleProximityToggle: () => void;
+  geoLoading: boolean; geoError: string | null;
+}
+
 function FilterPanel({
   open, onClose,
   selectedRegions, setSelectedRegions,
@@ -234,7 +247,7 @@ function FilterPanel({
   hasWater, setHasWater, hasShade, setHasShade, accessible, setAccessible,
   dynamicRegions, dynamicCategories,
   sortByProximity, handleProximityToggle, geoLoading, geoError,
-}: Record<string, unknown>) {
+}: FilterPanelProps) {
   if (!open) return null;
   const toggle = (arr: string[], setArr: (v: string[]) => void, val: string) =>
     setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);

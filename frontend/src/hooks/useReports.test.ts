@@ -17,7 +17,7 @@ vi.mock('../api', () => ({
 import { api, type CommunityReport } from '../api'
 import { reportKeys, useReports, useMyReports, useUpvoteReport, useCreateReport } from './useReports'
 
-const mockApi = api as {
+const mockApi = api as unknown as {
   reports: {
     list: ReturnType<typeof vi.fn>
     myReports: ReturnType<typeof vi.fn>

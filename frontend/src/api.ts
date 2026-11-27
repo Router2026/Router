@@ -325,6 +325,7 @@ export interface UserProfile {
   is_admin?: boolean; bio?: string; avatar_url?: string; cover_image?: string;
   favorite_regions?: string[]; instagram?: string; website?: string;
   reports_count?: number; reviews_count?: number; trips_count?: number;
+  places_count?: number;
 }
 
 export interface AppStats {

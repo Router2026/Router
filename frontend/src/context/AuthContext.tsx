@@ -2,7 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { api, ApiError, type UserProfile } from "../api";
 import { clearSavedTrips } from "../utils/offlineTrips";
 
-export interface GuestUser {
+// Profile fields a guest doesn't have stay optional, so `user.full_name`,
+// `user.is_admin` etc. read as undefined for a guest instead of needing casts.
+export interface GuestUser extends Partial<Omit<UserProfile, 'id' | 'username' | 'xp_points' | 'level'>> {
   isGuest: true;
   username: string;
   id: 'guest';

@@ -36,7 +36,7 @@ import {
   useNearbyUserLocations,
 } from './useLocations'
 
-const mockApi = api as {
+const mockApi = api as unknown as {
   regions: { list: ReturnType<typeof vi.fn> }
   locations: {
     list: ReturnType<typeof vi.fn>

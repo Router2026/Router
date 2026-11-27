@@ -15,7 +15,7 @@
 import { useState, useRef, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../api';
+import { api, type CommunityReport } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
 
@@ -46,10 +46,7 @@ function timeAgo(dateStr: string) {
 }
 
 interface ReportCardProps {
-  report: {
-    id: string; report_type: string; severity: string; content: string;
-    poi_name: string; created_date: string; upvotes: number; reporter_name: string;
-  };
+  report: CommunityReport;
   voted: boolean;
   onUpvote: (id: string) => void;
 }
@@ -116,7 +113,7 @@ export default function Reports() {
     const delta = alreadyVoted ? -1 : 1;
 
     queryClient.setQueryData<unknown[]>(queryKey, prev =>
-      (prev as {id: number; upvotes: number}[])?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes + delta) } : r) ?? [],
+      (prev as CommunityReport[])?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes + delta) } : r) ?? [],
     );
     setVotedIds(prev => {
       const next = new Set(prev);
@@ -129,7 +126,7 @@ export default function Reports() {
       await api.reports.upvote(id, alreadyVoted ? 'remove' : 'add');
     } catch {
       queryClient.setQueryData<unknown[]>(queryKey, prev =>
-        (prev as {id: number; upvotes: number}[])?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes - delta) } : r) ?? [],
+        (prev as CommunityReport[])?.map(r => r.id === id ? { ...r, upvotes: Math.max(0, r.upvotes - delta) } : r) ?? [],
       );
       setVotedIds(prev => {
         const next = new Set(prev);

@@ -9,7 +9,7 @@ interface BeforeInstallPromptEvent extends Event {
 function isAlreadyInstalled(): boolean {
   return (
     globalThis.matchMedia?.('(display-mode: standalone)').matches ||
-    (globalThis.navigator as Record<string, unknown>).standalone === true
+    (globalThis.navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
 

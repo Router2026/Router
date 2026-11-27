@@ -6,7 +6,8 @@ import { AuthProvider, useAuth } from './AuthContext'
 vi.mock('../api', () => ({
   ApiError: class ApiError extends Error {
     status?: number
-    constructor(message: string, public code?: string, status?: number) { super(message); this.status = status }
+    code?: string
+    constructor(message: string, code?: string, status?: number) { super(message); this.code = code; this.status = status }
   },
   api: {
     auth: {

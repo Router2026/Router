@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, type Trip, type UserProfile } from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { CommunityPoiAdmin, EditModalProps, PoiStatus, Tab } from '../utils/types';
 
@@ -280,9 +280,9 @@ function CommunityPoisTab() {
               {/* Coordinates + region + description */}
               <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right', marginBottom: 4 }}>
                 📍 {Number.parseFloat(poi.latitude).toFixed(5)}, {Number.parseFloat(poi.longitude).toFixed(5)}
-                {(poi as Record<string, unknown>).region && (
+                {poi.region && (
                   <span style={{ marginRight: 8, background: '#f0fdf8', color: '#0d9e6e', borderRadius: 6, padding: '1px 7px', fontWeight: 700 }}>
-                    🗺️ {(poi as Record<string, unknown>).region as string}
+                    🗺️ {poi.region}
                   </span>
                 )}
               </div>
@@ -475,19 +475,19 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const [tab, setTab] = useState<Tab>('community_pois');
-  const [users, setUsers] = useState<unknown[]>([]);
-  const [routes, setRoutes] = useState<unknown[]>([]);
+  const [users, setUsers] = useState<(UserProfile & { is_admin?: boolean })[]>([]);
+  const [routes, setRoutes] = useState<Trip[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [stats, setStats] = useState({ users: 0, routes: 0, pending_pois: 0 });
 
   useEffect(() => {
-    if (!isLoading && (!user || !(user as Record<string, unknown>).is_admin)) navigate('/');
+    if (!isLoading && (!user || !user.is_admin)) navigate('/');
   }, [user, isLoading, navigate]);
 
   useEffect(() => {
-    if (!user || !(user as Record<string, unknown>).is_admin) return;
+    if (!user || !user.is_admin) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingData(true);
     Promise.all([
@@ -516,7 +516,7 @@ export default function AdminPanel() {
     setBusy(id);
     const updated = await api.admin.toggleAdmin(id, !current);
     setUsers(prev =>
-      prev.map(u => String((u as Record<string, unknown>).id) === id ? { ...(u as Record<string, unknown>), ...(updated as Record<string, unknown>), is_admin: !current } : u)
+      prev.map(u => String(u.id) === id ? { ...u, ...updated, is_admin: !current } : u)
     );
     setBusy(null);
   };
@@ -647,13 +647,13 @@ export default function AdminPanel() {
                       }}>Admin</span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{maskEmail(u.email)}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{maskEmail(u.email ?? '')}</div>
                   <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 1 }}>
                     {u.xp_points} XP · {u.level}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button disabled={busy === String(u.id)} onClick={() => handleToggleAdmin(String(u.id), u.is_admin)}
+                  <button disabled={busy === String(u.id)} onClick={() => handleToggleAdmin(String(u.id), !!u.is_admin)}
                     style={{
                       padding: '6px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8,
                       background: u.is_admin ? '#f1f5f9' : 'transparent',

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { type POI } from '../api';
+import { type POI, type NearbyPOI } from '../api';
 import { useFeaturedLocations, useRegions, useNearbyUserLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import Disclaimer from '../components/Disclaimer';

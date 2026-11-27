@@ -164,7 +164,7 @@ function MarkersLayer({ pois, onMarkerClick, onMapClick, zoom }: MarkersLayerPro
     const nextKeys = new Set<string>();
 
     for (const g of groups) {
-      const key = g.pois.map(p => p.id).sort((a, b) => a - b).join(',');
+      const key = g.pois.map(p => p.id).sort((a, b) => Number(a) - Number(b)).join(',');
       nextKeys.add(key);
       if (markerMapRef.current.has(key)) continue;
 

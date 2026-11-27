@@ -26,6 +26,7 @@ import {
   type LocationMedia,
   type RatingSummary,
   type Region,
+  type XpResult,
 } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useGuestLock } from '../components/LockedFeature';
@@ -555,7 +556,7 @@ export default function POIDetail() {
   const [tab, setTab] = useState<'reports' | 'reviews'>('reports');
   const [showAdminEdit, setShowAdminEdit] = useState(false);
   const [showOwnerEdit, setShowOwnerEdit] = useState(false);
-  const [shareXp, setShareXp] = useState<unknown>(null);
+  const [shareXp, setShareXp] = useState<XpResult | null>(null);
   const [ownerEditNotice, setOwnerEditNotice] = useState<string | null>(null);
 
   const isAdmin = user?.is_admin ?? false;

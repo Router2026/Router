@@ -2,7 +2,7 @@
  * GuestUpgradePrompt — contextual modal shown when a guest tries a locked action.
  * Supports a `feature` string to personalise the message.
  */
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 

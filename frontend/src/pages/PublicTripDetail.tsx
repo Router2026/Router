@@ -1036,7 +1036,7 @@ export default function PublicTripDetail() {
                         {c.username}
                       </button>
                       <span style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(c.created_at).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                      {user && (user.id === c.user_id || (user as any).is_admin) && (
+                      {user && (user.id === String(c.user_id) || user.is_admin) && (
                         <button onClick={() => handleDeleteComment(c.id)} style={{ marginRight: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#ef4444', fontFamily: 'Heebo, sans-serif', padding: '2px 6px', borderRadius: 6 }}>מחק</button>
                       )}
                     </div>

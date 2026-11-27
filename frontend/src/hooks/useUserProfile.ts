@@ -14,7 +14,7 @@
 // After POI create/delete, myPlaces is invalidated (small list, cheap).
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type UserProfile, type CommunityPoiSubmission } from '../api';
+import { api, type UserProfile, type CommunityPoiSubmission, type PublicTrip } from '../api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ export function useUpdateMe() {
 // ── Public user profile (PublicUserProfile page) ──────────────────────────────
 
 export function usePublicUserProfile(userId: number | null) {
-  return useQuery<{ profile: UserProfile; trips: unknown[]; community_pois: CommunityPoiSubmission[] }>({
+  return useQuery<{ profile: UserProfile; trips: PublicTrip[]; community_pois: CommunityPoiSubmission[] }>({
     queryKey: userKeys.public(userId ?? 0),
     queryFn: () => api.userProfiles.get(userId!),
     enabled: !!userId && userId > 0,

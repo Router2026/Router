@@ -95,7 +95,7 @@ export default function Register() {
     api.users.stats().then(setStats).catch(() => { });
   }, []);
 
-  const totalLocations = roundToThousands(stats?.total_locations) ?? 0;
+  const totalLocations = stats ? roundToThousands(stats.total_locations) : 0;
   const totalRegions = stats?.total_regions ?? regions.length;
   const avgRating = stats?.average_rating ?? 4.8;
 

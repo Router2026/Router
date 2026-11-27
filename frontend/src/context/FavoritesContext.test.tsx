@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, act, waitFor } from '@testing-library/react'
-import React from 'react'
 
 vi.mock('../api', () => ({
   api: {
@@ -20,7 +19,7 @@ import { api } from '../api'
 import { useAuth } from './AuthContext'
 import { FavoritesProvider, useFavorites } from './FavoritesContext'
 
-const mockApi = api as {
+const mockApi = api as unknown as {
   favorites: {
     list: ReturnType<typeof vi.fn>
     add: ReturnType<typeof vi.fn>
