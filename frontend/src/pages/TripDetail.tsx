@@ -9,6 +9,7 @@ import RouteMap from "../components/RouteMap";
 import { fromMinutes, googleMapsRouteUrl, toMinutes } from "../utils/routeSchedule";
 import { api } from "../api";
 import XpToast from "../components/XpToast";
+import TripExportButtons from "../components/TripExportButtons";
 import { getSavedTrip, isTripSaved, refreshSavedTrip, removeSavedTrip, saveTripOffline } from "../utils/offlineTrips";
 import { toast } from "sonner";
 
@@ -271,6 +272,8 @@ export default function TripDetail() {
               ? `שומר מפה לשימוש בלי קליטה… ${saveProgress}%`
               : savedOffline ? "✓ שמור במכשיר לשימוש בלי קליטה (הקישו להסרה)" : "📥 שמור לשימוש בלי קליטה"}
           </button>
+
+          <TripExportButtons trip={trip} />
 
           {first && (
             <a href={`https://waze.com/ul?ll=${first.latitude},${first.longitude}&navigate=yes`} target="_blank" rel="noopener noreferrer"
